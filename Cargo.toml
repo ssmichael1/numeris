@@ -1,12 +1,11 @@
 [package]
-name = "tiny-matrix"
+name = "numeris"
 version = "0.1.0"
 edition = "2021"
 authors = ["Steven Michael <ssmichael@gmail.com>"]
-description = "A tiny matrix library for Rust suitable for embedded development."
+description = "A numerical algorithms library written in pure Rust suitable for embedded development."
 license = "MIT"
-#repository = "https://github.com/yourusername/tiny-matrix"
-#documentation = "https://docs.rs/tiny-matrix"
+repository = "https://github.com/ssmichael1/numeris"
 readme = "README.md"
 keywords = ["matrix", "linear-algebra", "math"]
 categories = ["science", "mathematics"]
