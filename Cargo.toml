@@ -1,0 +1,30 @@
+[package]
+name = "tiny-matrix"
+version = "0.1.0"
+edition = "2021"
+authors = ["Steven Michael <ssmichael@gmail.com>"]
+description = "A tiny matrix library for Rust suitable for embedded development."
+license = "MIT"
+#repository = "https://github.com/yourusername/tiny-matrix"
+#documentation = "https://docs.rs/tiny-matrix"
+readme = "README.md"
+keywords = ["matrix", "linear-algebra", "math"]
+categories = ["science", "mathematics"]
+
+[dependencies]
+# No default dependencies; keep it tiny.
+# Optionally, add these if you want common math traits:
+num-traits = "0.2"
+thiserror = "2.0.16"
+
+[dev-dependencies]
+# For testing
+approx = "0.5" # for floating-point comparisons in tests
+
+[features]
+# Optional features
+# define a feature for additional math functions
+default = ["all"]
+ode = []
+quaternion = []
+all = ["ode", "quaternion"]
