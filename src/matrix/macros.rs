@@ -13,7 +13,7 @@ macro_rules! mat {
 ///
 /// # Example
 /// ```
-/// use tiny_matrix::prelude::*;
+/// use numeris::prelude::*;
 /// let m = mat![[1.0, 2.0], [3.0, 4.0]];
 /// assert!(m == Matrix::new([[1.0, 2.0], [3.0, 4.0]]));
 /// ```
@@ -30,7 +30,7 @@ macro_rules! mat_col_major {
 ///
 /// # Example
 /// ```
-/// use tiny_matrix::prelude::*;
+/// use numeris::prelude::*;
 /// let m = mat_row_major![[1.0, 2.0], [3.0, 4.0]];
 /// // Compare with explicitly created column-major matrix
 /// assert!(m == Matrix::new([[1.0, 3.0], [2.0, 4.0]]));
@@ -49,7 +49,7 @@ macro_rules! mat_row_major {
 /// # Example
 ///
 /// ```rust
-/// use tiny_matrix::prelude::*;
+/// use numeris::prelude::*;
 /// let v = rowmat![1.0, 2.0, 3.0];
 /// assert!(v == Matrix::new([[1.0, 2.0, 3.0]]));
 /// ```

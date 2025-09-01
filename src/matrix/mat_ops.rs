@@ -280,7 +280,7 @@ impl<const ROWS: usize, const COLS: usize, T> std::ops::Index<(usize, usize)>
 /// # Example
 ///
 /// ```rust
-/// use tiny_matrix::prelude::*;
+/// use numeris::prelude::*;
 /// let mat = Matrix::from([[1.0, 2.0], [3.0, 4.0]]);
 /// let mat2: Matrix<2, 2, f64> = [[5.0, 6.0], [7.0, 8.0]].into();
 /// ```

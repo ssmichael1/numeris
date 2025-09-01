@@ -12,7 +12,7 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let a = DynArray::from_vec(vec![1, 2, 3]);
     /// let b = DynArray::from_vec(vec![4, 5, 6]);
     /// let c = a.add_element_wise(&b);

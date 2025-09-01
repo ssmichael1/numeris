@@ -12,7 +12,7 @@ where
     ///
     /// # Example:
     /// ```rust
-    /// use tiny_matrix::mat;
+    /// use numeris::mat;
     /// let m = mat![[1.0, 2.0], [3.0, 4.0]];
     /// assert!(m.shape() == (2, 2));
     /// ```
@@ -29,7 +29,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::mat;
+    /// use numeris::mat;
     /// let m = mat![[1.0, 2.0], [3.0, 4.0]];
     /// assert!(m.rows() == 2);
     /// ```
@@ -46,7 +46,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::mat;
+    /// use numeris::mat;
     /// let m = mat![[1.0, 2.0], [3.0, 4.0]];
     /// assert!(m.cols() == 2);
     /// ```
@@ -92,7 +92,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::mat;
+    /// use numeris::mat;
     /// let m = mat![[1.0, 2.0], [3.0, 4.0]];
     /// let t = m.transpose();
     /// assert!(t == mat![[1.0, 3.0], [2.0, 4.0]]);
@@ -128,7 +128,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::mat;
+    /// use numeris::mat;
     /// let m = mat![[1.0, 2.0, 3.0], [0.0, 1.0, 4.0], [5.0, 6.0, 0.0]];
     /// let minor = m.minor(0, 0);
     /// assert_eq!(minor, mat![[1.0, 4.0], [6.0, 0.0]]);
@@ -167,7 +167,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = Matrix2d::zeros();
     /// assert_eq!(m.shape(), (2, 2));
     /// ```
@@ -185,7 +185,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = Matrix2d::ones();
     /// assert_eq!(m.shape(), (2, 2));
     /// assert_eq!(m[(0, 0)], 1.0);
@@ -200,7 +200,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = Matrix2d::ones();
     /// let m2 = m.map(|x| x + 1.0);
     /// assert_eq!(m2[(0, 0)], 2.0);
@@ -233,7 +233,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m1 = Matrix2d::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let m2 = Matrix2d::from([[5.0, 6.0], [7.0, 8.0]]);
     /// let result = m1.zip_map(&m2, |a, b| a + b);

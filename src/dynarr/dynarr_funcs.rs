@@ -19,7 +19,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let cos_array = array.cos();
     /// ```
@@ -32,7 +32,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let sin_array = array.sin();
     /// ```
@@ -45,7 +45,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let tan_array = array.tan();
     /// ```
@@ -58,7 +58,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let exp_array = array.exp();
     /// ```
@@ -71,7 +71,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let log_array = array.log();
     /// ```
@@ -84,7 +84,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let sqrt_array = array.sqrt();
     /// ```
@@ -97,7 +97,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(-1.0, &[2, 3]);
     /// let abs_array = array.abs();
     /// ```
@@ -110,7 +110,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let acos_array = array.acos();
     /// ```
@@ -123,7 +123,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let asin_array = array.asin();
     /// ```
@@ -136,7 +136,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let atan_array = array.atan();
     /// ```
@@ -149,7 +149,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.5, &[2, 3]);
     /// let ceil_array = array.ceil();
     /// ```
@@ -162,7 +162,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.5, &[2, 3]);
     /// let floor_array = array.floor();
     /// assert!(floor_array == DynArray::uniform(1.0, &[2, 3]));
@@ -176,7 +176,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let sinh_array = array.sinh();
     /// ```
@@ -189,7 +189,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1.0, &[2, 3]);
     /// let cosh_array = array.cosh();
     /// ```
@@ -205,7 +205,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array1 = DynArray::uniform(1.0, &[2, 3]);
     /// let array2 = DynArray::uniform(2.0, &[2, 3]);
     /// let result = array1.atan2(&array2);
@@ -226,7 +226,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(-1.0, &[2, 3]);
     /// let sign_array = array.signum();
     /// ```
@@ -239,7 +239,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(90.0, &[2, 3]);
     /// let degrees_array = array.to_degrees();
     /// ```
@@ -252,7 +252,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(90.0, &[2, 3]);
     /// let radians_array = array.to_radians();
     /// ```
@@ -265,7 +265,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(10.0, &[2, 3]);
     /// let log_array = array.log10();
     /// ```

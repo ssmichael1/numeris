@@ -38,7 +38,7 @@ use dynmat_err::*;
 /// # Example
 ///
 /// ```
-/// use tiny_matrix::prelude::*;
+/// use numeris::prelude::*;
 /// let m = DynMatrix::<f64>::zeros(2, 3);
 /// assert_eq!(m.shape(), (2, 3));
 /// ```
@@ -62,7 +62,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::ones(2, 3);
     /// assert_eq!(m.rows(), 2);
     /// ```
@@ -75,7 +75,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::ones(2, 3);
     /// assert_eq!(m.cols(), 3);
     /// ```
@@ -88,7 +88,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::ones(2, 3);
     /// assert_eq!(m.shape(), (2, 3));
     /// ```
@@ -111,7 +111,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::new(vec![1.0, 2.0, 3.0, 4.0], 2, 2).unwrap();
     /// assert_eq!(m.shape(), (2, 2));
     /// ```
@@ -141,7 +141,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::from_vec_row_major(vec![1.0, 2.0, 3.0, 4.0], 2, 2).unwrap();
     /// assert_eq!(m.shape(), (2, 2));
     /// ```
@@ -171,7 +171,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::zeros(2, 3);
     /// assert_eq!(m.shape(), (2, 3));
     /// ```
@@ -197,7 +197,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::ones(2, 3);
     /// assert_eq!(m.shape(), (2, 3));
     /// ```
@@ -218,7 +218,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::ones(2, 3);
     /// let m_t = m.transpose();
     /// assert_eq!(m_t.shape(), (3, 2));
@@ -259,7 +259,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::ones(2, 2);
     /// let elem = m.at(0, 0);
     /// assert_eq!(elem, Ok(&1.0));
@@ -283,7 +283,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let mut m = DynMatrix::<f64>::ones(2, 2);
     /// let elem = m.at_mut(0, 0);
     /// assert_eq!(elem, Ok(&mut 1.0));
@@ -308,7 +308,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::from_fn(2, 2, |row, col| (row + col) as f64);
     /// assert_eq!(m[(0, 0)], 0.0);
     /// assert_eq!(m[(0, 1)], 1.0);
@@ -351,7 +351,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::from_iter(0..4, 2, 2).unwrap();
     /// assert_eq!(m.shape(), (2, 2));
     /// ```
@@ -383,7 +383,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::<f64>::ones(2, 2);
     /// let m2 = m.map(|x| x * 2.0);
     /// assert_eq!(m2[(0,0)], 2.0);
@@ -418,7 +418,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::from_fn(3, 3, |row, col| (row + col) as f64);
     /// let minor = m.minor(1, 1).unwrap();
     /// assert_eq!(minor.shape(), (2, 2));
@@ -448,7 +448,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::from_fn(2, 2, |row, col| (row + col) as f64);
     /// assert_eq!(m.determinant(), Ok(-1.0));
     /// ```
@@ -491,7 +491,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::from_vec_row_major(vec![1.0, 2.0, 3.0, 4.0], 2, 2).unwrap();
     /// assert_eq!(m.inverse(), Ok(DynMatrix::from_vec_row_major(vec![-2.0, 1.0, 1.5, -0.5], 2, 2).unwrap()));
     /// ```
@@ -529,7 +529,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let m = DynMatrix::from_fn(2, 2, |row, col| (row + col) as f64);
     /// let arr = m.as_dynarray();
     /// assert_eq!(arr.shape(), &[2, 2]);

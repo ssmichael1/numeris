@@ -30,7 +30,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use tiny_matrix::prelude::*;
+//! use numeris::prelude::*;
 //! let m = Matrix::from_row_major([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
 //! //let v = vec!([1.0, 2.0, 3.0]);
 //! //let result = m * v;

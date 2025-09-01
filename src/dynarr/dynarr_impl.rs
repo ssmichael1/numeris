@@ -58,7 +58,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// assert_eq!(array.at(&[1, 2]).unwrap(), 1);
     /// ```
@@ -76,7 +76,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let mut array = DynArray::uniform(0, &[2, 3]);
     /// array[&[0,0]] = 1;
     /// let indices: Vec<_> = array.iter_where(|&x| x == 1).collect();
@@ -99,7 +99,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let vec = vec![1, 2, 3];
     /// let array = DynArray::from_vec(vec);
     /// assert_eq!(array.shape(), &[3]);
@@ -162,7 +162,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// assert_eq!(array.at(&[1, 2]).unwrap(), 1);
     /// ```
@@ -179,7 +179,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// assert_eq!(*array.at_ref(&[1, 2]).unwrap(), 1);
     /// ```
@@ -196,7 +196,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let mut array = DynArray::uniform(1, &[2, 3]);
     /// *array.at_mut(&[1, 2]).unwrap() = 4;
     /// assert_eq!(*array.at_ref(&[1, 2]).unwrap(), 4);
@@ -215,7 +215,7 @@ where
     /// Example:
     ///
     /// ```rust
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// assert_eq!(array.shape(), &[2, 3]);
     /// ```
@@ -230,7 +230,7 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::from_iter(0..6, &[2, 3]).unwrap();
     /// assert_eq!(array.shape(), &[2, 3]);
     /// ```
@@ -251,7 +251,7 @@ where
     /// Example:
     ///
     /// ```rust
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// assert_eq!(array.ndims(), 2);
     /// ```
@@ -264,7 +264,7 @@ where
     /// Example:
     ///
     /// ```rust
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// assert_eq!(array.size(), 6);
     /// ```
@@ -277,7 +277,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// let mapped = array.map_with_index(|idx, val| (*val + idx[0]) as f32);
     /// assert_eq!(*mapped.at_ref(&[1, 2]).unwrap(), 3.0);
@@ -304,7 +304,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array1 = DynArray::uniform(1.0, &[2, 3]);
     /// let array2 = DynArray::uniform(2.0, &[2, 3]);
     /// let result = array1.zip_map(&array2, |x, y| x + y);
@@ -331,7 +331,7 @@ where
     /// # Example:
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::uniform(1, &[2, 3]);
     /// let mapped = array.map(|x| *x + 1);
     /// assert_eq!(*mapped.at_ref(&[1, 2]).unwrap(), 2);
@@ -355,7 +355,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let mut array = DynArray::uniform(1, &[1, 2, 1]);
     /// array.squeeze();
     /// assert_eq!(array.shape(), &[2]);
@@ -372,7 +372,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use tiny_matrix::prelude::*;
+    /// use numeris::prelude::*;
     /// let array = DynArray::from_iter(0..6, &[2, 3]).unwrap();
     /// let m = array.as_dynmatrix().unwrap();
     /// assert_eq!(m.shape(), (2, 3));

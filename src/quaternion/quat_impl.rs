@@ -178,7 +178,23 @@ where
     /// # Returns
     ///
     /// A quaternion representing the rotation.
+    ///
+    /// # Note:
+    ///
+    /// * If axis norm is zero, it is taken to be x axis
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::prelude::*;
+    /// let angle = std::f64::consts::PI / 2.0;
+    /// // Rotate xhat by 90 degrees around z axis
+    /// let rotated = Quaternion::from_axis_angle(Vector3d::zhat(), angle) * Vector3d::xhat();
+    /// ```
     pub fn from_axis_angle(axis: Vector3<T>, angle: T) -> Self {
+        let axis = axis
+            .normalized()
+            .unwrap_or(rowmat![T::one(), T::zero(), T::zero()]);
         let half_angle = angle / T::from(2.0).unwrap();
         Self {
             w: half_angle.cos(),
@@ -188,11 +204,78 @@ where
         }
     }
 
-    /// Represent quaternion as a 3x3 Direction Cosine Matrix
+    /// Conversion from a 3x3 rotation matrix
+    ///
+    /// # Arguments
+    ///
+    /// * `matrix` - A 3x3 rotation matrix.
     ///
     /// # Returns
     ///
-    /// A 3x3 Direction Cosine Matrix representing the rotation.
+    /// A quaternion representing the equivalent rotation as the input matrix
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use numeris::prelude::*;
+    /// let q = Quaternion::rotz(std::f64::consts::PI / 2.0);
+    /// let m = q.as_dcm();
+    /// let r1 = m * Vector3d::xhat();
+    /// let r2 = q * Vector3d::xhat();
+    /// for idx in 0..3 {
+    ///     approx::assert_abs_diff_eq!(r1[idx], r2[idx], epsilon = 1e-10);
+    /// }
+    ///
+    /// ```
+    pub fn from_dcm(m: &crate::matrix::Matrix3<T>) -> Self {
+        let trace = m[(0, 0)] + m[(1, 1)] + m[(2, 2)];
+        let max = m[(0, 0)].max(m[(1, 1)].max(m[(2, 2)])).max(trace);
+        let qmax = T::from(0.5).unwrap() * (T::one() - trace + T::from(2.0).unwrap() * max).sqrt();
+        let qmax4 = qmax * T::from(4.0).unwrap();
+        let mut q = {
+            if m[(0, 0)] > m[(1, 1)] && m[(0, 0)] > m[(2, 2)] && m[(0, 0)] > trace {
+                Self {
+                    w: (-m[(2, 1)] - m[(1, 2)]) / qmax4,
+                    x: qmax,
+                    y: (m[(0, 1)] + m[(1, 0)]) / qmax4,
+                    z: (m[(0, 2)] + m[(2, 0)]) / qmax4,
+                }
+            } else if m[(1, 1)] > m[(2, 2)] && m[(1, 1)] > trace {
+                Self {
+                    w: (m[(0, 2)] - m[(2, 0)]) / qmax4,
+                    x: (m[(0, 1)] + m[(1, 0)]) / qmax4,
+                    y: qmax,
+                    z: (m[(1, 2)] + m[(2, 1)]) / qmax4,
+                }
+            } else if m[(2, 2)] > trace {
+                Self {
+                    w: (m[(1, 0)] - m[(0, 1)]) / qmax4,
+                    x: (m[(0, 2)] + m[(2, 0)]) / qmax4,
+                    y: (m[(1, 2)] + m[(2, 1)]) / qmax4,
+                    z: qmax,
+                }
+            } else {
+                Self {
+                    w: qmax,
+                    x: (m[(2, 1)] - m[(1, 2)]) / qmax4,
+                    y: (m[(0, 2)] - m[(2, 0)]) / qmax4,
+                    z: (m[(1, 0)] - m[(0, 1)]) / qmax4,
+                }
+            }
+        };
+        // Pick w to be positive
+        if q.w < T::zero() {
+            q = Self {
+                w: -q.w,
+                x: -q.x,
+                y: -q.y,
+                z: -q.z,
+            };
+        }
+        q = q.normalized().unwrap_or(Self::identity());
+        q
+    }
+
     pub fn as_dcm(&self) -> crate::matrix::Matrix3<T> {
         let (axis, angle) = self.as_axis_angle();
         let cos = angle.cos();
@@ -262,8 +345,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::matrix::Vector3d;
+    use crate::prelude::*;
 
     #[test]
     fn test_quaternion_norm() {
@@ -275,6 +357,19 @@ mod tests {
     fn test_quaternion_conjugate() {
         let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
         assert_eq!(q.conjugate(), Quaternion::new(1.0, -2.0, -3.0, -4.0));
+    }
+
+    #[test]
+    fn test_dcm() {
+        let m =
+            Matrix3::<f64>::from_row_major([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]);
+        let q = Quaternion::from_dcm(&m);
+
+        for r in 0..3 {
+            for c in 0..3 {
+                approx::assert_abs_diff_eq!(m[(r, c)], q.as_dcm()[(r, c)], epsilon = 1e-10);
+            }
+        }
     }
 
     #[test]

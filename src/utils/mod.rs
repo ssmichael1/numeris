@@ -15,7 +15,7 @@ use crate::prelude::*;
 /// # Example
 ///
 /// ```
-/// use tiny_matrix::prelude::*;
+/// use numeris::prelude::*;
 /// let arr = utils::linspace(0.0, 1.0, 5);
 /// assert_eq!(arr, DynArray::from_vec(vec![0.0, 0.25, 0.5, 0.75, 1.0]));
 /// ```
@@ -49,7 +49,7 @@ where
 /// # Example
 ///
 /// ```
-/// use tiny_matrix::prelude::*;
+/// use numeris::prelude::*;
 /// let arr = utils::logspace(-1.0, 1.0, 3);
 /// assert_eq!(arr, DynArray::from_vec(vec![0.1, 1.0, 10.0]));
 /// ```

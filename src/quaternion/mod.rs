@@ -18,7 +18,7 @@
 //! # Examples:
 //!
 //! ```rust
-//! use tiny_matrix::prelude::*;
+//! use numeris::prelude::*;
 //! let q = Quaternion::rotz(std::f64::consts::PI / 2.0);
 //! // Right-handed rotation of xhat vector by Pi/2 radians about zhat
 //! // This should produce yhat
