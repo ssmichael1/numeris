@@ -1,4 +1,4 @@
-pub trait PixelType: Sized {
+pub trait PixelType: Sized + Copy {
     fn channels(&self) -> usize;
 }
 

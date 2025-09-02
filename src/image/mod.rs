@@ -1,5 +1,7 @@
 mod pixeltype;
 
+use std::ops::{Index, IndexMut};
+
 pub use pixeltype::PixelType;
 
 pub struct Image<T>
@@ -13,7 +15,7 @@ where
 
 impl<T> Image<T>
 where
-    T: PixelType + Clone,
+    T: PixelType,
 {
     /// Returns the width of the image.
     ///
@@ -74,35 +76,6 @@ where
     pub fn data(&self) -> &Vec<T> {
         &self.data
     }
-}
-
-impl<T> Image<T>
-where
-    T: PixelType + num_traits::PrimInt,
-{
-    /// Clamps the pixel values of the image to the specified range.
-    ///
-    /// This function modifies the image in place, clamping all pixel values
-    /// to be within the [min, max] range.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use numeris::prelude::*;
-    ///
-    /// let mut img = Image::<i32>::ones(100, 100);
-    /// img.clamp_in_place(0, 255);
-    /// ```
-    pub fn clamp_in_place(&mut self, min: T, max: T) {
-        self.data.iter_mut().for_each(|v| {
-            if *v < min {
-                *v = min;
-            } else if *v > max {
-                *v = max;
-            }
-        });
-    }
-
     /// Applies a function to each pixel in the image, returning a new image.
     ///
     /// This function does not modify the original image.
@@ -138,12 +111,19 @@ where
         }
     }
 
-    /// Converts a 1D index to 2D coordinates (x, y).
-    /// Note: not range checked since it is used only internally
     fn flat_to_index(&self, flat: usize) -> (usize, usize) {
         let x = flat % self.width_;
         let y = flat / self.width_;
         (x, y)
+    }
+
+    /// Converts a 1D index to 2D coordinates (x, y).
+    pub fn at(&self, x: usize, y: usize) -> Option<&T> {
+        self.index_to_flat(x, y).and_then(|idx| self.data.get(idx))
+    }
+    pub fn at_mut(&mut self, x: usize, y: usize) -> Option<&mut T> {
+        self.index_to_flat(x, y)
+            .and_then(move |idx| self.data.get_mut(idx))
     }
 
     /// Applies a function to each pixel in the image, returning a new image.
@@ -200,7 +180,35 @@ where
 
 impl<T> Image<T>
 where
-    T: PixelType + num_traits::Zero + Clone,
+    T: PixelType + num_traits::PrimInt,
+{
+    /// Clamps the pixel values of the image to the specified range.
+    ///
+    /// This function modifies the image in place, clamping all pixel values
+    /// to be within the [min, max] range.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::prelude::*;
+    ///
+    /// let mut img = Image::<i32>::ones(100, 100);
+    /// img.clamp_in_place(0, 255);
+    /// ```
+    pub fn clamp_in_place(&mut self, min: T, max: T) {
+        self.data.iter_mut().for_each(|v| {
+            if *v < min {
+                *v = min;
+            } else if *v > max {
+                *v = max;
+            }
+        });
+    }
+}
+
+impl<T> Image<T>
+where
+    T: PixelType + num_traits::Zero,
 {
     pub fn zeros(width: usize, height: usize) -> Self {
         let data = vec![T::zero(); width * height];
@@ -214,7 +222,7 @@ where
 
 impl<T> Image<T>
 where
-    T: PixelType + num_traits::One + Clone,
+    T: PixelType + num_traits::One,
 {
     pub fn ones(width: usize, height: usize) -> Self {
         let data = vec![T::one(); width * height];
@@ -223,5 +231,45 @@ where
             height_: height,
             data,
         }
+    }
+}
+
+impl<T> Index<(usize, usize)> for Image<T>
+where
+    T: PixelType,
+{
+    type Output = T;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        self.at(index.0, index.1).unwrap()
+    }
+}
+
+impl<T> Index<usize> for Image<T>
+where
+    T: PixelType,
+{
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl<T> IndexMut<usize> for Image<T>
+where
+    T: PixelType,
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[index]
+    }
+}
+
+impl<T> IndexMut<(usize, usize)> for Image<T>
+where
+    T: PixelType,
+{
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        self.at_mut(index.0, index.1).unwrap()
     }
 }
