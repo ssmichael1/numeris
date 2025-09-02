@@ -224,10 +224,15 @@ where T: MatrixElem + num_traits::Float
     ///
     /// ```
     /// use numeris::prelude::*;
-    /// let mat = Matrix::from_row_major([[4.0, 2.0], [2.0, 3.0]]);
-    /// let (l, d) = mat.ldl().unwrap();
-    /// let c2 = &l * &d * &l.transpose();
-    /// assert!((c2 - mat).data.iter().flatten().all(|&x| x.abs() < 1e-10));
+    /// use num_traits::Float;
+    /// let m = Matrix::from_row_major([[4.0, 2.0], [2.0, 3.0]]);
+    /// let (l, d) = m.ldl().unwrap();
+    /// let m2 = &l * &d * &l.transpose();
+    /// for i in 0..2 {
+    ///     for j in 0..2 {
+    ///         assert!((m2[(i, j)] - m[(i, j)]).abs() < 1e-10);
+    ///     }
+    /// }
     /// ```
     pub fn ldl(&self) -> Option<(Self, Self)> {
         let mut l = Self::identity();
@@ -269,11 +274,16 @@ where T: MatrixElem + num_traits::Float
     ///
     /// ```
     /// use numeris::prelude::*;
+    /// use num_traits::Float;
     /// let mat = Matrix::from_row_major([[4.0, 2.0], [2.0, 3.0]]);
     /// let l = mat.cholesky().unwrap();
     /// println!("l = {}", l);
     /// let c2 = l * l.transpose();
-    /// assert_eq!(c2, mat);
+    /// for i in 0..2 {
+    ///     for j in 0..2 {
+    ///         assert!((c2[(i, j)] - mat[(i, j)]).abs() < 1e-10);
+    ///     }
+    /// }
     /// ```
     pub fn cholesky(&self) -> Option<Self> {
         if N == 1 {

@@ -35,7 +35,7 @@ impl<T> RGB<T> where T: num_traits::Zero + Copy + num_traits::Unsigned + num_tra
     ///
     /// ```
     /// use numeris::prelude::rgb::*;
-    /// let color = RGB::from_hex_string("#FF5733");
+    /// let color = RGB8::from_hex_string("#FF5733");
     /// ```
     pub fn from_hex_string(s: &str) -> Option<Self> {
         // Parse hexidecimal "#FFFFFF" format or "#FFF" format
