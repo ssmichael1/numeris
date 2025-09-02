@@ -26,4 +26,5 @@ approx = "0.5" # for floating-point comparisons in tests
 default = ["all"]
 ode = []
 quaternion = []
-all = ["ode", "quaternion"]
+image = []
+all = ["ode", "quaternion", "image"]

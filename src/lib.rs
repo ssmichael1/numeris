@@ -10,6 +10,10 @@ mod quaternion;
 #[cfg(feature = "ode")]
 pub mod ode;
 
+// Image processin
+#[cfg(feature = "image")]
+pub mod image;
+
 pub mod prelude {
     pub use crate::dynarr::*;
     pub use crate::dynmatrix::*;
@@ -22,6 +26,9 @@ pub mod prelude {
 
     #[cfg(feature = "quaternion")]
     pub use crate::quaternion::*;
+
+    #[cfg(feature = "image")]
+    pub use crate::image::*;
 
     pub use crate::utils;
 }

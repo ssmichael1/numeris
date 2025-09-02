@@ -27,6 +27,7 @@ Currently in **alpha** development state
 - `Image` : 2D Image processing (convolution, transforms)
 - `FFT` : Fast-Fourier Transform
 - `Optim` : Linear and non-linear optimization (Gauss-Newton, Levenberg-Marquardt, etc..)
+- `Random` : Random number generation from multiple possible distributions
 
 ## Contributing
 
