@@ -1,4 +1,5 @@
 mod pixeltype;
+pub mod rgb;
 
 use std::ops::{Index, IndexMut};
 
