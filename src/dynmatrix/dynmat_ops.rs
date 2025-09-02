@@ -186,6 +186,54 @@ where
     }
 }
 
+impl<T> std::ops::Mul<DynMatrix<T>> for &DynMatrix<T>
+where
+    T: MatrixElem,
+{
+    type Output = DynMatrixResult<DynMatrix<T>>;
+
+    fn mul(self, other: DynMatrix<T>) -> Self::Output {
+        if self.cols() != other.rows() {
+            return Err(DynMatrixError::DimensionMismatch);
+        }
+        let mut result = DynMatrix::<T>::zeros(self.rows(), other.cols());
+        for i in 0..self.rows() {
+            for j in 0..other.cols() {
+                let mut sum = T::zero();
+                for k in 0..self.cols() {
+                    sum += self.data[i * self.cols() + k] * other.data[k * other.cols() + j];
+                }
+                result.data[i * other.cols() + j] = sum;
+            }
+        }
+        Ok(result)
+    }
+}
+
+impl<T> std::ops::Mul<&DynMatrix<T>> for &DynMatrix<T>
+where
+    T: MatrixElem,
+{
+    type Output = DynMatrixResult<DynMatrix<T>>;
+
+    fn mul(self, other: &DynMatrix<T>) -> Self::Output {
+        if self.cols() != other.rows() {
+            return Err(DynMatrixError::DimensionMismatch);
+        }
+        let mut result = DynMatrix::<T>::zeros(self.rows(), other.cols());
+        for i in 0..self.rows() {
+            for j in 0..other.cols() {
+                let mut sum = T::zero();
+                for k in 0..self.cols() {
+                    sum += self.data[i * self.cols() + k] * other.data[k * other.cols() + j];
+                }
+                result.data[i * other.cols() + j] = sum;
+            }
+        }
+        Ok(result)
+    }
+}
+
 impl<T> std::ops::Mul<DynMatrix<T>> for DynMatrix<T>
 where
     T: MatrixElem,

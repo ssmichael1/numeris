@@ -30,6 +30,6 @@ Currently in **alpha** development state
 
 ## Contributing
 
-This crate is supported publicly, but I will be developing modules as needed to support my professional work. If you are interested in contributing or have suggestions for additional modules, please reach out.
+I will be developing modules as needed to support my professional work.  However, I am open to making the crate as useful as possible for others. If you are interested in contributing or have suggestions for additional modules, please reach out.
 
 Steven Michael (ssmichael@gmail.com)

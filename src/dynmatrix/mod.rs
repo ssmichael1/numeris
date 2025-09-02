@@ -6,6 +6,7 @@
 
 mod dynmat_display;
 mod dynmat_err;
+mod dynmat_matrix_ops;
 mod dynmat_ops;
 
 use dynmat_err::*;
@@ -35,12 +36,32 @@ use dynmat_err::*;
 ///
 /// - for operators with scalars, the operators always succeed and return a new array.
 ///
-/// # Example
+/// - Because raw data is stored in a vector on the heap, the `DynMatrix` type is
+///   not copyable.  This means multiplies and other operations will consume the
+///   operands.  To avoid this, operators support borrowing, allowing you to
+///   use references to the original matrices without taking ownership.
 ///
-/// ```
+/// # Examples
+///
+/// - Create a new `DynMatrix`
+/// ```rust
 /// use numeris::prelude::*;
 /// let m = DynMatrix::<f64>::zeros(2, 3);
 /// assert_eq!(m.shape(), (2, 3));
+/// ```
+///
+/// - Multiplication by reference to avoid consuming operands
+/// ```rust
+/// use numeris::prelude::*;
+/// let m1 = DynMatrix::from_vec_row_major(vec![1.0, 2.0, 3.0, 4.0], 2, 2).unwrap();
+/// let m2 = DynMatrix::from_vec_row_major(vec![5.0, 6.0, 7.0, 8.0], 2, 2).unwrap();
+///
+/// // Do multiplication without consuming m1 or m2
+/// // Because sizes are unknown at compile time, operations are wrapped in a result
+/// // to ensure compatible dimensions
+/// let result = (&m1 * &m2).unwrap();
+/// // Since we used references, m1 and m2 are still available for use
+/// let result2 = (&m1 * &m2).unwrap();
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct DynMatrix<T>

@@ -1,5 +1,6 @@
 use super::*;
 
+/// Functions on arrays with floating-point elements
 impl<T> DynArray<T>
 where
     T: ArrayElem + num_traits::Float,

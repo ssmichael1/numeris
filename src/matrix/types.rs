@@ -16,26 +16,36 @@ pub type Matrix6<T> = Matrix<6, 6, T>;
 pub type Matrix2d = Matrix<2, 2, f64>;
 /// 2x2 single-precision matrix
 pub type Matrix2f = Matrix<2, 2, f32>;
+/// 2x2 integer matrix
+pub type Matrix2i = Matrix<2, 2, i32>;
 
 /// 3x3 double-precision matrix
 pub type Matrix3d = Matrix<3, 3, f64>;
 /// 3x3 single-precision matrix
 pub type Matrix3f = Matrix<3, 3, f32>;
+/// 3x3 integer matrix
+pub type Matrix3i = Matrix<3, 3, i32>;
 
 /// 4x4 double-precision matrix
 pub type Matrix4d = Matrix<4, 4, f64>;
 /// 4x4 single-precision matrix
 pub type Matrix4f = Matrix<4, 4, f32>;
+/// 4x4 integer matrix
+pub type Matrix4i = Matrix<4, 4, i32>;
 
 /// 5x5 double-precision matrix
 pub type Matrix5d = Matrix<5, 5, f64>;
 /// 5x5 single-precision matrix
 pub type Matrix5f = Matrix<5, 5, f32>;
+/// 5x5 integer matrix
+pub type Matrix5i = Matrix<5, 5, i32>;
 
 /// 6x6 double-precision matrix
 pub type Matrix6d = Matrix<6, 6, f64>;
 /// 6x6 single-precision matrix
 pub type Matrix6f = Matrix<6, 6, f32>;
+/// 6x6 integer matrix
+pub type Matrix6i = Matrix<6, 6, i32>;
 
 /// 1D Vectors (Row Matrix) types
 pub type Vector<const N: usize, T> = Matrix<N, 1, T>;
@@ -58,11 +68,17 @@ pub type VectorNf<const N: usize> = Matrix<N, 1, f32>;
 pub type Vector2d = Matrix<2, 1, f64>;
 /// Fixed-length 2D single-precision vector type
 pub type Vector2f = Matrix<2, 1, f32>;
+/// Fixed-length 2D integer vector type
+pub type Vector2i = Matrix<2, 1, i32>;
 /// Fixed-length 3D double-precision vector type
 pub type Vector3d = Matrix<3, 1, f64>;
 /// Fixed-length 3D single-precision vector type
 pub type Vector3f = Matrix<3, 1, f32>;
+/// Fixed-length 3D integer vector type
+pub type Vector3i = Matrix<3, 1, i32>;
 /// Fixed-length 4D double-precision vector type
 pub type Vector4d = Matrix<4, 1, f64>;
 /// Fixed-length 4D single-precision vector type
 pub type Vector4f = Matrix<4, 1, f32>;
+/// Fixed-length 4D integer vector type
+pub type Vector4i = Matrix<4, 1, i32>;
