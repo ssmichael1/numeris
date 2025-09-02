@@ -342,6 +342,12 @@ mod tests {
         assert_eq!(m[(0, 0)], 1.0);
         assert_eq!(m[(1, 1)], 4.0);
         assert_eq!(m[(0, 1)], 3.0);
+
+        let m = Matrix::from_row_major([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+        assert_eq!(m[(0, 0)], 1.0);
+        assert_eq!(m[(1, 1)], 5.0);
+        assert_eq!(m[(0, 1)], 2.0);
+        assert_eq!(m[(1, 2)], 6.0);
     }
 
     #[test]

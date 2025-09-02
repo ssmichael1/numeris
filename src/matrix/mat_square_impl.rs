@@ -1,6 +1,3 @@
-//! Implementation for square matrices
-//!
-
 use super::{Matrix, MatrixElem};
 
 /// Implementation for square matrices
@@ -160,10 +157,158 @@ where
             panic!("Determinant not implemented for matrices larger than 9x9 (need better generic handling in rust)")
         }
     }
+
+}
+
+impl<const N: usize, T> Matrix<N, N, T>
+where T: MatrixElem + num_traits::Float
+{
+    /// QR factorization using Gram-Schmidt process
+    ///
+    /// Returns (Q, R) where Q is orthogonal and R is upper triangular
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::matrix::Matrix;
+    /// let a = Matrix::<3, 3, f64>::from_row_major([
+    ///     [12.0, -51.0, 4.0],
+    ///     [6.0, 167.0, -68.0],
+    ///     [-4.0, 24.0, -41.0],
+    /// ]);
+    /// let (q, r) = a.qr();
+    /// let a2 = q * r;
+    /// for i in 0..3 {
+    ///     for j in 0..3 {
+    ///         assert!((a2[(i, j)] - a[(i, j)]).abs() < 1e-8);
+    ///     }
+    /// }
+    /// ```
+    pub fn qr(&self) -> (Self, Self) {
+        let mut q = Self::zeros();
+        let mut r = Self::zeros();
+        let a = *self;
+        // Gram-Schmidt
+        for j in 0..N {
+            // v_j = a_j
+            let mut v = [T::zero(); N];
+            for i in 0..N {
+                v[i] = a[(i, j)];
+            }
+            for k in 0..j {
+                let mut r_kj = T::zero();
+                for i in 0..N {
+                    r_kj += q[(i, k)] * a[(i, j)];
+                }
+                r[(k, j)] = r_kj;
+                for i in 0..N {
+                    v[i] = v[i] - r_kj * q[(i, k)];
+                }
+            }
+            let norm = v.iter().map(|x| *x * *x).fold(T::zero(), |a, b| a + b).sqrt();
+            r[(j, j)] = norm;
+            for i in 0..N {
+                q[(i, j)] = v[i] / norm;
+            }
+        }
+        (q, r)
+    }
+    /// LDL^T decomposition
+    ///
+    /// # Returns
+    ///
+    /// (L, D) where L is lower-triangular with unit diagonal, D is diagonal
+    /// Returns None if the matrix is not symmetric or not positive definite
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use numeris::prelude::*;
+    /// let mat = Matrix::from_row_major([[4.0, 2.0], [2.0, 3.0]]);
+    /// let (l, d) = mat.ldl().unwrap();
+    /// let c2 = &l * &d * &l.transpose();
+    /// assert!((c2 - mat).data.iter().flatten().all(|&x| x.abs() < 1e-10));
+    /// ```
+    pub fn ldl(&self) -> Option<(Self, Self)> {
+        let mut l = Self::identity();
+        let mut d = Self::zeros();
+        for j in 0..N {
+            let mut sum = T::zero();
+            for k in 0..j {
+                sum += l[(j, k)] * l[(j, k)] * d[(k, k)];
+            }
+            d[(j, j)] = self[(j, j)] - sum;
+            if d[(j, j)].is_zero() {
+                return None;
+            }
+            for i in (j + 1)..N {
+                let mut sum = T::zero();
+                for k in 0..j {
+                    sum += l[(i, k)] * l[(j, k)] * d[(k, k)];
+                }
+                l[(i, j)] = (self[(i, j)] - sum) / d[(j, j)];
+            }
+        }
+        Some((l, d))
+    }
+
+    /// Cholesky decomposition
+    /// 
+    /// # Returns
+    /// 
+    /// Lower-triangular matrix of decomposition, if successful
+    /// else None (Matrix must be positive definite)
+    /// 
+    /// # Notes
+    /// 
+    /// Uses the Cholesky-Crout algorithm to compute matrix
+    /// column by column
+    /// See: <https://en.wikipedia.org/wiki/Cholesky_decomposition>
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// use numeris::prelude::*;
+    /// let mat = Matrix::from_row_major([[4.0, 2.0], [2.0, 3.0]]);
+    /// let l = mat.cholesky().unwrap();
+    /// println!("l = {}", l);
+    /// let c2 = l * l.transpose();
+    /// assert_eq!(c2, mat);
+    /// ```
+    pub fn cholesky(&self) -> Option<Self> {
+        if N == 1 {
+            let mut data = [[T::zero(); N]; N];
+            data[0][0] = self.data[0][0].sqrt();
+            Some(Self::new(data))
+        } else {
+            let mut c = Self::zeros();
+            for j in 0..N {
+                let mut sum = T::zero();
+                for k in 0..j {
+                    sum += c[(j, k)] * c[(j, k)];
+                }
+                c[(j, j)] = (self[(j, j)] - sum).sqrt();
+                for i in (j + 1)..N {
+                    let mut sum = T::zero();
+                    for k in 0..j {
+                        sum += c[(i, k)] * c[(j, k)];
+                    }
+                    if c[(j, j)].is_zero() {
+                        return None;
+                    }
+                    c[(i, j)] = (self[(i, j)] - sum) / c[(j, j)];
+                }
+            }
+            Some(c)
+        }
+    }
+
 }
 
 #[cfg(test)]
 mod tests {
+    use num_traits::Float;
+
     use super::*;
 
     #[test]
@@ -177,6 +322,33 @@ mod tests {
         let mat = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
         assert_eq!(mat.determinant(), 0.0);
     }
+
+    #[test]
+    fn test_cholesky() {
+        let mat = Matrix::from_row_major([[4.0, 2.0], [2.0, 3.0]]);
+        let l = mat.cholesky().unwrap();
+
+        let c2 = l * l.transpose();
+        for i in 0..2 {
+            for j in 0..2 {
+                assert!((c2[(i, j)] - mat[(i, j)]).abs() < 1e-10);
+            }
+        }
+        }
+
+    #[test]
+    fn test_ldl() {
+        let mat = Matrix::from_row_major([[4.0, 2.0], [2.0, 3.0]]);
+        let (l, d) = mat.ldl().unwrap();
+        // Reconstruct: L D L^T
+        let c2 = l * d * l.transpose();
+        for i in 0..2 {
+            for j in 0..2 {
+                assert!((c2[(i, j)] - mat[(i, j)]).abs() < 1e-10);
+            }
+        }
+    }
+
 
     #[test]
     fn test_inverse_2x2() {
@@ -195,5 +367,26 @@ mod tests {
         let matinv = Matrix::new([[-24.0, 18.0, 5.0], [20.0, -15.0, -4.0], [-5.0, 4.0, 1.0]]);
         let inv = inv.unwrap();
         assert_eq!(inv, matinv);
+    }
+
+    #[test]
+    fn test_qr() {
+        let a = Matrix::from_row_major([[12.0, -51.0, 4.0], [6.0, 167.0, -68.0], [-4.0, 24.0, -41.0]]);
+        let (q, r) = a.qr();
+        // Check that Q*R ≈ A
+        let a2 = q * r;
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!((a2[(i, j)] - a[(i, j)]).abs() < 1e-8);
+            }
+        }
+        // Check that Q^T Q ≈ I
+        let qtq = q.transpose() * q;
+        let id = Matrix::<3, 3, f64>::identity();
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!((qtq[(i, j)] - id[(i, j)]).abs() < 1e-8);
+            }
+        }
     }
 }

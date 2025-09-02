@@ -43,6 +43,7 @@ mod mat_ops;
 mod mat_square_impl;
 mod types;
 mod vector;
+mod svd;
 
 pub use types::*;
 
