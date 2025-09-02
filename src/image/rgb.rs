@@ -103,6 +103,18 @@ impl<T> Default for RGBA<T> where T: num_traits::Zero + Copy + num_traits::Unsig
     }
 }
 
+impl<T> std::fmt::Display for RGB<T> where T: num_traits::Zero + Copy + num_traits::Unsigned + num_traits::PrimInt + std::fmt::Display { 
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "RGB({}, {}, {})", self.r, self.g, self.b)
+    }
+}
+
+impl<T> std::fmt::Display for RGBA<T> where T: num_traits::Zero + Copy + num_traits::Unsigned + num_traits::PrimInt + std::fmt::Display {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "RGBA({}, {}, {}, {})", self.r, self.g, self.b, self.a)
+    }
+}
+
 pub type RGB8 = RGB<u8>;
 pub type RGBA8 = RGBA<u8>;
 pub type RGB16 = RGB<u16>;

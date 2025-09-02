@@ -8,9 +8,9 @@ Currently in **alpha** development state
 
 ## Design Philosophy
 
-- `Numeris` is intended to be a mostly *self-contained* crate, with minimal external dependencies.  This allows for the creation of a highly-integrated package, and ensures robustness when used in embedded applications.
+- `Numeris` will host core algorithms and structures withn a *self-contained* crate, with minimal external dependencies.  This allows for the creation of a highly-integrated package, and ensures robustness when used in embedded applications.
 
-- `Numeris` is performant, but minimizes the use of platform-specific optimizations. Computers are fast and getting faster.  Also, compiler optimizations do a good job of squeezing out available performance.  Avoiding explicit use of these optimizations allows the crate to be platform-agnostic (again, with an eye toward embedded applications), and again minimizes external dependencies. 
+- `Numeris` is performant, but minimizes the use of platform-specific optimizations. Computers are fast and getting faster.  Also, compiler optimizations do a good job of squeezing out available performance.  Avoiding explicit use of platform-specific optimizations via external providers allows the crate to be platform-agnostic (with an eye toward embedded applications), and again minimizes external dependencies. 
 
 - `Numeris` code is simple by design.  Complex idioms can add performance and flexibility, but also are a potential source of errors for developers who cannot follow the design flow.  The code is intended to be understood by those who do not develop rust professionally (such as myself).
 

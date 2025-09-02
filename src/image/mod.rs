@@ -1,10 +1,14 @@
 mod pixeltype;
 pub mod rgb;
+mod impl_mono;
+pub mod filter;
+pub mod convolution;
 
 use std::ops::{Index, IndexMut};
 
 pub use pixeltype::PixelType;
 
+#[derive(Debug, Clone)]
 pub struct Image<T>
 where
     T: PixelType,
@@ -102,6 +106,32 @@ where
         }
     }
 
+    /// Maps the pixels of two images using a closure.
+    ///
+    /// This function does not modify the original images.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::prelude::*;
+    ///
+    /// let img1 = Image::<i32>::ones(100, 100);
+    /// let img2 = Image::<i32>::ones(100, 100);
+    /// let mapped = img1.map_zipped(&img2, |a, b| a + b);
+    /// ```
+    pub fn map_zipped<F, U>(&self, other: &Image<U>, f: F) -> Image<U>
+    where
+        F: Fn(&T, &U) -> U,
+        U: PixelType + Clone,
+    {
+        let data = self.data.iter().zip(&other.data).map(|(a, b)| f(a, b)).collect();
+        Image {
+            width_: self.width_,
+            height_: self.height_,
+            data,
+        }
+    }
+
     /// Converts 2D coordinates (x, y) to a 1D index.
     /// Note: not range checked since it is used only internally
     fn index_to_flat(&self, x: usize, y: usize) -> Option<usize> {
@@ -179,33 +209,7 @@ where
     }
 }
 
-impl<T> Image<T>
-where
-    T: PixelType + num_traits::PrimInt,
-{
-    /// Clamps the pixel values of the image to the specified range.
-    ///
-    /// This function modifies the image in place, clamping all pixel values
-    /// to be within the [min, max] range.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use numeris::prelude::*;
-    ///
-    /// let mut img = Image::<i32>::ones(100, 100);
-    /// img.clamp_in_place(0, 255);
-    /// ```
-    pub fn clamp_in_place(&mut self, min: T, max: T) {
-        self.data.iter_mut().for_each(|v| {
-            if *v < min {
-                *v = min;
-            } else if *v > max {
-                *v = max;
-            }
-        });
-    }
-}
+
 
 impl<T> Image<T>
 where
