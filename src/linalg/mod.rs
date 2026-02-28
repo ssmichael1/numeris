@@ -1,8 +1,10 @@
 mod cholesky;
 mod lu;
+mod qr;
 
 pub use cholesky::CholeskyDecomposition;
 pub use lu::LuDecomposition;
+pub use qr::QrDecomposition;
 
 /// Errors from linear algebra operations.
 #[derive(Debug, Clone, Copy, PartialEq)]
