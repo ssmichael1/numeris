@@ -7,7 +7,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Fixed-size matrices** — stack-allocated, const-generic `Matrix<T, M, N>`
 - **Dynamic matrices** — heap-allocated `DynMatrix<T>` with runtime dimensions (optional `alloc` feature)
 - **Linear algebra** — LU, Cholesky, and QR decompositions with solve, inverse, and determinant
-- **ODE integration** — fixed-step RK4 and 7 adaptive Runge-Kutta solvers with dense output
+- **ODE integration** — fixed-step RK4, 7 adaptive Runge-Kutta solvers with dense output, RODAS4 stiff solver
 - **Optimization** — root finding (Brent, Newton), BFGS minimization, Gauss-Newton and Levenberg-Marquardt least squares
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
@@ -104,6 +104,8 @@ let sol = RKTS54::integrate(
 assert!((sol.y[0] - 1.0).abs() < 1e-6); // cos(2π) ≈ 1
 ```
 
+### Explicit solvers
+
 | Solver | Stages | Order | FSAL | Interpolant |
 |---|---|---|---|---|
 | `RKF45` | 6 | 5(4) | no | — |
@@ -113,6 +115,29 @@ assert!((sol.y[0] - 1.0).abs() < 1e-6); // cos(2π) ≈ 1
 | `RKV98` | 21 | 9(8) | no | 8th degree |
 | `RKV98NoInterp` | 16 | 9(8) | no | — |
 | `RKV98Efficient` | 26 | 9(8) | no | 9th degree |
+
+### Stiff solvers (Rosenbrock)
+
+For stiff ODEs (chemical kinetics, circuit simulation, orbital mechanics with drag), use `RODAS4` — a linearly-implicit Rosenbrock method that solves linear systems involving the Jacobian instead of nonlinear Newton iterations:
+
+```rust
+use numeris::ode::{Rosenbrock, RODAS4, AdaptiveSettings};
+use numeris::{Vector, Matrix};
+
+// Stiff decay: y' = -1000*y, y(0) = 1
+let y0 = Vector::from_array([1.0_f64]);
+let sol = RODAS4::integrate(
+    0.0, 0.01, &y0,
+    |_t, y| Vector::from_array([-1000.0 * y[0]]),
+    |_t, _y| Matrix::new([[-1000.0]]),  // Jacobian ∂f/∂y
+    &AdaptiveSettings::default(),
+).unwrap();
+// Or use integrate_auto for automatic finite-difference Jacobian
+```
+
+| Solver | Stages | Order | L-stable |
+|---|---|---|---|
+| `RODAS4` | 6 | 4(3) | yes |
 
 ## Optimization
 
@@ -296,7 +321,7 @@ Same convenience methods on `DynMatrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.
 
 ### `ode` — ODE integration
 
-Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdaptive` trait. PI step-size controller (Söderlind & Wang 2006). Dense output / interpolation available for most solvers (gated behind `std`).
+Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdaptive` trait. PI step-size controller (Söderlind & Wang 2006). Dense output / interpolation available for most solvers (gated behind `std`). For stiff systems, `RODAS4` provides an L-stable Rosenbrock method via the `Rosenbrock` trait — accepts user-supplied or automatic finite-difference Jacobians.
 
 ### `optim` — Optimization (requires `optim` feature)
 
@@ -331,7 +356,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions), size aliases up to 6×6
 - [x] **linalg** — LU, Cholesky, QR decompositions; solvers, inverse, determinant; complex support
 - [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
-- [x] **ode** — ODE integration (RK4, 7 adaptive solvers, dense output)
+- [x] **ode** — ODE integration (RK4, 7 adaptive solvers, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [ ] **interp** — Interpolation (linear, cubic spline, Hermite)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)

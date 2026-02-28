@@ -1,11 +1,11 @@
-//! ODE integration — fixed-step and adaptive Runge-Kutta solvers.
+//! ODE integration — fixed-step, adaptive, and stiff solvers.
 //!
 //! # Fixed-step
 //!
 //! [`rk4_step`] and [`rk4`] provide classic 4th-order Runge-Kutta integration.
 //! Fully no-alloc: k-values are local variables on the stack.
 //!
-//! # Adaptive solvers
+//! # Adaptive explicit solvers
 //!
 //! All adaptive solvers implement the [`RKAdaptive`] trait with Butcher tableau
 //! constants. The [`integrate`](RKAdaptive::integrate) method uses a PID step-size
@@ -20,6 +20,16 @@
 //! | [`RKV98`]            |     21 | 9(8)  | no   | 8th degree  |
 //! | [`RKV98NoInterp`]    |     16 | 9(8)  | no   | —           |
 //! | [`RKV98Efficient`]   |     26 | 9(8)  | no   | 9th degree  |
+//!
+//! # Rosenbrock (stiff) solvers
+//!
+//! For stiff ODEs, the [`Rosenbrock`] trait provides linearly-implicit methods
+//! that solve linear systems involving the Jacobian instead of nonlinear Newton
+//! iterations. Use [`RODAS4`] for most stiff problems.
+//!
+//! | Solver               | Stages | Order | L-stable |
+//! |----------------------|--------|-------|----------|
+//! | [`RODAS4`]           |      6 | 4(3)  | yes      |
 //!
 //! # Example
 //!
@@ -49,6 +59,8 @@ mod rkv87;
 mod rkv98;
 mod rkv98_nointerp;
 mod rkv98_efficient;
+mod rosenbrock;
+mod rodas4;
 
 use core::fmt;
 use crate::traits::FloatScalar;
@@ -66,6 +78,8 @@ pub use rkv87::RKV87;
 pub use rkv98::RKV98;
 pub use rkv98_nointerp::RKV98NoInterp;
 pub use rkv98_efficient::RKV98Efficient;
+pub use rosenbrock::Rosenbrock;
+pub use rodas4::RODAS4;
 
 /// Errors from ODE integration.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,6 +94,8 @@ pub enum OdeError {
     InterpOutOfBounds,
     /// Solver does not support interpolation.
     InterpNotImplemented,
+    /// Jacobian matrix is singular (Rosenbrock solvers only).
+    SingularJacobian,
 }
 
 impl fmt::Display for OdeError {
@@ -90,6 +106,7 @@ impl fmt::Display for OdeError {
             Self::NoDenseOutput => write!(f, "no dense output in solution"),
             Self::InterpOutOfBounds => write!(f, "interpolation point out of bounds"),
             Self::InterpNotImplemented => write!(f, "interpolation not implemented for this solver"),
+            Self::SingularJacobian => write!(f, "Jacobian matrix is singular"),
         }
     }
 }

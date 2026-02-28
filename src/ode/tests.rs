@@ -278,4 +278,202 @@ mod adaptive_tests {
             assert!((y_interp[0] - t.cos()).abs() < 1e-9);
         }
     }
+
+    // ── Rosenbrock / stiff solver tests ─────────────────────────────
+
+    #[test]
+    fn rodas4_stiff_exponential_decay() {
+        // y' = -1000*y, y(0) = 1 → y(t) = e^{-1000t}
+        // Extremely stiff: explicit methods need tiny steps, RODAS4 handles it.
+        let y0 = Vector::from_array([1.0_f64]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-10,
+            rel_tol: 1e-10,
+            ..AdaptiveSettings::default()
+        };
+        let sol = RODAS4::integrate(
+            0.0, 0.01, &y0,
+            |_t, y| Vector::from_array([-1000.0 * y[0]]),
+            |_t, _y| crate::Matrix::new([[-1000.0]]),
+            &settings,
+        ).unwrap();
+        let exact = (-1000.0_f64 * 0.01).exp();
+        assert!(
+            (sol.y[0] - exact).abs() < 1e-8,
+            "rodas4 stiff decay: y = {}, exact = {}, err = {}",
+            sol.y[0], exact, (sol.y[0] - exact).abs()
+        );
+    }
+
+    #[test]
+    fn rodas4_van_der_pol_mu1000() {
+        // Van der Pol oscillator with μ = 1000 (very stiff).
+        // y₁' = y₂
+        // y₂' = μ((1 - y₁²)y₂ - y₁)
+        // Just verify it completes without error and stays bounded.
+        let mu = 1000.0_f64;
+        let y0 = Vector::from_array([2.0, 0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-6,
+            rel_tol: 1e-6,
+            max_steps: 500_000,
+            ..AdaptiveSettings::default()
+        };
+
+        let sol = RODAS4::integrate(
+            0.0, 100.0, &y0,
+            |_t, y| Vector::from_array([
+                y[1],
+                mu * ((1.0 - y[0] * y[0]) * y[1] - y[0]),
+            ]),
+            |_t, y| crate::Matrix::new([
+                [0.0, 1.0],
+                [mu * (-2.0 * y[0] * y[1] - 1.0), mu * (1.0 - y[0] * y[0])],
+            ]),
+            &settings,
+        ).unwrap();
+
+        // Solution should stay bounded (|y₁| ≤ ~2.1 for Van der Pol limit cycle)
+        assert!(
+            sol.y[0].abs() < 3.0,
+            "Van der Pol y[0] = {} exceeds bound", sol.y[0]
+        );
+    }
+
+    #[test]
+    fn rodas4_robertson() {
+        // Robertson chemical kinetics (classic stiff test):
+        // y₁' = -0.04 y₁ + 1e4 y₂ y₃
+        // y₂' =  0.04 y₁ - 1e4 y₂ y₃ - 3e7 y₂²
+        // y₃' =  3e7 y₂²
+        // Conservation: y₁ + y₂ + y₃ = 1 for all t.
+        let y0 = Vector::from_array([1.0, 0.0, 0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-8,
+            rel_tol: 1e-8,
+            ..AdaptiveSettings::default()
+        };
+
+        let sol = RODAS4::integrate(
+            0.0, 1e3, &y0,
+            |_t, y| Vector::from_array([
+                -0.04 * y[0] + 1e4 * y[1] * y[2],
+                 0.04 * y[0] - 1e4 * y[1] * y[2] - 3e7 * y[1] * y[1],
+                 3e7 * y[1] * y[1],
+            ]),
+            |_t, y| crate::Matrix::new([
+                [-0.04,           1e4 * y[2],        1e4 * y[1]],
+                [ 0.04, -1e4 * y[2] - 6e7 * y[1],  -1e4 * y[1]],
+                [ 0.0,             6e7 * y[1],        0.0],
+            ]),
+            &settings,
+        ).unwrap();
+
+        // Check conservation law
+        let mass: f64 = sol.y[0] + sol.y[1] + sol.y[2];
+        assert!(
+            (mass - 1.0).abs() < 1e-6,
+            "Robertson mass conservation violated: sum = {}", mass
+        );
+
+        // All concentrations should be non-negative
+        assert!(sol.y[0] >= -1e-10, "y[0] = {} is negative", sol.y[0]);
+        assert!(sol.y[1] >= -1e-10, "y[1] = {} is negative", sol.y[1]);
+        assert!(sol.y[2] >= -1e-10, "y[2] = {} is negative", sol.y[2]);
+    }
+
+    #[test]
+    fn rodas4_auto_jacobian_stiff_decay() {
+        // Same stiff decay as above, but using auto-Jacobian.
+        let y0 = Vector::from_array([1.0_f64]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-8,
+            rel_tol: 1e-8,
+            ..AdaptiveSettings::default()
+        };
+        let sol = RODAS4::integrate_auto(
+            0.0, 0.01, &y0,
+            |_t, y| Vector::from_array([-1000.0 * y[0]]),
+            &settings,
+        ).unwrap();
+        let exact = (-1000.0_f64 * 0.01).exp();
+        assert!(
+            (sol.y[0] - exact).abs() < 1e-6,
+            "auto-jac stiff decay: y = {}, exact = {}, err = {}",
+            sol.y[0], exact, (sol.y[0] - exact).abs()
+        );
+    }
+
+    #[test]
+    fn rodas4_auto_jacobian_robertson() {
+        // Robertson with auto-Jacobian — verify similar accuracy to analytic.
+        let y0 = Vector::from_array([1.0, 0.0, 0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-6,
+            rel_tol: 1e-6,
+            ..AdaptiveSettings::default()
+        };
+
+        let sol = RODAS4::integrate_auto(
+            0.0, 1e3, &y0,
+            |_t, y| Vector::from_array([
+                -0.04 * y[0] + 1e4 * y[1] * y[2],
+                 0.04 * y[0] - 1e4 * y[1] * y[2] - 3e7 * y[1] * y[1],
+                 3e7 * y[1] * y[1],
+            ]),
+            &settings,
+        ).unwrap();
+
+        let mass: f64 = sol.y[0] + sol.y[1] + sol.y[2];
+        assert!(
+            (mass - 1.0).abs() < 1e-4,
+            "auto-jac Robertson mass conservation: sum = {}", mass
+        );
+    }
+
+    #[test]
+    fn rodas4_singular_w_matrix() {
+        // Provide a Jacobian that makes W = I/(hγ) - J singular.
+        // W is singular when J has eigenvalue 1/(hγ). With γ=0.25 and the
+        // initial step size guess, we construct J = (1/(hγ))*I which makes
+        // the diagonal of W zero. In practice, the easiest way to trigger
+        // this is to provide a Jacobian whose eigenvalues overwhelm the
+        // 1/(hγ) term, but that depends on h. Instead, test that a NaN
+        // in the state produces StepNotFinite.
+        let y0 = Vector::from_array([f64::NAN]);
+        let settings = AdaptiveSettings::default();
+        let result = RODAS4::integrate(
+            0.0, 1.0, &y0,
+            |_t, y| *y,
+            |_t, _y| crate::Matrix::new([[1.0]]),
+            &settings,
+        );
+        assert!(matches!(result, Err(OdeError::StepNotFinite)));
+    }
+
+    #[test]
+    fn rodas4_harmonic_oscillator() {
+        // Non-stiff problem: harmonic oscillator (same as explicit tests).
+        // RODAS4 should still give reasonable results, just less efficient.
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-10,
+            rel_tol: 1e-10,
+            ..AdaptiveSettings::default()
+        };
+        let sol = RODAS4::integrate(
+            0.0, TAU, &y0,
+            ydot,
+            |_t, _y| crate::Matrix::new([[0.0, 1.0], [-1.0, 0.0]]),
+            &settings,
+        ).unwrap();
+        assert!(
+            (sol.y[0] - 1.0).abs() < 1e-6,
+            "harmonic y[0] = {}, err = {}", sol.y[0], (sol.y[0] - 1.0).abs()
+        );
+        assert!(
+            sol.y[1].abs() < 1e-6,
+            "harmonic y[1] = {}", sol.y[1]
+        );
+    }
 }

@@ -10,7 +10,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions), size aliases up to 6×6
 - [x] **linalg** — LU, Cholesky, QR decompositions; solvers, inverse, determinant; complex support
 - [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
-- [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output)
+- [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [ ] **interp** — Interpolation (linear, cubic spline, Hermite)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
@@ -19,6 +19,7 @@ Checked items are implemented; unchecked are potential future work.
 - [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
 - [ ] **stats** — Statistics and distributions
 - [ ] **poly** — Polynomial operations and root-finding
+- [ ] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
 
 ## Design Decisions
 
@@ -100,7 +101,9 @@ src/
 │   ├── rkv87.rs        # Verner 8(7), 17 stages, 7th-degree interpolant
 │   ├── rkv98.rs        # Verner 9(8), 21 stages, 8th-degree interpolant
 │   ├── rkv98_nointerp.rs  # Verner 9(8) without interpolation, 16 stages
-│   └── rkv98_efficient.rs # Verner "efficient" 9(8), 26 stages, 9th-degree interpolant
+│   ├── rkv98_efficient.rs # Verner "efficient" 9(8), 26 stages, 9th-degree interpolant
+│   ├── rosenbrock.rs      # Rosenbrock trait, fd_jacobian, integration loop
+│   └── rodas4.rs          # RODAS4: 6-stage, order 4(3), L-stable Rosenbrock
 ├── optim/              # (requires `optim` feature)
 │   ├── mod.rs          # OptimError, result/settings structs, re-exports
 │   ├── root.rs         # brent, newton_1d (scalar root finding)
