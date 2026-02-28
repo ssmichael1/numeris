@@ -2,8 +2,13 @@
 name = "numeris"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 description = "Pure-Rust numerical algorithms library — no-std compatible"
 license = "MIT"
+repository = "https://github.com/ssmichael1/numeris"
+readme = "README.md"
+keywords = ["math", "matrix", "linear-algebra", "ode", "quaternion"]
+categories = ["mathematics", "no-std", "science"]
 
 [features]
 default = ["std", "ode"]
