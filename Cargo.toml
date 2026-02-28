@@ -1,0 +1,17 @@
+[package]
+name = "numeris"
+version = "0.1.0"
+edition = "2024"
+description = "Pure-Rust numerical algorithms library — no-std compatible"
+license = "MIT"
+
+[features]
+default = ["std"]
+std = ["num-traits/std"]
+libm = ["num-traits/libm"]
+
+[dependencies]
+num-traits = { version = "0.2", default-features = false, features = ["libm"] }
+
+[profile.test]
+opt-level = 3
