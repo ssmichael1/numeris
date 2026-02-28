@@ -9,6 +9,10 @@ repository = "https://github.com/ssmichael1/numeris"
 readme = "README.md"
 keywords = ["math", "matrix", "linear-algebra", "ode", "quaternion"]
 categories = ["mathematics", "no-std", "science"]
+documentation = "https://docs.rs/numeris"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = ["std", "ode"]
