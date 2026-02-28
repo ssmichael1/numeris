@@ -114,6 +114,116 @@ impl<T: Scalar, const M: usize, const N: usize, const P: usize> Mul<Matrix<T, N,
     }
 }
 
+// ── Scalar addition: matrix + scalar ─────────────────────────────────
+
+impl<T: Scalar, const M: usize, const N: usize> Add<T> for Matrix<T, M, N> {
+    type Output = Self;
+
+    fn add(self, rhs: T) -> Self {
+        let mut out = self;
+        for i in 0..M {
+            for j in 0..N {
+                out[(i, j)] = self[(i, j)] + rhs;
+            }
+        }
+        out
+    }
+}
+
+impl<T: Scalar, const M: usize, const N: usize> Add<T> for &Matrix<T, M, N> {
+    type Output = Matrix<T, M, N>;
+    fn add(self, rhs: T) -> Matrix<T, M, N> {
+        (*self).add(rhs)
+    }
+}
+
+impl<T: Scalar, const M: usize, const N: usize> AddAssign<T> for Matrix<T, M, N> {
+    fn add_assign(&mut self, rhs: T) {
+        for i in 0..M {
+            for j in 0..N {
+                self[(i, j)] = self[(i, j)] + rhs;
+            }
+        }
+    }
+}
+
+// ── Scalar subtraction: matrix - scalar ──────────────────────────────
+
+impl<T: Scalar, const M: usize, const N: usize> Sub<T> for Matrix<T, M, N> {
+    type Output = Self;
+
+    fn sub(self, rhs: T) -> Self {
+        let mut out = self;
+        for i in 0..M {
+            for j in 0..N {
+                out[(i, j)] = self[(i, j)] - rhs;
+            }
+        }
+        out
+    }
+}
+
+impl<T: Scalar, const M: usize, const N: usize> Sub<T> for &Matrix<T, M, N> {
+    type Output = Matrix<T, M, N>;
+    fn sub(self, rhs: T) -> Matrix<T, M, N> {
+        (*self).sub(rhs)
+    }
+}
+
+impl<T: Scalar, const M: usize, const N: usize> SubAssign<T> for Matrix<T, M, N> {
+    fn sub_assign(&mut self, rhs: T) {
+        for i in 0..M {
+            for j in 0..N {
+                self[(i, j)] = self[(i, j)] - rhs;
+            }
+        }
+    }
+}
+
+// ── scalar + matrix / scalar - matrix (concrete impls) ───────────────
+
+macro_rules! impl_scalar_add_sub {
+    ($($t:ty),*) => {
+        $(
+            impl<const M: usize, const N: usize> Add<Matrix<$t, M, N>> for $t {
+                type Output = Matrix<$t, M, N>;
+                fn add(self, rhs: Matrix<$t, M, N>) -> Matrix<$t, M, N> {
+                    rhs + self
+                }
+            }
+
+            impl<const M: usize, const N: usize> Add<&Matrix<$t, M, N>> for $t {
+                type Output = Matrix<$t, M, N>;
+                fn add(self, rhs: &Matrix<$t, M, N>) -> Matrix<$t, M, N> {
+                    *rhs + self
+                }
+            }
+
+            impl<const M: usize, const N: usize> Sub<Matrix<$t, M, N>> for $t {
+                type Output = Matrix<$t, M, N>;
+                fn sub(self, rhs: Matrix<$t, M, N>) -> Matrix<$t, M, N> {
+                    let mut out = rhs;
+                    for i in 0..M {
+                        for j in 0..N {
+                            out[(i, j)] = self - rhs[(i, j)];
+                        }
+                    }
+                    out
+                }
+            }
+
+            impl<const M: usize, const N: usize> Sub<&Matrix<$t, M, N>> for $t {
+                type Output = Matrix<$t, M, N>;
+                fn sub(self, rhs: &Matrix<$t, M, N>) -> Matrix<$t, M, N> {
+                    self - *rhs
+                }
+            }
+        )*
+    };
+}
+
+impl_scalar_add_sub!(f32, f64, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128);
+
 // ── Scalar multiplication: matrix * scalar ──────────────────────────
 
 impl<T: Scalar, const M: usize, const N: usize> Mul<T> for Matrix<T, M, N> {
@@ -482,5 +592,61 @@ mod tests {
         assert_eq!(c[(0, 1)], 12.0);
         assert_eq!(c[(1, 0)], 21.0);
         assert_eq!(c[(1, 1)], 32.0);
+    }
+
+    #[test]
+    fn scalar_add_sub() {
+        let a = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+
+        let b = a + 10.0;
+        assert_eq!(b[(0, 0)], 11.0);
+        assert_eq!(b[(1, 1)], 14.0);
+
+        let c = a - 1.0;
+        assert_eq!(c[(0, 0)], 0.0);
+        assert_eq!(c[(1, 1)], 3.0);
+
+        // Commutative add
+        assert_eq!(10.0 + a, a + 10.0);
+
+        // scalar - matrix (not commutative)
+        let d: Matrix<f64, 2, 2> = 10.0 - a;
+        assert_eq!(d[(0, 0)], 9.0);
+        assert_eq!(d[(0, 1)], 8.0);
+        assert_eq!(d[(1, 1)], 6.0);
+    }
+
+    #[test]
+    fn scalar_add_sub_assign() {
+        let mut a = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+        a += 10.0;
+        assert_eq!(a[(0, 0)], 11.0);
+        assert_eq!(a[(1, 1)], 14.0);
+
+        a -= 10.0;
+        assert_eq!(a[(0, 0)], 1.0);
+        assert_eq!(a[(1, 1)], 4.0);
+    }
+
+    #[test]
+    fn scalar_add_sub_ref() {
+        let a = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+
+        assert_eq!(&a + 10.0, a + 10.0);
+        assert_eq!(&a - 1.0, a - 1.0);
+        assert_eq!(10.0 + &a, 10.0 + a);
+        assert_eq!(10.0 - &a, 10.0 - a);
+    }
+
+    #[test]
+    fn scalar_add_sub_integer() {
+        let a = Matrix::new([[1, 2], [3, 4]]);
+        let b = a + 10;
+        assert_eq!(b[(0, 0)], 11);
+        assert_eq!(b[(1, 1)], 14);
+
+        let c: Matrix<i32, 2, 2> = 10 - a;
+        assert_eq!(c[(0, 0)], 9);
+        assert_eq!(c[(1, 1)], 6);
     }
 }
