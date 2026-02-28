@@ -5,7 +5,12 @@ use crate::linalg::LinalgError;
 use crate::linalg::lu::{lu_in_place, lu_solve};
 use crate::linalg::cholesky::{cholesky_in_place, forward_substitute, back_substitute_lt};
 use crate::linalg::qr::qr_in_place;
-use crate::traits::LinalgScalar;
+use crate::linalg::symmetric_eigen::{tridiagonalize, tridiagonal_qr_with_vecs, tridiagonal_qr_no_vecs};
+use crate::linalg::hessenberg::hessenberg;
+use crate::linalg::schur::francis_qr;
+use crate::linalg::svd::{bidiagonalize, bidiagonal_qr};
+use crate::traits::{FloatScalar, LinalgScalar};
+use num_traits::Float;
 
 use super::vector::DynVector;
 use super::DynMatrix;
@@ -336,6 +341,397 @@ impl<T: LinalgScalar> DynQr<T> {
     }
 }
 
+// ── DynSymmetricEigen ──────────────────────────────────────────────
+
+/// Symmetric/Hermitian eigendecomposition of a dynamically-sized square matrix.
+///
+/// Eigenvalues are sorted ascending. Eigenvectors are columns of Q.
+///
+/// # Example
+///
+/// ```
+/// use numeris::DynMatrix;
+///
+/// let a = DynMatrix::from_slice(2, 2, &[2.0_f64, -1.0, -1.0, 2.0]);
+/// let eig = a.eig_symmetric().unwrap();
+/// assert!((eig.eigenvalues()[0] - 1.0).abs() < 1e-10);
+/// assert!((eig.eigenvalues()[1] - 3.0).abs() < 1e-10);
+/// ```
+#[derive(Debug)]
+pub struct DynSymmetricEigen<T: LinalgScalar> {
+    eigenvalues: Vec<T::Real>,
+    eigenvectors: DynMatrix<T>,
+}
+
+impl<T: LinalgScalar> DynSymmetricEigen<T> {
+    /// Decompose a symmetric (Hermitian) matrix.
+    pub fn new(a: &DynMatrix<T>) -> Result<Self, LinalgError> {
+        assert!(a.is_square(), "symmetric eigen requires a square matrix");
+        let n = a.nrows();
+
+        if n == 0 {
+            return Ok(Self {
+                eigenvalues: Vec::new(),
+                eigenvectors: DynMatrix::zeros(0, 0, T::zero()),
+            });
+        }
+
+        let mut diag = vec![<T::Real as num_traits::Zero>::zero(); n];
+        let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); n];
+        let mut q = DynMatrix::zeros(n, n, T::zero());
+
+        tridiagonalize(a, &mut diag, &mut off_diag, &mut q);
+        tridiagonal_qr_with_vecs::<T>(
+            &mut diag,
+            &mut off_diag[..n.saturating_sub(1)],
+            &mut q,
+            30 * n,
+        )?;
+
+        Ok(Self {
+            eigenvalues: diag,
+            eigenvectors: q,
+        })
+    }
+
+    /// Compute eigenvalues only (no eigenvectors).
+    pub fn eigenvalues_only(a: &DynMatrix<T>) -> Result<Vec<T::Real>, LinalgError> {
+        assert!(a.is_square(), "symmetric eigen requires a square matrix");
+        let n = a.nrows();
+
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut diag = vec![<T::Real as num_traits::Zero>::zero(); n];
+        let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); n];
+        let mut q = DynMatrix::zeros(n, n, T::zero());
+
+        tridiagonalize(a, &mut diag, &mut off_diag, &mut q);
+        tridiagonal_qr_no_vecs::<T>(&mut diag, &mut off_diag[..n.saturating_sub(1)], 30 * n)?;
+
+        Ok(diag)
+    }
+
+    /// The eigenvalues, sorted ascending.
+    #[inline]
+    pub fn eigenvalues(&self) -> &[T::Real] {
+        &self.eigenvalues
+    }
+
+    /// The eigenvector matrix Q (columns are eigenvectors).
+    #[inline]
+    pub fn eigenvectors(&self) -> &DynMatrix<T> {
+        &self.eigenvectors
+    }
+}
+
+// ── DynSchur ──────────────────────────────────────────────────────
+
+/// Real Schur decomposition of a dynamically-sized square matrix.
+///
+/// Computes orthogonal Q and quasi-upper-triangular S such that `A = Q S Q^T`.
+///
+/// # Example
+///
+/// ```
+/// use numeris::DynMatrix;
+///
+/// let a = DynMatrix::from_slice(2, 2, &[0.0_f64, -1.0, 1.0, 0.0]);
+/// let schur = a.schur().unwrap();
+/// let (re, im) = schur.eigenvalues();
+/// assert!(re[0].abs() < 1e-10);
+/// assert!((im[0].abs() - 1.0).abs() < 1e-10);
+/// ```
+#[derive(Debug)]
+pub struct DynSchur<T: FloatScalar> {
+    s: DynMatrix<T>,
+    q: DynMatrix<T>,
+}
+
+impl<T: FloatScalar> DynSchur<T> {
+    /// Compute the real Schur decomposition.
+    pub fn new(a: &DynMatrix<T>) -> Result<Self, LinalgError> {
+        assert!(a.is_square(), "Schur decomposition requires a square matrix");
+        let n = a.nrows();
+        let mut s = a.clone();
+        let mut q = DynMatrix::zeros(n, n, T::zero());
+
+        if n <= 1 {
+            for i in 0..n {
+                q[(i, i)] = T::one();
+            }
+            return Ok(Self { s, q });
+        }
+
+        hessenberg(&mut s, &mut q);
+        francis_qr(&mut s, &mut q, 30 * n)?;
+
+        Ok(Self { s, q })
+    }
+
+    /// The quasi-upper-triangular Schur form S.
+    #[inline]
+    pub fn schur_form(&self) -> &DynMatrix<T> {
+        &self.s
+    }
+
+    /// The orthogonal Schur vectors Q.
+    #[inline]
+    pub fn schur_vectors(&self) -> &DynMatrix<T> {
+        &self.q
+    }
+
+    /// Extract eigenvalues as (real_parts, imaginary_parts).
+    pub fn eigenvalues(&self) -> (Vec<T>, Vec<T>) {
+        let n = self.s.nrows();
+        let mut re = vec![T::zero(); n];
+        let mut im = vec![T::zero(); n];
+        let eps = T::epsilon();
+
+        let mut i = 0;
+        while i < n {
+            if i + 1 < n && self.s[(i + 1, i)].abs() > eps {
+                let a = self.s[(i, i)];
+                let b = self.s[(i, i + 1)];
+                let c = self.s[(i + 1, i)];
+                let d = self.s[(i + 1, i + 1)];
+
+                let half = T::one() / (T::one() + T::one());
+                let tr = (a + d) * half;
+                let det = a * d - b * c;
+                let disc = tr * tr - det;
+
+                if disc >= T::zero() {
+                    let sq = disc.sqrt();
+                    re[i] = tr + sq;
+                    re[i + 1] = tr - sq;
+                } else {
+                    let sq = (T::zero() - disc).sqrt();
+                    re[i] = tr;
+                    re[i + 1] = tr;
+                    im[i] = sq;
+                    im[i + 1] = T::zero() - sq;
+                }
+                i += 2;
+            } else {
+                re[i] = self.s[(i, i)];
+                i += 1;
+            }
+        }
+
+        (re, im)
+    }
+}
+
+// ── DynSvd ─────────────────────────────────────────────────────────
+
+/// Singular value decomposition of a dynamically-sized matrix.
+///
+/// Computes thin U (M×K), singular values σ (length K = min(M,N),
+/// sorted descending), and thin V^T (K×N) such that `A = U · diag(σ) · V^T`.
+///
+/// Using thin factors saves memory for tall or wide matrices: U is M×K
+/// instead of M×M, and V^T is K×N instead of N×N.
+///
+/// Handles both tall (M ≥ N) and wide (M < N) matrices. For wide
+/// matrices, the transpose is decomposed internally and U/V are swapped.
+///
+/// # Example
+///
+/// ```
+/// use numeris::DynMatrix;
+///
+/// let a = DynMatrix::from_slice(3, 2, &[
+///     1.0_f64, 0.0,
+///     0.0, 1.0,
+///     0.0, 0.0,
+/// ]);
+/// let svd = a.svd().unwrap();
+/// assert_eq!(svd.u().nrows(), 3);  // M
+/// assert_eq!(svd.u().ncols(), 2);  // min(M,N)
+/// assert_eq!(svd.vt().nrows(), 2); // min(M,N)
+/// assert_eq!(svd.vt().ncols(), 2); // N
+/// assert!((svd.singular_values()[0] - 1.0).abs() < 1e-10);
+/// assert!((svd.singular_values()[1] - 1.0).abs() < 1e-10);
+/// ```
+#[derive(Debug)]
+pub struct DynSvd<T: LinalgScalar> {
+    u: DynMatrix<T>,
+    singular_values: Vec<T::Real>,
+    vt: DynMatrix<T>,
+}
+
+impl<T: LinalgScalar> DynSvd<T> {
+    /// Compute the SVD of a matrix.
+    ///
+    /// Works for any M×N matrix (both tall and wide).
+    /// Returns thin factors: U is M×K, V^T is K×N where K = min(M,N).
+    pub fn new(a: &DynMatrix<T>) -> Result<Self, LinalgError> {
+        let m = a.nrows();
+        let n = a.ncols();
+        let k = m.min(n);
+
+        if m == 0 || n == 0 {
+            return Ok(Self {
+                u: DynMatrix::zeros(m, k, T::zero()),
+                singular_values: Vec::new(),
+                vt: DynMatrix::zeros(k, n, T::zero()),
+            });
+        }
+
+        // For wide matrices, transpose and swap U↔V at the end
+        let transposed = m < n;
+        let work_matrix = if transposed { a.transpose() } else { a.clone() };
+        let (rows, cols) = (work_matrix.nrows(), work_matrix.ncols());
+
+        let mut work = work_matrix;
+        let mut u_mat = DynMatrix::zeros(rows, rows, T::zero());
+        let mut v_mat = DynMatrix::zeros(cols, cols, T::zero());
+        let mut diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
+        let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
+
+        bidiagonalize(&mut work, &mut diag, &mut off_diag, &mut u_mat, &mut v_mat, true, true);
+        bidiagonal_qr::<T>(
+            &mut diag,
+            &mut off_diag[..cols.saturating_sub(1)],
+            &mut u_mat,
+            &mut v_mat,
+            true,
+            true,
+            30 * rows.max(cols),
+        )?;
+
+        // Extract thin factors.
+        // Full SVD of work matrix (rows×cols, rows≥cols):
+        //   U_full (rows×rows), σ (cols), V_full (cols×cols)
+        // Thin: U_thin = first `cols` columns of U_full → rows×cols
+        //        V^T_thin = first `cols` rows of V^H_full → cols×cols (same as full)
+        //
+        // For the original matrix:
+        //   If not transposed: A's U_thin = M×K, A's V^T_thin = K×N
+        //   If transposed: A = (A^T)^T, so A's U = V, A's V^T = U^T
+
+        if transposed {
+            // A^T = U_full · diag(σ) · V_full^T  →  A = V_full · diag(σ) · U_full^T
+            // A's thin U (M×K): first K=M columns of V_full → cols×cols (cols=M, K=M → full V)
+            // A's thin V^T (K×N): first K=M rows of U_full^T → M × rows, rows=N
+            let mut u_thin = DynMatrix::zeros(m, k, T::zero());
+            for i in 0..m {
+                for j in 0..k {
+                    u_thin[(i, j)] = v_mat[(i, j)];
+                }
+            }
+            let mut vt_thin = DynMatrix::zeros(k, n, T::zero());
+            for i in 0..k {
+                for j in 0..n {
+                    vt_thin[(i, j)] = u_mat[(j, i)].conj();
+                }
+            }
+            Ok(Self {
+                u: u_thin,
+                singular_values: diag,
+                vt: vt_thin,
+            })
+        } else {
+            // U_thin = first K=N columns of U_full → M×N
+            let mut u_thin = DynMatrix::zeros(m, k, T::zero());
+            for i in 0..m {
+                for j in 0..k {
+                    u_thin[(i, j)] = u_mat[(i, j)];
+                }
+            }
+            // V^T_thin = first K=N rows of V_full^H → N×N (same as full)
+            let mut vt_thin = DynMatrix::zeros(k, n, T::zero());
+            for i in 0..k {
+                for j in 0..n {
+                    vt_thin[(i, j)] = v_mat[(j, i)].conj();
+                }
+            }
+            Ok(Self {
+                u: u_thin,
+                singular_values: diag,
+                vt: vt_thin,
+            })
+        }
+    }
+
+    /// Compute only the singular values (faster, no U/V accumulation).
+    pub fn singular_values_only(a: &DynMatrix<T>) -> Result<Vec<T::Real>, LinalgError> {
+        let m = a.nrows();
+        let n = a.ncols();
+
+        if m == 0 || n == 0 {
+            return Ok(Vec::new());
+        }
+
+        let work_matrix = if m < n { a.transpose() } else { a.clone() };
+        let (rows, cols) = (work_matrix.nrows(), work_matrix.ncols());
+
+        let mut work = work_matrix;
+        let mut u_mat = DynMatrix::zeros(rows, rows, T::zero());
+        let mut v_mat = DynMatrix::zeros(cols, cols, T::zero());
+        let mut diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
+        let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
+
+        bidiagonalize(
+            &mut work, &mut diag, &mut off_diag, &mut u_mat, &mut v_mat, false, false,
+        );
+        bidiagonal_qr::<T>(
+            &mut diag,
+            &mut off_diag[..cols.saturating_sub(1)],
+            &mut u_mat,
+            &mut v_mat,
+            false,
+            false,
+            30 * rows.max(cols),
+        )?;
+
+        Ok(diag)
+    }
+
+    /// The singular values, sorted descending.
+    #[inline]
+    pub fn singular_values(&self) -> &[T::Real] {
+        &self.singular_values
+    }
+
+    /// The left singular vectors U (M×K thin matrix, K = min(M,N)).
+    /// Columns are the left singular vectors.
+    #[inline]
+    pub fn u(&self) -> &DynMatrix<T> {
+        &self.u
+    }
+
+    /// The right singular vectors V^T (K×N thin matrix, K = min(M,N)).
+    /// Rows are the right singular vectors.
+    #[inline]
+    pub fn vt(&self) -> &DynMatrix<T> {
+        &self.vt
+    }
+
+    /// Numerical rank: number of singular values above `tol`.
+    pub fn rank(&self, tol: T::Real) -> usize {
+        self.singular_values.iter().filter(|&&s| s > tol).count()
+    }
+
+    /// Condition number: σ_max / σ_min.
+    ///
+    /// Returns infinity if the smallest singular value is zero.
+    pub fn condition_number(&self) -> T::Real {
+        if self.singular_values.is_empty() {
+            return <T::Real as num_traits::One>::one();
+        }
+        let s_max = self.singular_values[0];
+        let s_min = *self.singular_values.last().unwrap();
+        if s_min == <T::Real as num_traits::Zero>::zero() {
+            T::Real::infinity()
+        } else {
+            s_max / s_min
+        }
+    }
+}
+
 // ── Convenience methods on DynMatrix ────────────────────────────────
 
 impl<T: LinalgScalar> DynMatrix<T> {
@@ -386,11 +782,193 @@ impl<T: LinalgScalar> DynMatrix<T> {
     pub fn solve_qr(&self, b: &DynVector<T>) -> Result<DynVector<T>, LinalgError> {
         Ok(self.qr()?.solve(b))
     }
+
+    /// Singular value decomposition.
+    ///
+    /// Works for any M×N matrix (tall or wide).
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let a = DynMatrix::from_slice(3, 2, &[
+    ///     1.0_f64, 0.0,
+    ///     0.0, 1.0,
+    ///     0.0, 0.0,
+    /// ]);
+    /// let svd = a.svd().unwrap();
+    /// assert!((svd.singular_values()[0] - 1.0).abs() < 1e-10);
+    /// ```
+    pub fn svd(&self) -> Result<DynSvd<T>, LinalgError> {
+        DynSvd::new(self)
+    }
+
+    /// Singular values only (no U/V computation).
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let a = DynMatrix::from_slice(2, 2, &[3.0_f64, 0.0, 0.0, 4.0]);
+    /// let sv = a.singular_values_only().unwrap();
+    /// assert!((sv[0] - 4.0).abs() < 1e-10);
+    /// assert!((sv[1] - 3.0).abs() < 1e-10);
+    /// ```
+    pub fn singular_values_only(&self) -> Result<Vec<T::Real>, LinalgError> {
+        DynSvd::singular_values_only(self)
+    }
+
+    /// Symmetric/Hermitian eigendecomposition.
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let a = DynMatrix::from_slice(2, 2, &[5.0_f64, 2.0, 2.0, 2.0]);
+    /// let eig = a.eig_symmetric().unwrap();
+    /// assert!((eig.eigenvalues()[0] - 1.0).abs() < 1e-10);
+    /// assert!((eig.eigenvalues()[1] - 6.0).abs() < 1e-10);
+    /// ```
+    pub fn eig_symmetric(&self) -> Result<DynSymmetricEigen<T>, LinalgError> {
+        DynSymmetricEigen::new(self)
+    }
+
+    /// Eigenvalues of a symmetric/Hermitian matrix (no eigenvectors).
+    pub fn eigenvalues_symmetric(&self) -> Result<Vec<T::Real>, LinalgError> {
+        DynSymmetricEigen::eigenvalues_only(self)
+    }
+}
+
+/// Convenience methods for Schur decomposition (real floats only).
+impl<T: FloatScalar> DynMatrix<T> {
+    /// Real Schur decomposition: `A = Q S Q^T`.
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let a = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+    /// let schur = a.schur().unwrap();
+    /// let (re, im) = schur.eigenvalues();
+    /// let trace = a[(0, 0)] + a[(1, 1)];
+    /// assert!((re[0] + re[1] - trace).abs() < 1e-10);
+    /// ```
+    pub fn schur(&self) -> Result<DynSchur<T>, LinalgError> {
+        DynSchur::new(self)
+    }
+
+    /// General eigenvalues as (real_parts, imaginary_parts).
+    pub fn eigenvalues(&self) -> Result<(Vec<T>, Vec<T>), LinalgError> {
+        Ok(self.schur()?.eigenvalues())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Symmetric eigen tests ──
+
+    #[test]
+    fn symmetric_eigen_2x2() {
+        let a = DynMatrix::from_slice(2, 2, &[2.0_f64, -1.0, -1.0, 2.0]);
+        let eig = a.eig_symmetric().unwrap();
+        assert!((eig.eigenvalues()[0] - 1.0).abs() < 1e-10);
+        assert!((eig.eigenvalues()[1] - 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn symmetric_eigen_3x3_reconstruction() {
+        let a = DynMatrix::from_slice(
+            3, 3,
+            &[4.0_f64, 1.0, -1.0, 1.0, 3.0, 2.0, -1.0, 2.0, 5.0],
+        );
+        let eig = a.eig_symmetric().unwrap();
+        let q = eig.eigenvectors();
+        let vals = eig.eigenvalues();
+
+        // Q * diag(λ) * Q^T ≈ A
+        for i in 0..3 {
+            for j in 0..3 {
+                let mut sum = 0.0;
+                for k in 0..3 {
+                    sum += q[(i, k)] * vals[k] * q[(j, k)];
+                }
+                assert!(
+                    (sum - a[(i, j)]).abs() < 1e-10,
+                    "A[({},{})]",
+                    i, j
+                );
+            }
+        }
+
+        // Q^T Q ≈ I
+        let qt = q.transpose();
+        let qtq = &qt * q;
+        for i in 0..3 {
+            for j in 0..3 {
+                let expected = if i == j { 1.0 } else { 0.0 };
+                assert!(
+                    (qtq[(i, j)] - expected).abs() < 1e-10,
+                    "QtQ[({},{})]",
+                    i, j
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn symmetric_eigenvalues_only() {
+        let a = DynMatrix::from_slice(2, 2, &[5.0_f64, 2.0, 2.0, 2.0]);
+        let vals = a.eigenvalues_symmetric().unwrap();
+        assert!((vals[0] - 1.0).abs() < 1e-10);
+        assert!((vals[1] - 6.0).abs() < 1e-10);
+    }
+
+    // ── Schur tests ──
+
+    #[test]
+    fn schur_2x2_complex_pair() {
+        // Rotation: eigenvalues ±i
+        let a = DynMatrix::from_slice(2, 2, &[0.0_f64, -1.0, 1.0, 0.0]);
+        let schur = a.schur().unwrap();
+        let (re, im) = schur.eigenvalues();
+        assert!(re[0].abs() < 1e-10);
+        assert!((im[0].abs() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn schur_3x3_similarity() {
+        let a = DynMatrix::from_slice(
+            3, 3,
+            &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0],
+        );
+        let schur = a.schur().unwrap();
+        let s = schur.schur_form();
+        let q = schur.schur_vectors();
+
+        // Q^T A Q ≈ S
+        let qt = q.transpose();
+        let qtaq = &(&qt * &a) * q;
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!(
+                    (qtaq[(i, j)] - s[(i, j)]).abs() < 1e-10,
+                    "Q^TAQ[({},{})]",
+                    i, j
+                );
+            }
+        }
+
+        // trace preserved
+        let (re, _) = schur.eigenvalues();
+        let trace = a[(0, 0)] + a[(1, 1)] + a[(2, 2)];
+        let eig_sum = re[0] + re[1] + re[2];
+        assert!((eig_sum - trace).abs() < 1e-10, "trace");
+    }
+
+    #[test]
+    fn schur_eigenvalues() {
+        let a = DynMatrix::from_slice(2, 2, &[2.0_f64, -1.0, 1.0, 0.0]);
+        let (re, im) = a.eigenvalues().unwrap();
+        assert!((re[0] - 1.0).abs() < 1e-10);
+        assert!((re[1] - 1.0).abs() < 1e-10);
+        assert!(im[0].abs() < 1e-10);
+    }
+
+    // ── LU tests ──
 
     #[test]
     fn lu_solve_2x2() {
@@ -572,6 +1150,156 @@ mod tests {
         let det_qr = a.qr().unwrap().det();
         let det_lu = a.lu().unwrap().det();
         assert!((det_qr.abs() - det_lu.abs()).abs() < 1e-10);
+    }
+
+    // ── SVD tests ──
+
+    #[test]
+    fn svd_3x3_reconstruction() {
+        let a = DynMatrix::from_slice(
+            3, 3,
+            &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0],
+        );
+        let svd = a.svd().unwrap();
+        let u = svd.u();
+        let vt = svd.vt();
+        let sv = svd.singular_values();
+
+        for i in 0..3 {
+            for j in 0..3 {
+                let mut sum = 0.0;
+                for k in 0..3 {
+                    sum += u[(i, k)] * sv[k] * vt[(k, j)];
+                }
+                assert!(
+                    (sum - a[(i, j)]).abs() < 1e-9,
+                    "UΣV^T[({},{})] = {}, expected {}",
+                    i, j, sum, a[(i, j)]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn svd_tall_4x2() {
+        let a = DynMatrix::from_slice(
+            4, 2,
+            &[1.0_f64, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0],
+        );
+        let svd = a.svd().unwrap();
+        let u = svd.u();
+        let vt = svd.vt();
+        let sv = svd.singular_values();
+
+        assert_eq!(sv.len(), 2);
+        assert_eq!(u.nrows(), 4);  // M
+        assert_eq!(u.ncols(), 2);  // K = min(M,N)
+        assert_eq!(vt.nrows(), 2); // K
+        assert_eq!(vt.ncols(), 2); // N
+
+        for i in 0..4 {
+            for j in 0..2 {
+                let mut sum = 0.0;
+                for k in 0..2 {
+                    sum += u[(i, k)] * sv[k] * vt[(k, j)];
+                }
+                assert!(
+                    (sum - a[(i, j)]).abs() < 1e-9,
+                    "tall UΣV^T[({},{})]",
+                    i, j
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn svd_wide_2x4() {
+        let a = DynMatrix::from_slice(
+            2, 4,
+            &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+        );
+        let svd = a.svd().unwrap();
+        let u = svd.u();
+        let vt = svd.vt();
+        let sv = svd.singular_values();
+
+        assert_eq!(sv.len(), 2);
+        assert_eq!(u.nrows(), 2);  // M
+        assert_eq!(u.ncols(), 2);  // K = min(M,N)
+        assert_eq!(vt.nrows(), 2); // K
+        assert_eq!(vt.ncols(), 4); // N
+
+        for i in 0..2 {
+            for j in 0..4 {
+                let mut sum = 0.0;
+                for k in 0..2 {
+                    sum += u[(i, k)] * sv[k] * vt[(k, j)];
+                }
+                assert!(
+                    (sum - a[(i, j)]).abs() < 1e-9,
+                    "wide UΣV^T[({},{})]",
+                    i, j
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn svd_10x5() {
+        // Larger matrix test
+        let data: Vec<f64> = (0..50).map(|i| (i as f64 + 1.0) * 0.1).collect();
+        // Make it full rank by adding identity-ish perturbation
+        let mut a = DynMatrix::from_vec(10, 5, data);
+        for i in 0..5 {
+            a[(i, i)] = a[(i, i)] + 10.0;
+        }
+
+        let svd = a.svd().unwrap();
+        let u = svd.u();
+        let vt = svd.vt();
+        let sv = svd.singular_values();
+
+        assert_eq!(sv.len(), 5);
+
+        // Check reconstruction
+        for i in 0..10 {
+            for j in 0..5 {
+                let mut sum = 0.0;
+                for k in 0..5 {
+                    sum += u[(i, k)] * sv[k] * vt[(k, j)];
+                }
+                assert!(
+                    (sum - a[(i, j)]).abs() < 1e-8,
+                    "10x5 UΣV^T[({},{})]",
+                    i, j
+                );
+            }
+        }
+
+        // Singular values sorted descending
+        for i in 0..4 {
+            assert!(sv[i] >= sv[i + 1] - 1e-10);
+        }
+    }
+
+    #[test]
+    fn svd_singular_values_only() {
+        let a = DynMatrix::from_slice(2, 2, &[3.0_f64, 0.0, 0.0, 4.0]);
+        let sv = a.singular_values_only().unwrap();
+        assert!((sv[0] - 4.0).abs() < 1e-10);
+        assert!((sv[1] - 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn svd_rank_and_condition() {
+        let a = DynMatrix::from_slice(3, 3, &[
+            1.0_f64, 2.0, 3.0,
+            2.0, 4.0, 6.0,
+            3.0, 6.0, 9.0,
+        ]);
+        let svd = a.svd().unwrap();
+        assert_eq!(svd.rank(1e-9), 1);
+        assert!(svd.condition_number() > 1e10);
     }
 
     #[test]

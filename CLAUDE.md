@@ -8,7 +8,7 @@ Suitable for embedded targets (no heap allocation, no floating-point-unit assump
 Checked items are implemented; unchecked are potential future work.
 
 - [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions), size aliases up to 6×6
-- [x] **linalg** — LU, Cholesky, QR decompositions; solvers, inverse, determinant; complex support
+- [x] **linalg** — LU, Cholesky, QR, SVD decompositions; symmetric eigendecomposition (Householder + QR); real Schur decomposition (Hessenberg + Francis QR); solvers, inverse, determinant; complex support
 - [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
@@ -86,12 +86,16 @@ src/
 │   ├── block.rs        # block extraction/insertion (runtime dimensions)
 │   ├── slice.rs        # as_slice, iter, IntoIterator
 │   ├── util.rs         # from_fn, map, sum, swap, row/col, abs, element_max, Display
-│   └── linalg.rs       # DynLu, DynCholesky, DynQr wrappers + convenience methods
+│   └── linalg.rs       # DynLu, DynCholesky, DynQr, DynSvd, DynSymmetricEigen, DynSchur wrappers
 ├── linalg/
 │   ├── mod.rs          # LinalgError
 │   ├── lu.rs           # LU decomposition, solve, inverse, det
 │   ├── cholesky.rs     # Cholesky decomposition, solve, inverse, det, ln_det
-│   └── qr.rs           # QR decomposition, least-squares solve, det
+│   ├── qr.rs           # QR decomposition, least-squares solve, det
+│   ├── svd.rs          # Householder bidiagonalization, Golub-Kahan QR, SvdDecomposition wrapper
+│   ├── symmetric_eigen.rs # Householder tridiagonalization, symmetric QR, SymmetricEigen wrapper
+│   ├── hessenberg.rs   # Hessenberg reduction via Householder similarity transforms
+│   └── schur.rs        # Francis double-shift QR, SchurDecomposition wrapper, eigenvalue extraction
 ├── ode/                # (requires `ode` feature)
 │   ├── mod.rs          # OdeError, Solution, DenseOutput, re-exports
 │   ├── rk4.rs          # Fixed-step classic RK4 (rk4_step, rk4)

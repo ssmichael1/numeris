@@ -31,11 +31,14 @@
 //!   automatically. [`DynVector<T>`] newtype for single-index vector access.
 //!   Includes `DynLu`, `DynCholesky`, `DynQr` wrapper structs.
 //!
-//! - [`linalg`] — LU (partial pivoting), Cholesky (A = LL^H), and QR
-//!   (Householder) decompositions. Each provides `solve()`, `inverse()`, and
-//!   `det()`. Free functions operate on `&mut impl MatrixMut<T>` for in-place
-//!   use; wrapper structs offer a higher-level API. Convenience methods on
-//!   both `Matrix` and `DynMatrix`: `a.solve(&b)`, `a.inverse()`, `a.det()`.
+//! - [`linalg`] — LU (partial pivoting), Cholesky (A = LL^H), QR (Householder),
+//!   SVD (Householder bidiagonalization + Golub-Kahan implicit-shift QR),
+//!   symmetric/Hermitian eigendecomposition (Householder tridiagonalization +
+//!   implicit QR with Wilkinson shift), and real Schur decomposition (Hessenberg
+//!   reduction + Francis double-shift QR). Each provides `solve()`, `inverse()`,
+//!   `det()`, `eigenvalues()`, etc. Free functions operate on
+//!   `&mut impl MatrixMut<T>` for in-place use; wrapper structs offer a
+//!   higher-level API. Convenience methods on both `Matrix` and `DynMatrix`.
 //!
 //! - [`ode`] — Fixed-step RK4 and 7 adaptive Runge-Kutta solvers (RKF45,
 //!   RKTS54, RKV65, RKV87, RKV98, RKV98NoInterp, RKV98Efficient). PI step-size

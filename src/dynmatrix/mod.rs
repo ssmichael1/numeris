@@ -10,7 +10,7 @@ mod util;
 mod vector;
 
 pub use aliases::*;
-pub use linalg::{DynCholesky, DynLu, DynQr};
+pub use linalg::{DynCholesky, DynLu, DynQr, DynSchur, DynSvd, DynSymmetricEigen};
 pub use vector::DynVector;
 
 use alloc::vec;

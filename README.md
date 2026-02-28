@@ -6,7 +6,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 
 - **Fixed-size matrices** — stack-allocated, const-generic `Matrix<T, M, N>`
 - **Dynamic matrices** — heap-allocated `DynMatrix<T>` with runtime dimensions (optional `alloc` feature)
-- **Linear algebra** — LU, Cholesky, and QR decompositions with solve, inverse, and determinant
+- **Linear algebra** — LU, Cholesky, QR, SVD decompositions; symmetric eigendecomposition; real Schur decomposition
 - **ODE integration** — fixed-step RK4, 7 adaptive Runge-Kutta solvers with dense output, RODAS4 stiff solver
 - **Optimization** — root finding (Brent, Newton), BFGS minimization, Gauss-Newton and Levenberg-Marquardt least squares
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
@@ -46,6 +46,16 @@ let a = Matrix::new([
 ]);
 let b = Vector::from_array([1.0, 2.0, 4.0]);
 let x = a.qr().unwrap().solve(&b); // least-squares fit
+
+// Symmetric eigendecomposition
+let sym = Matrix::new([[4.0_f64, 1.0], [1.0, 3.0]]);
+let eig = sym.eig_symmetric().unwrap();
+let eigenvalues = eig.eigenvalues();   // sorted ascending
+let eigenvectors = eig.eigenvectors(); // columns = eigenvectors
+
+// General eigenvalues via Schur decomposition
+let a = Matrix::new([[0.0_f64, -1.0], [1.0, 0.0]]); // 90° rotation
+let (re, im) = a.eigenvalues().unwrap(); // eigenvalues ±i
 
 // Quaternion rotation
 use numeris::Quaternion;
@@ -357,7 +367,7 @@ let v: Vector3<f64> = Vector3::from_array([1.0, 2.0, 3.0]);
 - Mixed ops: `Matrix * DynMatrix`, `DynMatrix + Matrix`, etc. → `DynMatrix`
 - `DynVector<T>` newtype with single-index access and `dot`
 - Conversions: `From<Matrix>` → `DynMatrix`, `TryFrom<&DynMatrix>` → `Matrix`
-- Full linalg: `DynLu`, `DynCholesky`, `DynQr` wrappers + convenience methods
+- Full linalg: `DynLu`, `DynCholesky`, `DynQr`, `DynSvd`, `DynSymmetricEigen`, `DynSchur` wrappers + convenience methods
 
 Type aliases: `DynMatrixf64`, `DynMatrixf32`, `DynVectorf64`, `DynVectorf32`, `DynMatrixi32`, `DynMatrixi64`, `DynMatrixu32`, `DynMatrixu64`, `DynMatrixz64`, `DynMatrixz32` (complex).
 
@@ -370,10 +380,13 @@ All decompositions provide both free functions (operating on `&mut impl MatrixMu
 | LU | `lu_in_place` | `LuDecomposition` | `DynLu` | Partial pivoting |
 | Cholesky | `cholesky_in_place` | `CholeskyDecomposition` | `DynCholesky` | A = LL^H (Hermitian) |
 | QR | `qr_in_place` | `QrDecomposition` | `DynQr` | Householder reflections, least-squares |
+| SVD | `bidiagonalize` + `bidiagonal_qr` | `SvdDecomposition` | `DynSvd` | Rectangular M×N, singular values, rank |
+| Symmetric Eigen | `tridiagonalize` + `tridiagonal_qr_*` | `SymmetricEigen` | `DynSymmetricEigen` | Real eigenvalues, orthogonal eigenvectors |
+| Schur | `hessenberg` + `francis_qr` | `SchurDecomposition` | `DynSchur` | Quasi-upper-triangular, general eigenvalues |
 
-Convenience methods on `Matrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.solve(&b)`, `a.inverse()`, `a.det()`.
+Convenience methods on `Matrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.svd()`, `a.solve(&b)`, `a.inverse()`, `a.det()`, `a.eig_symmetric()`, `a.eigenvalues_symmetric()`, `a.schur()`, `a.eigenvalues()`.
 
-Same convenience methods on `DynMatrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.solve(&b)`, `a.inverse()`, `a.det()`.
+Same convenience methods on `DynMatrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.svd()`, `a.solve(&b)`, `a.inverse()`, `a.det()`, `a.eig_symmetric()`, `a.eigenvalues_symmetric()`, `a.schur()`, `a.eigenvalues()`.
 
 ### `ode` — ODE integration
 
@@ -421,7 +434,7 @@ Biquad cascade filters designed via the bilinear transform, and a discrete-time 
 Checked items are implemented; unchecked are potential future work.
 
 - [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions), size aliases up to 6×6
-- [x] **linalg** — LU, Cholesky, QR decompositions; solvers, inverse, determinant; complex support
+- [x] **linalg** — LU, Cholesky, QR, SVD decompositions; symmetric eigendecomposition; real Schur decomposition; solvers, inverse, determinant; complex support
 - [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)

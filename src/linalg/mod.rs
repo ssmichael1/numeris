@@ -1,10 +1,17 @@
 pub(crate) mod cholesky;
+pub(crate) mod hessenberg;
 pub(crate) mod lu;
 pub(crate) mod qr;
+pub(crate) mod schur;
+pub(crate) mod svd;
+pub(crate) mod symmetric_eigen;
 
 pub use cholesky::CholeskyDecomposition;
 pub use lu::LuDecomposition;
 pub use qr::QrDecomposition;
+pub use schur::SchurDecomposition;
+pub use svd::SvdDecomposition;
+pub use symmetric_eigen::SymmetricEigen;
 
 /// Errors from linear algebra operations.
 ///
@@ -27,6 +34,8 @@ pub enum LinalgError {
     Singular,
     /// Matrix is not positive definite (required for Cholesky).
     NotPositiveDefinite,
+    /// Iterative algorithm did not converge within the iteration budget.
+    ConvergenceFailure,
 }
 
 impl core::fmt::Display for LinalgError {
@@ -34,6 +43,7 @@ impl core::fmt::Display for LinalgError {
         match self {
             LinalgError::Singular => write!(f, "matrix is singular"),
             LinalgError::NotPositiveDefinite => write!(f, "matrix is not positive definite"),
+            LinalgError::ConvergenceFailure => write!(f, "iterative algorithm did not converge"),
         }
     }
 }
