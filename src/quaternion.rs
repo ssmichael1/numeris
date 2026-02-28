@@ -36,6 +36,30 @@ impl<T: FloatScalar> Quaternion<T> {
         }
     }
 
+    /// Rotation about the X axis by `angle` radians.
+    #[inline]
+    pub fn rotx(angle: T) -> Self {
+        let half = angle / (T::one() + T::one());
+        let (s, c) = half.sin_cos();
+        Self { w: c, x: s, y: T::zero(), z: T::zero() }
+    }
+
+    /// Rotation about the Y axis by `angle` radians.
+    #[inline]
+    pub fn roty(angle: T) -> Self {
+        let half = angle / (T::one() + T::one());
+        let (s, c) = half.sin_cos();
+        Self { w: c, x: T::zero(), y: s, z: T::zero() }
+    }
+
+    /// Rotation about the Z axis by `angle` radians.
+    #[inline]
+    pub fn rotz(angle: T) -> Self {
+        let half = angle / (T::one() + T::one());
+        let (s, c) = half.sin_cos();
+        Self { w: c, x: T::zero(), y: T::zero(), z: s }
+    }
+
     /// Create from an axis (must be unit length) and angle in radians.
     #[inline]
     pub fn from_axis_angle(axis: Vector3<T>, angle: T) -> Self {
@@ -503,6 +527,60 @@ mod tests {
     fn from_euler_zero() {
         let q = Quaternion::from_euler(0.0, 0.0, 0.0);
         assert!(quat_approx_eq(&q, &Quaternion::identity()));
+    }
+
+    #[test]
+    fn rotx_matches_from_axis_angle() {
+        let angle = 1.3;
+        let q = Quaternion::rotx(angle);
+        let expected = Quaternion::from_axis_angle(Vector3::from_array([1.0, 0.0, 0.0]), angle);
+        assert!(quat_approx_eq(&q, &expected));
+    }
+
+    #[test]
+    fn roty_matches_from_axis_angle() {
+        let angle = 0.7;
+        let q = Quaternion::roty(angle);
+        let expected = Quaternion::from_axis_angle(Vector3::from_array([0.0, 1.0, 0.0]), angle);
+        assert!(quat_approx_eq(&q, &expected));
+    }
+
+    #[test]
+    fn rotz_matches_from_axis_angle() {
+        let angle = -0.5;
+        let q = Quaternion::rotz(angle);
+        let expected = Quaternion::from_axis_angle(Vector3::from_array([0.0, 0.0, 1.0]), angle);
+        assert!(quat_approx_eq(&q, &expected));
+    }
+
+    #[test]
+    fn rotx_90_rotates_y_to_z() {
+        let q = Quaternion::rotx(FRAC_PI_2);
+        let v = Vector3::from_array([0.0, 1.0, 0.0]);
+        let r = q * v;
+        assert!(approx_eq(r[0], 0.0));
+        assert!(approx_eq(r[1], 0.0));
+        assert!(approx_eq(r[2], 1.0));
+    }
+
+    #[test]
+    fn roty_90_rotates_z_to_x() {
+        let q = Quaternion::roty(FRAC_PI_2);
+        let v = Vector3::from_array([0.0, 0.0, 1.0]);
+        let r = q * v;
+        assert!(approx_eq(r[0], 1.0));
+        assert!(approx_eq(r[1], 0.0));
+        assert!(approx_eq(r[2], 0.0));
+    }
+
+    #[test]
+    fn rotz_90_rotates_x_to_y() {
+        let q = Quaternion::rotz(FRAC_PI_2);
+        let v = Vector3::from_array([1.0, 0.0, 0.0]);
+        let r = q * v;
+        assert!(approx_eq(r[0], 0.0));
+        assert!(approx_eq(r[1], 1.0));
+        assert!(approx_eq(r[2], 0.0));
     }
 
     // ── Core operations ──────────────────────────────────────────
