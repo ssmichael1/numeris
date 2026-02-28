@@ -96,6 +96,34 @@ impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 }
 
+// ── Element-wise max ────────────────────────────────────────────────
+
+impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Element-wise maximum: `c[i][j] = max(a[i][j], b[i][j])`.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let a = Matrix::new([[1.0_f64, 5.0], [3.0, 2.0]]);
+    /// let b = Matrix::new([[4.0, 2.0], [1.0, 6.0]]);
+    /// let c = a.element_max(&b);
+    /// assert_eq!(c[(0, 0)], 4.0);
+    /// assert_eq!(c[(0, 1)], 5.0);
+    /// assert_eq!(c[(1, 0)], 3.0);
+    /// assert_eq!(c[(1, 1)], 6.0);
+    /// ```
+    pub fn element_max(&self, rhs: &Self) -> Self {
+        let mut out = *self;
+        for i in 0..M {
+            for j in 0..N {
+                if rhs[(i, j)] > self[(i, j)] {
+                    out[(i, j)] = rhs[(i, j)];
+                }
+            }
+        }
+        out
+    }
+}
+
 // ── Row / Column manipulation ───────────────────────────────────────
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {

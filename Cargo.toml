@@ -6,7 +6,8 @@ description = "Pure-Rust numerical algorithms library — no-std compatible"
 license = "MIT"
 
 [features]
-default = ["std"]
+default = ["std", "ode"]
+ode = []
 std = ["num-traits/std", "num-complex?/std"]
 libm = ["num-traits/libm", "num-complex?/libm"]
 complex = ["dep:num-complex"]

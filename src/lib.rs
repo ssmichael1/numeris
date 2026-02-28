@@ -50,16 +50,19 @@
 //!
 //! ## Cargo features
 //!
-//! | Feature | Default | Description |
-//! |---------|---------|-------------|
-//! | `std` | yes | Hardware FPU via system libm |
-//! | `libm` | baseline | Pure-Rust software float fallback |
-//! | `complex` | no | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
+//! | Feature   | Default  | Description |
+//! |-----------|----------|-------------|
+//! | `std`     | yes      | Hardware FPU via system libm |
+//! | `ode`     | yes      | ODE integration (RK4, adaptive solvers) |
+//! | `libm`    | baseline | Pure-Rust software float fallback |
+//! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod linalg;
 pub mod matrix;
+#[cfg(feature = "ode")]
+pub mod ode;
 pub mod quaternion;
 pub mod traits;
 

@@ -1,5 +1,5 @@
 use crate::matrix::vector::Vector;
-use crate::traits::{LinalgScalar, Scalar};
+use crate::traits::{FloatScalar, LinalgScalar, Scalar};
 use num_traits::{Float, One, Zero};
 use crate::Matrix;
 
@@ -68,6 +68,23 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     pub fn normalize(&self) -> Self {
         let n = self.norm();
         *self * T::from_real(<T::Real as One>::one() / n)
+    }
+}
+
+impl<T: FloatScalar, const N: usize> Vector<T, N> {
+    /// Scaled norm: `norm() / sqrt(N)`.
+    ///
+    /// Makes the error metric independent of state dimension,
+    /// used by ODE solvers for step size control.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([3.0_f64, 4.0]);
+    /// let sn = v.scaled_norm();
+    /// assert!((sn - 5.0 / 2.0_f64.sqrt()).abs() < 1e-12);
+    /// ```
+    pub fn scaled_norm(&self) -> T {
+        self.norm() / T::from(N).unwrap().sqrt()
     }
 }
 

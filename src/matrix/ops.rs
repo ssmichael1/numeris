@@ -1,4 +1,4 @@
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::matrix::vector::Vector;
 use crate::traits::Scalar;
@@ -351,6 +351,39 @@ macro_rules! impl_scalar_mul {
 
 impl_scalar_mul!(f32, f64, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128);
 
+// ── Scalar division: matrix / scalar ─────────────────────────────────
+
+impl<T: Scalar, const M: usize, const N: usize> Div<T> for Matrix<T, M, N> {
+    type Output = Self;
+
+    fn div(self, rhs: T) -> Self {
+        let mut out = self;
+        for i in 0..M {
+            for j in 0..N {
+                out[(i, j)] = self[(i, j)] / rhs;
+            }
+        }
+        out
+    }
+}
+
+impl<T: Scalar, const M: usize, const N: usize> DivAssign<T> for Matrix<T, M, N> {
+    fn div_assign(&mut self, rhs: T) {
+        for i in 0..M {
+            for j in 0..N {
+                self[(i, j)] = self[(i, j)] / rhs;
+            }
+        }
+    }
+}
+
+impl<T: Scalar, const M: usize, const N: usize> Div<T> for &Matrix<T, M, N> {
+    type Output = Matrix<T, M, N>;
+    fn div(self, rhs: T) -> Matrix<T, M, N> {
+        (*self).div(rhs)
+    }
+}
+
 // ── Matrix-vector product ────────────────────────────────────────────
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
@@ -398,6 +431,30 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
         for i in 0..M {
             for j in 0..N {
                 out[(i, j)] = self[(i, j)] * rhs[(i, j)];
+            }
+        }
+        out
+    }
+}
+
+// ── Element-wise division ────────────────────────────────────────────
+
+impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Element-wise division: `c[i][j] = a[i][j] / b[i][j]`.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let a = Matrix::new([[10.0, 12.0], [21.0, 32.0]]);
+    /// let b = Matrix::new([[5.0, 6.0], [7.0, 8.0]]);
+    /// let c = a.element_div(&b);
+    /// assert_eq!(c[(0, 0)], 2.0);
+    /// assert_eq!(c[(1, 1)], 4.0);
+    /// ```
+    pub fn element_div(&self, rhs: &Self) -> Self {
+        let mut out = *self;
+        for i in 0..M {
+            for j in 0..N {
+                out[(i, j)] = self[(i, j)] / rhs[(i, j)];
             }
         }
         out
