@@ -63,8 +63,21 @@ pub mod matrix;
 pub mod quaternion;
 pub mod traits;
 
-pub use matrix::vector::{ColumnVector, ColumnVector3, Vector, Vector3};
+pub use matrix::vector::{
+    ColumnVector, ColumnVector1, ColumnVector2, ColumnVector3,
+    ColumnVector4, ColumnVector5, ColumnVector6,
+    Vector, Vector1, Vector2, Vector3, Vector4, Vector5, Vector6,
+};
 pub use matrix::Matrix;
+pub use matrix::{
+    Matrix1, Matrix2, Matrix3, Matrix4, Matrix5, Matrix6,
+    Matrix1x2, Matrix1x3, Matrix1x4, Matrix1x5, Matrix1x6,
+    Matrix2x1, Matrix2x3, Matrix2x4, Matrix2x5, Matrix2x6,
+    Matrix3x1, Matrix3x2, Matrix3x4, Matrix3x5, Matrix3x6,
+    Matrix4x1, Matrix4x2, Matrix4x3, Matrix4x5, Matrix4x6,
+    Matrix5x1, Matrix5x2, Matrix5x3, Matrix5x4, Matrix5x6,
+    Matrix6x1, Matrix6x2, Matrix6x3, Matrix6x4, Matrix6x5,
+};
 pub use quaternion::Quaternion;
 pub use traits::{FloatScalar, LinalgScalar, MatrixMut, MatrixRef, Scalar};
 

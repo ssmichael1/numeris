@@ -115,6 +115,67 @@ impl<T, const M: usize, const N: usize> IndexMut<(usize, usize)> for Matrix<T, M
     }
 }
 
+// ── Size aliases ────────────────────────────────────────────────────
+
+/// Square matrix aliases: `Matrix1` through `Matrix6`.
+macro_rules! square_alias {
+    ($name:ident, $n:literal, $doc:expr) => {
+        #[doc = $doc]
+        pub type $name<T> = Matrix<T, $n, $n>;
+    };
+}
+
+square_alias!(Matrix1, 1, "1×1 matrix.");
+square_alias!(Matrix2, 2, "2×2 matrix.");
+square_alias!(Matrix3, 3, "3×3 matrix.");
+square_alias!(Matrix4, 4, "4×4 matrix.");
+square_alias!(Matrix5, 5, "5×5 matrix.");
+square_alias!(Matrix6, 6, "6×6 matrix.");
+
+/// Rectangular matrix aliases: `Matrix{M}x{N}` for all M,N in 1..=6 where M ≠ N.
+macro_rules! rect_alias {
+    ($name:ident, $m:literal, $n:literal, $doc:expr) => {
+        #[doc = $doc]
+        pub type $name<T> = Matrix<T, $m, $n>;
+    };
+}
+
+rect_alias!(Matrix1x2, 1, 2, "1×2 matrix.");
+rect_alias!(Matrix1x3, 1, 3, "1×3 matrix.");
+rect_alias!(Matrix1x4, 1, 4, "1×4 matrix.");
+rect_alias!(Matrix1x5, 1, 5, "1×5 matrix.");
+rect_alias!(Matrix1x6, 1, 6, "1×6 matrix.");
+
+rect_alias!(Matrix2x1, 2, 1, "2×1 matrix.");
+rect_alias!(Matrix2x3, 2, 3, "2×3 matrix.");
+rect_alias!(Matrix2x4, 2, 4, "2×4 matrix.");
+rect_alias!(Matrix2x5, 2, 5, "2×5 matrix.");
+rect_alias!(Matrix2x6, 2, 6, "2×6 matrix.");
+
+rect_alias!(Matrix3x1, 3, 1, "3×1 matrix.");
+rect_alias!(Matrix3x2, 3, 2, "3×2 matrix.");
+rect_alias!(Matrix3x4, 3, 4, "3×4 matrix.");
+rect_alias!(Matrix3x5, 3, 5, "3×5 matrix.");
+rect_alias!(Matrix3x6, 3, 6, "3×6 matrix.");
+
+rect_alias!(Matrix4x1, 4, 1, "4×1 matrix.");
+rect_alias!(Matrix4x2, 4, 2, "4×2 matrix.");
+rect_alias!(Matrix4x3, 4, 3, "4×3 matrix.");
+rect_alias!(Matrix4x5, 4, 5, "4×5 matrix.");
+rect_alias!(Matrix4x6, 4, 6, "4×6 matrix.");
+
+rect_alias!(Matrix5x1, 5, 1, "5×1 matrix.");
+rect_alias!(Matrix5x2, 5, 2, "5×2 matrix.");
+rect_alias!(Matrix5x3, 5, 3, "5×3 matrix.");
+rect_alias!(Matrix5x4, 5, 4, "5×4 matrix.");
+rect_alias!(Matrix5x6, 5, 6, "5×6 matrix.");
+
+rect_alias!(Matrix6x1, 6, 1, "6×1 matrix.");
+rect_alias!(Matrix6x2, 6, 2, "6×2 matrix.");
+rect_alias!(Matrix6x3, 6, 3, "6×3 matrix.");
+rect_alias!(Matrix6x4, 6, 4, "6×4 matrix.");
+rect_alias!(Matrix6x5, 6, 5, "6×5 matrix.");
+
 #[cfg(test)]
 mod tests {
     use super::*;
