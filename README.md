@@ -365,6 +365,7 @@ Checked items are implemented; unchecked are potential future work.
 - [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
 - [ ] **stats** — Statistics and distributions
 - [ ] **poly** — Polynomial operations and root-finding
+- [ ] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
 
 ## Design decisions
 
