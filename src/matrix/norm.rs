@@ -7,6 +7,15 @@ use crate::Matrix;
 
 impl<T: Scalar, const N: usize> Vector<T, N> {
     /// Squared L2 norm (dot product with self). No sqrt, works with integers.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([3.0, 4.0]);
+    /// assert_eq!(v.norm_squared(), 25.0);
+    ///
+    /// let vi = Vector::from_array([3, 4]);
+    /// assert_eq!(vi.norm_squared(), 25);
+    /// ```
     pub fn norm_squared(&self) -> T {
         self.dot(self)
     }
@@ -16,6 +25,12 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     /// L2 (Euclidean) norm.
     ///
     /// For complex vectors, this is `sqrt(sum(|x_i|^2))`.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([3.0_f64, 4.0]);
+    /// assert!((v.norm() - 5.0).abs() < 1e-12);
+    /// ```
     pub fn norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
         for i in 0..N {
@@ -25,6 +40,12 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     }
 
     /// L1 norm (sum of absolute values / moduli).
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([1.0_f64, -2.0, 3.0]);
+    /// assert!((v.norm_l1() - 6.0).abs() < 1e-12);
+    /// ```
     pub fn norm_l1(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
         for i in 0..N {
@@ -36,6 +57,14 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     /// Return a unit vector in the same direction.
     ///
     /// Panics if the norm is zero.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([3.0_f64, 4.0]);
+    /// let u = v.normalize();
+    /// assert!((u.norm() - 1.0).abs() < 1e-12);
+    /// assert!((u[0] - 0.6).abs() < 1e-12);
+    /// ```
     pub fn normalize(&self) -> Self {
         let n = self.norm();
         *self * T::from_real(<T::Real as One>::one() / n)
@@ -59,6 +88,12 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Frobenius norm (square root of sum of squared moduli).
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0]]);
+    /// assert!((m.frobenius_norm() - 30.0_f64.sqrt()).abs() < 1e-12);
+    /// ```
     pub fn frobenius_norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
         for i in 0..M {
@@ -71,6 +106,13 @@ impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     /// Infinity norm (maximum row sum of moduli).
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0_f64, -2.0], [3.0, 4.0]]);
+    /// // row sums: |1|+|-2| = 3, |3|+|4| = 7
+    /// assert!((m.norm_inf() - 7.0).abs() < 1e-12);
+    /// ```
     pub fn norm_inf(&self) -> T::Real {
         let mut max = <T::Real as Zero>::zero();
         for i in 0..M {
@@ -86,6 +128,13 @@ impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     /// One norm (maximum column sum of moduli).
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0_f64, -2.0], [3.0, 4.0]]);
+    /// // col sums: |1|+|3| = 4, |-2|+|4| = 6
+    /// assert!((m.norm_one() - 6.0).abs() < 1e-12);
+    /// ```
     pub fn norm_one(&self) -> T::Real {
         let mut max = <T::Real as Zero>::zero();
         for j in 0..N {

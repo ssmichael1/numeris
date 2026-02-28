@@ -14,6 +14,21 @@ use crate::traits::{MatrixMut, MatrixRef, Scalar};
 ///
 /// Storage is row-major: `data[row][col]`.
 /// Stack-allocated, no-std compatible.
+///
+/// # Examples
+///
+/// ```
+/// use numeris::Matrix;
+///
+/// let a = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+/// assert_eq!(a[(0, 1)], 2.0);
+/// assert_eq!(a.nrows(), 2);
+/// assert_eq!(a.ncols(), 2);
+///
+/// let b: Matrix<f64, 3, 3> = Matrix::eye();
+/// assert_eq!(b[(0, 0)], 1.0);
+/// assert_eq!(b[(0, 1)], 0.0);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Matrix<T, const M: usize, const N: usize> {
     data: [[T; N]; M],

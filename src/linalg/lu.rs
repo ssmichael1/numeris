@@ -104,6 +104,23 @@ pub fn lu_solve<T: LinalgScalar>(
 ///
 /// Stores the packed L/U factors and permutation vector.
 /// Use `solve()`, `inverse()`, or `det()` to work with the decomposition.
+///
+/// # Example
+///
+/// ```
+/// use numeris::{Matrix, Vector};
+///
+/// let a = Matrix::new([[2.0_f64, 1.0], [5.0, 3.0]]);
+/// let lu = a.lu().unwrap();
+///
+/// let b = Vector::from_array([4.0, 11.0]);
+/// let x = lu.solve(&b);
+/// assert!((x[0] - 1.0).abs() < 1e-12);
+/// assert!((x[1] - 2.0).abs() < 1e-12);
+///
+/// let det = lu.det();
+/// assert!((det - 1.0).abs() < 1e-12);
+/// ```
 #[derive(Debug)]
 pub struct LuDecomposition<T, const N: usize> {
     lu: Matrix<T, N, N>,
@@ -174,12 +191,35 @@ impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
         LuDecomposition::new(self)
     }
 
-    /// Solve Ax = b for x.
+    /// Solve `Ax = b` for `x` via LU decomposition.
+    ///
+    /// ```
+    /// use numeris::{Matrix, Vector};
+    /// let a = Matrix::new([
+    ///     [2.0_f64, 1.0, -1.0],
+    ///     [-3.0, -1.0, 2.0],
+    ///     [-2.0, 1.0, 2.0],
+    /// ]);
+    /// let b = Vector::from_array([8.0, -11.0, -3.0]);
+    /// let x = a.solve(&b).unwrap();
+    /// assert!((x[0] - 2.0).abs() < 1e-12);
+    /// assert!((x[1] - 3.0).abs() < 1e-12);
+    /// assert!((x[2] - (-1.0)).abs() < 1e-12);
+    /// ```
     pub fn solve(&self, b: &Vector<T, N>) -> Result<Vector<T, N>, LinalgError> {
         Ok(self.lu()?.solve(b))
     }
 
-    /// Compute the matrix inverse.
+    /// Compute the matrix inverse via LU decomposition.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let a = Matrix::new([[4.0_f64, 7.0], [2.0, 6.0]]);
+    /// let a_inv = a.inverse().unwrap();
+    /// let id = a * a_inv;
+    /// assert!((id[(0, 0)] - 1.0).abs() < 1e-12);
+    /// assert!((id[(0, 1)]).abs() < 1e-12);
+    /// ```
     pub fn inverse(&self) -> Result<Self, LinalgError> {
         Ok(self.lu()?.inverse())
     }

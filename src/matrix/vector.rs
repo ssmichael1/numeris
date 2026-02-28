@@ -4,10 +4,30 @@ use crate::traits::Scalar;
 use crate::Matrix;
 
 /// A row vector (1×N matrix).
+///
+/// Vectors support single-index access (`v[i]`), dot products, norms, and
+/// cross products (3-element vectors). Use [`ColumnVector`] for column vectors.
+///
+/// # Examples
+///
+/// ```
+/// use numeris::Vector;
+///
+/// let v = Vector::from_array([3.0_f64, 4.0]);
+/// assert_eq!(v[0], 3.0);
+/// assert_eq!(v.dot(&v), 25.0);
+/// assert!((v.norm() - 5.0).abs() < 1e-12);
+/// ```
 pub type Vector<T, const N: usize> = Matrix<T, 1, N>;
 
 impl<T: Scalar, const N: usize> Vector<T, N> {
     /// Create a vector from a 1D array.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([1.0, 2.0, 3.0]);
+    /// assert_eq!(v[0], 1.0);
+    /// ```
     #[inline]
     pub fn from_array(data: [T; N]) -> Self {
         Self::new([data])
@@ -26,6 +46,13 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     }
 
     /// Dot product of two vectors.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let a = Vector::from_array([1.0, 2.0, 3.0]);
+    /// let b = Vector::from_array([4.0, 5.0, 6.0]);
+    /// assert_eq!(a.dot(&b), 32.0); // 1*4 + 2*5 + 3*6
+    /// ```
     #[inline]
     pub fn dot(&self, rhs: &Self) -> T {
         let mut sum = T::zero();
@@ -37,7 +64,16 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
 }
 
 impl<T: Scalar, const N: usize> Vector<T, N> {
-    /// Outer product: v.outer(w) → N×P matrix where result[i][j] = v[i] * w[j].
+    /// Outer product: `v.outer(w)` → N×P matrix where `result[i][j] = v[i] * w[j]`.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let a = Vector::from_array([1.0, 2.0]);
+    /// let b = Vector::from_array([3.0, 4.0, 5.0]);
+    /// let m = a.outer(&b);
+    /// assert_eq!(m[(0, 0)], 3.0);  // 1*3
+    /// assert_eq!(m[(1, 2)], 10.0); // 2*5
+    /// ```
     pub fn outer<const P: usize>(&self, rhs: &Vector<T, P>) -> Matrix<T, N, P> {
         let mut out = Matrix::<T, N, P>::zeros();
         for i in 0..N {
@@ -50,10 +86,20 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
 }
 
 /// A 3-element row vector.
+///
+/// Adds `cross()` for cross product in addition to all `Vector` methods.
 pub type Vector3<T> = Vector<T, 3>;
 
 impl<T: Scalar> Vector3<T> {
     /// Cross product of two 3-vectors.
+    ///
+    /// ```
+    /// use numeris::Vector3;
+    /// let x = Vector3::from_array([1.0, 0.0, 0.0]);
+    /// let y = Vector3::from_array([0.0, 1.0, 0.0]);
+    /// let z = x.cross(&y);
+    /// assert_eq!(z[2], 1.0); // x × y = z
+    /// ```
     #[inline]
     pub fn cross(&self, rhs: &Self) -> Self {
         Self::from_array([
@@ -97,6 +143,13 @@ pub type ColumnVector3<T> = ColumnVector<T, 3>;
 
 impl<T: Scalar, const N: usize> ColumnVector<T, N> {
     /// Create a column vector from a 1D array.
+    ///
+    /// ```
+    /// use numeris::ColumnVector;
+    /// let cv = ColumnVector::from_column([1.0, 2.0, 3.0]);
+    /// assert_eq!(cv[(0, 0)], 1.0);
+    /// assert_eq!(cv[(2, 0)], 3.0);
+    /// ```
     #[inline]
     pub fn from_column(data: [T; N]) -> Self {
         Self::new(data.map(|x| [x]))

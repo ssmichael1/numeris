@@ -87,8 +87,24 @@ pub fn back_substitute_lt<T: LinalgScalar>(
 
 /// Cholesky decomposition of a fixed-size (Hermitian) positive-definite matrix.
 ///
-/// Stores the lower triangular factor L where A = L * L^H.
-/// For real matrices, L^H = L^T.
+/// Stores the lower triangular factor L where `A = L * L^H`.
+/// For real matrices, `L^H = L^T`.
+///
+/// # Example
+///
+/// ```
+/// use numeris::{Matrix, Vector};
+///
+/// let a = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+/// let chol = a.cholesky().unwrap();
+///
+/// let b = Vector::from_array([8.0, 7.0]);
+/// let x = chol.solve(&b); // solve Ax = b
+///
+/// let inv = chol.inverse(); // A^{-1}
+/// let det = chol.det();     // det(A)
+/// assert!((det - 8.0).abs() < 1e-12);
+/// ```
 #[derive(Debug)]
 pub struct CholeskyDecomposition<T, const N: usize> {
     l: Matrix<T, N, N>,
@@ -190,10 +206,19 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
 
 /// Convenience methods on square matrices.
 impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
-    /// Cholesky decomposition (A = L * L^H).
+    /// Cholesky decomposition (`A = L * L^H`).
     ///
-    /// For real matrices, this is the standard A = L * L^T.
+    /// For real matrices, this is the standard `A = L * L^T`.
     /// Returns an error if the matrix is not (Hermitian) positive definite.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let spd = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+    /// let chol = spd.cholesky().unwrap();
+    /// let l = chol.l_full();
+    /// let reconstructed = l * l.transpose();
+    /// assert!((reconstructed[(0, 0)] - 4.0).abs() < 1e-12);
+    /// ```
     pub fn cholesky(&self) -> Result<CholeskyDecomposition<T, N>, LinalgError> {
         CholeskyDecomposition::new(self)
     }

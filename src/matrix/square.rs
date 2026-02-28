@@ -4,6 +4,12 @@ use crate::Matrix;
 
 impl<T: Scalar, const N: usize> Matrix<T, N, N> {
     /// Sum of diagonal elements.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// assert_eq!(m.trace(), 5.0);
+    /// ```
     pub fn trace(&self) -> T {
         let mut sum = T::zero();
         for i in 0..N {
@@ -13,6 +19,14 @@ impl<T: Scalar, const N: usize> Matrix<T, N, N> {
     }
 
     /// Extract the diagonal as a vector.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// let d = m.diag();
+    /// assert_eq!(d[0], 1.0);
+    /// assert_eq!(d[1], 4.0);
+    /// ```
     pub fn diag(&self) -> Vector<T, N> {
         let mut v = Vector::zeros();
         for i in 0..N {
@@ -22,6 +36,15 @@ impl<T: Scalar, const N: usize> Matrix<T, N, N> {
     }
 
     /// Create a diagonal matrix from a vector.
+    ///
+    /// ```
+    /// use numeris::{Matrix, Vector};
+    /// let v = Vector::from_array([2.0, 3.0]);
+    /// let m = Matrix::from_diag(&v);
+    /// assert_eq!(m[(0, 0)], 2.0);
+    /// assert_eq!(m[(1, 1)], 3.0);
+    /// assert_eq!(m[(0, 1)], 0.0);
+    /// ```
     pub fn from_diag(v: &Vector<T, N>) -> Self {
         let mut m = Self::zeros();
         for i in 0..N {
@@ -33,6 +56,14 @@ impl<T: Scalar, const N: usize> Matrix<T, N, N> {
     /// Integer matrix power via repeated squaring.
     ///
     /// `pow(0)` returns the identity matrix.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0, 1.0], [0.0, 1.0]]);
+    /// let m3 = m.pow(3);
+    /// assert_eq!(m3[(0, 1)], 3.0); // upper-triangular power
+    /// assert_eq!(m.pow(0), Matrix::eye());
+    /// ```
     pub fn pow(&self, mut n: u32) -> Self {
         let mut result = Self::eye();
         let mut base = *self;
@@ -46,7 +77,16 @@ impl<T: Scalar, const N: usize> Matrix<T, N, N> {
         result
     }
 
-    /// Check if the matrix is symmetric (A == A^T).
+    /// Check if the matrix is symmetric (`A == A^T`).
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let sym = Matrix::new([[1.0, 2.0], [2.0, 3.0]]);
+    /// assert!(sym.is_symmetric());
+    ///
+    /// let asym = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// assert!(!asym.is_symmetric());
+    /// ```
     pub fn is_symmetric(&self) -> bool {
         for i in 0..N {
             for j in (i + 1)..N {
@@ -61,6 +101,12 @@ impl<T: Scalar, const N: usize> Matrix<T, N, N> {
 
 impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
     /// Determinant via Gaussian elimination with partial pivoting.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[3.0_f64, 8.0], [4.0, 6.0]]);
+    /// assert!((m.det() - (-14.0)).abs() < 1e-12);
+    /// ```
     pub fn det(&self) -> T {
         let mut a = *self;
         let mut sign = T::one();

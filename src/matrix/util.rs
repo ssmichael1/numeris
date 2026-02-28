@@ -8,6 +8,14 @@ use crate::traits::{FloatScalar, Scalar};
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Create a matrix by calling `f(row, col)` for each element.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m: Matrix<f64, 3, 3> = Matrix::from_fn(|i, j| {
+    ///     if i == j { 1.0 } else { 0.0 }
+    /// });
+    /// assert_eq!(m, Matrix::eye());
+    /// ```
     pub fn from_fn(f: impl Fn(usize, usize) -> T) -> Self
     where
         T: Copy + Default,
@@ -22,6 +30,14 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     /// Apply a function to every element, producing a new matrix.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0_f64, 4.0], [9.0, 16.0]]);
+    /// let r = m.map(|x: f64| x.sqrt());
+    /// assert_eq!(r[(0, 0)], 1.0);
+    /// assert_eq!(r[(1, 1)], 4.0);
+    /// ```
     pub fn map<U: Copy + Default>(&self, f: impl Fn(T) -> U) -> Matrix<U, M, N>
     where
         T: Copy,
@@ -40,6 +56,12 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Sum of all elements.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// assert_eq!(m.sum(), 10.0);
+    /// ```
     pub fn sum(&self) -> T {
         let mut s = T::zero();
         for i in 0..M {
@@ -55,6 +77,14 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Element-wise absolute value.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0_f64, -2.0], [-3.0, 4.0]]);
+    /// let a = m.abs();
+    /// assert_eq!(a[(0, 1)], 2.0);
+    /// assert_eq!(a[(1, 0)], 3.0);
+    /// ```
     pub fn abs(&self) -> Self {
         let mut out = *self;
         for i in 0..M {
@@ -70,6 +100,14 @@ impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Swap two rows in place.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let mut m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// m.swap_rows(0, 1);
+    /// assert_eq!(m[(0, 0)], 3.0);
+    /// assert_eq!(m[(1, 0)], 1.0);
+    /// ```
     pub fn swap_rows(&mut self, a: usize, b: usize) {
         if a != b {
             self.data.swap(a, b);
@@ -79,6 +117,14 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Swap two columns in place.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let mut m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// m.swap_cols(0, 1);
+    /// assert_eq!(m[(0, 0)], 2.0);
+    /// assert_eq!(m[(0, 1)], 1.0);
+    /// ```
     pub fn swap_cols(&mut self, a: usize, b: usize) {
         if a != b {
             for i in 0..M {
@@ -94,6 +140,14 @@ impl<T: Copy, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Extract row `i` as a row vector.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// let r = m.row(0);
+    /// assert_eq!(r[0], 1.0);
+    /// assert_eq!(r[1], 2.0);
+    /// ```
     pub fn row(&self, i: usize) -> Vector<T, N> {
         let mut v = Vector::zeros();
         for j in 0..N {
@@ -110,6 +164,14 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     /// Extract column `j` as a row vector.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// let c = m.col(1);
+    /// assert_eq!(c[0], 2.0);
+    /// assert_eq!(c[1], 4.0);
+    /// ```
     pub fn col(&self, j: usize) -> Vector<T, M> {
         let mut v = Vector::zeros();
         for i in 0..M {

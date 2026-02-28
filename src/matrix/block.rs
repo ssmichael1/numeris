@@ -5,9 +5,17 @@ use crate::traits::Scalar;
 // ── General block extraction & insertion ────────────────────────────
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Extract a P×Q sub-matrix starting at position (i, j).
+    /// Extract a P×Q sub-matrix starting at position `(i, j)`.
     ///
     /// Panics if the block extends beyond the matrix bounds.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
+    /// let b: Matrix<f64, 2, 2> = m.block(1, 1);
+    /// assert_eq!(b[(0, 0)], 5.0);
+    /// assert_eq!(b[(1, 1)], 9.0);
+    /// ```
     pub fn block<const P: usize, const Q: usize>(&self, i: usize, j: usize) -> Matrix<T, P, Q> {
         assert!(
             i + P <= M && j + Q <= N,
@@ -22,9 +30,18 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
         out
     }
 
-    /// Write a P×Q sub-matrix into self starting at position (i, j).
+    /// Write a P×Q sub-matrix into self starting at position `(i, j)`.
     ///
     /// Panics if the block extends beyond the matrix bounds.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let mut m: Matrix<f64, 3, 3> = Matrix::zeros();
+    /// let patch = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// m.set_block(1, 1, &patch);
+    /// assert_eq!(m[(1, 1)], 1.0);
+    /// assert_eq!(m[(2, 2)], 4.0);
+    /// ```
     pub fn set_block<const P: usize, const Q: usize>(
         &mut self,
         i: usize,
@@ -105,11 +122,27 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: Scalar, const N: usize> Vector<T, N> {
     /// Extract the first P elements.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([10, 20, 30, 40, 50]);
+    /// let h: Vector<i32, 3> = v.head();
+    /// assert_eq!(h[0], 10);
+    /// assert_eq!(h[2], 30);
+    /// ```
     pub fn head<const P: usize>(&self) -> Vector<T, P> {
         self.block(0, 0)
     }
 
     /// Extract the last P elements.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([10, 20, 30, 40, 50]);
+    /// let t: Vector<i32, 2> = v.tail();
+    /// assert_eq!(t[0], 40);
+    /// assert_eq!(t[1], 50);
+    /// ```
     pub fn tail<const P: usize>(&self) -> Vector<T, P> {
         self.block(0, N - P)
     }

@@ -101,6 +101,23 @@ pub fn qr_in_place<T: LinalgScalar>(
 ///
 /// Stores the packed Householder vectors, R, and tau scalars.
 /// Use `q()`, `r()`, `solve()`, or `det()` to work with the decomposition.
+///
+/// # Example
+///
+/// ```
+/// use numeris::{Matrix, Vector};
+///
+/// // Least-squares fit: y = c0 + c1*x to points (0,1), (1,2), (2,4)
+/// let a = Matrix::new([
+///     [1.0_f64, 0.0],
+///     [1.0, 1.0],
+///     [1.0, 2.0],
+/// ]);
+/// let b = Vector::from_array([1.0, 2.0, 4.0]);
+/// let x = a.qr().unwrap().solve(&b);
+/// assert!((x[0] - 5.0 / 6.0).abs() < 1e-10);
+/// assert!((x[1] - 3.0 / 2.0).abs() < 1e-10);
+/// ```
 #[derive(Debug)]
 pub struct QrDecomposition<T, const M: usize, const N: usize> {
     qr: Matrix<T, M, N>,
@@ -117,7 +134,16 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
         Ok(Self { qr, tau })
     }
 
-    /// Extract the upper-triangular R factor (N x N).
+    /// Extract the upper-triangular R factor (N × N).
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let a = Matrix::new([[12.0_f64, -51.0, 4.0], [6.0, 167.0, -68.0], [-4.0, 24.0, -41.0]]);
+    /// let r = a.qr().unwrap().r();
+    /// // R is upper-triangular
+    /// assert!((r[(1, 0)]).abs() < 1e-12);
+    /// assert!((r[(2, 0)]).abs() < 1e-12);
+    /// ```
     pub fn r(&self) -> Matrix<T, N, N> {
         let mut r = Matrix::<T, N, N>::zeros();
         for i in 0..N {
@@ -128,12 +154,23 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
         r
     }
 
-    /// Compute the thin Q factor (M x N, orthonormal columns).
+    /// Compute the thin Q factor (M × N, orthonormal columns).
     ///
     /// Applies Householder reflections in reverse to the first N columns
     /// of the identity matrix.
     ///
-    /// For complex matrices, Q is unitary (Q^H * Q = I).
+    /// For complex matrices, Q is unitary (`Q^H * Q = I`).
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let a = Matrix::new([[12.0_f64, -51.0, 4.0], [6.0, 167.0, -68.0], [-4.0, 24.0, -41.0]]);
+    /// let qr = a.qr().unwrap();
+    /// let q = qr.q();
+    /// let qtq = q.transpose() * q;
+    /// // Q^T * Q ≈ I
+    /// assert!((qtq[(0, 0)] - 1.0).abs() < 1e-10);
+    /// assert!((qtq[(0, 1)]).abs() < 1e-10);
+    /// ```
     pub fn q(&self) -> Matrix<T, M, N> {
         // Start with the M×N "thin identity": e_0..e_{N-1}
         let mut q = Matrix::<T, M, N>::zeros();

@@ -33,6 +33,13 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Create a matrix from a flat slice in row-major order.
     ///
     /// Panics if `slice.len() != M * N`.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m: Matrix<f64, 2, 3> = Matrix::from_slice(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// assert_eq!(m[(0, 2)], 3.0);
+    /// assert_eq!(m[(1, 0)], 4.0);
+    /// ```
     pub fn from_slice(slice: &[T]) -> Self {
         assert_eq!(
             slice.len(),

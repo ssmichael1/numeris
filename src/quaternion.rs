@@ -8,6 +8,24 @@ use crate::Matrix;
 ///
 /// Scalar-first convention: `[w, x, y, z]` where `w` is the scalar part
 /// and `(x, y, z)` is the vector part.
+///
+/// # Example
+///
+/// ```
+/// use numeris::{Quaternion, Vector3};
+///
+/// // Create a 90° rotation about the Z axis
+/// let q = Quaternion::from_axis_angle(
+///     Vector3::from_array([0.0, 0.0, 1.0]),
+///     std::f64::consts::FRAC_PI_2,
+/// );
+///
+/// // Rotate the X unit vector → should become Y
+/// let v = Vector3::from_array([1.0, 0.0, 0.0]);
+/// let rotated = q * v;
+/// assert!((rotated[0]).abs() < 1e-12);
+/// assert!((rotated[1] - 1.0).abs() < 1e-12);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Quaternion<T> {
     pub w: T,
@@ -61,6 +79,15 @@ impl<T: FloatScalar> Quaternion<T> {
     }
 
     /// Create from an axis (must be unit length) and angle in radians.
+    ///
+    /// ```
+    /// use numeris::{Quaternion, Vector3};
+    /// let q = Quaternion::from_axis_angle(
+    ///     Vector3::from_array([0.0_f64, 1.0, 0.0]),
+    ///     1.0,
+    /// );
+    /// assert!((q.norm() - 1.0).abs() < 1e-12);
+    /// ```
     #[inline]
     pub fn from_axis_angle(axis: Vector3<T>, angle: T) -> Self {
         let half = angle / (T::one() + T::one());
@@ -204,6 +231,20 @@ impl<T: FloatScalar> Quaternion<T> {
 
 impl<T: FloatScalar> Quaternion<T> {
     /// Convert to a 3×3 rotation matrix.
+    ///
+    /// ```
+    /// use numeris::{Quaternion, Matrix, Vector3};
+    /// let q = Quaternion::from_axis_angle(
+    ///     Vector3::from_array([0.0_f64, 1.0, 0.0]),
+    ///     0.8,
+    /// );
+    /// let m = q.to_rotation_matrix();
+    /// // Rotation via quaternion and matrix should match
+    /// let v = Vector3::from_array([1.0, 0.0, 0.0]);
+    /// let r_q = q * v;
+    /// let r_m = m.vecmul(&v);
+    /// assert!((r_q[0] - r_m[0]).abs() < 1e-12);
+    /// ```
     pub fn to_rotation_matrix(&self) -> Matrix<T, 3, 3> {
         let two = T::one() + T::one();
         let (w, x, y, z) = (self.w, self.x, self.y, self.z);
@@ -303,6 +344,19 @@ impl<T: FloatScalar> Quaternion<T> {
     ///
     /// `t = 0` returns `self`, `t = 1` returns `other`.
     /// Automatically takes the short path on the 4-sphere.
+    ///
+    /// ```
+    /// use numeris::{Quaternion, Vector3};
+    /// use std::f64::consts::FRAC_PI_2;
+    ///
+    /// let a = Quaternion::<f64>::identity();
+    /// let b = Quaternion::from_axis_angle(
+    ///     Vector3::from_array([0.0, 0.0, 1.0]),
+    ///     FRAC_PI_2,
+    /// );
+    /// let mid = a.slerp(&b, 0.5);
+    /// assert!((mid.norm() - 1.0).abs() < 1e-12);
+    /// ```
     pub fn slerp(&self, other: &Self, t: T) -> Self {
         let mut dot = self.dot(other);
 

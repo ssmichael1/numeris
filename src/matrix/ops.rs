@@ -354,10 +354,19 @@ impl_scalar_mul!(f32, f64, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128);
 // ── Matrix-vector product ────────────────────────────────────────────
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Matrix-vector product: A * v → result.
+    /// Matrix-vector product: `A * v` → result.
     ///
     /// Takes and returns row vectors for convenience, avoiding
     /// explicit transpose. Equivalent to `(A * v^T)^T`.
+    ///
+    /// ```
+    /// use numeris::{Matrix, Vector};
+    /// let a = Matrix::new([[2.0, 1.0], [5.0, 3.0]]);
+    /// let v = Vector::from_array([1.0, 2.0]);
+    /// let r = a.vecmul(&v);
+    /// assert_eq!(r[0], 4.0);  // 2*1 + 1*2
+    /// assert_eq!(r[1], 11.0); // 5*1 + 3*2
+    /// ```
     pub fn vecmul(&self, v: &Vector<T, N>) -> Vector<T, M> {
         let mut out = Vector::<T, M>::zeros();
         for i in 0..M {
@@ -375,6 +384,15 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Element-wise (Hadamard) product: `c[i][j] = a[i][j] * b[i][j]`.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let a = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+    /// let b = Matrix::new([[5.0, 6.0], [7.0, 8.0]]);
+    /// let c = a.element_mul(&b);
+    /// assert_eq!(c[(0, 0)], 5.0);
+    /// assert_eq!(c[(1, 1)], 32.0);
+    /// ```
     pub fn element_mul(&self, rhs: &Self) -> Self {
         let mut out = *self;
         for i in 0..M {
@@ -390,6 +408,15 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Transpose: (M×N) → (N×M).
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let a = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    /// let t = a.transpose();
+    /// assert_eq!(t.nrows(), 3);
+    /// assert_eq!(t.ncols(), 2);
+    /// assert_eq!(t[(1, 0)], 2.0);
+    /// ```
     pub fn transpose(&self) -> Matrix<T, N, M> {
         let mut out = Matrix::<T, N, M>::zeros();
         for i in 0..M {
