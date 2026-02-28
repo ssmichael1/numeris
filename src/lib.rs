@@ -2,8 +2,10 @@
 
 pub mod linalg;
 pub mod matrix;
+pub mod quaternion;
 pub mod traits;
 
 pub use matrix::vector::{ColumnVector, ColumnVector3, Vector, Vector3};
 pub use matrix::Matrix;
+pub use quaternion::Quaternion;
 pub use traits::{FloatScalar, MatrixMut, MatrixRef, Scalar};
