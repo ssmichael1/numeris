@@ -36,6 +36,19 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     }
 }
 
+impl<T: Scalar, const N: usize> Vector<T, N> {
+    /// Outer product: v.outer(w) → N×P matrix where result[i][j] = v[i] * w[j].
+    pub fn outer<const P: usize>(&self, rhs: &Vector<T, P>) -> Matrix<T, N, P> {
+        let mut out = Matrix::<T, N, P>::zeros();
+        for i in 0..N {
+            for j in 0..P {
+                out[(i, j)] = self[i] * rhs[j];
+            }
+        }
+        out
+    }
+}
+
 /// A 3-element row vector.
 pub type Vector3<T> = Vector<T, 3>;
 
@@ -193,6 +206,32 @@ mod tests {
         let b = Vector3::from_array([4.0, 5.0, 6.0]);
         assert_eq!(a.dot(&b), 32.0);
         assert_eq!((a + b)[0], 5.0);
+    }
+
+    // ── Outer product tests ─────────────────────────────────────
+
+    #[test]
+    fn outer_product() {
+        let a = Vector::from_array([1.0, 2.0, 3.0]);
+        let b = Vector::from_array([4.0, 5.0]);
+        let m = a.outer(&b);
+        assert_eq!(m.nrows(), 3);
+        assert_eq!(m.ncols(), 2);
+        assert_eq!(m[(0, 0)], 4.0);  // 1*4
+        assert_eq!(m[(0, 1)], 5.0);  // 1*5
+        assert_eq!(m[(1, 0)], 8.0);  // 2*4
+        assert_eq!(m[(2, 1)], 15.0); // 3*5
+    }
+
+    #[test]
+    fn outer_product_square() {
+        let v = Vector::from_array([1.0, 2.0]);
+        let m = v.outer(&v);
+        assert_eq!(m[(0, 0)], 1.0);
+        assert_eq!(m[(0, 1)], 2.0);
+        assert_eq!(m[(1, 0)], 2.0);
+        assert_eq!(m[(1, 1)], 4.0);
+        assert!(m.is_symmetric());
     }
 
     // ── Column vector tests ──────────────────────────────────────

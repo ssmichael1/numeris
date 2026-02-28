@@ -261,6 +261,21 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 }
 
+// ── Element-wise multiplication (Hadamard product) ──────────────────
+
+impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Element-wise (Hadamard) product: `c[i][j] = a[i][j] * b[i][j]`.
+    pub fn element_mul(&self, rhs: &Self) -> Self {
+        let mut out = *self;
+        for i in 0..M {
+            for j in 0..N {
+                out[(i, j)] = self[(i, j)] * rhs[(i, j)];
+            }
+        }
+        out
+    }
+}
+
 // ── Transpose ───────────────────────────────────────────────────────
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
@@ -456,5 +471,16 @@ mod tests {
         let id: Matrix<f64, 3, 3> = Matrix::eye();
         let v = Vector::from_array([1.0, 2.0, 3.0]);
         assert_eq!(id.vecmul(&v), v);
+    }
+
+    #[test]
+    fn element_mul() {
+        let a = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+        let b = Matrix::new([[5.0, 6.0], [7.0, 8.0]]);
+        let c = a.element_mul(&b);
+        assert_eq!(c[(0, 0)], 5.0);
+        assert_eq!(c[(0, 1)], 12.0);
+        assert_eq!(c[(1, 0)], 21.0);
+        assert_eq!(c[(1, 1)], 32.0);
     }
 }

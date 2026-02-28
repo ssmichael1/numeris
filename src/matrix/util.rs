@@ -1,8 +1,8 @@
 use core::fmt::{self, Write as _};
 
-use crate::matrix::vector::Vector;
-use crate::traits::Scalar;
 use crate::Matrix;
+use crate::matrix::vector::Vector;
+use crate::traits::{FloatScalar, Scalar};
 
 // ── Constructors ────────────────────────────────────────────────────
 
@@ -33,6 +33,60 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
             }
         }
         Matrix::new(data)
+    }
+}
+
+// ── Aggregation ─────────────────────────────────────────────────────
+
+impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Sum of all elements.
+    pub fn sum(&self) -> T {
+        let mut s = T::zero();
+        for i in 0..M {
+            for j in 0..N {
+                s = s + self[(i, j)];
+            }
+        }
+        s
+    }
+}
+
+// ── Element-wise operations ─────────────────────────────────────────
+
+impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Element-wise absolute value.
+    pub fn abs(&self) -> Self {
+        let mut out = *self;
+        for i in 0..M {
+            for j in 0..N {
+                out[(i, j)] = self[(i, j)].abs();
+            }
+        }
+        out
+    }
+}
+
+// ── Row / Column manipulation ───────────────────────────────────────
+
+impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Swap two rows in place.
+    pub fn swap_rows(&mut self, a: usize, b: usize) {
+        if a != b {
+            self.data.swap(a, b);
+        }
+    }
+}
+
+impl<T: Copy, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Swap two columns in place.
+    pub fn swap_cols(&mut self, a: usize, b: usize) {
+        if a != b {
+            for i in 0..M {
+                let tmp = self[(i, a)];
+                self[(i, a)] = self[(i, b)];
+                self[(i, b)] = tmp;
+            }
+        }
     }
 }
 
@@ -133,9 +187,7 @@ mod tests {
 
     #[test]
     fn from_fn() {
-        let m: Matrix<f64, 3, 3> = Matrix::from_fn(|i, j| {
-            if i == j { 1.0 } else { 0.0 }
-        });
+        let m: Matrix<f64, 3, 3> = Matrix::from_fn(|i, j| if i == j { 1.0 } else { 0.0 });
         assert_eq!(m, Matrix::eye());
     }
 
@@ -206,5 +258,55 @@ mod tests {
         let s = format!("{}", v);
         // Vector is 1×N, so should be a single line
         assert_eq!(s.lines().count(), 1);
+    }
+
+    #[test]
+    fn sum() {
+        let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+        assert_eq!(m.sum(), 10.0);
+    }
+
+    #[test]
+    fn sum_integer() {
+        let m = Matrix::new([[1, 2, 3], [4, 5, 6]]);
+        assert_eq!(m.sum(), 21);
+    }
+
+    #[test]
+    fn abs() {
+        let m = Matrix::new([[1.0_f64, -2.0], [-3.0, 4.0]]);
+        let a = m.abs();
+        assert_eq!(a[(0, 0)], 1.0);
+        assert_eq!(a[(0, 1)], 2.0);
+        assert_eq!(a[(1, 0)], 3.0);
+        assert_eq!(a[(1, 1)], 4.0);
+    }
+
+    #[test]
+    fn swap_rows() {
+        let mut m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+        m.swap_rows(0, 1);
+        assert_eq!(m[(0, 0)], 3.0);
+        assert_eq!(m[(0, 1)], 4.0);
+        assert_eq!(m[(1, 0)], 1.0);
+        assert_eq!(m[(1, 1)], 2.0);
+    }
+
+    #[test]
+    fn swap_rows_same() {
+        let mut m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+        let original = m;
+        m.swap_rows(0, 0);
+        assert_eq!(m, original);
+    }
+
+    #[test]
+    fn swap_cols() {
+        let mut m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+        m.swap_cols(0, 1);
+        assert_eq!(m[(0, 0)], 2.0);
+        assert_eq!(m[(0, 1)], 1.0);
+        assert_eq!(m[(1, 0)], 4.0);
+        assert_eq!(m[(1, 1)], 3.0);
     }
 }
