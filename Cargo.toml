@@ -7,8 +7,9 @@ license = "MIT"
 
 [features]
 default = ["std", "ode"]
+alloc = []
 ode = []
-std = ["num-traits/std", "num-complex?/std"]
+std = ["alloc", "num-traits/std", "num-complex?/std"]
 libm = ["num-traits/libm", "num-complex?/libm"]
 complex = ["dep:num-complex"]
 

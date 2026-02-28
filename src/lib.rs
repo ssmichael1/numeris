@@ -59,6 +59,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "alloc")]
+pub mod dynmatrix;
 pub mod linalg;
 pub mod matrix;
 #[cfg(feature = "ode")]
@@ -79,6 +84,14 @@ pub use matrix::aliases::{
     Vector1, Vector2, Vector4, Vector5, Vector6,
     ColumnVector1, ColumnVector2, ColumnVector4, ColumnVector5, ColumnVector6,
 };
+#[cfg(feature = "alloc")]
+pub use dynmatrix::{
+    DynMatrix, DynVector,
+    DynMatrixf32, DynMatrixf64, DynMatrixi32, DynMatrixi64, DynMatrixu32, DynMatrixu64,
+    DynVectorf32, DynVectorf64, DynVectori32, DynVectori64, DynVectoru32, DynVectoru64,
+};
+#[cfg(all(feature = "alloc", feature = "complex"))]
+pub use dynmatrix::{DynMatrixz32, DynMatrixz64, DynVectorz32, DynVectorz64};
 pub use quaternion::Quaternion;
 pub use traits::{FloatScalar, LinalgScalar, MatrixMut, MatrixRef, Scalar};
 
