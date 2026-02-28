@@ -85,22 +85,10 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     }
 }
 
-// ── Vector size aliases ─────────────────────────────────────────────
-
-/// A 1-element row vector.
-pub type Vector1<T> = Vector<T, 1>;
-/// A 2-element row vector.
-pub type Vector2<T> = Vector<T, 2>;
 /// A 3-element row vector.
 ///
 /// Adds `cross()` for cross product in addition to all `Vector` methods.
 pub type Vector3<T> = Vector<T, 3>;
-/// A 4-element row vector.
-pub type Vector4<T> = Vector<T, 4>;
-/// A 5-element row vector.
-pub type Vector5<T> = Vector<T, 5>;
-/// A 6-element row vector.
-pub type Vector6<T> = Vector<T, 6>;
 
 impl<T: Scalar> Vector3<T> {
     /// Cross product of two 3-vectors.
@@ -150,20 +138,8 @@ impl<T, const N: usize> IndexMut<usize> for Vector<T, N> {
 /// Single-element access uses `cv[(i, 0)]`.
 pub type ColumnVector<T, const N: usize> = Matrix<T, N, 1>;
 
-// ── Column vector size aliases ──────────────────────────────────────
-
-/// A 1-element column vector.
-pub type ColumnVector1<T> = ColumnVector<T, 1>;
-/// A 2-element column vector.
-pub type ColumnVector2<T> = ColumnVector<T, 2>;
 /// A 3-element column vector.
 pub type ColumnVector3<T> = ColumnVector<T, 3>;
-/// A 4-element column vector.
-pub type ColumnVector4<T> = ColumnVector<T, 4>;
-/// A 5-element column vector.
-pub type ColumnVector5<T> = ColumnVector<T, 5>;
-/// A 6-element column vector.
-pub type ColumnVector6<T> = ColumnVector<T, 6>;
 
 impl<T: Scalar, const N: usize> ColumnVector<T, N> {
     /// Create a column vector from a 1D array.
