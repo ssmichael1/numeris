@@ -1,38 +1,43 @@
 use crate::linalg::LinalgError;
 use crate::matrix::vector::Vector;
-use crate::traits::{FloatScalar, MatrixMut, MatrixRef};
+use crate::traits::{LinalgScalar, MatrixMut, MatrixRef};
 use crate::Matrix;
 
-/// Cholesky decomposition in place: A = L * L^T.
+/// Cholesky decomposition in place: A = L * L^H.
+///
+/// For real matrices, L^H = L^T (standard Cholesky).
+/// For complex matrices, this is the Hermitian Cholesky decomposition.
 ///
 /// On return, the lower triangle of `a` (including diagonal) contains L.
 /// The upper triangle is left unchanged.
 ///
-/// Returns an error if the matrix is not positive definite.
-pub fn cholesky_in_place<T: FloatScalar>(a: &mut impl MatrixMut<T>) -> Result<(), LinalgError> {
+/// Returns an error if the matrix is not (Hermitian) positive definite.
+pub fn cholesky_in_place<T: LinalgScalar>(a: &mut impl MatrixMut<T>) -> Result<(), LinalgError> {
     let n = a.nrows();
     assert_eq!(n, a.ncols(), "Cholesky decomposition requires a square matrix");
 
     for j in 0..n {
-        // Diagonal: L[j][j] = sqrt(A[j][j] - sum(L[j][k]^2, k<j))
+        // Diagonal: L[j][j] = sqrt(A[j][j] - sum(|L[j][k]|^2, k<j))
         let mut sum = *a.get(j, j);
         for k in 0..j {
             let ljk = *a.get(j, k);
-            sum = sum - ljk * ljk;
+            sum = sum - ljk * ljk.conj();
         }
-        if sum <= T::zero() {
+        // Diagonal of a Hermitian PD matrix is always real and positive
+        if sum.re() <= <T::Real as num_traits::Zero>::zero() {
             return Err(LinalgError::NotPositiveDefinite);
         }
-        let ljj = sum.sqrt();
-        *a.get_mut(j, j) = ljj;
+        let ljj = sum.re().lsqrt();
+        let ljj_t = T::from_real(ljj);
+        *a.get_mut(j, j) = ljj_t;
 
-        // Below diagonal: L[i][j] = (A[i][j] - sum(L[i][k]*L[j][k], k<j)) / L[j][j]
+        // Below diagonal: L[i][j] = (A[i][j] - sum(L[i][k]*conj(L[j][k]), k<j)) / L[j][j]
         for i in (j + 1)..n {
             let mut sum = *a.get(i, j);
             for k in 0..j {
-                sum = sum - *a.get(i, k) * *a.get(j, k);
+                sum = sum - *a.get(i, k) * (*a.get(j, k)).conj();
             }
-            *a.get_mut(i, j) = sum / ljj;
+            *a.get_mut(i, j) = sum / ljj_t;
         }
     }
 
@@ -43,7 +48,7 @@ pub fn cholesky_in_place<T: FloatScalar>(a: &mut impl MatrixMut<T>) -> Result<()
 ///
 /// `l` contains L in its lower triangle (as produced by `cholesky_in_place`).
 /// `b` is the right-hand side, `x` receives the solution.
-pub fn forward_substitute<T: FloatScalar>(
+pub fn forward_substitute<T: LinalgScalar>(
     l: &impl MatrixRef<T>,
     b: &[T],
     x: &mut [T],
@@ -58,11 +63,14 @@ pub fn forward_substitute<T: FloatScalar>(
     }
 }
 
-/// Solve L^T * x = b by back substitution, where L is lower triangular.
+/// Solve L^H * x = b by back substitution, where L is lower triangular.
+///
+/// For real matrices, L^H = L^T. For complex matrices, this uses
+/// the conjugate transpose.
 ///
 /// `l` contains L in its lower triangle (as produced by `cholesky_in_place`).
 /// `b` is the right-hand side, `x` receives the solution.
-pub fn back_substitute_lt<T: FloatScalar>(
+pub fn back_substitute_lt<T: LinalgScalar>(
     l: &impl MatrixRef<T>,
     b: &[T],
     x: &mut [T],
@@ -71,22 +79,39 @@ pub fn back_substitute_lt<T: FloatScalar>(
     for i in (0..n).rev() {
         let mut sum = b[i];
         for j in (i + 1)..n {
-            sum = sum - *l.get(j, i) * x[j]; // L^T[i][j] = L[j][i]
+            sum = sum - (*l.get(j, i)).conj() * x[j]; // L^H[i][j] = conj(L[j][i])
         }
-        x[i] = sum / *l.get(i, i);
+        x[i] = sum / (*l.get(i, i)).conj(); // L diagonal is real, so conj is identity
     }
 }
 
-/// Cholesky decomposition of a fixed-size symmetric positive-definite matrix.
+/// Cholesky decomposition of a fixed-size (Hermitian) positive-definite matrix.
 ///
-/// Stores the lower triangular factor L where A = L * L^T.
+/// Stores the lower triangular factor L where `A = L * L^H`.
+/// For real matrices, `L^H = L^T`.
+///
+/// # Example
+///
+/// ```
+/// use numeris::{Matrix, Vector};
+///
+/// let a = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+/// let chol = a.cholesky().unwrap();
+///
+/// let b = Vector::from_array([8.0, 7.0]);
+/// let x = chol.solve(&b); // solve Ax = b
+///
+/// let inv = chol.inverse(); // A^{-1}
+/// let det = chol.det();     // det(A)
+/// assert!((det - 8.0).abs() < 1e-12);
+/// ```
 #[derive(Debug)]
 pub struct CholeskyDecomposition<T, const N: usize> {
     l: Matrix<T, N, N>,
 }
 
-impl<T: FloatScalar, const N: usize> CholeskyDecomposition<T, N> {
-    /// Decompose a symmetric positive-definite matrix.
+impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
+    /// Decompose a (Hermitian) positive-definite matrix.
     ///
     /// Returns an error if the matrix is not positive definite.
     pub fn new(a: &Matrix<T, N, N>) -> Result<Self, LinalgError> {
@@ -112,7 +137,7 @@ impl<T: FloatScalar, const N: usize> CholeskyDecomposition<T, N> {
         out
     }
 
-    /// Solve A*x = b for x, where A = L*L^T.
+    /// Solve A*x = b for x, where A = L*L^H.
     pub fn solve(&self, b: &Vector<T, N>) -> Vector<T, N> {
         let mut b_flat = [T::zero(); N];
         for i in 0..N {
@@ -123,14 +148,17 @@ impl<T: FloatScalar, const N: usize> CholeskyDecomposition<T, N> {
         let mut y = [T::zero(); N];
         forward_substitute(&self.l, &b_flat, &mut y);
 
-        // Back: L^T*x = y
+        // Back: L^H*x = y
         let mut x = [T::zero(); N];
         back_substitute_lt(&self.l, &y, &mut x);
 
         Vector::from_array(x)
     }
 
-    /// Compute the determinant: det(A) = det(L)^2 = product(L[i][i])^2.
+    /// Compute the determinant: det(A) = |det(L)|^2.
+    ///
+    /// For Hermitian PD matrices, the diagonal of L is real and positive,
+    /// so det(A) = product(L[i][i])^2.
     pub fn det(&self) -> T {
         let mut prod = T::one();
         for i in 0..N {
@@ -145,7 +173,7 @@ impl<T: FloatScalar, const N: usize> CholeskyDecomposition<T, N> {
     pub fn ln_det(&self) -> T {
         let mut sum = T::zero();
         for i in 0..N {
-            sum = sum + self.l[(i, i)].ln();
+            sum = sum + self.l[(i, i)].lln();
         }
         sum + sum
     }
@@ -177,10 +205,20 @@ impl<T: FloatScalar, const N: usize> CholeskyDecomposition<T, N> {
 }
 
 /// Convenience methods on square matrices.
-impl<T: FloatScalar, const N: usize> Matrix<T, N, N> {
-    /// Cholesky decomposition (A = L * L^T).
+impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
+    /// Cholesky decomposition (`A = L * L^H`).
     ///
-    /// Returns an error if the matrix is not symmetric positive definite.
+    /// For real matrices, this is the standard `A = L * L^T`.
+    /// Returns an error if the matrix is not (Hermitian) positive definite.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let spd = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+    /// let chol = spd.cholesky().unwrap();
+    /// let l = chol.l_full();
+    /// let reconstructed = l * l.transpose();
+    /// assert!((reconstructed[(0, 0)] - 4.0).abs() < 1e-12);
+    /// ```
     pub fn cholesky(&self) -> Result<CholeskyDecomposition<T, N>, LinalgError> {
         CholeskyDecomposition::new(self)
     }

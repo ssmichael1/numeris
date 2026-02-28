@@ -1,54 +1,51 @@
-use crate::matrix::vector::Vector;
-use crate::traits::{FloatScalar, LinalgScalar, Scalar};
-use num_traits::{Float, One, Zero};
-use crate::Matrix;
+use num_traits::Zero;
+
+use crate::traits::{LinalgScalar, Scalar};
+
+use super::vector::DynVector;
+use super::DynMatrix;
 
 // ── Vector norms ────────────────────────────────────────────────────
 
-impl<T: Scalar, const N: usize> Vector<T, N> {
-    /// Squared L2 norm (dot product with self). No sqrt, works with integers.
+impl<T: Scalar> DynVector<T> {
+    /// Squared L2 norm (dot product with self).
     ///
     /// ```
-    /// use numeris::Vector;
-    /// let v = Vector::from_array([3.0, 4.0]);
+    /// use numeris::DynVector;
+    /// let v = DynVector::from_slice(&[3.0, 4.0]);
     /// assert_eq!(v.norm_squared(), 25.0);
-    ///
-    /// let vi = Vector::from_array([3, 4]);
-    /// assert_eq!(vi.norm_squared(), 25);
     /// ```
     pub fn norm_squared(&self) -> T {
         self.dot(self)
     }
 }
 
-impl<T: LinalgScalar, const N: usize> Vector<T, N> {
+impl<T: LinalgScalar> DynVector<T> {
     /// L2 (Euclidean) norm.
     ///
-    /// For complex vectors, this is `sqrt(sum(|x_i|^2))`.
-    ///
     /// ```
-    /// use numeris::Vector;
-    /// let v = Vector::from_array([3.0_f64, 4.0]);
+    /// use numeris::DynVector;
+    /// let v = DynVector::from_slice(&[3.0_f64, 4.0]);
     /// assert!((v.norm() - 5.0).abs() < 1e-12);
     /// ```
     pub fn norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
-        for i in 0..N {
+        for i in 0..self.len() {
             sum = sum + self[i].modulus() * self[i].modulus();
         }
-        sum.sqrt()
+        sum.lsqrt()
     }
 
     /// L1 norm (sum of absolute values / moduli).
     ///
     /// ```
-    /// use numeris::Vector;
-    /// let v = Vector::from_array([1.0_f64, -2.0, 3.0]);
+    /// use numeris::DynVector;
+    /// let v = DynVector::from_slice(&[1.0_f64, -2.0, 3.0]);
     /// assert!((v.norm_l1() - 6.0).abs() < 1e-12);
     /// ```
     pub fn norm_l1(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
-        for i in 0..N {
+        for i in 0..self.len() {
             sum = sum + self[i].modulus();
         }
         sum
@@ -59,82 +56,72 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     /// Panics if the norm is zero.
     ///
     /// ```
-    /// use numeris::Vector;
-    /// let v = Vector::from_array([3.0_f64, 4.0]);
+    /// use numeris::DynVector;
+    /// let v = DynVector::from_slice(&[3.0_f64, 4.0]);
     /// let u = v.normalize();
     /// assert!((u.norm() - 1.0).abs() < 1e-12);
     /// assert!((u[0] - 0.6).abs() < 1e-12);
     /// ```
     pub fn normalize(&self) -> Self {
         let n = self.norm();
-        *self * T::from_real(<T::Real as One>::one() / n)
-    }
-}
-
-impl<T: FloatScalar, const N: usize> Vector<T, N> {
-    /// Scaled norm: `norm() / sqrt(N)`.
-    ///
-    /// Makes the error metric independent of state dimension,
-    /// used by ODE solvers for step size control.
-    ///
-    /// ```
-    /// use numeris::Vector;
-    /// let v = Vector::from_array([3.0_f64, 4.0]);
-    /// let sn = v.scaled_norm();
-    /// assert!((sn - 5.0 / 2.0_f64.sqrt()).abs() < 1e-12);
-    /// ```
-    pub fn scaled_norm(&self) -> T {
-        self.norm() / T::from(N).unwrap().sqrt()
+        let inv = <T::Real as num_traits::One>::one() / n;
+        let data = self
+            .as_slice()
+            .iter()
+            .map(|&x| x * T::from_real(inv))
+            .collect();
+        DynVector {
+            inner: DynMatrix {
+                data,
+                nrows: 1,
+                ncols: self.len(),
+            },
+        }
     }
 }
 
 // ── Matrix norms ────────────────────────────────────────────────────
 
-impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Squared Frobenius norm (sum of all elements squared). No sqrt.
+impl<T: Scalar> DynMatrix<T> {
+    /// Squared Frobenius norm (sum of all elements squared).
     pub fn frobenius_norm_squared(&self) -> T {
         let mut sum = T::zero();
-        for i in 0..M {
-            for j in 0..N {
-                sum = sum + self[(i, j)] * self[(i, j)];
-            }
+        for &x in &self.data {
+            sum = sum + x * x;
         }
         sum
     }
 }
 
-impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
+impl<T: LinalgScalar> DynMatrix<T> {
     /// Frobenius norm (square root of sum of squared moduli).
     ///
     /// ```
-    /// use numeris::Matrix;
-    /// let m = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0]]);
+    /// use numeris::DynMatrix;
+    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
     /// assert!((m.frobenius_norm() - 30.0_f64.sqrt()).abs() < 1e-12);
     /// ```
     pub fn frobenius_norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
-        for i in 0..M {
-            for j in 0..N {
-                let m = self[(i, j)].modulus();
-                sum = sum + m * m;
-            }
+        for &x in &self.data {
+            let m = x.modulus();
+            sum = sum + m * m;
         }
-        sum.sqrt()
+        sum.lsqrt()
     }
 
     /// Infinity norm (maximum row sum of moduli).
     ///
     /// ```
-    /// use numeris::Matrix;
-    /// let m = Matrix::new([[1.0_f64, -2.0], [3.0, 4.0]]);
-    /// // row sums: |1|+|-2| = 3, |3|+|4| = 7
+    /// use numeris::DynMatrix;
+    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
     /// assert!((m.norm_inf() - 7.0).abs() < 1e-12);
     /// ```
     pub fn norm_inf(&self) -> T::Real {
         let mut max = <T::Real as Zero>::zero();
-        for i in 0..M {
+        for i in 0..self.nrows {
             let mut row_sum = <T::Real as Zero>::zero();
-            for j in 0..N {
+            for j in 0..self.ncols {
                 row_sum = row_sum + self[(i, j)].modulus();
             }
             if row_sum > max {
@@ -147,16 +134,15 @@ impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// One norm (maximum column sum of moduli).
     ///
     /// ```
-    /// use numeris::Matrix;
-    /// let m = Matrix::new([[1.0_f64, -2.0], [3.0, 4.0]]);
-    /// // col sums: |1|+|3| = 4, |-2|+|4| = 6
+    /// use numeris::DynMatrix;
+    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
     /// assert!((m.norm_one() - 6.0).abs() < 1e-12);
     /// ```
     pub fn norm_one(&self) -> T::Real {
         let mut max = <T::Real as Zero>::zero();
-        for j in 0..N {
+        for j in 0..self.ncols {
             let mut col_sum = <T::Real as Zero>::zero();
-            for i in 0..M {
+            for i in 0..self.nrows {
                 col_sum = col_sum + self[(i, j)].modulus();
             }
             if col_sum > max {
@@ -171,35 +157,27 @@ impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
 mod tests {
     use super::*;
 
-    // ── Vector norm tests ───────────────────────────────────────
-
     #[test]
     fn vector_norm_squared() {
-        let v = Vector::from_array([3.0, 4.0]);
+        let v = DynVector::from_slice(&[3.0, 4.0]);
         assert_eq!(v.norm_squared(), 25.0);
     }
 
     #[test]
-    fn vector_norm_squared_integer() {
-        let v = Vector::from_array([3, 4]);
-        assert_eq!(v.norm_squared(), 25);
-    }
-
-    #[test]
     fn vector_norm() {
-        let v = Vector::from_array([3.0_f64, 4.0]);
+        let v = DynVector::from_slice(&[3.0_f64, 4.0]);
         assert!((v.norm() - 5.0).abs() < 1e-12);
     }
 
     #[test]
     fn vector_norm_l1() {
-        let v = Vector::from_array([1.0_f64, -2.0, 3.0]);
+        let v = DynVector::from_slice(&[1.0_f64, -2.0, 3.0]);
         assert!((v.norm_l1() - 6.0).abs() < 1e-12);
     }
 
     #[test]
     fn vector_normalize() {
-        let v = Vector::from_array([3.0_f64, 4.0]);
+        let v = DynVector::from_slice(&[3.0_f64, 4.0]);
         let u = v.normalize();
         assert!((u.norm() - 1.0).abs() < 1e-12);
         assert!((u[0] - 0.6).abs() < 1e-12);
@@ -207,38 +185,26 @@ mod tests {
     }
 
     #[test]
-    fn vector_normalize_3d() {
-        let v = Vector::from_array([1.0_f64, 1.0, 1.0]);
-        let u = v.normalize();
-        assert!((u.norm() - 1.0).abs() < 1e-12);
-    }
-
-    // ── Matrix norm tests ───────────────────────────────────────
-
-    #[test]
     fn frobenius_norm() {
-        let m = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0]]);
-        // sqrt(1 + 4 + 9 + 16) = sqrt(30)
+        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
         assert!((m.frobenius_norm() - 30.0_f64.sqrt()).abs() < 1e-12);
     }
 
     #[test]
     fn frobenius_norm_squared_integer() {
-        let m = Matrix::new([[1, 2], [3, 4]]);
+        let m = DynMatrix::from_slice(2, 2, &[1, 2, 3, 4]);
         assert_eq!(m.frobenius_norm_squared(), 30);
     }
 
     #[test]
     fn norm_inf() {
-        let m = Matrix::new([[1.0_f64, -2.0], [3.0, 4.0]]);
-        // row sums: |1|+|-2| = 3, |3|+|4| = 7
+        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
         assert!((m.norm_inf() - 7.0).abs() < 1e-12);
     }
 
     #[test]
     fn norm_one() {
-        let m = Matrix::new([[1.0_f64, -2.0], [3.0, 4.0]]);
-        // col sums: |1|+|3| = 4, |-2|+|4| = 6
+        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
         assert!((m.norm_one() - 6.0).abs() < 1e-12);
     }
 }

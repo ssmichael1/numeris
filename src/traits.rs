@@ -1,10 +1,25 @@
 use core::fmt::Debug;
 use num_traits::{Float, Num, One, Zero};
 
+#[cfg(feature = "complex")]
+use num_complex::Complex;
+
 /// Trait for types that can be used as matrix elements.
 ///
 /// Blanket-implemented for all types satisfying the bounds.
 /// Covers `f32`, `f64`, and all integer types.
+///
+/// # Example
+///
+/// ```
+/// use numeris::Matrix;
+///
+/// // Works with any Scalar type — f64, i32, etc.
+/// let m_float = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0]]);
+/// let m_int = Matrix::new([[1_i32, 2], [3, 4]]);
+/// assert_eq!(m_float.trace(), 5.0);
+/// assert_eq!(m_int.trace(), 5);
+/// ```
 pub trait Scalar: Copy + PartialEq + Debug + Zero + One + Num {}
 
 impl<T: Copy + PartialEq + Debug + Zero + One + Num> Scalar for T {}
@@ -13,24 +28,160 @@ impl<T: Copy + PartialEq + Debug + Zero + One + Num> Scalar for T {}
 ///
 /// Required by operations that need `sqrt`, `sin`, `abs`, etc.
 /// (decompositions, norms, trigonometric functions).
-pub trait FloatScalar: Scalar + Float {}
+/// Implies `LinalgScalar<Real = Self>` since real floats are their own real type.
+///
+/// Use this for inherently-real operations like quaternions and ordered comparisons.
+/// For decompositions and norms that also work with complex numbers, use [`LinalgScalar`].
+pub trait FloatScalar: Scalar + Float + LinalgScalar<Real = Self> {}
 
-impl<T: Scalar + Float> FloatScalar for T {}
+impl<T: Scalar + Float + LinalgScalar<Real = T>> FloatScalar for T {}
+
+/// Trait for matrix elements that support linear algebra operations.
+///
+/// Covers both real floats (`f32`, `f64`) and complex numbers (`Complex<f32>`,
+/// `Complex<f64>`). Use this instead of `FloatScalar` in decompositions and norms.
+///
+/// `FloatScalar` remains for inherently-real operations (quaternions, ordered comparisons).
+pub trait LinalgScalar: Scalar {
+    /// The real component type (`Self` for reals, `T` for `Complex<T>`).
+    type Real: FloatScalar;
+
+    /// Absolute value / modulus: `|z|` for complex, `.abs()` for real.
+    fn modulus(self) -> Self::Real;
+
+    /// Complex conjugate (identity for reals).
+    fn conj(self) -> Self;
+
+    /// Real part.
+    fn re(self) -> Self::Real;
+
+    /// Square root.
+    fn lsqrt(self) -> Self;
+
+    /// Natural logarithm.
+    fn lln(self) -> Self;
+
+    /// Machine epsilon of the underlying real type.
+    fn lepsilon() -> Self::Real;
+
+    /// Promote a real value into `Self`.
+    fn from_real(r: Self::Real) -> Self;
+}
+
+/// Concrete impls for real floats — trivial delegation.
+macro_rules! impl_linalg_scalar_real {
+    ($($t:ty),*) => {
+        $(
+            impl LinalgScalar for $t {
+                type Real = $t;
+
+                #[inline] fn modulus(self) -> $t { Float::abs(self) }
+                #[inline] fn conj(self) -> $t { self }
+                #[inline] fn re(self) -> $t { self }
+                #[inline] fn lsqrt(self) -> $t { Float::sqrt(self) }
+                #[inline] fn lln(self) -> $t { Float::ln(self) }
+                #[inline] fn lepsilon() -> $t { <$t as Float>::epsilon() }
+                #[inline] fn from_real(r: $t) -> $t { r }
+            }
+        )*
+    };
+}
+
+impl_linalg_scalar_real!(f32, f64);
+
+#[cfg(feature = "complex")]
+impl<T: FloatScalar> LinalgScalar for Complex<T> {
+    type Real = T;
+
+    #[inline]
+    fn modulus(self) -> T {
+        self.norm()
+    }
+
+    #[inline]
+    fn conj(self) -> Self {
+        Complex::conj(&self)
+    }
+
+    #[inline]
+    fn re(self) -> T {
+        self.re
+    }
+
+    #[inline]
+    fn lsqrt(self) -> Self {
+        self.sqrt()
+    }
+
+    #[inline]
+    fn lln(self) -> Self {
+        self.ln()
+    }
+
+    #[inline]
+    fn lepsilon() -> T {
+        T::epsilon()
+    }
+
+    #[inline]
+    fn from_real(r: T) -> Self {
+        Complex::new(r, T::zero())
+    }
+}
 
 /// Read-only access to a matrix-like type.
 ///
 /// This trait allows algorithms to operate generically over
 /// both fixed-size `Matrix` and future `DynMatrix` types.
+///
+/// # Example
+///
+/// ```
+/// use numeris::{Matrix, MatrixRef};
+///
+/// fn trace<T: numeris::Scalar>(m: &impl MatrixRef<T>) -> T {
+///     let mut sum = T::zero();
+///     let n = m.nrows().min(m.ncols());
+///     for i in 0..n {
+///         sum = sum + *m.get(i, i);
+///     }
+///     sum
+/// }
+///
+/// let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+/// assert_eq!(trace(&m), 5.0);
+/// ```
 pub trait MatrixRef<T> {
+    /// Number of rows.
     fn nrows(&self) -> usize;
+    /// Number of columns.
     fn ncols(&self) -> usize;
+    /// Reference to the element at `(row, col)`.
     fn get(&self, row: usize, col: usize) -> &T;
 }
 
 /// Mutable access to a matrix-like type.
 ///
-/// Extends `MatrixRef` with mutable element access, enabling
+/// Extends [`MatrixRef`] with mutable element access, enabling
 /// in-place algorithms (Cholesky, LU, etc.) to work generically.
+///
+/// # Example
+///
+/// ```
+/// use numeris::{Matrix, MatrixMut};
+///
+/// fn set_diag<T: numeris::Scalar>(m: &mut impl MatrixMut<T>, val: T) {
+///     let n = m.nrows().min(m.ncols());
+///     for i in 0..n {
+///         *m.get_mut(i, i) = val;
+///     }
+/// }
+///
+/// let mut m: Matrix<f64, 2, 2> = Matrix::zeros();
+/// set_diag(&mut m, 7.0);
+/// assert_eq!(m[(0, 0)], 7.0);
+/// ```
 pub trait MatrixMut<T>: MatrixRef<T> {
+    /// Mutable reference to the element at `(row, col)`.
     fn get_mut(&mut self, row: usize, col: usize) -> &mut T;
 }
