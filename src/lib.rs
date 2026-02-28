@@ -25,11 +25,27 @@
 //!   indexing, norms, block operations, and iteration. [`Vector<T, N>`] and
 //!   [`ColumnVector<T, N>`] are type aliases for 1-row and 1-column matrices.
 //!
+//! - [`dynmatrix`] — Heap-allocated `DynMatrix<T>` with runtime dimensions
+//!   (requires `alloc` feature, included with `std`). `Vec<T>` row-major storage.
+//!   Implements [`MatrixRef`] / [`MatrixMut`], so all linalg free functions work
+//!   automatically. [`DynVector<T>`] newtype for single-index vector access.
+//!   Includes `DynLu`, `DynCholesky`, `DynQr` wrapper structs.
+//!
 //! - [`linalg`] — LU (partial pivoting), Cholesky (A = LL^H), and QR
 //!   (Householder) decompositions. Each provides `solve()`, `inverse()`, and
 //!   `det()`. Free functions operate on `&mut impl MatrixMut<T>` for in-place
 //!   use; wrapper structs offer a higher-level API. Convenience methods on
-//!   `Matrix`: `a.solve(&b)`, `a.inverse()`, `a.det()`, `a.cholesky()`, `a.qr()`.
+//!   both `Matrix` and `DynMatrix`: `a.solve(&b)`, `a.inverse()`, `a.det()`.
+//!
+//! - [`ode`] — Fixed-step RK4 and 7 adaptive Runge-Kutta solvers (RKF45,
+//!   RKTS54, RKV65, RKV87, RKV98, RKV98NoInterp, RKV98Efficient). PI step-size
+//!   controller with dense output / interpolation. Requires `ode` feature.
+//!
+//! - [`optim`] — Optimization: scalar root finding ([`optim::brent`],
+//!   [`optim::newton_1d`]), BFGS quasi-Newton minimization ([`optim::minimize_bfgs`]),
+//!   Gauss-Newton ([`optim::least_squares_gn`]) and Levenberg-Marquardt
+//!   ([`optim::least_squares_lm`]) nonlinear least squares. Finite-difference
+//!   Jacobian and gradient utilities. Requires `optim` feature.
 //!
 //! - [`quaternion`] — Unit quaternion for 3D rotations. Scalar-first `[w, x, y, z]`.
 //!   Construct from axis-angle, Euler angles, or rotation matrices. Supports
@@ -52,10 +68,13 @@
 //!
 //! | Feature   | Default  | Description |
 //! |-----------|----------|-------------|
-//! | `std`     | yes      | Hardware FPU via system libm |
+//! | `std`     | yes      | Implies `alloc`. Hardware FPU via system libm |
+//! | `alloc`   | via std  | `DynMatrix` / `DynVector` (heap-allocated, runtime-sized) |
 //! | `ode`     | yes      | ODE integration (RK4, adaptive solvers) |
+//! | `optim`   | no       | Optimization (root finding, BFGS, Gauss-Newton, LM) |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
+//! | `all`     | no       | All features: `std` + `ode` + `optim` + `complex` |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -68,6 +87,8 @@ pub mod linalg;
 pub mod matrix;
 #[cfg(feature = "ode")]
 pub mod ode;
+#[cfg(feature = "optim")]
+pub mod optim;
 pub mod quaternion;
 pub mod traits;
 
