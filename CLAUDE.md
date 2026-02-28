@@ -19,7 +19,7 @@ Checked items are implemented; unchecked are potential future work.
 - [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
 - [ ] **stats** — Statistics and distributions
 - [ ] **poly** — Polynomial operations and root-finding
-- [ ] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
+- [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
 
 ## Design Decisions
 
@@ -50,11 +50,12 @@ Checked items are implemented; unchecked are potential future work.
 - **`alloc`** — enables `DynMatrix` and `DynVector` (heap-allocated, runtime-sized). Implied by `std`.
 - **`ode`** (default) — ODE integration module (RK4, adaptive solvers).
 - **`optim`** — Optimization module (root finding, BFGS, Gauss-Newton, Levenberg-Marquardt).
+- **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
   via the `libm` crate. When `std` is also enabled, `std` takes precedence.
 - **`complex`** — adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. All decompositions
   and norms work with complex elements. Zero overhead for real-only code paths.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `complex`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `complex`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -104,6 +105,13 @@ src/
 │   ├── rkv98_efficient.rs # Verner "efficient" 9(8), 26 stages, 9th-degree interpolant
 │   ├── rosenbrock.rs      # Rosenbrock trait, fd_jacobian, integration loop
 │   └── rodas4.rs          # RODAS4: 6-stage, order 4(3), L-stable Rosenbrock
+├── control/            # (requires `control` feature)
+│   ├── mod.rs          # ControlError, module declarations, re-exports
+│   ├── biquad.rs       # Biquad, BiquadCascade, DFII-T tick/process, bilinear transform helpers
+│   ├── butterworth.rs  # butterworth_lowpass, butterworth_highpass
+│   ├── chebyshev.rs    # chebyshev1_lowpass, chebyshev1_highpass
+│   ├── pid.rs          # Pid<T> discrete-time PID controller with anti-windup and derivative filter
+│   └── tests.rs        # comprehensive tests
 ├── optim/              # (requires `optim` feature)
 │   ├── mod.rs          # OptimError, result/settings structs, re-exports
 │   ├── root.rs         # brent, newton_1d (scalar root finding)

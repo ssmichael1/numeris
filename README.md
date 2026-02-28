@@ -199,6 +199,61 @@ assert!(fit.cost < 0.1);
 
 Finite-difference utilities: `finite_difference_gradient` and `finite_difference_jacobian` for when analytical derivatives aren't available.
 
+## Digital IIR filters
+
+Biquad cascade IIR filters with Butterworth and Chebyshev Type I design (requires `control` feature):
+
+```toml
+[dependencies]
+numeris = { version = "0.1", features = ["control"] }
+```
+
+```rust
+use numeris::control::{butterworth_lowpass, chebyshev1_lowpass, BiquadCascade};
+
+// 4th-order Butterworth lowpass at 1 kHz, 8 kHz sample rate (N=2 biquad sections)
+let mut lpf: BiquadCascade<f64, 2> = butterworth_lowpass(4, 1000.0, 8000.0).unwrap();
+let y = lpf.tick(1.0); // filter one sample
+
+// Bulk processing
+let input = [1.0, 0.5, -0.3, 0.8];
+let mut output = [0.0; 4];
+lpf.reset();
+lpf.process(&input, &mut output);
+
+// Chebyshev Type I: steeper rolloff with 1 dB passband ripple
+let mut cheb: BiquadCascade<f64, 2> = chebyshev1_lowpass(4, 1.0, 1000.0, 8000.0).unwrap();
+```
+
+| Design | Lowpass | Highpass |
+|---|---|---|
+| Butterworth | `butterworth_lowpass` | `butterworth_highpass` |
+| Chebyshev Type I | `chebyshev1_lowpass` | `chebyshev1_highpass` |
+
+All filters are no-std compatible, use no complex number arithmetic, and work with both `f32` and `f64`.
+
+### PID controller
+
+Discrete-time PID controller with trapezoidal integration, derivative-on-measurement (no derivative kick), optional derivative low-pass filter, and anti-windup via back-calculation:
+
+```rust
+use numeris::control::Pid;
+
+// PID controller at 1 kHz with output clamping
+let mut pid = Pid::new(2.0_f64, 0.5, 0.1, 0.001)
+    .with_output_limits(-10.0, 10.0)
+    .with_derivative_filter(0.01); // first-order LPF on derivative
+
+// Control loop
+let setpoint = 1.0;
+let mut measurement = 0.0;
+for _ in 0..1000 {
+    let u = pid.tick(setpoint, measurement);
+    measurement += 0.001 * (-measurement + u); // simple plant
+}
+assert!((measurement - setpoint).abs() < 0.01);
+```
+
 ## Complex matrices
 
 Enable the `complex` feature to use decompositions with complex elements:
@@ -238,9 +293,10 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `alloc` | via `std` | Enables `DynMatrix` / `DynVector` (heap-allocated, runtime-sized). |
 | `ode` | yes | ODE integration (RK4, adaptive solvers). |
 | `optim` | no | Optimization (root finding, BFGS, Gauss-Newton, LM). |
+| `control` | no | Digital IIR filters (Butterworth, Chebyshev Type I). |
 | `libm` | baseline | Pure-Rust software float math. Always available as fallback. |
 | `complex` | no | Adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. |
-| `all` | no | All features: `std` + `ode` + `optim` + `complex`. |
+| `all` | no | All features: `std` + `ode` + `optim` + `control` + `complex`. |
 
 ```bash
 # Default (std + ode)
@@ -331,6 +387,17 @@ Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdap
 - **Finite differences**: `finite_difference_gradient`, `finite_difference_jacobian` for numerical derivatives
 - All algorithms use `FloatScalar` bound (real-valued), configurable via settings structs with `Default` impls for `f32` and `f64`
 
+### `control` — Digital filters and controllers (requires `control` feature)
+
+Biquad cascade filters designed via the bilinear transform, and a discrete-time PID controller. No `complex` feature dependency.
+
+- `Biquad<T>` — single second-order section, Direct Form II Transposed
+- `BiquadCascade<T, N>` — cascade of `N` biquad sections (filter order ≤ 2N)
+- Design functions: `butterworth_lowpass`, `butterworth_highpass`, `chebyshev1_lowpass`, `chebyshev1_highpass`
+- Supports arbitrary even/odd filter orders; odd-order uses degenerate first-order last section
+- `tick`, `process`, `process_inplace` for sample-by-sample or bulk filtering
+- `Pid<T>` — PID controller with derivative filtering, output clamping, anti-windup back-calculation
+
 ### `quaternion` — Unit quaternion rotations
 
 `Quaternion<T>` with scalar-first convention `[w, x, y, z]`.
@@ -365,7 +432,7 @@ Checked items are implemented; unchecked are potential future work.
 - [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
 - [ ] **stats** — Statistics and distributions
 - [ ] **poly** — Polynomial operations and root-finding
-- [ ] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
+- [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
 
 ## Design decisions
 

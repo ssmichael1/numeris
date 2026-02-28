@@ -47,6 +47,11 @@
 //!   ([`optim::least_squares_lm`]) nonlinear least squares. Finite-difference
 //!   Jacobian and gradient utilities. Requires `optim` feature.
 //!
+//! - [`control`] — Digital IIR filters: [`control::Biquad`] second-order section and
+//!   [`control::BiquadCascade`] for cascaded filters. Design functions for Butterworth
+//!   and Chebyshev Type I lowpass/highpass. No `complex` feature dependency.
+//!   Requires `control` feature.
+//!
 //! - [`quaternion`] — Unit quaternion for 3D rotations. Scalar-first `[w, x, y, z]`.
 //!   Construct from axis-angle, Euler angles, or rotation matrices. Supports
 //!   Hamilton product, vector rotation, SLERP, and conversion back to matrices.
@@ -72,9 +77,10 @@
 //! | `alloc`   | via std  | `DynMatrix` / `DynVector` (heap-allocated, runtime-sized) |
 //! | `ode`     | yes      | ODE integration (RK4, adaptive solvers) |
 //! | `optim`   | no       | Optimization (root finding, BFGS, Gauss-Newton, LM) |
+//! | `control` | no       | Digital IIR filters (Butterworth, Chebyshev Type I) |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
-//! | `all`     | no       | All features: `std` + `ode` + `optim` + `complex` |
+//! | `all`     | no       | All features: `std` + `ode` + `optim` + `control` + `complex` |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -87,6 +93,8 @@ pub mod linalg;
 pub mod matrix;
 #[cfg(feature = "ode")]
 pub mod ode;
+#[cfg(feature = "control")]
+pub mod control;
 #[cfg(feature = "optim")]
 pub mod optim;
 pub mod quaternion;

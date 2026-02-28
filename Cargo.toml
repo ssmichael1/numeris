@@ -16,7 +16,8 @@ all-features = true
 
 [features]
 default = ["std", "ode"]
-all = ["std", "ode", "optim", "complex"]
+all = ["std", "ode", "optim", "control", "complex"]
+control = []
 alloc = []
 ode = []
 optim = []
