@@ -7,8 +7,9 @@ Suitable for embedded targets (no heap allocation, no floating-point-unit assump
 
 Checked items are implemented; unchecked are potential future work.
 
-- [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions)
-- [~] **linalg** — Decompositions (LU, Cholesky done; QR, SVD future), solvers, inverse, determinant
+- [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions), size aliases up to 6×6
+- [x] **linalg** — LU, Cholesky, QR decompositions; solvers, inverse, determinant; complex support
+- [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
 - [ ] **ode** — ODE integration (RK4, RK45, adaptive step)
 - [ ] **interp** — Interpolation (linear, cubic spline, Hermite)
 - [ ] **optim** — Optimization (Newton, Levenberg-Marquardt, BFGS)
@@ -16,7 +17,6 @@ Checked items are implemented; unchecked are potential future work.
 - [ ] **fft** — Fast Fourier Transform
 - [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
 - [ ] **stats** — Statistics and distributions
-- [ ] **quaternion** — Unit quaternion for rotations
 - [ ] **poly** — Polynomial operations and root-finding
 
 ## Design Decisions
@@ -29,8 +29,9 @@ Checked items are implemented; unchecked are potential future work.
 - **Naming** — `Matrix` is the fixed-size type (the default for embedded). Dynamic matrices will be
   `DynMatrix` (requires `alloc`) when added later. Shared behavior via traits.
 - **Element traits** — `Scalar` (blanket trait: `Copy + PartialEq + Debug + Zero + One + Num`) for all
-  matrix ops; `FloatScalar` (extends `Scalar + Float`) for operations needing floating-point (decompositions,
-  trig, sqrt). Integer matrices work with just `Scalar`.
+  matrix ops; `FloatScalar` (extends `Scalar + Float`) for quaternions and ordered comparisons;
+  `LinalgScalar` for decompositions and norms (covers both real floats and `Complex<T>`).
+  Integer matrices work with just `Scalar`.
 - **Matrix access traits** — `MatrixRef<T>` (read-only: `nrows`, `ncols`, `get`) and
   `MatrixMut<T>: MatrixRef<T>` (adds `get_mut`). Algorithms (Cholesky, LU, etc.) are written as
   free functions taking `&mut impl MatrixMut<T>` to operate in-place, avoiding the need for
@@ -42,6 +43,8 @@ Checked items are implemented; unchecked are potential future work.
   system's native libm backed by hardware FPU. Full speed on desktop/server.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
   via the `libm` crate. When `std` is also enabled, `std` takes precedence.
+- **`complex`** — adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. All decompositions
+  and norms work with complex elements. Zero overhead for real-only code paths.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -50,21 +53,25 @@ Checked items are implemented; unchecked are potential future work.
 ```
 src/
 ├── lib.rs              # crate root, re-exports
-├── traits.rs           # Scalar, FloatScalar, MatrixRef, MatrixMut
+├── traits.rs           # Scalar, FloatScalar, LinalgScalar, MatrixRef, MatrixMut
 ├── matrix/
 │   ├── mod.rs          # Matrix struct, constructors, Index, trait impls
+│   ├── aliases.rs      # Size aliases: Matrix1–Matrix6, Matrix2x3, Vector1–6, etc.
 │   ├── ops.rs          # Add, Sub, Neg, Mul (matrix & scalar), vecmul, transpose
 │   ├── square.rs       # trace, det, diag, from_diag, pow, is_symmetric
 │   ├── vector.rs       # Vector, Vector3, ColumnVector, ColumnVector3, dot, cross
+│   ├── block.rs        # block, set_block, top_left/right, head, tail, segment
 │   ├── norm.rs         # L1, L2, Frobenius, infinity, one norms, normalize
 │   ├── slice.rs        # as_slice, row_slice, from_slice, iter, IntoIterator
-│   └── util.rs         # from_fn, map, row/col access, Display
-└── linalg/
-    ├── mod.rs          # LinalgError
-    ├── lu.rs           # LU decomposition, solve, inverse, det
-    └── cholesky.rs     # Cholesky decomposition, solve, inverse, det, ln_det
+│   └── util.rs         # from_fn, map, row/col access, swap_rows/cols, Display
+├── linalg/
+│   ├── mod.rs          # LinalgError
+│   ├── lu.rs           # LU decomposition, solve, inverse, det
+│   ├── cholesky.rs     # Cholesky decomposition, solve, inverse, det, ln_det
+│   └── qr.rs           # QR decomposition, least-squares solve, det
+└── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle
 ```
 
 ## Current Focus
 
-Next candidates: QR decomposition, quaternion module, ODE integration.
+Next candidates: ODE integration, interpolation, SVD decomposition.

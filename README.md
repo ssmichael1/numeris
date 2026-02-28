@@ -121,6 +121,23 @@ Vectors are type aliases: `Vector<T, N>` = `Matrix<T, 1, N>` (row vector), `Colu
 
 Vector-specific: `dot`, `cross`, `outer`, `norm`, `norm_l1`, `normalize`.
 
+#### Size aliases
+
+Convenience aliases are provided for common sizes (all re-exported from the crate root):
+
+| Square | Rectangular (examples) | Vectors |
+|---|---|---|
+| `Matrix1` .. `Matrix6` | `Matrix2x3`, `Matrix3x4`, `Matrix4x6`, ... | `Vector1` .. `Vector6` |
+| | All M×N combinations for M,N ∈ 1..6, M≠N | `ColumnVector1` .. `ColumnVector6` |
+
+```rust
+use numeris::{Matrix3, Matrix4x3, Vector3};
+
+let rotation: Matrix3<f64> = Matrix3::eye();
+let points: Matrix4x3<f64> = Matrix4x3::zeros(); // 4 rows, 3 cols
+let v: Vector3<f64> = Vector3::from_array([1.0, 2.0, 3.0]);
+```
+
 ### `linalg` — Decompositions
 
 All decompositions provide both free functions (operating on `&mut impl MatrixMut<T>`) and wrapper structs with `solve()`, `inverse()`, `det()`.
@@ -150,6 +167,22 @@ Convenience methods on `Matrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.solve(&b
 | `LinalgScalar` | `Scalar` + `modulus`, `conj`, `re`, `lsqrt`, `lln`, `from_real` | Decompositions, norms |
 | `MatrixRef<T>` | Read-only `get(row, col)` | Generic algorithms |
 | `MatrixMut<T>` | Adds `get_mut(row, col)` | In-place decompositions |
+
+## Module plan
+
+Checked items are implemented; unchecked are potential future work.
+
+- [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions), size aliases up to 6×6
+- [x] **linalg** — LU, Cholesky, QR decompositions; solvers, inverse, determinant; complex support
+- [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
+- [ ] **ode** — ODE integration (RK4, RK45, adaptive step)
+- [ ] **interp** — Interpolation (linear, cubic spline, Hermite)
+- [ ] **optim** — Optimization (Newton, Levenberg-Marquardt, BFGS)
+- [ ] **quad** — Numerical quadrature / integration
+- [ ] **fft** — Fast Fourier Transform
+- [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
+- [ ] **stats** — Statistics and distributions
+- [ ] **poly** — Polynomial operations and root-finding
 
 ## Design decisions
 
