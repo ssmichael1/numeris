@@ -1,3 +1,4 @@
+mod block;
 mod norm;
 mod ops;
 mod slice;
