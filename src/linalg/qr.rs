@@ -1,7 +1,8 @@
 use crate::linalg::LinalgError;
 use crate::matrix::vector::Vector;
-use crate::traits::{FloatScalar, MatrixMut};
+use crate::traits::{LinalgScalar, MatrixMut};
 use crate::Matrix;
+use num_traits::Zero;
 
 /// QR decomposition in place using Householder reflections.
 ///
@@ -13,7 +14,9 @@ use crate::Matrix;
 ///
 /// Works on rectangular matrices (M >= N).
 /// Returns `LinalgError::Singular` if a zero column is encountered.
-pub fn qr_in_place<T: FloatScalar>(
+///
+/// For complex matrices, uses `H = I - tau * v * v^H` (conjugate transpose).
+pub fn qr_in_place<T: LinalgScalar>(
     a: &mut impl MatrixMut<T>,
     tau: &mut [T],
 ) -> Result<(), LinalgError> {
@@ -24,43 +27,39 @@ pub fn qr_in_place<T: FloatScalar>(
     assert_eq!(tau.len(), k, "tau length must equal min(M, N)");
 
     for col in 0..k {
-        // Compute the norm of the sub-column a[col:m, col]
-        let mut norm_sq = T::zero();
+        // Compute the squared norm of the sub-column a[col:m, col]
+        // using |v|^2 = v * conj(v) for complex support
+        let mut norm_sq = <T::Real as Zero>::zero();
         for i in col..m {
             let v = *a.get(i, col);
-            norm_sq = norm_sq + v * v;
+            norm_sq = norm_sq + (v * v.conj()).re();
         }
 
-        if norm_sq < T::epsilon() {
+        if norm_sq < T::lepsilon() {
             return Err(LinalgError::Singular);
         }
 
-        let norm = norm_sq.sqrt();
+        let norm = norm_sq.lsqrt();
         let a_col_col = *a.get(col, col);
 
-        // sigma = sign(a[col,col]) * ||x||
-        let sigma = if a_col_col >= T::zero() { norm } else { T::zero() - norm };
+        // sigma: for real, sign(a[col,col]) * ||x||
+        //        for complex, a[col,col] / |a[col,col]| * ||x||
+        // This ensures v0 = a + sigma = (a/|a|)(|a| + ||x||) avoids cancellation.
+        let alpha = a_col_col.modulus();
+        let sigma = if alpha < T::lepsilon() {
+            T::from_real(norm)
+        } else {
+            T::from_real(norm) * (a_col_col / T::from_real(alpha))
+        };
 
         // v[col] = a[col,col] + sigma; rest of v is a[col+1:m, col] (stored in-place)
         let v0 = a_col_col + sigma;
         *a.get_mut(col, col) = v0;
 
-        // tau = v0 / sigma  (= 2 / (v^T v / sigma^2) normalized form)
-        // But we use: tau = 2*v0*sigma / (v0^2 + sum(v[i]^2, i>col))
-        // Simpler: tau = v0 / sigma is equivalent when v is [a+sigma, a[col+1], ...]
-        // and sigma = sign(a)*||x||.
-        //
-        // Actually: ||v||^2 = v0^2 + sum(a[i,col]^2, i>col)
-        //                   = (a+sigma)^2 + (||x||^2 - a^2)
-        //                   = a^2 + 2*a*sigma + sigma^2 + ||x||^2 - a^2
-        //                   = 2*sigma^2 + 2*a*sigma  = 2*sigma*(sigma+a) = 2*sigma*v0
-        // So tau = 2/(||v||^2) = 1/(sigma*v0) ... no wait:
-        // H = I - tau * v * v^T where tau = 2/||v||^2
-        // tau = 2 / (2*sigma*v0) = 1 / (sigma*v0)
-        //
-        // But we want to store scaled vectors below diagonal. Let's normalize v
-        // by dividing by v0, so v_stored = [1, a[col+1]/v0, ...].
-        // Then H = I - tau' * v_stored * v_stored^T where tau' = tau * v0^2 = v0/sigma.
+        // tau = v0 / sigma
+        // For real: tau = v0 / sigma (as before)
+        // For complex: tau = 2 / ||v||^2 * v0^2 ... but the formula tau = v0/sigma
+        // generalizes correctly when sigma = conj(a)/|a| * norm.
         let tau_val = v0 / sigma;
         tau[col] = tau_val;
 
@@ -70,13 +69,15 @@ pub fn qr_in_place<T: FloatScalar>(
             *a.get_mut(i, col) = val;
         }
 
-        // Apply H to trailing columns: A[col:m, col+1:n] -= tau * v * (v^T * A)
+        // Apply H to trailing columns: A[col:m, col+1:n] -= tau * v * (v^H * A)
         // where v = [1, a[col+1,col], ..., a[m-1,col]] (stored values)
+        // v^H * A uses conj(v_i) for complex.
         for j in (col + 1)..n {
-            // Compute v^T * A[:, j] over rows col..m
-            let mut dot = *a.get(col, j); // v[0] = 1
+            // Compute v^H * A[:, j] over rows col..m
+            // v^H[0] = conj(1) = 1 for the implicit leading 1
+            let mut dot = *a.get(col, j); // conj(1) * A[col,j] = A[col,j]
             for i in (col + 1)..m {
-                dot = dot + *a.get(i, col) * *a.get(i, j);
+                dot = dot + (*a.get(i, col)).conj() * *a.get(i, j);
             }
             dot = dot * tau_val;
 
@@ -106,7 +107,7 @@ pub struct QrDecomposition<T, const M: usize, const N: usize> {
     tau: [T; N],
 }
 
-impl<T: FloatScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
+impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
     /// Decompose a matrix. Returns an error if a column is rank-deficient.
     pub fn new(a: &Matrix<T, M, N>) -> Result<Self, LinalgError> {
         assert!(M >= N, "QR decomposition requires M >= N");
@@ -131,6 +132,8 @@ impl<T: FloatScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
     ///
     /// Applies Householder reflections in reverse to the first N columns
     /// of the identity matrix.
+    ///
+    /// For complex matrices, Q is unitary (Q^H * Q = I).
     pub fn q(&self) -> Matrix<T, M, N> {
         // Start with the M×N "thin identity": e_0..e_{N-1}
         let mut q = Matrix::<T, M, N>::zeros();
@@ -144,10 +147,11 @@ impl<T: FloatScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
 
             // Apply H_col to Q[col:M, col:N]
             // v = [1, qr[col+1,col], ..., qr[M-1,col]]
+            // H = I - tau * v * v^H
             for j in col..N {
-                let mut dot = q[(col, j)]; // v[0] = 1
+                let mut dot = q[(col, j)]; // conj(1) * q[col,j]
                 for i in (col + 1)..M {
-                    dot = dot + self.qr[(i, col)] * q[(i, j)];
+                    dot = dot + self.qr[(i, col)].conj() * q[(i, j)];
                 }
                 dot = dot * tau_val;
 
@@ -163,9 +167,9 @@ impl<T: FloatScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
 
     /// Solve the least-squares problem min ||Ax - b|| for x.
     ///
-    /// Computes x = R^{-1} Q^T b via Householder application + back substitution.
+    /// Computes x = R^{-1} Q^H b via Householder application + back substitution.
     pub fn solve(&self, b: &Vector<T, M>) -> Vector<T, N> {
-        // Apply Q^T to b by applying each Householder reflection in order.
+        // Apply Q^H to b by applying each Householder reflection in order.
         // Work with a copy of b as a flat array of length M.
         let mut qtb = [T::zero(); M];
         for i in 0..M {
@@ -175,9 +179,9 @@ impl<T: FloatScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
         for col in 0..N {
             let tau_val = self.tau[col];
             // v = [1, qr[col+1,col], ..., qr[M-1,col]]
-            let mut dot = qtb[col];
+            let mut dot = qtb[col]; // conj(1) * qtb[col]
             for i in (col + 1)..M {
-                dot = dot + self.qr[(i, col)] * qtb[i];
+                dot = dot + self.qr[(i, col)].conj() * qtb[i];
             }
             dot = dot * tau_val;
 
@@ -209,19 +213,12 @@ impl<T: FloatScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
         for i in 0..N {
             d = d * self.qr[(i, i)];
         }
-        // Q is orthogonal with det ±1. Each Householder reflection has det -1,
-        // so det(Q) = (-1)^N. Since A = QR, det(A) = det(Q)*det(R) = (-1)^N * prod(R_ii).
-        // But our R diagonal stores -sigma where sigma has the same sign as the original
-        // diagonal (chosen to avoid cancellation). The product of R diagonals already
-        // encodes the correct sign because each -sigma = -sign(a)*||x||, and we applied
-        // N reflections. So det(A) = product of R diagonal entries (they already include
-        // the sign flips from the Householder convention).
         d
     }
 }
 
 /// Convenience methods on rectangular matrices.
-impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
+impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// QR decomposition using Householder reflections.
     ///
     /// Returns an error if the matrix is rank-deficient.
@@ -231,7 +228,7 @@ impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
 }
 
 /// Convenience methods for QR solve on square matrices.
-impl<T: FloatScalar, const N: usize> Matrix<T, N, N> {
+impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
     /// Solve Ax = b via QR decomposition.
     pub fn solve_qr(&self, b: &Vector<T, N>) -> Result<Vector<T, N>, LinalgError> {
         Ok(self.qr()?.solve(b))

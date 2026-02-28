@@ -1,6 +1,6 @@
 use crate::linalg::LinalgError;
 use crate::matrix::vector::Vector;
-use crate::traits::{FloatScalar, MatrixMut, MatrixRef};
+use crate::traits::{LinalgScalar, MatrixMut, MatrixRef};
 use crate::Matrix;
 
 /// Perform LU decomposition with partial pivoting, in place.
@@ -11,7 +11,7 @@ use crate::Matrix;
 ///
 /// `perm` is filled with the row permutation indices.
 /// Returns `true` if the number of row swaps was even.
-pub fn lu_in_place<T: FloatScalar>(
+pub fn lu_in_place<T: LinalgScalar>(
     a: &mut impl MatrixMut<T>,
     perm: &mut [usize],
 ) -> Result<bool, LinalgError> {
@@ -26,18 +26,18 @@ pub fn lu_in_place<T: FloatScalar>(
     let mut even = true;
 
     for col in 0..n {
-        // Partial pivoting: find row with largest absolute value in this column
+        // Partial pivoting: find row with largest modulus in this column
         let mut max_row = col;
-        let mut max_val = a.get(col, col).abs();
+        let mut max_val = a.get(col, col).modulus();
         for row in (col + 1)..n {
-            let val = a.get(row, col).abs();
+            let val = a.get(row, col).modulus();
             if val > max_val {
                 max_val = val;
                 max_row = row;
             }
         }
 
-        if max_val < T::epsilon() {
+        if max_val < T::lepsilon() {
             return Err(LinalgError::Singular);
         }
 
@@ -73,7 +73,7 @@ pub fn lu_in_place<T: FloatScalar>(
 /// `lu` is the packed L/U matrix from `lu_in_place`.
 /// `perm` is the row permutation from `lu_in_place`.
 /// `b` (input) and `x` (output) are separate slices of length n.
-pub fn lu_solve<T: FloatScalar>(
+pub fn lu_solve<T: LinalgScalar>(
     lu: &impl MatrixRef<T>,
     perm: &[usize],
     b: &[T],
@@ -111,7 +111,7 @@ pub struct LuDecomposition<T, const N: usize> {
     even: bool,
 }
 
-impl<T: FloatScalar, const N: usize> LuDecomposition<T, N> {
+impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
     /// Decompose a matrix. Returns an error if the matrix is singular.
     pub fn new(a: &Matrix<T, N, N>) -> Result<Self, LinalgError> {
         let mut lu = *a;
@@ -168,7 +168,7 @@ impl<T: FloatScalar, const N: usize> LuDecomposition<T, N> {
 }
 
 /// Convenience methods on square matrices.
-impl<T: FloatScalar, const N: usize> Matrix<T, N, N> {
+impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
     /// LU decomposition with partial pivoting.
     pub fn lu(&self) -> Result<LuDecomposition<T, N>, LinalgError> {
         LuDecomposition::new(self)

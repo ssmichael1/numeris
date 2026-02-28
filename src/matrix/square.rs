@@ -1,4 +1,4 @@
-use crate::traits::{FloatScalar, Scalar};
+use crate::traits::{LinalgScalar, Scalar};
 use crate::matrix::vector::Vector;
 use crate::Matrix;
 
@@ -59,25 +59,25 @@ impl<T: Scalar, const N: usize> Matrix<T, N, N> {
     }
 }
 
-impl<T: FloatScalar, const N: usize> Matrix<T, N, N> {
+impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
     /// Determinant via Gaussian elimination with partial pivoting.
     pub fn det(&self) -> T {
         let mut a = *self;
         let mut sign = T::one();
 
         for col in 0..N {
-            // Partial pivoting: find row with largest absolute value
+            // Partial pivoting: find row with largest modulus
             let mut max_row = col;
-            let mut max_val = a[(col, col)].abs();
+            let mut max_val = a[(col, col)].modulus();
             for row in (col + 1)..N {
-                let val = a[(row, col)].abs();
+                let val = a[(row, col)].modulus();
                 if val > max_val {
                     max_val = val;
                     max_row = row;
                 }
             }
 
-            if max_val < T::epsilon() {
+            if max_val < T::lepsilon() {
                 return T::zero();
             }
 

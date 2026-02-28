@@ -8,4 +8,7 @@ pub mod traits;
 pub use matrix::vector::{ColumnVector, ColumnVector3, Vector, Vector3};
 pub use matrix::Matrix;
 pub use quaternion::Quaternion;
-pub use traits::{FloatScalar, MatrixMut, MatrixRef, Scalar};
+pub use traits::{FloatScalar, LinalgScalar, MatrixMut, MatrixRef, Scalar};
+
+#[cfg(feature = "complex")]
+pub use num_complex::Complex;

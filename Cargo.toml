@@ -7,11 +7,13 @@ license = "MIT"
 
 [features]
 default = ["std"]
-std = ["num-traits/std"]
-libm = ["num-traits/libm"]
+std = ["num-traits/std", "num-complex?/std"]
+libm = ["num-traits/libm", "num-complex?/libm"]
+complex = ["dep:num-complex"]
 
 [dependencies]
 num-traits = { version = "0.2", default-features = false, features = ["libm"] }
+num-complex = { version = "0.4", default-features = false, optional = true }
 
 [profile.test]
 opt-level = 3

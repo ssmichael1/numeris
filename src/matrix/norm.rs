@@ -1,5 +1,6 @@
 use crate::matrix::vector::Vector;
-use crate::traits::{FloatScalar, Scalar};
+use crate::traits::{LinalgScalar, Scalar};
+use num_traits::{Float, One, Zero};
 use crate::Matrix;
 
 // ── Vector norms ────────────────────────────────────────────────────
@@ -11,17 +12,23 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     }
 }
 
-impl<T: FloatScalar, const N: usize> Vector<T, N> {
+impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     /// L2 (Euclidean) norm.
-    pub fn norm(&self) -> T {
-        self.norm_squared().sqrt()
+    ///
+    /// For complex vectors, this is `sqrt(sum(|x_i|^2))`.
+    pub fn norm(&self) -> T::Real {
+        let mut sum = <T::Real as Zero>::zero();
+        for i in 0..N {
+            sum = sum + self[i].modulus() * self[i].modulus();
+        }
+        sum.sqrt()
     }
 
-    /// L1 norm (sum of absolute values).
-    pub fn norm_l1(&self) -> T {
-        let mut sum = T::zero();
+    /// L1 norm (sum of absolute values / moduli).
+    pub fn norm_l1(&self) -> T::Real {
+        let mut sum = <T::Real as Zero>::zero();
         for i in 0..N {
-            sum = sum + self[i].abs();
+            sum = sum + self[i].modulus();
         }
         sum
     }
@@ -31,7 +38,7 @@ impl<T: FloatScalar, const N: usize> Vector<T, N> {
     /// Panics if the norm is zero.
     pub fn normalize(&self) -> Self {
         let n = self.norm();
-        *self * (T::one() / n)
+        *self * T::from_real(<T::Real as One>::one() / n)
     }
 }
 
@@ -50,19 +57,26 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 }
 
-impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Frobenius norm (square root of sum of squared elements).
-    pub fn frobenius_norm(&self) -> T {
-        self.frobenius_norm_squared().sqrt()
+impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Frobenius norm (square root of sum of squared moduli).
+    pub fn frobenius_norm(&self) -> T::Real {
+        let mut sum = <T::Real as Zero>::zero();
+        for i in 0..M {
+            for j in 0..N {
+                let m = self[(i, j)].modulus();
+                sum = sum + m * m;
+            }
+        }
+        sum.sqrt()
     }
 
-    /// Infinity norm (maximum absolute row sum).
-    pub fn norm_inf(&self) -> T {
-        let mut max = T::zero();
+    /// Infinity norm (maximum row sum of moduli).
+    pub fn norm_inf(&self) -> T::Real {
+        let mut max = <T::Real as Zero>::zero();
         for i in 0..M {
-            let mut row_sum = T::zero();
+            let mut row_sum = <T::Real as Zero>::zero();
             for j in 0..N {
-                row_sum = row_sum + self[(i, j)].abs();
+                row_sum = row_sum + self[(i, j)].modulus();
             }
             if row_sum > max {
                 max = row_sum;
@@ -71,13 +85,13 @@ impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
         max
     }
 
-    /// One norm (maximum absolute column sum).
-    pub fn norm_one(&self) -> T {
-        let mut max = T::zero();
+    /// One norm (maximum column sum of moduli).
+    pub fn norm_one(&self) -> T::Real {
+        let mut max = <T::Real as Zero>::zero();
         for j in 0..N {
-            let mut col_sum = T::zero();
+            let mut col_sum = <T::Real as Zero>::zero();
             for i in 0..M {
-                col_sum = col_sum + self[(i, j)].abs();
+                col_sum = col_sum + self[(i, j)].modulus();
             }
             if col_sum > max {
                 max = col_sum;
