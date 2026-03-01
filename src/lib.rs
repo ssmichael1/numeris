@@ -21,15 +21,20 @@
 //! ## Modules
 //!
 //! - [`matrix`] — Fixed-size `Matrix<T, M, N>` with const-generic dimensions.
-//!   Stack-allocated `[[T; N]; M]` row-major storage. Includes arithmetic,
-//!   indexing, norms, block operations, and iteration. [`Vector<T, N>`] and
-//!   [`ColumnVector<T, N>`] are type aliases for 1-row and 1-column matrices.
+//!   Stack-allocated `[[T; M]; N]` column-major storage (matches LAPACK conventions).
+//!   `Matrix::new()` accepts row-major input and transposes internally.
+//!   Includes arithmetic, indexing, norms, block operations, and iteration.
+//!   [`Vector<T, N>`] and [`ColumnVector<T, N>`] are type aliases for 1-row and
+//!   1-column matrices.
 //!
 //! - [`dynmatrix`] — Heap-allocated `DynMatrix<T>` with runtime dimensions
-//!   (requires `alloc` feature, included with `std`). `Vec<T>` row-major storage.
+//!   (requires `alloc` feature, included with `std`). `Vec<T>` column-major storage
+//!   (`col * nrows + row`). `from_rows()` accepts row-major data (transposes
+//!   internally); `from_slice()` accepts column-major data directly.
 //!   Implements [`MatrixRef`] / [`MatrixMut`], so all linalg free functions work
 //!   automatically. [`DynVector<T>`] newtype for single-index vector access.
-//!   Includes `DynLu`, `DynCholesky`, `DynQr` wrapper structs.
+//!   Includes `DynLu`, `DynCholesky`, `DynQr`, `DynSvd`, `DynSymmetricEigen`,
+//!   `DynSchur` wrapper structs.
 //!
 //! - [`linalg`] — LU (partial pivoting), Cholesky (A = LL^H), QR (Householder),
 //!   SVD (Householder bidiagonalization + Golub-Kahan implicit-shift QR),

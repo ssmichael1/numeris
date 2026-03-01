@@ -14,14 +14,14 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
 - **Norms** — L1, L2, Frobenius, infinity, one norms
-- **SIMD acceleration** — NEON (aarch64) and SSE2 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
+- **SIMD acceleration** — NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
 - **No-std / embedded** — runs without `std` or heap; float math falls back to software `libm`
 
 ## Quick start
 
 ```toml
 [dependencies]
-numeris = "0.1"
+numeris = "0.2"
 ```
 
 ```rust
@@ -158,7 +158,7 @@ Root finding, unconstrained minimization, and nonlinear least squares (requires 
 
 ```toml
 [dependencies]
-numeris = { version = "0.1", features = ["optim"] }
+numeris = { version = "0.2", features = ["optim"] }
 ```
 
 ```rust
@@ -218,7 +218,7 @@ Biquad cascade IIR filters with Butterworth and Chebyshev Type I design (require
 
 ```toml
 [dependencies]
-numeris = { version = "0.1", features = ["control"] }
+numeris = { version = "0.2", features = ["control"] }
 ```
 
 ```rust
@@ -273,7 +273,7 @@ Enable the `complex` feature to use decompositions with complex elements:
 
 ```toml
 [dependencies]
-numeris = { version = "0.1", features = ["complex"] }
+numeris = { version = "0.2", features = ["complex"] }
 ```
 
 ```rust
@@ -332,7 +332,7 @@ cargo build --features "optim,complex"
 
 ### `matrix` — Fixed-size matrix
 
-`Matrix<T, M, N>` with `[[T; N]; M]` row-major storage.
+`Matrix<T, M, N>` with `[[T; M]; N]` column-major storage. `Matrix::new()` accepts row-major input and transposes internally.
 
 - Arithmetic: `+`, `-`, `*` (matrix and scalar), negation, element-wise multiply/divide
 - Indexing: `m[(i, j)]`, row/column access, block extraction and insertion
@@ -364,7 +364,7 @@ let v: Vector3<f64> = Vector3::from_array([1.0, 2.0, 3.0]);
 
 ### `dynmatrix` — Dynamic matrix (requires `alloc`)
 
-`DynMatrix<T>` with `Vec<T>` row-major storage and runtime dimensions.
+`DynMatrix<T>` with `Vec<T>` column-major storage and runtime dimensions. `from_rows()` accepts row-major data (transposes internally); `from_slice()` accepts column-major data directly.
 
 - Same arithmetic, norms, block ops, and utilities as fixed `Matrix`
 - Mixed ops: `Matrix * DynMatrix`, `DynMatrix + Matrix`, etc. → `DynMatrix`
@@ -454,13 +454,13 @@ Checked items are implemented; unchecked are potential future work.
 
 numeris is designed for two use cases: no-std embedded systems and high-performance desktop/server computing.
 
-**SIMD acceleration** is always-on for f32/f64 — no feature flag needed. On aarch64 (NEON) and x86_64 (SSE2/AVX/AVX-512), matrix multiply, dot products, and element-wise operations use hardware SIMD intrinsics via `core::arch`. Matrix multiply uses register-blocked micro-kernels (inspired by [nano-gemm](https://github.com/sarah-quinones/nano-gemm) by Sarah Quinones) that accumulate MR×NR tiles in SIMD registers across the full k-loop, writing C only once — reducing memory traffic by up to O(n) vs. naive implementations. Integer and complex types fall back to scalar loops at zero cost (dead-code eliminated at monomorphization via `TypeId` dispatch).
+**SIMD acceleration** is always-on for f32/f64 — no feature flag needed. On aarch64 (NEON) and x86_64 (SSE2/AVX/AVX-512), matrix multiply, dot products, and element-wise operations use hardware SIMD intrinsics via `core::arch`. Matrix multiply uses register-blocked micro-kernels (inspired by [nano-gemm](https://github.com/sarah-quinones/nano-gemm) by Sarah Quinones) that accumulate MR×NR tiles in SIMD registers with k-blocking (KC=256) for cache locality, writing C only once per tile — reducing memory traffic by up to O(n) vs. naive implementations. Small matrices (4x4 and below) use direct formulas for inverse and determinant, bypassing LU decomposition entirely. Integer and complex types fall back to scalar loops at zero cost (dead-code eliminated at monomorphization via `TypeId` dispatch).
 
 SSE2 and NEON are always-on baselines. AVX and AVX-512 are compile-time opt-in via `-C target-cpu=native`; dispatch selects the widest available ISA.
 
 | Architecture | ISA | f64 tile (MR×NR) | f32 tile (MR×NR) |
 |---|---|---|---|
-| aarch64 | NEON (128-bit) | 4×4 | 8×4 |
+| aarch64 | NEON (128-bit) | 8×4 | 8×4 |
 | x86_64 | SSE2 (128-bit) | 4×4 | 8×4 |
 | x86_64 | AVX (256-bit) | 8×4 | 16×4 |
 | x86_64 | AVX-512 (512-bit) | 16×4 | 32×4 |
@@ -468,7 +468,7 @@ SSE2 and NEON are always-on baselines. AVX and AVX-512 are compile-time opt-in v
 
 ## Design decisions
 
-- **Stack-allocated**: `[[T; N]; M]` storage, no heap. Dimensions are const generics.
+- **Column-major storage**: `[[T; M]; N]` (N columns of M rows), matching LAPACK conventions. Stack-allocated, const generics.
 - **Heap-allocated**: `DynMatrix` uses `Vec<T>` for runtime dimensions, behind `alloc` feature.
 - **`num-traits`**: Generic numeric bounds with `default-features = false`.
 - **In-place algorithms**: Decompositions operate on `&mut impl MatrixMut<T>`, avoiding allocator/storage trait complexity. Both `Matrix` and `DynMatrix` implement `MatrixMut`, so the same free functions work for both.
