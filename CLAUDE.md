@@ -13,8 +13,9 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
-- [ ] **interp** — Interpolation (linear, cubic spline, Hermite)
+- [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
+- [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
 - [ ] **fft** — Fast Fourier Transform
 - [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
@@ -65,11 +66,13 @@ Checked items are implemented; unchecked are potential future work.
 - **`ode`** (default) — ODE integration module (RK4, adaptive solvers).
 - **`optim`** — Optimization module (root finding, BFGS, Gauss-Newton, Levenberg-Marquardt).
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
+- **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
+- **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
   via the `libm` crate. When `std` is also enabled, `std` takes precedence.
 - **`complex`** — adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. All decompositions
   and norms work with complex elements. Zero overhead for real-only code paths.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `complex`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `complex`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -134,12 +137,29 @@ src/
 │   ├── f32_avx.rs      # x86_64 AVX f32 kernels (8-wide, compile-time opt-in)
 │   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide, compile-time opt-in)
 │   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide, compile-time opt-in)
+├── interp/             # (requires `interp` feature)
+│   ├── mod.rs          # InterpError, find_interval, validate_sorted helpers, re-exports
+│   ├── linear.rs       # LinearInterp<T, N> + DynLinearInterp<T>
+│   ├── hermite.rs      # HermiteInterp<T, N> + DynHermiteInterp<T>
+│   ├── lagrange.rs     # LagrangeInterp<T, N> + DynLagrangeInterp<T> (barycentric)
+│   ├── spline.rs       # CubicSpline<T, N> + DynCubicSpline<T> (natural BCs, Thomas algorithm)
+│   └── tests.rs        # comprehensive tests
 ├── control/            # (requires `control` feature)
 │   ├── mod.rs          # ControlError, module declarations, re-exports
 │   ├── biquad.rs       # Biquad, BiquadCascade, DFII-T tick/process, bilinear transform helpers
 │   ├── butterworth.rs  # butterworth_lowpass, butterworth_highpass
 │   ├── chebyshev.rs    # chebyshev1_lowpass, chebyshev1_highpass
 │   ├── pid.rs          # Pid<T> discrete-time PID controller with anti-windup and derivative filter
+│   └── tests.rs        # comprehensive tests
+├── estimate/           # (requires `estimate` feature, implies `alloc`)
+│   ├── mod.rs          # EstimateError, fd_jacobian helper, re-exports
+│   ├── ekf.rs          # Ekf<T, N, M> — Extended Kalman Filter (fully no-std)
+│   ├── ukf.rs          # Ukf<T, N, M> — Unscented Kalman Filter (requires `alloc`)
+│   ├── cholupdate.rs   # Cholesky rank-1 update/downdate (private helper)
+│   ├── srukf.rs        # SrUkf<T, N, M> — Square-Root UKF (requires `alloc`)
+│   ├── ckf.rs          # Ckf<T, N, M> — Cubature Kalman Filter (requires `alloc`)
+│   ├── rts.rs          # EkfStep, rts_smooth — RTS fixed-interval smoother (requires `alloc`)
+│   ├── batch.rs        # BatchLsq<T, N> — Batch least-squares (fully no-std)
 │   └── tests.rs        # comprehensive tests
 ├── optim/              # (requires `optim` feature)
 │   ├── mod.rs          # OptimError, result/settings structs, re-exports
@@ -155,4 +175,4 @@ src/
 
 ## Current Focus
 
-Next candidates: special functions (gamma), interpolation, SIMD extension to remaining linalg inner loops (QR, Cholesky, SVD Householder loops via col_as_slice + dot/AXPY dispatch).
+Next candidates: special functions (gamma), SIMD extension to remaining linalg inner loops (QR, Cholesky, SVD Householder loops via col_as_slice + dot/AXPY dispatch).

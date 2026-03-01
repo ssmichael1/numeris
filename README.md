@@ -12,6 +12,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **ODE integration** — fixed-step RK4, 7 adaptive Runge-Kutta solvers with dense output, RODAS4 stiff solver
 - **Optimization** — root finding (Brent, Newton), BFGS minimization, Gauss-Newton and Levenberg-Marquardt least squares
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
+- **State estimation** — EKF, UKF, Square-Root UKF, Cubature Kalman Filter, RTS smoother, batch least-squares
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
 - **Norms** — L1, L2, Frobenius, infinity, one norms
 - **SIMD acceleration** — NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
@@ -267,6 +268,82 @@ for _ in 0..1000 {
 assert!((measurement - setpoint).abs() < 0.01);
 ```
 
+## State estimation
+
+Six estimators for nonlinear state estimation and offline batch processing (requires `estimate` feature):
+
+```toml
+[dependencies]
+numeris = { version = "0.2", features = ["estimate"] }
+```
+
+```rust
+use numeris::estimate::{Ekf, Ukf, SrUkf, Ckf, BatchLsq};
+use numeris::{ColumnVector, Matrix};
+
+// EKF: 2-state constant-velocity, 1 measurement (position)
+let x0 = ColumnVector::from_column([0.0_f64, 1.0]); // [pos, vel]
+let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
+
+let dt = 0.1;
+let q = Matrix::new([[0.01, 0.0], [0.0, 0.01]]);
+let r = Matrix::new([[0.5]]);
+
+// Predict with dynamics model + Jacobian
+ekf.predict(
+    |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+    |_x| Matrix::new([[1.0, dt], [0.0, 1.0]]),
+    Some(&q),
+);
+
+// Update with position measurement
+ekf.update(
+    &ColumnVector::from_column([0.12]),
+    |x| ColumnVector::from_column([x[(0, 0)]]),
+    |_x| Matrix::new([[1.0, 0.0]]),
+    &r,
+).unwrap();
+
+// UKF: no Jacobians needed — uses sigma points
+let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
+ukf.predict(
+    |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+    Some(&q),
+).unwrap();
+ukf.update(
+    &ColumnVector::from_column([0.12]),
+    |x| ColumnVector::from_column([x[(0, 0)]]),
+    &r,
+).unwrap();
+
+// CKF: tuning-free sigma-point filter (2N points, equal weights)
+let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
+ckf.predict(
+    |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+    Some(&q),
+).unwrap();
+
+// Batch least-squares: accumulate linear observations
+let mut lsq = BatchLsq::<f64, 1>::new();
+let h = Matrix::new([[1.0_f64]]);
+let r_lsq = Matrix::new([[0.1]]);
+lsq.add_observation(&ColumnVector::from_column([1.05]), &h, &r_lsq).unwrap();
+lsq.add_observation(&ColumnVector::from_column([0.95]), &h, &r_lsq).unwrap();
+let (x_est, _p_est) = lsq.solve().unwrap();
+```
+
+| Filter | Struct | Jacobians | No-std |
+|---|---|---|---|
+| Extended Kalman | `Ekf<T, N, M>` | User-supplied or finite-difference | Yes |
+| Unscented Kalman | `Ukf<T, N, M>` | Not needed (sigma points) | No (`alloc`) |
+| Square-Root UKF | `SrUkf<T, N, M>` | Not needed (propagates Cholesky factor) | No (`alloc`) |
+| Cubature Kalman | `Ckf<T, N, M>` | Not needed (2N cubature points) | No (`alloc`) |
+| RTS Smoother | `rts_smooth()` | Stored from EKF forward pass | No (`alloc`) |
+| Batch Least-Squares | `BatchLsq<T, N>` | Linear H matrix | Yes |
+
+All support `f32` and `f64`. Process noise `Q` is optional (`None` for zero noise).
+
 ## Complex matrices
 
 Enable the `complex` feature to use decompositions with complex elements:
@@ -307,9 +384,10 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `ode` | yes | ODE integration (RK4, adaptive solvers). |
 | `optim` | no | Optimization (root finding, BFGS, Gauss-Newton, LM). |
 | `control` | no | Digital IIR filters (Butterworth, Chebyshev Type I). |
+| `estimate` | no | State estimation (EKF, UKF, SR-UKF, CKF, RTS, batch LSQ). Implies `alloc`. |
 | `libm` | baseline | Pure-Rust software float math. Always available as fallback. |
 | `complex` | no | Adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. |
-| `all` | no | All features: `std` + `ode` + `optim` + `control` + `complex`. |
+| `all` | no | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `complex`. |
 
 ```bash
 # Default (std + ode)
@@ -403,6 +481,19 @@ Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdap
 - **Finite differences**: `finite_difference_gradient`, `finite_difference_jacobian` for numerical derivatives
 - All algorithms use `FloatScalar` bound (real-valued), configurable via settings structs with `Default` impls for `f32` and `f64`
 
+### `estimate` — State estimation (requires `estimate` feature)
+
+Six estimators with const-generic state (`N`) and measurement (`M`) dimensions. Closure-based dynamics and measurement models.
+
+- `Ekf` — Extended Kalman Filter with `predict`/`update` (explicit Jacobian) and `predict_fd`/`update_fd` (finite-difference). Joseph-form covariance update. Fully no-std.
+- `Ukf` — Unscented Kalman Filter with Merwe-scaled sigma points (`alpha`, `beta`, `kappa`). Requires `alloc`.
+- `SrUkf` — Square-Root UKF. Propagates Cholesky factor `S` (where `P = SSᵀ`) for guaranteed positive-definiteness. Requires `alloc`.
+- `Ckf` — Cubature Kalman Filter. Third-degree spherical-radial cubature rule with `2N` equally-weighted points. No tuning parameters. Requires `alloc`.
+- `rts_smooth` — Rauch–Tung–Striebel fixed-interval smoother. Takes a forward EKF pass (`EkfStep` records) and returns smoothed estimates. Requires `alloc`.
+- `BatchLsq` — Linear batch least-squares via information accumulation (`Λ = Σ HᵀR⁻¹H`). Supports mixed measurement dimensions via method-level const generic. Fully no-std.
+- Process noise `Q` is optional in predict step (`Some(&q)` or `None`)
+- `FloatScalar` bound (real-valued), works with `f32` and `f64`
+
 ### `control` — Digital filters and controllers (requires `control` feature)
 
 Biquad cascade filters designed via the bilinear transform, and a discrete-time PID controller. No `complex` feature dependency.
@@ -441,8 +532,9 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
-- [ ] **interp** — Interpolation (linear, cubic spline, Hermite)
+- [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
+- [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
 - [ ] **fft** — Fast Fourier Transform
 - [ ] **special** — Special functions (Bessel, gamma, erf, etc.)

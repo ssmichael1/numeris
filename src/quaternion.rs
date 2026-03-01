@@ -6,8 +6,17 @@ use crate::Matrix;
 
 /// Unit quaternion for 3D rotations.
 ///
-/// Scalar-first convention: `[w, x, y, z]` where `w` is the scalar part
-/// and `(x, y, z)` is the vector part.
+/// Scalar-first Hamilton convention: `q = w + xi + yj + zk` stored as
+/// `[w, x, y, z]`. Hamilton product satisfies `ij = k`.
+///
+/// # Rotation convention
+///
+/// `q * v` computes the rotated vector `q v q⁻¹`. When used for attitude
+/// representation, `q` is the **source-to-body** (e.g. inertial-to-body)
+/// quaternion: `v_body = q * v_inertial`.
+///
+/// Composition follows right-to-left order: `q_total = q2 * q1` applies
+/// `q1` first, then `q2`.
 ///
 /// # Example
 ///
@@ -396,10 +405,15 @@ impl<T: FloatScalar> Quaternion<T> {
 // ── Kinematics ───────────────────────────────────────────────────────
 
 impl<T: FloatScalar> Quaternion<T> {
-    /// Create a small rotation quaternion from angular velocity and time step.
+    /// Create a rotation quaternion from angular velocity and time step.
     ///
-    /// `omega` is the angular velocity vector (rad/s), `dt` is the time step.
-    /// Uses the exact axis-angle formula: angle = |omega| * dt, axis = omega / |omega|.
+    /// Computes the exact finite rotation `δq = exp(½ ω dt)` using the
+    /// axis-angle formula: `angle = |ω| · dt`, `axis = ω / |ω|`.
+    ///
+    /// The returned quaternion represents the rotation that the body undergoes
+    /// over `dt` at constant angular velocity `omega`. To apply it to an
+    /// existing attitude quaternion, right-multiply: `q_new = q ⊗ δq`
+    /// (see [`propagate`](Self::propagate)).
     pub fn from_angular_velocity(omega: &Vector3<T>, dt: T) -> Self {
         let angle = omega.norm() * dt;
         let eps = T::epsilon();
@@ -410,6 +424,98 @@ impl<T: FloatScalar> Quaternion<T> {
             let axis = omega.normalize();
             Self::from_axis_angle(axis, angle)
         }
+    }
+
+    /// Quaternion time derivative for body-frame angular velocity.
+    ///
+    /// Returns `q̇ = ½ q ⊗ ω̃` where `ω̃ = (0, ωx, ωy, ωz)` is the angular
+    /// velocity as a pure quaternion.
+    ///
+    /// # Convention
+    ///
+    /// - **`self`** is the **source-to-body** quaternion (e.g. inertial-to-body).
+    ///   It transforms vectors from the source frame into the body frame:
+    ///   `v_body = q * v_source`.
+    /// - **`omega`** is the angular velocity of the body relative to the source
+    ///   frame, **expressed in the body frame** — this is what a body-mounted
+    ///   gyroscope measures.
+    /// - The right-multiply (`q ⊗ ω̃`) follows from body-frame rates. If you
+    ///   have rates in the source (inertial) frame instead, use
+    ///   `q̇ = ½ ω̃_source ⊗ q` (left-multiply).
+    ///
+    /// # Usage
+    ///
+    /// Feed this into an ODE integrator (e.g. RK4, RKTS54). The result is a
+    /// general quaternion (not unit), so normalize periodically to prevent
+    /// drift. For constant-rate propagation, use [`propagate`](Self::propagate)
+    /// instead.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{Quaternion, Vector3};
+    ///
+    /// // Constant rotation about Z at 1 rad/s
+    /// let q = Quaternion::<f64>::identity();
+    /// let omega = Vector3::from_array([0.0, 0.0, 1.0]);
+    /// let q_dot = q.derivative(&omega);
+    /// // q̇ = ½ (1,0,0,0) ⊗ (0,0,0,1) = (0, 0, 0, 0.5)
+    /// assert!((q_dot.w).abs() < 1e-12);
+    /// assert!((q_dot.z - 0.5).abs() < 1e-12);
+    /// ```
+    #[inline]
+    pub fn derivative(&self, omega: &Vector3<T>) -> Self {
+        let half = T::one() / (T::one() + T::one());
+        let omega_quat = Self::new(T::zero(), omega[0], omega[1], omega[2]);
+        let qd = *self * omega_quat;
+        Self::new(qd.w * half, qd.x * half, qd.y * half, qd.z * half)
+    }
+
+    /// Propagate quaternion by body-frame angular velocity over a time step
+    /// using the exponential map (exact for constant rate).
+    ///
+    /// Computes `q_new = q ⊗ δq` where `δq = exp(½ ω dt)` is the exact
+    /// finite rotation. This is geometrically exact for constant angular
+    /// velocity over `dt` and preserves unit norm (up to floating-point
+    /// rounding). Equivalent to [`from_angular_velocity`](Self::from_angular_velocity)
+    /// composed with the current quaternion.
+    ///
+    /// # Convention
+    ///
+    /// Same as [`derivative`](Self::derivative):
+    /// - **`self`** is the **source-to-body** quaternion (e.g. inertial-to-body).
+    /// - **`omega`** is the angular velocity of the body relative to the source
+    ///   frame, **expressed in the body frame**.
+    /// - The delta rotation is right-multiplied (`q ⊗ δq`) because the rates
+    ///   are in the body frame.
+    ///
+    /// # When to use
+    ///
+    /// Use this for constant-rate steps or as a first-order integrator.
+    /// For time-varying rates (e.g. from Euler's equations with applied
+    /// torques), use [`derivative`](Self::derivative) with a higher-order
+    /// ODE integrator instead.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{Quaternion, Vector3};
+    ///
+    /// // Rotate 90° about Z at 1 rad/s
+    /// let q = Quaternion::<f64>::identity();
+    /// let omega = Vector3::from_array([0.0, 0.0, 1.0]);
+    /// let q_new = q.propagate(&omega, std::f64::consts::FRAC_PI_2);
+    ///
+    /// // Should match a 90° rotation about Z
+    /// let v = Vector3::from_array([1.0, 0.0, 0.0]);
+    /// let rotated = q_new * v;
+    /// assert!((rotated[0]).abs() < 1e-12);
+    /// assert!((rotated[1] - 1.0).abs() < 1e-12);
+    /// ```
+    #[inline]
+    pub fn propagate(&self, omega: &Vector3<T>, dt: T) -> Self {
+        let dq = Self::from_angular_velocity(omega, dt);
+        (*self * dq).normalize()
     }
 }
 
@@ -972,6 +1078,102 @@ mod tests {
         let q = Quaternion::from_angular_velocity(&omega, 0.5);
         let expected = Quaternion::from_axis_angle(Vector3::from_array([0.0, 0.0, 1.0]), 0.5);
         assert!(quat_approx_eq(&q, &expected));
+    }
+
+    #[test]
+    fn derivative_identity_z_rate() {
+        // q̇ = ½ I ⊗ (0,0,0,ωz) = (0, 0, 0, ωz/2)
+        let q = Quaternion::<f64>::identity();
+        let omega = Vector3::from_array([0.0, 0.0, 2.0]);
+        let qd = q.derivative(&omega);
+        assert!(approx_eq(qd.w, 0.0));
+        assert!(approx_eq(qd.x, 0.0));
+        assert!(approx_eq(qd.y, 0.0));
+        assert!(approx_eq(qd.z, 1.0));
+    }
+
+    #[test]
+    fn derivative_euler_integration() {
+        // Forward Euler with small dt should approximate exponential map
+        let q0 = Quaternion::from_axis_angle(
+            Vector3::from_array([1.0, 0.0, 0.0]),
+            0.3,
+        );
+        let omega = Vector3::from_array([0.0, 0.5, 0.0]);
+        let dt = 1e-4;
+
+        // Euler step: q1 = q0 + q̇ * dt
+        let qd = q0.derivative(&omega);
+        let q_euler = Quaternion::new(
+            q0.w + qd.w * dt,
+            q0.x + qd.x * dt,
+            q0.y + qd.y * dt,
+            q0.z + qd.z * dt,
+        ).normalize();
+
+        // Exponential map
+        let q_exact = q0.propagate(&omega, dt);
+
+        // Should agree to O(dt²)
+        assert!(approx_eq(q_euler.w, q_exact.w));
+        assert!(approx_eq(q_euler.x, q_exact.x));
+        assert!(approx_eq(q_euler.y, q_exact.y));
+        assert!(approx_eq(q_euler.z, q_exact.z));
+    }
+
+    #[test]
+    fn derivative_orthogonal_to_quaternion() {
+        // q̇ · q = 0 for unit quaternions (derivative is tangent to the 4-sphere)
+        let q = Quaternion::from_euler(0.3, -0.5, 1.2);
+        let omega = Vector3::from_array([1.0, -0.5, 0.3]);
+        let qd = q.derivative(&omega);
+        let dot = q.w * qd.w + q.x * qd.x + q.y * qd.y + q.z * qd.z;
+        assert!(approx_eq(dot, 0.0));
+    }
+
+    #[test]
+    fn propagate_z_rotation() {
+        // 1 rad/s about Z for π/2 s → 90° rotation
+        let q = Quaternion::<f64>::identity();
+        let omega = Vector3::from_array([0.0, 0.0, 1.0]);
+        let q_new = q.propagate(&omega, FRAC_PI_2);
+        let v = Vector3::from_array([1.0, 0.0, 0.0]);
+        let r = q_new * v;
+        assert!(approx_eq(r[0], 0.0));
+        assert!(approx_eq(r[1], 1.0));
+        assert!(approx_eq(r[2], 0.0));
+    }
+
+    #[test]
+    fn propagate_preserves_norm() {
+        let q = Quaternion::from_euler(0.3, -0.5, 1.2);
+        let omega = Vector3::from_array([1.0, -2.0, 0.5]);
+        let q_new = q.propagate(&omega, 0.1);
+        assert!(approx_eq(q_new.norm(), 1.0));
+    }
+
+    #[test]
+    fn propagate_zero_rate() {
+        let q = Quaternion::from_euler(0.3, -0.5, 1.2);
+        let omega = Vector3::from_array([0.0, 0.0, 0.0]);
+        let q_new = q.propagate(&omega, 1.0);
+        assert!(quat_approx_eq(&q_new, &q));
+    }
+
+    #[test]
+    fn propagate_composition() {
+        // Two half-steps should equal one full step (for constant rate)
+        let q = Quaternion::from_axis_angle(
+            Vector3::from_array([1.0, 0.0, 0.0]),
+            0.5,
+        );
+        let omega = Vector3::from_array([0.3, -0.7, 1.2]);
+        let dt = 0.1;
+
+        let q_full = q.propagate(&omega, dt);
+        let q_half = q.propagate(&omega, dt / 2.0).propagate(&omega, dt / 2.0);
+
+        assert!(quat_approx_eq(&q_full, &q_half));
     }
 
     // ── Composition ──────────────────────────────────────────────

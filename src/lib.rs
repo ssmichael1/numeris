@@ -60,6 +60,19 @@
 //!   and Chebyshev Type I lowpass/highpass. No `complex` feature dependency.
 //!   Requires `control` feature.
 //!
+//! - [`estimate`] — State estimation: [`estimate::Ekf`] (Extended Kalman Filter),
+//!   [`estimate::Ukf`] (Unscented Kalman Filter), [`estimate::SrUkf`] (Square-Root UKF),
+//!   [`estimate::Ckf`] (Cubature Kalman Filter), [`estimate::rts_smooth`] (RTS smoother),
+//!   and [`estimate::BatchLsq`] (batch least-squares). Closure-based dynamics and
+//!   measurement models, Joseph-form covariance update, Merwe-scaled sigma points.
+//!   EKF and BatchLsq are fully no-std; sigma-point filters and RTS require `alloc`.
+//!   Requires `estimate` feature.
+//!
+//! - [`interp`] — Interpolation: [`interp::LinearInterp`], [`interp::HermiteInterp`],
+//!   [`interp::LagrangeInterp`] (barycentric), and [`interp::CubicSpline`] (natural BCs).
+//!   Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires
+//!   `alloc`). Out-of-bounds evaluations extrapolate. Requires `interp` feature.
+//!
 //! - [`quaternion`] — Unit quaternion for 3D rotations. Scalar-first `[w, x, y, z]`.
 //!   Construct from axis-angle, Euler angles, or rotation matrices. Supports
 //!   Hamilton product, vector rotation, SLERP, and conversion back to matrices.
@@ -86,9 +99,11 @@
 //! | `ode`     | yes      | ODE integration (RK4, adaptive solvers) |
 //! | `optim`   | no       | Optimization (root finding, BFGS, Gauss-Newton, LM) |
 //! | `control` | no       | Digital IIR filters (Butterworth, Chebyshev Type I) |
+//! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
+//! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline) |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
-//! | `all`     | no       | All features: `std` + `ode` + `optim` + `control` + `complex` |
+//! | `all`     | no       | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `complex` |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -104,6 +119,10 @@ mod simd;
 pub mod ode;
 #[cfg(feature = "control")]
 pub mod control;
+#[cfg(feature = "estimate")]
+pub mod estimate;
+#[cfg(feature = "interp")]
+pub mod interp;
 #[cfg(feature = "optim")]
 pub mod optim;
 pub mod quaternion;
