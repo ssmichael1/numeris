@@ -158,7 +158,7 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
     /// Compute the determinant: det(A) = |det(L)|^2.
     ///
     /// For Hermitian PD matrices, the diagonal of L is real and positive,
-    /// so det(A) = product(L[i][i])^2.
+    /// so det(A) = product(L\[i\]\[i\])^2.
     pub fn det(&self) -> T {
         let mut prod = T::one();
         for i in 0..N {
@@ -167,7 +167,7 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
         prod * prod
     }
 
-    /// Compute the log-determinant: ln(det(A)) = 2 * sum(ln(L[i][i])).
+    /// Compute the log-determinant: ln(det(A)) = 2 * sum(ln(L\[i\]\[i\])).
     ///
     /// More numerically stable than `det()` for large matrices.
     pub fn ln_det(&self) -> T {

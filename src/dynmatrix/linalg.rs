@@ -166,7 +166,7 @@ impl<T: LinalgScalar> DynCholesky<T> {
         DynVector::from_vec(x)
     }
 
-    /// Determinant: det(A) = product(L[i][i])^2.
+    /// Determinant: det(A) = product(L\[i\]\[i\])^2.
     pub fn det(&self) -> T {
         let n = self.l.nrows();
         let mut prod = T::one();
@@ -176,7 +176,7 @@ impl<T: LinalgScalar> DynCholesky<T> {
         prod * prod
     }
 
-    /// Log-determinant: ln(det(A)) = 2 * sum(ln(L[i][i])).
+    /// Log-determinant: ln(det(A)) = 2 * sum(ln(L\[i\]\[i\])).
     pub fn ln_det(&self) -> T {
         let n = self.l.nrows();
         let mut sum = T::zero();
