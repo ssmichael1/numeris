@@ -73,6 +73,12 @@
 //!   Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires
 //!   `alloc`). Out-of-bounds evaluations extrapolate. Requires `interp` feature.
 //!
+//! - [`special`] — Special functions: [`special::gamma`], [`special::lgamma`],
+//!   [`special::digamma`], [`special::beta`] / [`special::lbeta`],
+//!   regularized incomplete gamma ([`special::gamma_inc`] / [`special::gamma_inc_upper`]),
+//!   and error functions ([`special::erf`] / [`special::erfc`]).
+//!   Generic over `FloatScalar` (f32/f64), fully no-std. Requires `special` feature.
+//!
 //! - [`quaternion`] — Unit quaternion for 3D rotations. Scalar-first `[w, x, y, z]`.
 //!   Construct from axis-angle, Euler angles, or rotation matrices. Supports
 //!   Hamilton product, vector rotation, SLERP, and conversion back to matrices.
@@ -101,9 +107,10 @@
 //! | `control` | no       | Digital IIR filters (Butterworth, Chebyshev Type I) |
 //! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
 //! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline) |
+//! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma) |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
-//! | `all`     | no       | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `complex` |
+//! | `all`     | no       | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `special` + `complex` |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -125,6 +132,8 @@ pub mod estimate;
 pub mod interp;
 #[cfg(feature = "optim")]
 pub mod optim;
+#[cfg(feature = "special")]
+pub mod special;
 pub mod quaternion;
 pub mod traits;
 

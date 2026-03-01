@@ -18,7 +18,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
 - [ ] **fft** — Fast Fourier Transform
-- [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
+- [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma, erf, erfc)
 - [ ] **stats** — Statistics and distributions
 - [ ] **poly** — Polynomial operations and root-finding
 - [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
@@ -68,11 +68,12 @@ Checked items are implemented; unchecked are potential future work.
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
+- **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma, erf, erfc).
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
   via the `libm` crate. When `std` is also enabled, `std` takes precedence.
 - **`complex`** — adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. All decompositions
   and norms work with complex elements. Zero overhead for real-only code paths.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `complex`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `complex`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -169,6 +170,14 @@ src/
 │   ├── gauss_newton.rs # least_squares_gn (QR-based Gauss-Newton)
 │   ├── levenberg_marquardt.rs # least_squares_lm (damped normal equations)
 │   ├── jacobian.rs     # finite_difference_jacobian, finite_difference_gradient
+│   └── tests.rs        # comprehensive tests
+├── special/            # (requires `special` feature)
+│   ├── mod.rs          # SpecialError, Lanczos constants, module decls, re-exports
+│   ├── gamma_fn.rs     # gamma, lgamma (Lanczos approximation)
+│   ├── digamma_fn.rs   # digamma (recurrence + asymptotic series)
+│   ├── beta_fn.rs      # beta, lbeta (via lgamma)
+│   ├── incgamma.rs     # gamma_inc, gamma_inc_upper (series + continued fraction)
+│   ├── erf_fn.rs       # erf, erfc (via regularized incomplete gamma P(1/2, x²))
 │   └── tests.rs        # comprehensive tests
 └── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle
 ```
