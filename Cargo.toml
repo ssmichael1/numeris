@@ -29,5 +29,14 @@ complex = ["dep:num-complex"]
 num-traits = { version = "0.2", default-features = false, features = ["libm"] }
 num-complex = { version = "0.4", default-features = false, optional = true }
 
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+nalgebra = "0.34"
+faer = "0.24"
+
+[[bench]]
+name = "comparison"
+harness = false
+
 [profile.test]
 opt-level = 3

@@ -5,28 +5,52 @@
 use core::arch::aarch64::*;
 
 /// Dot product of two f64 slices using NEON.
+///
+/// Uses 4 independent accumulators (8 f64 per iteration) to hide
+/// FMA latency (~4 cycles on Apple Silicon).
 #[inline]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
     let n = a.len();
-    let chunks = n / 2;
-    let remainder = n % 2;
+    let chunks = n / 8; // 4 accumulators × 2 lanes
 
     unsafe {
-        let mut acc = vdupq_n_f64(0.0);
+        let ap = a.as_ptr();
+        let bp = b.as_ptr();
+
+        let mut acc0 = vdupq_n_f64(0.0);
+        let mut acc1 = vdupq_n_f64(0.0);
+        let mut acc2 = vdupq_n_f64(0.0);
+        let mut acc3 = vdupq_n_f64(0.0);
 
         for i in 0..chunks {
-            let va = vld1q_f64(a.as_ptr().add(i * 2));
-            let vb = vld1q_f64(b.as_ptr().add(i * 2));
-            acc = vfmaq_f64(acc, va, vb);
+            let off = i * 8;
+            acc0 = vfmaq_f64(acc0, vld1q_f64(ap.add(off)), vld1q_f64(bp.add(off)));
+            acc1 = vfmaq_f64(acc1, vld1q_f64(ap.add(off + 2)), vld1q_f64(bp.add(off + 2)));
+            acc2 = vfmaq_f64(acc2, vld1q_f64(ap.add(off + 4)), vld1q_f64(bp.add(off + 4)));
+            acc3 = vfmaq_f64(acc3, vld1q_f64(ap.add(off + 6)), vld1q_f64(bp.add(off + 6)));
         }
 
-        let mut sum = vaddvq_f64(acc);
+        // Reduce 4 accumulators
+        acc0 = vaddq_f64(acc0, acc1);
+        acc2 = vaddq_f64(acc2, acc3);
+        acc0 = vaddq_f64(acc0, acc2);
+        let mut sum = vaddvq_f64(acc0);
 
-        // Handle remainder
-        let tail = chunks * 2;
-        for i in 0..remainder {
-            sum += a[tail + i] * b[tail + i];
+        // Remainder: up to 7 elements — handle pairs then scalar
+        let tail = chunks * 8;
+        let remaining = n - tail;
+        let rem_pairs = remaining / 2;
+        let mut acc_rem = vdupq_n_f64(0.0);
+        for i in 0..rem_pairs {
+            let off = tail + i * 2;
+            acc_rem = vfmaq_f64(acc_rem, vld1q_f64(ap.add(off)), vld1q_f64(bp.add(off)));
+        }
+        sum += vaddvq_f64(acc_rem);
+
+        let scalar_start = tail + rem_pairs * 2;
+        for i in scalar_start..n {
+            sum += a[i] * b[i];
         }
         sum
     }
@@ -62,14 +86,22 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         }
     }
 
-    // Bottom edge: rows m_full..m, cols 0..p_full (scalar)
-    for j in 0..p_full {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            let a_col = k * m;
-            let c_col = j * m;
-            for i in m_full..m {
-                c[c_col + i] += a[a_col + i] * b_kj;
+    // Bottom edge: rows m_full..m, cols 0..p_full
+    // Handle pairs of remaining rows with 2×NR SIMD mini-kernel
+    let mut i0 = m_full;
+    while i0 + 2 <= m {
+        for jb in 0..p_full / NR {
+            let j0 = jb * NR;
+            unsafe { microkernel_2x4(a, b, c, m, n, i0, j0); }
+        }
+        i0 += 2;
+    }
+
+    // Scalar tail: any single remaining row
+    if i0 < m {
+        for j in 0..p_full {
+            for k in 0..n {
+                c[j * m + i0] += a[k * m + i0] * b[j * n + k];
             }
         }
     }
@@ -159,6 +191,44 @@ unsafe fn microkernel_4x4(
         let off3 = (j0 + 3) * m + i0;
         vst1q_f64(c_ptr.add(off3), vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03));
         vst1q_f64(c_ptr.add(off3 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13));
+    }
+}
+
+/// Register-blocked 2×4 mini-kernel for bottom-edge rows: accumulates
+/// C[i0..i0+2, j0..j0+4] in 4 NEON registers across the full k-loop.
+#[inline(always)]
+unsafe fn microkernel_2x4(
+    a: &[f64], b: &[f64], c: &mut [f64],
+    m: usize, n: usize, i0: usize, j0: usize,
+) {
+    unsafe {
+        let a_ptr = a.as_ptr();
+        let b_ptr = b.as_ptr();
+
+        // 4 accumulator registers: 1 vector (2 f64) × 4 columns
+        let mut acc0 = vdupq_n_f64(0.0);
+        let mut acc1 = vdupq_n_f64(0.0);
+        let mut acc2 = vdupq_n_f64(0.0);
+        let mut acc3 = vdupq_n_f64(0.0);
+
+        for k in 0..n {
+            let a0 = vld1q_f64(a_ptr.add(k * m + i0));
+
+            acc0 = vfmaq_f64(acc0, a0, vdupq_n_f64(*b_ptr.add(j0 * n + k)));
+            acc1 = vfmaq_f64(acc1, a0, vdupq_n_f64(*b_ptr.add((j0 + 1) * n + k)));
+            acc2 = vfmaq_f64(acc2, a0, vdupq_n_f64(*b_ptr.add((j0 + 2) * n + k)));
+            acc3 = vfmaq_f64(acc3, a0, vdupq_n_f64(*b_ptr.add((j0 + 3) * n + k)));
+        }
+
+        let c_ptr = c.as_mut_ptr();
+        let off0 = j0 * m + i0;
+        vst1q_f64(c_ptr.add(off0), vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc0));
+        let off1 = (j0 + 1) * m + i0;
+        vst1q_f64(c_ptr.add(off1), vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc1));
+        let off2 = (j0 + 2) * m + i0;
+        vst1q_f64(c_ptr.add(off2), vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc2));
+        let off3 = (j0 + 3) * m + i0;
+        vst1q_f64(c_ptr.add(off3), vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc3));
     }
 }
 

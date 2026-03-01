@@ -12,32 +12,37 @@ use crate::Matrix;
 /// The upper triangle is left unchanged.
 ///
 /// Returns an error if the matrix is not (Hermitian) positive definite.
+///
+/// Uses a left-looking column algorithm with SIMD-accelerated AXPY for
+/// the rank-1 column updates (same pattern as LU elimination).
 pub fn cholesky_in_place<T: LinalgScalar>(a: &mut impl MatrixMut<T>) -> Result<(), LinalgError> {
     let n = a.nrows();
     assert_eq!(n, a.ncols(), "Cholesky decomposition requires a square matrix");
 
     for j in 0..n {
-        // Diagonal: L[j][j] = sqrt(A[j][j] - sum(|L[j][k]|^2, k<j))
-        let mut sum = *a.get(j, j);
+        // Left-looking: subtract contributions from previous columns.
+        // a[j:n, j] -= conj(L[j, k]) * L[j:n, k]  for each k < j.
+        // This is an AXPY on contiguous column slices.
         for k in 0..j {
-            let ljk = *a.get(j, k);
-            sum = sum - ljk * ljk.conj();
+            let ljk_conj = (*a.get(j, k)).conj();
+            let (col_j, col_k) = super::split_two_col_slices(a, j, k, j);
+            crate::simd::axpy_neg_dispatch(col_j, ljk_conj, col_k);
         }
-        // Diagonal of a Hermitian PD matrix is always real and positive
-        if sum.re() <= <T::Real as num_traits::Zero>::zero() {
+
+        // Diagonal: a[j,j] has been updated by the AXPY loop above
+        let diag = *a.get(j, j);
+        if diag.re() <= <T::Real as num_traits::Zero>::zero() {
             return Err(LinalgError::NotPositiveDefinite);
         }
-        let ljj = sum.re().lsqrt();
+        let ljj = diag.re().lsqrt();
         let ljj_t = T::from_real(ljj);
         *a.get_mut(j, j) = ljj_t;
 
-        // Below diagonal: L[i][j] = (A[i][j] - sum(L[i][k]*conj(L[j][k]), k<j)) / L[j][j]
-        for i in (j + 1)..n {
-            let mut sum = *a.get(i, j);
-            for k in 0..j {
-                sum = sum - *a.get(i, k) * (*a.get(j, k)).conj();
-            }
-            *a.get_mut(i, j) = sum / ljj_t;
+        // Scale below-diagonal: L[j+1:n, j] /= L[j, j]
+        let inv_ljj = T::one() / ljj_t;
+        let col = a.col_as_mut_slice(j, j + 1);
+        for x in col.iter_mut() {
+            *x = *x * inv_ljj;
         }
     }
 

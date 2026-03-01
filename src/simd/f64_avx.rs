@@ -8,31 +8,60 @@
 use core::arch::x86_64::*;
 
 /// Dot product of two f64 slices using AVX.
+///
+/// Uses 4 independent accumulators (16 f64 per iteration) to hide
+/// multiply-add latency.
 #[inline]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
     let n = a.len();
-    let chunks = n / 4;
-    let tail = chunks * 4;
+    let chunks = n / 16; // 4 accumulators × 4 lanes
 
     unsafe {
-        let mut acc = _mm256_setzero_pd();
+        let ap = a.as_ptr();
+        let bp = b.as_ptr();
+
+        let mut acc0 = _mm256_setzero_pd();
+        let mut acc1 = _mm256_setzero_pd();
+        let mut acc2 = _mm256_setzero_pd();
+        let mut acc3 = _mm256_setzero_pd();
 
         for i in 0..chunks {
-            let va = _mm256_loadu_pd(a.as_ptr().add(i * 4));
-            let vb = _mm256_loadu_pd(b.as_ptr().add(i * 4));
-            acc = _mm256_add_pd(acc, _mm256_mul_pd(va, vb));
+            let off = i * 16;
+            acc0 = _mm256_add_pd(acc0, _mm256_mul_pd(_mm256_loadu_pd(ap.add(off)), _mm256_loadu_pd(bp.add(off))));
+            acc1 = _mm256_add_pd(acc1, _mm256_mul_pd(_mm256_loadu_pd(ap.add(off + 4)), _mm256_loadu_pd(bp.add(off + 4))));
+            acc2 = _mm256_add_pd(acc2, _mm256_mul_pd(_mm256_loadu_pd(ap.add(off + 8)), _mm256_loadu_pd(bp.add(off + 8))));
+            acc3 = _mm256_add_pd(acc3, _mm256_mul_pd(_mm256_loadu_pd(ap.add(off + 12)), _mm256_loadu_pd(bp.add(off + 12))));
         }
 
+        acc0 = _mm256_add_pd(acc0, acc1);
+        acc2 = _mm256_add_pd(acc2, acc3);
+        acc0 = _mm256_add_pd(acc0, acc2);
         // Horizontal sum: [a, b, c, d] → a+b+c+d
-        let hi128 = _mm256_extractf128_pd(acc, 1); // [c, d]
-        let lo128 = _mm256_castpd256_pd128(acc); // [a, b]
-        let sum128 = _mm_add_pd(hi128, lo128); // [a+c, b+d]
-        let hi64 = _mm_unpackhi_pd(sum128, sum128); // [b+d, b+d]
-        let result = _mm_add_sd(sum128, hi64); // [a+b+c+d, ...]
+        let hi128 = _mm256_extractf128_pd(acc0, 1);
+        let lo128 = _mm256_castpd256_pd128(acc0);
+        let sum128 = _mm_add_pd(hi128, lo128);
+        let hi64 = _mm_unpackhi_pd(sum128, sum128);
+        let result = _mm_add_sd(sum128, hi64);
         let mut sum = _mm_cvtsd_f64(result);
 
-        for i in tail..n {
+        // Remainder: up to 15 elements — handle quads then scalar
+        let tail = chunks * 16;
+        let remaining = n - tail;
+        let rem_quads = remaining / 4;
+        let mut acc_rem = _mm256_setzero_pd();
+        for i in 0..rem_quads {
+            let off = tail + i * 4;
+            acc_rem = _mm256_add_pd(acc_rem, _mm256_mul_pd(_mm256_loadu_pd(ap.add(off)), _mm256_loadu_pd(bp.add(off))));
+        }
+        let rhi = _mm256_extractf128_pd(acc_rem, 1);
+        let rlo = _mm256_castpd256_pd128(acc_rem);
+        let rs = _mm_add_pd(rhi, rlo);
+        let rh = _mm_unpackhi_pd(rs, rs);
+        sum += _mm_cvtsd_f64(_mm_add_sd(rs, rh));
+
+        let scalar_start = tail + rem_quads * 4;
+        for i in scalar_start..n {
             sum += a[i] * b[i];
         }
         sum
@@ -69,14 +98,30 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         }
     }
 
-    // Bottom edge: rows m_full..m, cols 0..p_full (scalar)
-    for j in 0..p_full {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            let a_col = k * m;
-            let c_col = j * m;
-            for i in m_full..m {
-                c[c_col + i] += a[a_col + i] * b_kj;
+    // Bottom edge: rows m_full..m, cols 0..p_full
+    // Handle quads of remaining rows with 4×NR mini-kernel (1 __m256d per col)
+    let mut i0 = m_full;
+    while i0 + 4 <= m {
+        for jb in 0..p_full / NR {
+            let j0 = jb * NR;
+            unsafe { microkernel_4x4(a, b, c, m, n, i0, j0); }
+        }
+        i0 += 4;
+    }
+    // Handle remaining pairs with 2×NR using SSE2-width
+    let m_mid = i0;
+    while i0 + 2 <= m {
+        for jb in 0..p_full / NR {
+            let j0 = jb * NR;
+            unsafe { microkernel_2x4(a, b, c, m, n, i0, j0); }
+        }
+        i0 += 2;
+    }
+    // Scalar tail: single remaining row
+    if i0 < m {
+        for j in 0..p_full {
+            for k in 0..n {
+                c[j * m + i0] += a[k * m + i0] * b[j * n + k];
             }
         }
     }
@@ -167,6 +212,78 @@ unsafe fn microkernel_8x4(
         let off3 = (j0 + 3) * m + i0;
         _mm256_storeu_pd(c_ptr.add(off3), _mm256_add_pd(_mm256_loadu_pd(c_ptr.add(off3)), acc03));
         _mm256_storeu_pd(c_ptr.add(off3 + 4), _mm256_add_pd(_mm256_loadu_pd(c_ptr.add(off3 + 4)), acc13));
+    }
+}
+
+/// Register-blocked 4×4 mini-kernel for bottom-edge rows (1 __m256d per column).
+#[inline(always)]
+unsafe fn microkernel_4x4(
+    a: &[f64], b: &[f64], c: &mut [f64],
+    m: usize, n: usize, i0: usize, j0: usize,
+) {
+    unsafe {
+        let a_ptr = a.as_ptr();
+        let b_ptr = b.as_ptr();
+
+        let mut acc0 = _mm256_setzero_pd();
+        let mut acc1 = _mm256_setzero_pd();
+        let mut acc2 = _mm256_setzero_pd();
+        let mut acc3 = _mm256_setzero_pd();
+
+        for k in 0..n {
+            let a0 = _mm256_loadu_pd(a_ptr.add(k * m + i0));
+
+            acc0 = _mm256_add_pd(acc0, _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add(j0 * n + k))));
+            acc1 = _mm256_add_pd(acc1, _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 1) * n + k))));
+            acc2 = _mm256_add_pd(acc2, _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 2) * n + k))));
+            acc3 = _mm256_add_pd(acc3, _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 3) * n + k))));
+        }
+
+        let c_ptr = c.as_mut_ptr();
+        let off0 = j0 * m + i0;
+        _mm256_storeu_pd(c_ptr.add(off0), _mm256_add_pd(_mm256_loadu_pd(c_ptr.add(off0)), acc0));
+        let off1 = (j0 + 1) * m + i0;
+        _mm256_storeu_pd(c_ptr.add(off1), _mm256_add_pd(_mm256_loadu_pd(c_ptr.add(off1)), acc1));
+        let off2 = (j0 + 2) * m + i0;
+        _mm256_storeu_pd(c_ptr.add(off2), _mm256_add_pd(_mm256_loadu_pd(c_ptr.add(off2)), acc2));
+        let off3 = (j0 + 3) * m + i0;
+        _mm256_storeu_pd(c_ptr.add(off3), _mm256_add_pd(_mm256_loadu_pd(c_ptr.add(off3)), acc3));
+    }
+}
+
+/// Register-blocked 2×4 mini-kernel for bottom-edge rows (1 __m128d per column).
+#[inline(always)]
+unsafe fn microkernel_2x4(
+    a: &[f64], b: &[f64], c: &mut [f64],
+    m: usize, n: usize, i0: usize, j0: usize,
+) {
+    unsafe {
+        let a_ptr = a.as_ptr();
+        let b_ptr = b.as_ptr();
+
+        let mut acc0 = _mm_setzero_pd();
+        let mut acc1 = _mm_setzero_pd();
+        let mut acc2 = _mm_setzero_pd();
+        let mut acc3 = _mm_setzero_pd();
+
+        for k in 0..n {
+            let a0 = _mm_loadu_pd(a_ptr.add(k * m + i0));
+
+            acc0 = _mm_add_pd(acc0, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add(j0 * n + k))));
+            acc1 = _mm_add_pd(acc1, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 1) * n + k))));
+            acc2 = _mm_add_pd(acc2, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 2) * n + k))));
+            acc3 = _mm_add_pd(acc3, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 3) * n + k))));
+        }
+
+        let c_ptr = c.as_mut_ptr();
+        let off0 = j0 * m + i0;
+        _mm_storeu_pd(c_ptr.add(off0), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off0)), acc0));
+        let off1 = (j0 + 1) * m + i0;
+        _mm_storeu_pd(c_ptr.add(off1), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off1)), acc1));
+        let off2 = (j0 + 2) * m + i0;
+        _mm_storeu_pd(c_ptr.add(off2), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off2)), acc2));
+        let off3 = (j0 + 3) * m + i0;
+        _mm_storeu_pd(c_ptr.add(off3), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off3)), acc3));
     }
 }
 

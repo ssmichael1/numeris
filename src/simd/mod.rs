@@ -263,8 +263,18 @@ pub(crate) fn sub_slices_dispatch<T: Scalar>(a: &[T], b: &[T], out: &mut [T]) {
 }
 
 /// Dispatch AXPY: y[i] -= alpha * x[i].
+///
+/// For short slices (< 8 elements), uses a scalar loop to avoid the overhead
+/// of SIMD dispatch and register setup, which dominates at small sizes.
 #[inline]
 pub(crate) fn axpy_neg_dispatch<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
+    let n = y.len();
+    if n < 8 {
+        for i in 0..n {
+            y[i] = y[i] - alpha * x[i];
+        }
+        return;
+    }
     #[cfg(target_arch = "aarch64")]
     {
         if TypeId::of::<T>() == TypeId::of::<f64>() {

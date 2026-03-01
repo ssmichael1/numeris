@@ -3,3 +3,5 @@ Cargo.lock
 
 .claude
 .DS_Store
+
+benches/*.md

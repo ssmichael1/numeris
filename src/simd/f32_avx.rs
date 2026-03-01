@@ -8,33 +8,64 @@
 use core::arch::x86_64::*;
 
 /// Dot product of two f32 slices using AVX.
+///
+/// Uses 4 independent accumulators (32 f32 per iteration) to hide
+/// multiply-add latency.
 #[inline]
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
     let n = a.len();
-    let chunks = n / 8;
-    let tail = chunks * 8;
+    let chunks = n / 32; // 4 accumulators × 8 lanes
 
     unsafe {
-        let mut acc = _mm256_setzero_ps();
+        let ap = a.as_ptr();
+        let bp = b.as_ptr();
+
+        let mut acc0 = _mm256_setzero_ps();
+        let mut acc1 = _mm256_setzero_ps();
+        let mut acc2 = _mm256_setzero_ps();
+        let mut acc3 = _mm256_setzero_ps();
 
         for i in 0..chunks {
-            let va = _mm256_loadu_ps(a.as_ptr().add(i * 8));
-            let vb = _mm256_loadu_ps(b.as_ptr().add(i * 8));
-            acc = _mm256_add_ps(acc, _mm256_mul_ps(va, vb));
+            let off = i * 32;
+            acc0 = _mm256_add_ps(acc0, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off)), _mm256_loadu_ps(bp.add(off))));
+            acc1 = _mm256_add_ps(acc1, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off + 8)), _mm256_loadu_ps(bp.add(off + 8))));
+            acc2 = _mm256_add_ps(acc2, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off + 16)), _mm256_loadu_ps(bp.add(off + 16))));
+            acc3 = _mm256_add_ps(acc3, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off + 24)), _mm256_loadu_ps(bp.add(off + 24))));
         }
 
+        acc0 = _mm256_add_ps(acc0, acc1);
+        acc2 = _mm256_add_ps(acc2, acc3);
+        acc0 = _mm256_add_ps(acc0, acc2);
         // Horizontal sum: 8 lanes → 1
-        let hi128 = _mm256_extractf128_ps(acc, 1);
-        let lo128 = _mm256_castps256_ps128(acc);
-        let sum128 = _mm_add_ps(hi128, lo128); // 4 lanes
+        let hi128 = _mm256_extractf128_ps(acc0, 1);
+        let lo128 = _mm256_castps256_ps128(acc0);
+        let sum128 = _mm_add_ps(hi128, lo128);
         let shuf = _mm_movehl_ps(sum128, sum128);
-        let sums = _mm_add_ps(sum128, shuf); // 2 partial sums
+        let sums = _mm_add_ps(sum128, shuf);
         let shuf2 = _mm_shuffle_ps(sums, sums, 1);
         let total = _mm_add_ss(sums, shuf2);
         let mut sum = _mm_cvtss_f32(total);
 
-        for i in tail..n {
+        // Remainder: up to 31 elements — handle octets then scalar
+        let tail = chunks * 32;
+        let remaining = n - tail;
+        let rem_octs = remaining / 8;
+        let mut acc_rem = _mm256_setzero_ps();
+        for i in 0..rem_octs {
+            let off = tail + i * 8;
+            acc_rem = _mm256_add_ps(acc_rem, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off)), _mm256_loadu_ps(bp.add(off))));
+        }
+        let rhi = _mm256_extractf128_ps(acc_rem, 1);
+        let rlo = _mm256_castps256_ps128(acc_rem);
+        let rs = _mm_add_ps(rhi, rlo);
+        let rs2 = _mm_movehl_ps(rs, rs);
+        let rs3 = _mm_add_ps(rs, rs2);
+        let rs4 = _mm_shuffle_ps(rs3, rs3, 1);
+        sum += _mm_cvtss_f32(_mm_add_ss(rs3, rs4));
+
+        let scalar_start = tail + rem_octs * 8;
+        for i in scalar_start..n {
             sum += a[i] * b[i];
         }
         sum
@@ -71,14 +102,29 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
         }
     }
 
-    // Bottom edge: rows m_full..m, cols 0..p_full (scalar)
-    for j in 0..p_full {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            let a_col = k * m;
-            let c_col = j * m;
-            for i in m_full..m {
-                c[c_col + i] += a[a_col + i] * b_kj;
+    // Bottom edge: cascade 8×4 → 4×4 → scalar
+    let mut i0 = m_full;
+    while i0 + 8 <= m {
+        for jb in 0..p_full / NR {
+            let j0 = jb * NR;
+            unsafe { microkernel_8x4(a, b, c, m, n, i0, j0); }
+        }
+        i0 += 8;
+    }
+    while i0 + 4 <= m {
+        for jb in 0..p_full / NR {
+            let j0 = jb * NR;
+            unsafe { microkernel_4x4(a, b, c, m, n, i0, j0); }
+        }
+        i0 += 4;
+    }
+    if i0 < m {
+        for j in 0..p_full {
+            for k in 0..n {
+                let b_kj = b[j * n + k];
+                for i in i0..m {
+                    c[j * m + i] += a[k * m + i] * b_kj;
+                }
             }
         }
     }
@@ -169,6 +215,56 @@ unsafe fn microkernel_16x4(
         let off3 = (j0 + 3) * m + i0;
         _mm256_storeu_ps(c_ptr.add(off3), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off3)), acc03));
         _mm256_storeu_ps(c_ptr.add(off3 + 8), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off3 + 8)), acc13));
+    }
+}
+
+/// 8×4 mini-kernel (1 __m256 per column, 8 f32 rows).
+#[inline(always)]
+unsafe fn microkernel_8x4(
+    a: &[f32], b: &[f32], c: &mut [f32],
+    m: usize, n: usize, i0: usize, j0: usize,
+) {
+    unsafe {
+        let (ap, bp) = (a.as_ptr(), b.as_ptr());
+        let mut a0 = _mm256_setzero_ps(); let mut a1 = _mm256_setzero_ps();
+        let mut a2 = _mm256_setzero_ps(); let mut a3 = _mm256_setzero_ps();
+        for k in 0..n {
+            let av = _mm256_loadu_ps(ap.add(k * m + i0));
+            a0 = _mm256_add_ps(a0, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k))));
+            a1 = _mm256_add_ps(a1, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0+1) * n + k))));
+            a2 = _mm256_add_ps(a2, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0+2) * n + k))));
+            a3 = _mm256_add_ps(a3, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0+3) * n + k))));
+        }
+        let cp = c.as_mut_ptr();
+        for (j, acc) in [(j0, a0), (j0+1, a1), (j0+2, a2), (j0+3, a3)] {
+            let off = j * m + i0;
+            _mm256_storeu_ps(cp.add(off), _mm256_add_ps(_mm256_loadu_ps(cp.add(off)), acc));
+        }
+    }
+}
+
+/// 4×4 mini-kernel (1 __m128 per column, 4 f32 rows).
+#[inline(always)]
+unsafe fn microkernel_4x4(
+    a: &[f32], b: &[f32], c: &mut [f32],
+    m: usize, n: usize, i0: usize, j0: usize,
+) {
+    unsafe {
+        let (ap, bp) = (a.as_ptr(), b.as_ptr());
+        let mut a0 = _mm_setzero_ps(); let mut a1 = _mm_setzero_ps();
+        let mut a2 = _mm_setzero_ps(); let mut a3 = _mm_setzero_ps();
+        for k in 0..n {
+            let av = _mm_loadu_ps(ap.add(k * m + i0));
+            a0 = _mm_add_ps(a0, _mm_mul_ps(av, _mm_set1_ps(*bp.add(j0 * n + k))));
+            a1 = _mm_add_ps(a1, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0+1) * n + k))));
+            a2 = _mm_add_ps(a2, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0+2) * n + k))));
+            a3 = _mm_add_ps(a3, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0+3) * n + k))));
+        }
+        let cp = c.as_mut_ptr();
+        for (j, acc) in [(j0, a0), (j0+1, a1), (j0+2, a2), (j0+3, a3)] {
+            let off = j * m + i0;
+            _mm_storeu_ps(cp.add(off), _mm_add_ps(_mm_loadu_ps(cp.add(off)), acc));
+        }
     }
 }
 

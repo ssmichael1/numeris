@@ -7,31 +7,55 @@
 use core::arch::x86_64::*;
 
 /// Dot product of two f64 slices using SSE2.
+///
+/// Uses 4 independent accumulators (8 f64 per iteration) to hide
+/// multiply-add latency.
 #[inline]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
     let n = a.len();
-    let chunks = n / 2;
-    let remainder = n % 2;
+    let chunks = n / 8; // 4 accumulators × 2 lanes
 
     unsafe {
-        let mut acc = _mm_setzero_pd();
+        let ap = a.as_ptr();
+        let bp = b.as_ptr();
+
+        let mut acc0 = _mm_setzero_pd();
+        let mut acc1 = _mm_setzero_pd();
+        let mut acc2 = _mm_setzero_pd();
+        let mut acc3 = _mm_setzero_pd();
 
         for i in 0..chunks {
-            let va = _mm_loadu_pd(a.as_ptr().add(i * 2));
-            let vb = _mm_loadu_pd(b.as_ptr().add(i * 2));
-            // SSE2: mul + add (no FMA without FMA feature)
-            acc = _mm_add_pd(acc, _mm_mul_pd(va, vb));
+            let off = i * 8;
+            acc0 = _mm_add_pd(acc0, _mm_mul_pd(_mm_loadu_pd(ap.add(off)), _mm_loadu_pd(bp.add(off))));
+            acc1 = _mm_add_pd(acc1, _mm_mul_pd(_mm_loadu_pd(ap.add(off + 2)), _mm_loadu_pd(bp.add(off + 2))));
+            acc2 = _mm_add_pd(acc2, _mm_mul_pd(_mm_loadu_pd(ap.add(off + 4)), _mm_loadu_pd(bp.add(off + 4))));
+            acc3 = _mm_add_pd(acc3, _mm_mul_pd(_mm_loadu_pd(ap.add(off + 6)), _mm_loadu_pd(bp.add(off + 6))));
         }
 
-        // Horizontal sum of 2-lane accumulator
-        let high = _mm_unpackhi_pd(acc, acc);
-        let sum_vec = _mm_add_sd(acc, high);
+        // Reduce 4 accumulators
+        acc0 = _mm_add_pd(acc0, acc1);
+        acc2 = _mm_add_pd(acc2, acc3);
+        acc0 = _mm_add_pd(acc0, acc2);
+        let high = _mm_unpackhi_pd(acc0, acc0);
+        let sum_vec = _mm_add_sd(acc0, high);
         let mut sum = _mm_cvtsd_f64(sum_vec);
 
-        let tail = chunks * 2;
-        for i in 0..remainder {
-            sum += a[tail + i] * b[tail + i];
+        // Remainder: up to 7 elements — handle pairs then scalar
+        let tail = chunks * 8;
+        let remaining = n - tail;
+        let rem_pairs = remaining / 2;
+        let mut acc_rem = _mm_setzero_pd();
+        for i in 0..rem_pairs {
+            let off = tail + i * 2;
+            acc_rem = _mm_add_pd(acc_rem, _mm_mul_pd(_mm_loadu_pd(ap.add(off)), _mm_loadu_pd(bp.add(off))));
+        }
+        let rh = _mm_unpackhi_pd(acc_rem, acc_rem);
+        sum += _mm_cvtsd_f64(_mm_add_sd(acc_rem, rh));
+
+        let scalar_start = tail + rem_pairs * 2;
+        for i in scalar_start..n {
+            sum += a[i] * b[i];
         }
         sum
     }
@@ -67,14 +91,21 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         }
     }
 
-    // Bottom edge: rows m_full..m, cols 0..p_full (scalar)
-    for j in 0..p_full {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            let a_col = k * m;
-            let c_col = j * m;
-            for i in m_full..m {
-                c[c_col + i] += a[a_col + i] * b_kj;
+    // Bottom edge: rows m_full..m, cols 0..p_full
+    let m_mid = m_full + ((m - m_full) / 2) * 2;
+    for jb in 0..p_full / NR {
+        let j0 = jb * NR;
+        let mut i0 = m_full;
+        while i0 + 2 <= m {
+            unsafe { microkernel_2x4(a, b, c, m, n, i0, j0); }
+            i0 += 2;
+        }
+    }
+    if m_mid < m {
+        for j in 0..p_full {
+            for k in 0..n {
+                let b_kj = b[j * n + k];
+                c[j * m + m_mid] += a[k * m + m_mid] * b_kj;
             }
         }
     }
@@ -164,6 +195,42 @@ unsafe fn microkernel_4x4(
         let off3 = (j0 + 3) * m + i0;
         _mm_storeu_pd(c_ptr.add(off3), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off3)), acc03));
         _mm_storeu_pd(c_ptr.add(off3 + 2), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off3 + 2)), acc13));
+    }
+}
+
+/// Register-blocked 2×4 mini-kernel for bottom-edge rows.
+#[inline(always)]
+unsafe fn microkernel_2x4(
+    a: &[f64], b: &[f64], c: &mut [f64],
+    m: usize, n: usize, i0: usize, j0: usize,
+) {
+    unsafe {
+        let a_ptr = a.as_ptr();
+        let b_ptr = b.as_ptr();
+
+        let mut acc0 = _mm_setzero_pd();
+        let mut acc1 = _mm_setzero_pd();
+        let mut acc2 = _mm_setzero_pd();
+        let mut acc3 = _mm_setzero_pd();
+
+        for k in 0..n {
+            let a0 = _mm_loadu_pd(a_ptr.add(k * m + i0));
+
+            acc0 = _mm_add_pd(acc0, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add(j0 * n + k))));
+            acc1 = _mm_add_pd(acc1, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 1) * n + k))));
+            acc2 = _mm_add_pd(acc2, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 2) * n + k))));
+            acc3 = _mm_add_pd(acc3, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 3) * n + k))));
+        }
+
+        let c_ptr = c.as_mut_ptr();
+        let off0 = j0 * m + i0;
+        _mm_storeu_pd(c_ptr.add(off0), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off0)), acc0));
+        let off1 = (j0 + 1) * m + i0;
+        _mm_storeu_pd(c_ptr.add(off1), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off1)), acc1));
+        let off2 = (j0 + 2) * m + i0;
+        _mm_storeu_pd(c_ptr.add(off2), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off2)), acc2));
+        let off3 = (j0 + 3) * m + i0;
+        _mm_storeu_pd(c_ptr.add(off3), _mm_add_pd(_mm_loadu_pd(c_ptr.add(off3)), acc3));
     }
 }
 
