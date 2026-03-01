@@ -75,82 +75,91 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
 
     const MR: usize = 16; // 2 AVX-512 registers × 8 f64 lanes
     const NR: usize = 4;
+    const KC: usize = 256;
 
     let m_full = (m / MR) * MR;
     let p_full = (p / NR) * NR;
 
-    // Interior: full MR×NR tiles, register-blocked
-    for jb in 0..p_full / NR {
-        let j0 = jb * NR;
-        for ib in 0..m_full / MR {
-            let i0 = ib * MR;
-            unsafe { microkernel_16x4(a, b, c, m, n, i0, j0); }
-        }
-    }
+    let mut kb = 0;
+    while kb < n {
+        let k_end = (kb + KC).min(n);
 
-    // Bottom edge: rows m_full..m, cols 0..p_full
-    // Cascade through smaller SIMD widths: 8×4 → 4×4 → 2×4 → scalar
-    let mut i0 = m_full;
-    while i0 + 8 <= m {
+        // Interior: full MR×NR tiles, register-blocked
         for jb in 0..p_full / NR {
             let j0 = jb * NR;
-            unsafe { microkernel_8x4(a, b, c, m, n, i0, j0); }
-        }
-        i0 += 8;
-    }
-    while i0 + 4 <= m {
-        for jb in 0..p_full / NR {
-            let j0 = jb * NR;
-            unsafe { microkernel_4x4(a, b, c, m, n, i0, j0); }
-        }
-        i0 += 4;
-    }
-    while i0 + 2 <= m {
-        for jb in 0..p_full / NR {
-            let j0 = jb * NR;
-            unsafe { microkernel_2x4(a, b, c, m, n, i0, j0); }
-        }
-        i0 += 2;
-    }
-    if i0 < m {
-        for j in 0..p_full {
-            for k in 0..n {
-                c[j * m + i0] += a[k * m + i0] * b[j * n + k];
+            for ib in 0..m_full / MR {
+                let i0 = ib * MR;
+                unsafe { microkernel_16x4(a, b, c, m, n, i0, j0, kb, k_end); }
             }
         }
-    }
 
-    // Right edge: cols p_full..p, all rows (SIMD j-k-i on inner loop)
-    let i_simd = m / 8;
-    let i_tail = i_simd * 8;
-    for j in p_full..p {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            let a_col = k * m;
-            let c_col = j * m;
-            unsafe {
-                let vb = _mm512_set1_pd(b_kj);
-                for i in 0..i_simd {
-                    let offset = i * 8;
-                    let vc = _mm512_loadu_pd(c.as_ptr().add(c_col + offset));
-                    let va = _mm512_loadu_pd(a.as_ptr().add(a_col + offset));
-                    let result = _mm512_add_pd(vc, _mm512_mul_pd(va, vb));
-                    _mm512_storeu_pd(c.as_mut_ptr().add(c_col + offset), result);
+        // Bottom edge: rows m_full..m, cols 0..p_full
+        // Cascade through smaller SIMD widths: 8×4 → 4×4 → 2×4 → scalar
+        let mut i0 = m_full;
+        while i0 + 8 <= m {
+            for jb in 0..p_full / NR {
+                let j0 = jb * NR;
+                unsafe { microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end); }
+            }
+            i0 += 8;
+        }
+        while i0 + 4 <= m {
+            for jb in 0..p_full / NR {
+                let j0 = jb * NR;
+                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+            }
+            i0 += 4;
+        }
+        while i0 + 2 <= m {
+            for jb in 0..p_full / NR {
+                let j0 = jb * NR;
+                unsafe { microkernel_2x4(a, b, c, m, n, i0, j0, kb, k_end); }
+            }
+            i0 += 2;
+        }
+        if i0 < m {
+            for j in 0..p_full {
+                for k in kb..k_end {
+                    c[j * m + i0] += a[k * m + i0] * b[j * n + k];
                 }
             }
-            for i in i_tail..m {
-                c[c_col + i] += a[a_col + i] * b_kj;
+        }
+
+        // Right edge: cols p_full..p, all rows (SIMD j-k-i on inner loop)
+        let i_simd = m / 8;
+        let i_tail = i_simd * 8;
+        for j in p_full..p {
+            for k in kb..k_end {
+                let b_kj = b[j * n + k];
+                let a_col = k * m;
+                let c_col = j * m;
+                unsafe {
+                    let vb = _mm512_set1_pd(b_kj);
+                    for i in 0..i_simd {
+                        let offset = i * 8;
+                        let vc = _mm512_loadu_pd(c.as_ptr().add(c_col + offset));
+                        let va = _mm512_loadu_pd(a.as_ptr().add(a_col + offset));
+                        let result = _mm512_add_pd(vc, _mm512_mul_pd(va, vb));
+                        _mm512_storeu_pd(c.as_mut_ptr().add(c_col + offset), result);
+                    }
+                }
+                for i in i_tail..m {
+                    c[c_col + i] += a[a_col + i] * b_kj;
+                }
             }
         }
+
+        kb += KC;
     }
 }
 
 /// Register-blocked 16×4 micro-kernel: accumulates C[i0..i0+16, j0..j0+4] in
-/// 8 AVX-512 registers across the full k-loop, writing C only once.
+/// 8 AVX-512 registers across the k-loop, writing C only once.
 #[inline(always)]
 unsafe fn microkernel_16x4(
     a: &[f64], b: &[f64], c: &mut [f64],
     m: usize, n: usize, i0: usize, j0: usize,
+    k_start: usize, k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -166,7 +175,7 @@ unsafe fn microkernel_16x4(
         let mut acc03 = _mm512_setzero_pd();
         let mut acc13 = _mm512_setzero_pd();
 
-        for k in 0..n {
+        for k in k_start..k_end {
             let a_off = k * m + i0;
             let a0 = _mm512_loadu_pd(a_ptr.add(a_off));
             let a1 = _mm512_loadu_pd(a_ptr.add(a_off + 8));
@@ -214,12 +223,13 @@ unsafe fn microkernel_16x4(
 unsafe fn microkernel_8x4(
     a: &[f64], b: &[f64], c: &mut [f64],
     m: usize, n: usize, i0: usize, j0: usize,
+    k_start: usize, k_end: usize,
 ) {
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
         let mut a0 = _mm512_setzero_pd(); let mut a1 = _mm512_setzero_pd();
         let mut a2 = _mm512_setzero_pd(); let mut a3 = _mm512_setzero_pd();
-        for k in 0..n {
+        for k in k_start..k_end {
             let av = _mm512_loadu_pd(ap.add(k * m + i0));
             a0 = _mm512_add_pd(a0, _mm512_mul_pd(av, _mm512_set1_pd(*bp.add(j0 * n + k))));
             a1 = _mm512_add_pd(a1, _mm512_mul_pd(av, _mm512_set1_pd(*bp.add((j0+1) * n + k))));
@@ -239,12 +249,13 @@ unsafe fn microkernel_8x4(
 unsafe fn microkernel_4x4(
     a: &[f64], b: &[f64], c: &mut [f64],
     m: usize, n: usize, i0: usize, j0: usize,
+    k_start: usize, k_end: usize,
 ) {
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
         let mut a0 = _mm256_setzero_pd(); let mut a1 = _mm256_setzero_pd();
         let mut a2 = _mm256_setzero_pd(); let mut a3 = _mm256_setzero_pd();
-        for k in 0..n {
+        for k in k_start..k_end {
             let av = _mm256_loadu_pd(ap.add(k * m + i0));
             a0 = _mm256_add_pd(a0, _mm256_mul_pd(av, _mm256_set1_pd(*bp.add(j0 * n + k))));
             a1 = _mm256_add_pd(a1, _mm256_mul_pd(av, _mm256_set1_pd(*bp.add((j0+1) * n + k))));
@@ -264,12 +275,13 @@ unsafe fn microkernel_4x4(
 unsafe fn microkernel_2x4(
     a: &[f64], b: &[f64], c: &mut [f64],
     m: usize, n: usize, i0: usize, j0: usize,
+    k_start: usize, k_end: usize,
 ) {
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
         let mut a0 = _mm_setzero_pd(); let mut a1 = _mm_setzero_pd();
         let mut a2 = _mm_setzero_pd(); let mut a3 = _mm_setzero_pd();
-        for k in 0..n {
+        for k in k_start..k_end {
             let av = _mm_loadu_pd(ap.add(k * m + i0));
             a0 = _mm_add_pd(a0, _mm_mul_pd(av, _mm_set1_pd(*bp.add(j0 * n + k))));
             a1 = _mm_add_pd(a1, _mm_mul_pd(av, _mm_set1_pd(*bp.add((j0+1) * n + k))));

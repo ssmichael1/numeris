@@ -90,6 +90,76 @@ pub fn back_substitute_lt<T: LinalgScalar>(
     }
 }
 
+/// Cholesky decomposition in place using direct array access (no trait dispatch).
+///
+/// Optimized for small N (≤6) where the compiler fully unrolls all loops.
+/// Same left-looking column algorithm but with `data[col][row]` access directly.
+#[inline(always)]
+fn cholesky_in_place_small<T: LinalgScalar, const N: usize>(
+    data: &mut [[T; N]; N],
+) -> Result<(), LinalgError> {
+    for j in 0..N {
+        // Left-looking: subtract contributions from previous columns
+        for k in 0..j {
+            let ljk = data[k][j].conj();
+            for i in j..N {
+                data[j][i] = data[j][i] - ljk * data[k][i];
+            }
+        }
+
+        // Diagonal check and sqrt
+        let diag = data[j][j];
+        if diag.re() <= <T::Real as num_traits::Zero>::zero() {
+            return Err(LinalgError::NotPositiveDefinite);
+        }
+        let ljj = diag.re().lsqrt();
+        let ljj_t = T::from_real(ljj);
+        data[j][j] = ljj_t;
+
+        // Scale below-diagonal
+        let inv_ljj = T::one() / ljj_t;
+        for i in (j + 1)..N {
+            data[j][i] = data[j][i] * inv_ljj;
+        }
+    }
+
+    Ok(())
+}
+
+/// Forward substitution using direct array access for small matrices.
+#[inline(always)]
+fn forward_substitute_small<T: LinalgScalar, const N: usize>(
+    data: &[[T; N]; N],
+    b: &[T; N],
+    x: &mut [T; N],
+) {
+    for i in 0..N {
+        let mut sum = b[i];
+        for j in 0..i {
+            sum = sum - data[j][i] * x[j];
+        }
+        x[i] = sum / data[i][i];
+    }
+}
+
+/// Back substitution L^H x = b using direct array access for small matrices.
+#[inline(always)]
+fn back_substitute_lt_small<T: LinalgScalar, const N: usize>(
+    data: &[[T; N]; N],
+    b: &[T; N],
+    x: &mut [T; N],
+) {
+    for i in (0..N).rev() {
+        let mut sum = b[i];
+        for j in (i + 1)..N {
+            sum = sum - data[i][j].conj() * x[j]; // L^H[i][j] = conj(L[j][i]) = conj(data[i][j] in col-major... wait
+            // L is lower triangular stored in data[col][row] where col <= row
+            // L^H[i][j] = conj(L[j][i]) = conj(data[i][j])
+        }
+        x[i] = sum / data[i][i].conj();
+    }
+}
+
 /// Cholesky decomposition of a fixed-size (Hermitian) positive-definite matrix.
 ///
 /// Stores the lower triangular factor L where `A = L * L^H`.
@@ -121,7 +191,11 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
     /// Returns an error if the matrix is not positive definite.
     pub fn new(a: &Matrix<T, N, N>) -> Result<Self, LinalgError> {
         let mut l = *a;
-        cholesky_in_place(&mut l)?;
+        if N <= 6 {
+            cholesky_in_place_small(&mut l.data)?;
+        } else {
+            cholesky_in_place(&mut l)?;
+        }
         Ok(Self { l })
     }
 
@@ -149,13 +223,16 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
             b_flat[i] = b[i];
         }
 
-        // Forward: L*y = b
         let mut y = [T::zero(); N];
-        forward_substitute(&self.l, &b_flat, &mut y);
-
-        // Back: L^H*x = y
         let mut x = [T::zero(); N];
-        back_substitute_lt(&self.l, &y, &mut x);
+
+        if N <= 6 {
+            forward_substitute_small(&self.l.data, &b_flat, &mut y);
+            back_substitute_lt_small(&self.l.data, &y, &mut x);
+        } else {
+            forward_substitute(&self.l, &b_flat, &mut y);
+            back_substitute_lt(&self.l, &y, &mut x);
+        }
 
         Vector::from_array(x)
     }
@@ -191,17 +268,21 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
         let mut x = [T::zero(); N];
 
         for col in 0..N {
-            // Set up unit vector
             if col > 0 {
                 e[col - 1] = T::zero();
             }
             e[col] = T::one();
 
-            forward_substitute(&self.l, &e, &mut y);
-            back_substitute_lt(&self.l, &y, &mut x);
+            if N <= 6 {
+                forward_substitute_small(&self.l.data, &e, &mut y);
+                back_substitute_lt_small(&self.l.data, &y, &mut x);
+            } else {
+                forward_substitute(&self.l, &e, &mut y);
+                back_substitute_lt(&self.l, &y, &mut x);
+            }
 
             for row in 0..N {
-                inv[(row, col)] = x[row];
+                inv.data[col][row] = x[row];
             }
         }
 

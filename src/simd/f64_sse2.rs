@@ -63,10 +63,10 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
 
 /// Matrix multiply C += A * B using SSE2 with register-blocked micro-kernel.
 ///
-/// Uses an MR×NR (4×4) register-blocked micro-kernel that accumulates the full
-/// k-sum in 8 SSE2 registers before writing back to C, reducing memory traffic
-/// from O(m·n·p) to O(m·p) stores. Technique inspired by nano-gemm
-/// (Sarah Quinones, <https://github.com/sarah-quinones/nano-gemm>).
+/// Uses an MR×NR (4×4) register-blocked micro-kernel with k-blocking (KC=256)
+/// to keep the A panel and B micro-panel in L2 cache. Accumulates the full
+/// k-block in SSE2 registers before writing back to C. Technique inspired by
+/// nano-gemm (Sarah Quinones, <https://github.com/sarah-quinones/nano-gemm>).
 ///
 /// `a` is m×n, `b` is n×p, `c` is m×p (column-major flat slices).
 /// Column-major indexing: element (row, col) is at `col * nrows + row`.
@@ -78,68 +78,77 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
 
     const MR: usize = 4; // 2 __m128d vectors × 2 f64 lanes
     const NR: usize = 4;
+    const KC: usize = 256;
 
     let m_full = (m / MR) * MR;
     let p_full = (p / NR) * NR;
 
-    // Interior: full MR×NR tiles, register-blocked
-    for jb in 0..p_full / NR {
-        let j0 = jb * NR;
-        for ib in 0..m_full / MR {
-            let i0 = ib * MR;
-            unsafe { microkernel_4x4(a, b, c, m, n, i0, j0); }
-        }
-    }
+    let mut kb = 0;
+    while kb < n {
+        let k_end = (kb + KC).min(n);
 
-    // Bottom edge: rows m_full..m, cols 0..p_full
-    let m_mid = m_full + ((m - m_full) / 2) * 2;
-    for jb in 0..p_full / NR {
-        let j0 = jb * NR;
+        // Interior: full MR×NR tiles, register-blocked
+        for jb in 0..p_full / NR {
+            let j0 = jb * NR;
+            for ib in 0..m_full / MR {
+                let i0 = ib * MR;
+                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+            }
+        }
+
+        // Bottom edge: rows m_full..m, cols 0..p_full
         let mut i0 = m_full;
         while i0 + 2 <= m {
-            unsafe { microkernel_2x4(a, b, c, m, n, i0, j0); }
+            for jb in 0..p_full / NR {
+                let j0 = jb * NR;
+                unsafe { microkernel_2x4(a, b, c, m, n, i0, j0, kb, k_end); }
+            }
             i0 += 2;
         }
-    }
-    if m_mid < m {
-        for j in 0..p_full {
-            for k in 0..n {
-                let b_kj = b[j * n + k];
-                c[j * m + m_mid] += a[k * m + m_mid] * b_kj;
-            }
-        }
-    }
 
-    // Right edge: cols p_full..p, all rows (SIMD j-k-i on inner loop)
-    let i_simd = m / 2;
-    let i_tail = i_simd * 2;
-    for j in p_full..p {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            let a_col = k * m;
-            let c_col = j * m;
-            unsafe {
-                let vb = _mm_set1_pd(b_kj);
-                for i in 0..i_simd {
-                    let offset = i * 2;
-                    let vc = _mm_loadu_pd(c.as_ptr().add(c_col + offset));
-                    let va = _mm_loadu_pd(a.as_ptr().add(a_col + offset));
-                    _mm_storeu_pd(c.as_mut_ptr().add(c_col + offset), _mm_add_pd(vc, _mm_mul_pd(va, vb)));
+        // Scalar tail: any single remaining row
+        if i0 < m {
+            for j in 0..p_full {
+                for k in kb..k_end {
+                    c[j * m + i0] += a[k * m + i0] * b[j * n + k];
                 }
             }
-            for i in i_tail..m {
-                c[c_col + i] += a[a_col + i] * b_kj;
+        }
+
+        // Right edge: cols p_full..p, all rows (SIMD j-k-i on inner loop)
+        let i_simd = m / 2;
+        let i_tail = i_simd * 2;
+        for j in p_full..p {
+            for k in kb..k_end {
+                let b_kj = b[j * n + k];
+                let a_col = k * m;
+                let c_col = j * m;
+                unsafe {
+                    let vb = _mm_set1_pd(b_kj);
+                    for i in 0..i_simd {
+                        let offset = i * 2;
+                        let vc = _mm_loadu_pd(c.as_ptr().add(c_col + offset));
+                        let va = _mm_loadu_pd(a.as_ptr().add(a_col + offset));
+                        _mm_storeu_pd(c.as_mut_ptr().add(c_col + offset), _mm_add_pd(vc, _mm_mul_pd(va, vb)));
+                    }
+                }
+                for i in i_tail..m {
+                    c[c_col + i] += a[a_col + i] * b_kj;
+                }
             }
         }
+
+        kb += KC;
     }
 }
 
 /// Register-blocked 4×4 micro-kernel: accumulates C[i0..i0+4, j0..j0+4] in
-/// 8 SSE2 registers across the full k-loop, writing C only once.
+/// 8 SSE2 registers across a k-block, writing C only once per block.
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f64], b: &[f64], c: &mut [f64],
     m: usize, n: usize, i0: usize, j0: usize,
+    k_start: usize, k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -155,7 +164,7 @@ unsafe fn microkernel_4x4(
         let mut acc03 = _mm_setzero_pd();
         let mut acc13 = _mm_setzero_pd();
 
-        for k in 0..n {
+        for k in k_start..k_end {
             let a_off = k * m + i0;
             let a0 = _mm_loadu_pd(a_ptr.add(a_off));
             let a1 = _mm_loadu_pd(a_ptr.add(a_off + 2));
@@ -198,11 +207,13 @@ unsafe fn microkernel_4x4(
     }
 }
 
-/// Register-blocked 2×4 mini-kernel for bottom-edge rows.
+/// Register-blocked 2×4 mini-kernel for bottom-edge rows: accumulates
+/// C[i0..i0+2, j0..j0+4] in 4 SSE2 registers across a k-block.
 #[inline(always)]
 unsafe fn microkernel_2x4(
     a: &[f64], b: &[f64], c: &mut [f64],
     m: usize, n: usize, i0: usize, j0: usize,
+    k_start: usize, k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -213,7 +224,7 @@ unsafe fn microkernel_2x4(
         let mut acc2 = _mm_setzero_pd();
         let mut acc3 = _mm_setzero_pd();
 
-        for k in 0..n {
+        for k in k_start..k_end {
             let a0 = _mm_loadu_pd(a_ptr.add(k * m + i0));
 
             acc0 = _mm_add_pd(acc0, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add(j0 * n + k))));

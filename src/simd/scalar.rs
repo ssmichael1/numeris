@@ -16,11 +16,11 @@ pub fn dot<T: Scalar>(a: &[T], b: &[T]) -> T {
     sum
 }
 
-/// Matrix multiply C += A * B with register-blocked micro-kernel.
+/// Matrix multiply C += A * B with register-blocked micro-kernel and k-blocking.
 ///
-/// Uses a 4×4 register-blocked approach that accumulates the full k-sum in
-/// local variables before writing back to C, reducing memory traffic from
-/// O(m·n·p) to O(m·p) stores. Technique inspired by nano-gemm
+/// Uses a 4×4 register-blocked approach with k-blocking (KC=256) to keep the
+/// A panel and B micro-panel in L2 cache. Accumulates the full k-block in
+/// local variables before writing back to C. Technique inspired by nano-gemm
 /// (Sarah Quinones, <https://github.com/sarah-quinones/nano-gemm>).
 ///
 /// `a` is m×n, `b` is n×p, `c` is m×p (all column-major flat slices).
@@ -33,59 +33,67 @@ pub fn matmul<T: Scalar>(a: &[T], b: &[T], c: &mut [T], m: usize, n: usize, p: u
 
     const MR: usize = 4;
     const NR: usize = 4;
+    const KC: usize = 256;
 
     let m_full = (m / MR) * MR;
     let p_full = (p / NR) * NR;
 
-    // Interior: full MR×NR tiles, register-blocked
-    for jb in 0..p_full / NR {
-        let j0 = jb * NR;
-        for ib in 0..m_full / MR {
-            let i0 = ib * MR;
+    let mut kb = 0;
+    while kb < n {
+        let k_end = (kb + KC).min(n);
 
-            // 16 scalar accumulators (4 rows × 4 cols)
-            let mut acc = [[T::zero(); NR]; MR];
+        // Interior: full MR×NR tiles, register-blocked
+        for jb in 0..p_full / NR {
+            let j0 = jb * NR;
+            for ib in 0..m_full / MR {
+                let i0 = ib * MR;
 
-            for k in 0..n {
-                let a_base = k * m + i0;
+                // 16 scalar accumulators (4 rows × 4 cols)
+                let mut acc = [[T::zero(); NR]; MR];
+
+                for k in kb..k_end {
+                    let a_base = k * m + i0;
+                    for jj in 0..NR {
+                        let b_val = b[(j0 + jj) * n + k];
+                        for ii in 0..MR {
+                            acc[ii][jj] = acc[ii][jj] + a[a_base + ii] * b_val;
+                        }
+                    }
+                }
+
+                // Write back: C += acc
                 for jj in 0..NR {
-                    let b_val = b[(j0 + jj) * n + k];
+                    let c_base = (j0 + jj) * m + i0;
                     for ii in 0..MR {
-                        acc[ii][jj] = acc[ii][jj] + a[a_base + ii] * b_val;
+                        c[c_base + ii] = c[c_base + ii] + acc[ii][jj];
                     }
                 }
             }
+        }
 
-            // Write back: C += acc
-            for jj in 0..NR {
-                let c_base = (j0 + jj) * m + i0;
-                for ii in 0..MR {
-                    c[c_base + ii] = c[c_base + ii] + acc[ii][jj];
+        // Bottom edge: rows m_full..m, cols 0..p_full
+        for j in 0..p_full {
+            for k in kb..k_end {
+                let b_kj = b[j * n + k];
+                let a_col = k * m;
+                let c_col = j * m;
+                for i in m_full..m {
+                    c[c_col + i] = c[c_col + i] + a[a_col + i] * b_kj;
                 }
             }
         }
-    }
 
-    // Bottom edge: rows m_full..m, cols 0..p_full
-    for j in 0..p_full {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            let a_col = k * m;
-            let c_col = j * m;
-            for i in m_full..m {
-                c[c_col + i] = c[c_col + i] + a[a_col + i] * b_kj;
+        // Right edge: cols p_full..p, all rows
+        for j in p_full..p {
+            for k in kb..k_end {
+                let b_kj = b[j * n + k];
+                for i in 0..m {
+                    c[j * m + i] = c[j * m + i] + a[k * m + i] * b_kj;
+                }
             }
         }
-    }
 
-    // Right edge: cols p_full..p, all rows
-    for j in p_full..p {
-        for k in 0..n {
-            let b_kj = b[j * n + k];
-            for i in 0..m {
-                c[j * m + i] = c[j * m + i] + a[k * m + i] * b_kj;
-            }
-        }
+        kb += KC;
     }
 }
 

@@ -32,7 +32,7 @@ use crate::traits::{MatrixMut, MatrixRef, Scalar};
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Matrix<T, const M: usize, const N: usize> {
-    data: [[T; M]; N],
+    pub(crate) data: [[T; M]; N],
 }
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {

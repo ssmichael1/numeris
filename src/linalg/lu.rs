@@ -111,6 +111,97 @@ pub fn lu_solve<T: LinalgScalar>(
     }
 }
 
+/// LU decomposition in place using direct array access (no trait dispatch).
+///
+/// Optimized for small N (≤6) where the compiler fully unrolls all loops.
+/// Uses `data[col][row]` access directly, bypassing `MatrixMut` trait methods
+/// and SIMD dispatch overhead.
+#[inline(always)]
+fn lu_in_place_small<T: LinalgScalar, const N: usize>(
+    data: &mut [[T; N]; N],
+    perm: &mut [usize; N],
+) -> Result<bool, LinalgError> {
+    for i in 0..N {
+        perm[i] = i;
+    }
+
+    let mut even = true;
+
+    for col in 0..N {
+        // Partial pivoting
+        let mut max_row = col;
+        let mut max_val = data[col][col].modulus();
+        for row in (col + 1)..N {
+            let val = data[col][row].modulus();
+            if val > max_val {
+                max_val = val;
+                max_row = row;
+            }
+        }
+
+        if max_val < T::lepsilon() {
+            return Err(LinalgError::Singular);
+        }
+
+        if max_row != col {
+            perm.swap(col, max_row);
+            for j in 0..N {
+                let tmp = data[j][col];
+                data[j][col] = data[j][max_row];
+                data[j][max_row] = tmp;
+            }
+            even = !even;
+        }
+
+        let pivot = data[col][col];
+        let inv_pivot = T::one() / pivot;
+
+        // Scale sub-column
+        for i in (col + 1)..N {
+            data[col][i] = data[col][i] * inv_pivot;
+        }
+
+        // Rank-1 update
+        for j in (col + 1)..N {
+            let factor = data[j][col];
+            for i in (col + 1)..N {
+                data[j][i] = data[j][i] - factor * data[col][i];
+            }
+        }
+    }
+
+    Ok(even)
+}
+
+/// LU solve using direct array access (no trait dispatch).
+///
+/// Optimized for small N (≤6). The LU data is `data[col][row]` column-major.
+#[inline(always)]
+fn lu_solve_small<T: LinalgScalar, const N: usize>(
+    data: &[[T; N]; N],
+    perm: &[usize; N],
+    b: &[T; N],
+    x: &mut [T; N],
+) {
+    // Forward substitution: solve Ly = Pb
+    for i in 0..N {
+        let mut sum = b[perm[i]];
+        for j in 0..i {
+            sum = sum - data[j][i] * x[j];
+        }
+        x[i] = sum;
+    }
+
+    // Back substitution: solve Ux = y
+    for i in (0..N).rev() {
+        let mut sum = x[i];
+        for j in (i + 1)..N {
+            sum = sum - data[j][i] * x[j];
+        }
+        x[i] = sum / data[i][i];
+    }
+}
+
 /// LU decomposition of a fixed-size square matrix.
 ///
 /// Stores the packed L/U factors and permutation vector.
@@ -144,20 +235,27 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
     pub fn new(a: &Matrix<T, N, N>) -> Result<Self, LinalgError> {
         let mut lu = *a;
         let mut perm = [0usize; N];
-        let even = lu_in_place(&mut lu, &mut perm)?;
+        let even = if N <= 6 {
+            lu_in_place_small(&mut lu.data, &mut perm)?
+        } else {
+            lu_in_place(&mut lu, &mut perm)?
+        };
         Ok(Self { lu, perm, even })
     }
 
     /// Solve Ax = b for x.
     pub fn solve(&self, b: &Vector<T, N>) -> Vector<T, N> {
-        // Extract b into a flat array
         let mut b_flat = [T::zero(); N];
         for i in 0..N {
             b_flat[i] = b[i];
         }
 
         let mut x_flat = [T::zero(); N];
-        lu_solve(&self.lu, &self.perm, &b_flat, &mut x_flat);
+        if N <= 6 {
+            lu_solve_small(&self.lu.data, &self.perm, &b_flat, &mut x_flat);
+        } else {
+            lu_solve(&self.lu, &self.perm, &b_flat, &mut x_flat);
+        }
 
         Vector::from_array(x_flat)
     }
@@ -165,20 +263,23 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
     /// Compute the matrix inverse.
     pub fn inverse(&self) -> Matrix<T, N, N> {
         let mut inv = Matrix::<T, N, N>::zeros();
-        let mut col_buf = [T::zero(); N];
         let mut e = [T::zero(); N];
+        let mut col_buf = [T::zero(); N];
 
         for col in 0..N {
-            // Set up unit vector
             if col > 0 {
                 e[col - 1] = T::zero();
             }
             e[col] = T::one();
 
-            lu_solve(&self.lu, &self.perm, &e, &mut col_buf);
+            if N <= 6 {
+                lu_solve_small(&self.lu.data, &self.perm, &e, &mut col_buf);
+            } else {
+                lu_solve(&self.lu, &self.perm, &e, &mut col_buf);
+            }
 
             for row in 0..N {
-                inv[(row, col)] = col_buf[row];
+                inv.data[col][row] = col_buf[row];
             }
         }
 
@@ -193,6 +294,122 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
         }
         d
     }
+}
+
+/// Direct inverse for small matrices (N <= 4) using closed-form adjugate formulas.
+///
+/// Returns `Err(Singular)` if the determinant modulus is below machine epsilon.
+#[inline(always)]
+fn inverse_direct<T: LinalgScalar, const N: usize>(
+    m: &Matrix<T, N, N>,
+) -> Result<Matrix<T, N, N>, LinalgError> {
+    // Column-major: m.data[col][row]
+    if N == 1 {
+        let a = m.data[0][0];
+        if a.modulus() < T::lepsilon() {
+            return Err(LinalgError::Singular);
+        }
+        let mut out = Matrix::<T, N, N>::zeros();
+        out.data[0][0] = T::one() / a;
+        return Ok(out);
+    }
+    if N == 2 {
+        let a = m.data[0][0]; let b = m.data[1][0];
+        let c = m.data[0][1]; let d = m.data[1][1];
+        let det = a * d - b * c;
+        if det.modulus() < T::lepsilon() {
+            return Err(LinalgError::Singular);
+        }
+        let inv_det = T::one() / det;
+        let mut out = Matrix::<T, N, N>::zeros();
+        out.data[0][0] = d * inv_det;
+        out.data[1][0] = (T::zero() - b) * inv_det;
+        out.data[0][1] = (T::zero() - c) * inv_det;
+        out.data[1][1] = a * inv_det;
+        return Ok(out);
+    }
+    if N == 3 {
+        let a = m.data[0][0]; let b = m.data[1][0]; let c = m.data[2][0];
+        let d = m.data[0][1]; let e = m.data[1][1]; let f = m.data[2][1];
+        let g = m.data[0][2]; let h = m.data[1][2]; let i = m.data[2][2];
+
+        // Cofactors (adjugate transposed)
+        let c00 = e * i - f * h;
+        let c01 = f * g - d * i;
+        let c02 = d * h - e * g;
+        let c10 = c * h - b * i;
+        let c11 = a * i - c * g;
+        let c12 = b * g - a * h;
+        let c20 = b * f - c * e;
+        let c21 = c * d - a * f;
+        let c22 = a * e - b * d;
+
+        let det = a * c00 + b * c01 + c * c02;
+        if det.modulus() < T::lepsilon() {
+            return Err(LinalgError::Singular);
+        }
+        let inv_det = T::one() / det;
+
+        let mut out = Matrix::<T, N, N>::zeros();
+        out.data[0][0] = c00 * inv_det; out.data[1][0] = c10 * inv_det; out.data[2][0] = c20 * inv_det;
+        out.data[0][1] = c01 * inv_det; out.data[1][1] = c11 * inv_det; out.data[2][1] = c21 * inv_det;
+        out.data[0][2] = c02 * inv_det; out.data[1][2] = c12 * inv_det; out.data[2][2] = c22 * inv_det;
+        return Ok(out);
+    }
+    if N == 4 {
+        let a00 = m.data[0][0]; let a01 = m.data[1][0]; let a02 = m.data[2][0]; let a03 = m.data[3][0];
+        let a10 = m.data[0][1]; let a11 = m.data[1][1]; let a12 = m.data[2][1]; let a13 = m.data[3][1];
+        let a20 = m.data[0][2]; let a21 = m.data[1][2]; let a22 = m.data[2][2]; let a23 = m.data[3][2];
+        let a30 = m.data[0][3]; let a31 = m.data[1][3]; let a32 = m.data[2][3]; let a33 = m.data[3][3];
+
+        // 2x2 sub-determinants from rows 0-1
+        let s0 = a00 * a11 - a01 * a10;
+        let s1 = a00 * a12 - a02 * a10;
+        let s2 = a00 * a13 - a03 * a10;
+        let s3 = a01 * a12 - a02 * a11;
+        let s4 = a01 * a13 - a03 * a11;
+        let s5 = a02 * a13 - a03 * a12;
+
+        // 2x2 sub-determinants from rows 2-3
+        let c0 = a20 * a31 - a21 * a30;
+        let c1 = a20 * a32 - a22 * a30;
+        let c2 = a20 * a33 - a23 * a30;
+        let c3 = a21 * a32 - a22 * a31;
+        let c4 = a21 * a33 - a23 * a31;
+        let c5 = a22 * a33 - a23 * a32;
+
+        let det = s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0;
+        if det.modulus() < T::lepsilon() {
+            return Err(LinalgError::Singular);
+        }
+        let inv_det = T::one() / det;
+
+        let mut out = Matrix::<T, N, N>::zeros();
+        // Adjugate / det — each element is a 3x3 cofactor
+        out.data[0][0] = ( a11 * c5 - a12 * c4 + a13 * c3) * inv_det;
+        out.data[1][0] = (T::zero() - a01 * c5 + a02 * c4 - a03 * c3) * inv_det;
+        out.data[2][0] = ( a31 * s5 - a32 * s4 + a33 * s3) * inv_det;
+        out.data[3][0] = (T::zero() - a21 * s5 + a22 * s4 - a23 * s3) * inv_det;
+
+        out.data[0][1] = (T::zero() - a10 * c5 + a12 * c2 - a13 * c1) * inv_det;
+        out.data[1][1] = ( a00 * c5 - a02 * c2 + a03 * c1) * inv_det;
+        out.data[2][1] = (T::zero() - a30 * s5 + a32 * s2 - a33 * s1) * inv_det;
+        out.data[3][1] = ( a20 * s5 - a22 * s2 + a23 * s1) * inv_det;
+
+        out.data[0][2] = ( a10 * c4 - a11 * c2 + a13 * c0) * inv_det;
+        out.data[1][2] = (T::zero() - a00 * c4 + a01 * c2 - a03 * c0) * inv_det;
+        out.data[2][2] = ( a30 * s4 - a31 * s2 + a33 * s0) * inv_det;
+        out.data[3][2] = (T::zero() - a20 * s4 + a21 * s2 - a23 * s0) * inv_det;
+
+        out.data[0][3] = (T::zero() - a10 * c3 + a11 * c1 - a12 * c0) * inv_det;
+        out.data[1][3] = ( a00 * c3 - a01 * c1 + a02 * c0) * inv_det;
+        out.data[2][3] = (T::zero() - a30 * s3 + a31 * s1 - a32 * s0) * inv_det;
+        out.data[3][3] = ( a20 * s3 - a21 * s1 + a22 * s0) * inv_det;
+
+        return Ok(out);
+    }
+    // Should not be called for N > 4, but fall back to LU
+    Ok(LuDecomposition::new(m)?.inverse())
 }
 
 /// Convenience methods on square matrices.
@@ -221,7 +438,7 @@ impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
         Ok(self.lu()?.solve(b))
     }
 
-    /// Compute the matrix inverse via LU decomposition.
+    /// Compute the matrix inverse via direct formulas (N<=4) or LU decomposition.
     ///
     /// ```
     /// use numeris::Matrix;
@@ -232,6 +449,9 @@ impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
     /// assert!((id[(0, 1)]).abs() < 1e-12);
     /// ```
     pub fn inverse(&self) -> Result<Self, LinalgError> {
+        if N <= 4 {
+            return inverse_direct(self);
+        }
         Ok(self.lu()?.inverse())
     }
 }
