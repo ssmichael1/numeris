@@ -97,11 +97,7 @@ impl<T: Scalar> DynVector<T> {
     /// ```
     pub fn dot(&self, rhs: &Self) -> T {
         assert_eq!(self.len(), rhs.len(), "vector length mismatch");
-        let mut sum = T::zero();
-        for i in 0..self.len() {
-            sum = sum + self[i] * rhs[i];
-        }
-        sum
+        crate::simd::dot_dispatch(self.as_slice(), rhs.as_slice())
     }
 
     /// View the vector data as a slice.
@@ -152,12 +148,22 @@ impl<T> MatrixRef<T> for DynVector<T> {
     fn get(&self, row: usize, col: usize) -> &T {
         self.inner.get(row, col)
     }
+
+    #[inline]
+    fn col_as_slice(&self, col: usize, row_start: usize) -> &[T] {
+        self.inner.col_as_slice(col, row_start)
+    }
 }
 
 impl<T> MatrixMut<T> for DynVector<T> {
     #[inline]
     fn get_mut(&mut self, row: usize, col: usize) -> &mut T {
         self.inner.get_mut(row, col)
+    }
+
+    #[inline]
+    fn col_as_mut_slice(&mut self, col: usize, row_start: usize) -> &mut [T] {
+        self.inner.col_as_mut_slice(col, row_start)
     }
 }
 

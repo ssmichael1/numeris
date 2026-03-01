@@ -13,6 +13,30 @@ pub use schur::SchurDecomposition;
 pub use svd::SvdDecomposition;
 pub use symmetric_eigen::SymmetricEigen;
 
+use crate::traits::MatrixMut;
+
+/// Get mutable references to sub-column slices of two different columns
+/// simultaneously. Requires `col_a != col_b`.
+///
+/// Returns `(a_slice, b_slice)` where:
+/// - `a_slice = &mut m[row_start..nrows, col_a]`
+/// - `b_slice = &mut m[row_start..nrows, col_b]`
+#[inline]
+pub(crate) fn split_two_col_slices<'a, T>(
+    m: &'a mut impl MatrixMut<T>,
+    col_a: usize,
+    col_b: usize,
+    row_start: usize,
+) -> (&'a mut [T], &'a mut [T]) {
+    debug_assert_ne!(col_a, col_b);
+    // Safety: col_a and col_b are different columns, so the slices don't overlap.
+    // MatrixMut guarantees column slices are contiguous and non-overlapping.
+    let ptr = m as *mut dyn MatrixMut<T>;
+    let a = unsafe { &mut *ptr }.col_as_mut_slice(col_a, row_start);
+    let b = unsafe { &mut *ptr }.col_as_mut_slice(col_b, row_start);
+    (a, b)
+}
+
 /// Errors from linear algebra operations.
 ///
 /// Returned by decomposition constructors and convenience methods

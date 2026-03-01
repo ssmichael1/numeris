@@ -8,7 +8,7 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// assert_eq!(m.trace(), 5.0);
     /// ```
     pub fn trace(&self) -> T {
@@ -24,7 +24,7 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// let d = m.diag();
     /// assert_eq!(d[0], 1.0);
     /// assert_eq!(d[1], 4.0);
@@ -63,7 +63,7 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0, 1.0, 0.0, 1.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0, 1.0, 0.0, 1.0]);
     /// let m3 = m.pow(3);
     /// assert_eq!(m3[(0, 1)], 3.0);
     /// ```
@@ -86,7 +86,7 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let sym = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 2.0, 3.0]);
+    /// let sym = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 2.0, 3.0]);
     /// assert!(sym.is_symmetric());
     /// ```
     pub fn is_symmetric(&self) -> bool {
@@ -112,7 +112,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[3.0_f64, 8.0, 4.0, 6.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[3.0_f64, 8.0, 4.0, 6.0]);
     /// assert!((m.det() - (-14.0)).abs() < 1e-12);
     /// ```
     pub fn det(&self) -> T {
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn trace() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         assert_eq!(m.trace(), 5.0);
 
         let id = DynMatrix::eye(3, 0.0_f64);
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn pow() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0, 1.0, 0.0, 1.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0, 1.0, 0.0, 1.0]);
 
         let m0 = m.pow(0);
         assert_eq!(m0, DynMatrix::eye(2, 0.0_f64));
@@ -207,25 +207,25 @@ mod tests {
 
     #[test]
     fn is_symmetric() {
-        let sym = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 2.0, 3.0]);
+        let sym = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 2.0, 3.0]);
         assert!(sym.is_symmetric());
 
-        let asym = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let asym = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         assert!(!asym.is_symmetric());
 
-        let rect = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let rect = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         assert!(!rect.is_symmetric());
     }
 
     #[test]
     fn det_2x2() {
-        let m = DynMatrix::from_slice(2, 2, &[3.0_f64, 8.0, 4.0, 6.0]);
+        let m = DynMatrix::from_rows(2, 2, &[3.0_f64, 8.0, 4.0, 6.0]);
         assert!((m.det() - (-14.0)).abs() < 1e-12);
     }
 
     #[test]
     fn det_3x3() {
-        let m = DynMatrix::from_slice(
+        let m = DynMatrix::from_rows(
             3,
             3,
             &[6.0_f64, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0],
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn det_singular() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 2.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 2.0, 4.0]);
         assert!(m.det().abs() < 1e-12);
     }
 }

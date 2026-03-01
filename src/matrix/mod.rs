@@ -13,7 +13,7 @@ use crate::traits::{MatrixMut, MatrixRef, Scalar};
 
 /// Fixed-size matrix with `M` rows and `N` columns.
 ///
-/// Storage is row-major: `data[row][col]`.
+/// Storage is column-major: `data[col][row]`.
 /// Stack-allocated, no-std compatible.
 ///
 /// # Examples
@@ -32,13 +32,31 @@ use crate::traits::{MatrixMut, MatrixRef, Scalar};
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Matrix<T, const M: usize, const N: usize> {
-    data: [[T; N]; M],
+    data: [[T; M]; N],
 }
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Create a matrix from a raw 2D array (row-major).
+    /// Create a matrix from a row-major 2D array.
+    ///
+    /// The input is `[[row0], [row1], ...]` (M arrays of N elements each).
+    /// Internally transposed to column-major storage.
     #[inline]
-    pub fn new(data: [[T; N]; M]) -> Self {
+    pub fn new(rows: [[T; N]; M]) -> Self
+    where
+        T: Copy,
+    {
+        // Transpose row-major input to column-major internal storage
+        let init = rows[0][0];
+        let mut data: [[T; M]; N] = [[init; M]; N];
+        let mut col = 0;
+        while col < N {
+            let mut row = 0;
+            while row < M {
+                data[col][row] = rows[row][col];
+                row += 1;
+            }
+            col += 1;
+        }
         Self { data }
     }
 
@@ -59,7 +77,7 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Create a matrix filled with zeros.
     pub fn zeros() -> Self {
         Self {
-            data: [[T::zero(); N]; M],
+            data: [[T::zero(); M]; N],
         }
     }
 }
@@ -88,14 +106,24 @@ impl<T, const M: usize, const N: usize> MatrixRef<T> for Matrix<T, M, N> {
 
     #[inline]
     fn get(&self, row: usize, col: usize) -> &T {
-        &self.data[row][col]
+        &self.data[col][row]
+    }
+
+    #[inline]
+    fn col_as_slice(&self, col: usize, row_start: usize) -> &[T] {
+        &self.data[col][row_start..]
     }
 }
 
 impl<T, const M: usize, const N: usize> MatrixMut<T> for Matrix<T, M, N> {
     #[inline]
     fn get_mut(&mut self, row: usize, col: usize) -> &mut T {
-        &mut self.data[row][col]
+        &mut self.data[col][row]
+    }
+
+    #[inline]
+    fn col_as_mut_slice(&mut self, col: usize, row_start: usize) -> &mut [T] {
+        &mut self.data[col][row_start..]
     }
 }
 
@@ -105,14 +133,14 @@ impl<T, const M: usize, const N: usize> Index<(usize, usize)> for Matrix<T, M, N
 
     #[inline]
     fn index(&self, (row, col): (usize, usize)) -> &T {
-        &self.data[row][col]
+        &self.data[col][row]
     }
 }
 
 impl<T, const M: usize, const N: usize> IndexMut<(usize, usize)> for Matrix<T, M, N> {
     #[inline]
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut T {
-        &mut self.data[row][col]
+        &mut self.data[col][row]
     }
 }
 

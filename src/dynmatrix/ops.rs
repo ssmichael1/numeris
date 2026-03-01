@@ -11,53 +11,21 @@ impl<T: Scalar> Add for DynMatrix<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        assert_eq!(
-            (self.nrows, self.ncols),
-            (rhs.nrows, rhs.ncols),
-            "dimension mismatch: {}x{} + {}x{}",
-            self.nrows, self.ncols, rhs.nrows, rhs.ncols,
-        );
-        let data = self
-            .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(&a, &b)| a + b)
-            .collect();
-        DynMatrix {
-            data,
-            nrows: self.nrows,
-            ncols: self.ncols,
-        }
+        &self + &rhs
     }
 }
 
 impl<T: Scalar> Add<&DynMatrix<T>> for DynMatrix<T> {
     type Output = DynMatrix<T>;
     fn add(self, rhs: &DynMatrix<T>) -> DynMatrix<T> {
-        assert_eq!(
-            (self.nrows, self.ncols),
-            (rhs.nrows, rhs.ncols),
-            "dimension mismatch: {}x{} + {}x{}",
-            self.nrows, self.ncols, rhs.nrows, rhs.ncols,
-        );
-        let data = self
-            .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(&a, &b)| a + b)
-            .collect();
-        DynMatrix {
-            data,
-            nrows: self.nrows,
-            ncols: self.ncols,
-        }
+        &self + rhs
     }
 }
 
 impl<T: Scalar> Add<DynMatrix<T>> for &DynMatrix<T> {
     type Output = DynMatrix<T>;
     fn add(self, rhs: DynMatrix<T>) -> DynMatrix<T> {
-        rhs + self
+        self + &rhs
     }
 }
 
@@ -70,12 +38,8 @@ impl<T: Scalar> Add<&DynMatrix<T>> for &DynMatrix<T> {
             "dimension mismatch: {}x{} + {}x{}",
             self.nrows, self.ncols, rhs.nrows, rhs.ncols,
         );
-        let data = self
-            .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(&a, &b)| a + b)
-            .collect();
+        let mut data = vec![T::zero(); self.data.len()];
+        crate::simd::add_slices_dispatch(&self.data, &rhs.data, &mut data);
         DynMatrix {
             data,
             nrows: self.nrows,
@@ -98,9 +62,7 @@ impl<T: Scalar> AddAssign<&DynMatrix<T>> for DynMatrix<T> {
             "dimension mismatch: {}x{} += {}x{}",
             self.nrows, self.ncols, rhs.nrows, rhs.ncols,
         );
-        for (a, &b) in self.data.iter_mut().zip(rhs.data.iter()) {
-            *a = *a + b;
-        }
+        crate::simd::scalar::add_assign_slices(&mut self.data, &rhs.data);
     }
 }
 
@@ -110,67 +72,21 @@ impl<T: Scalar> Sub for DynMatrix<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        assert_eq!(
-            (self.nrows, self.ncols),
-            (rhs.nrows, rhs.ncols),
-            "dimension mismatch: {}x{} - {}x{}",
-            self.nrows, self.ncols, rhs.nrows, rhs.ncols,
-        );
-        let data = self
-            .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(&a, &b)| a - b)
-            .collect();
-        DynMatrix {
-            data,
-            nrows: self.nrows,
-            ncols: self.ncols,
-        }
+        &self - &rhs
     }
 }
 
 impl<T: Scalar> Sub<&DynMatrix<T>> for DynMatrix<T> {
     type Output = DynMatrix<T>;
     fn sub(self, rhs: &DynMatrix<T>) -> DynMatrix<T> {
-        assert_eq!(
-            (self.nrows, self.ncols),
-            (rhs.nrows, rhs.ncols),
-            "dimension mismatch",
-        );
-        let data = self
-            .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(&a, &b)| a - b)
-            .collect();
-        DynMatrix {
-            data,
-            nrows: self.nrows,
-            ncols: self.ncols,
-        }
+        &self - rhs
     }
 }
 
 impl<T: Scalar> Sub<DynMatrix<T>> for &DynMatrix<T> {
     type Output = DynMatrix<T>;
     fn sub(self, rhs: DynMatrix<T>) -> DynMatrix<T> {
-        assert_eq!(
-            (self.nrows, self.ncols),
-            (rhs.nrows, rhs.ncols),
-            "dimension mismatch",
-        );
-        let data = self
-            .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(&a, &b)| a - b)
-            .collect();
-        DynMatrix {
-            data,
-            nrows: self.nrows,
-            ncols: self.ncols,
-        }
+        self - &rhs
     }
 }
 
@@ -180,14 +96,11 @@ impl<T: Scalar> Sub<&DynMatrix<T>> for &DynMatrix<T> {
         assert_eq!(
             (self.nrows, self.ncols),
             (rhs.nrows, rhs.ncols),
-            "dimension mismatch",
+            "dimension mismatch: {}x{} - {}x{}",
+            self.nrows, self.ncols, rhs.nrows, rhs.ncols,
         );
-        let data = self
-            .data
-            .iter()
-            .zip(rhs.data.iter())
-            .map(|(&a, &b)| a - b)
-            .collect();
+        let mut data = vec![T::zero(); self.data.len()];
+        crate::simd::sub_slices_dispatch(&self.data, &rhs.data, &mut data);
         DynMatrix {
             data,
             nrows: self.nrows,
@@ -209,9 +122,7 @@ impl<T: Scalar> SubAssign<&DynMatrix<T>> for DynMatrix<T> {
             (rhs.nrows, rhs.ncols),
             "dimension mismatch",
         );
-        for (a, &b) in self.data.iter_mut().zip(rhs.data.iter()) {
-            *a = *a - b;
-        }
+        crate::simd::scalar::sub_assign_slices(&mut self.data, &rhs.data);
     }
 }
 
@@ -280,14 +191,7 @@ impl<T: Scalar> Mul<&DynMatrix<T>> for &DynMatrix<T> {
         let n = self.ncols;
         let p = rhs.ncols;
         let mut data = vec![T::zero(); m * p];
-        for i in 0..m {
-            for k in 0..n {
-                let a_ik = self.data[i * n + k];
-                for j in 0..p {
-                    data[i * p + j] = data[i * p + j] + a_ik * rhs.data[k * p + j];
-                }
-            }
-        }
+        crate::simd::matmul_dispatch(&self.data, &rhs.data, &mut data, m, n, p);
         DynMatrix {
             data,
             nrows: m,
@@ -302,12 +206,7 @@ impl<T: Scalar> Mul<T> for DynMatrix<T> {
     type Output = Self;
 
     fn mul(self, rhs: T) -> Self {
-        let data = self.data.iter().map(|&x| x * rhs).collect();
-        DynMatrix {
-            data,
-            nrows: self.nrows,
-            ncols: self.ncols,
-        }
+        &self * rhs
     }
 }
 
@@ -315,7 +214,8 @@ impl<T: Scalar> Mul<T> for &DynMatrix<T> {
     type Output = DynMatrix<T>;
 
     fn mul(self, rhs: T) -> DynMatrix<T> {
-        let data = self.data.iter().map(|&x| x * rhs).collect();
+        let mut data = vec![T::zero(); self.data.len()];
+        crate::simd::scale_slices_dispatch(&self.data, rhs, &mut data);
         DynMatrix {
             data,
             nrows: self.nrows,
@@ -326,9 +226,7 @@ impl<T: Scalar> Mul<T> for &DynMatrix<T> {
 
 impl<T: Scalar> MulAssign<T> for DynMatrix<T> {
     fn mul_assign(&mut self, rhs: T) {
-        for x in self.data.iter_mut() {
-            *x = *x * rhs;
-        }
+        crate::simd::scalar::scale_assign_slices(&mut self.data, rhs);
     }
 }
 
@@ -399,8 +297,8 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-    /// let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
     /// let c = a.element_mul(&b);
     /// assert_eq!(c[(0, 0)], 5.0);
     /// assert_eq!(c[(1, 1)], 32.0);
@@ -428,8 +326,8 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 2, &[10.0, 12.0, 21.0, 32.0]);
-    /// let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[10.0, 12.0, 21.0, 32.0]);
+    /// let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
     /// let c = a.element_div(&b);
     /// assert_eq!(c[(0, 0)], 2.0);
     /// assert_eq!(c[(1, 1)], 4.0);
@@ -457,7 +355,7 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// let a = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     /// let t = a.transpose();
     /// assert_eq!(t.nrows(), 3);
     /// assert_eq!(t.ncols(), 2);
@@ -469,7 +367,8 @@ impl<T: Scalar> DynMatrix<T> {
     {
         let m = self.nrows;
         let n = self.ncols;
-        DynMatrix::from_fn(n, m, |i, j| self.data[j * n + i])
+        // Column-major transpose: (i,j) of result comes from (j,i) of self
+        DynMatrix::from_fn(n, m, |i, j| self[(j, i)])
     }
 }
 
@@ -479,8 +378,8 @@ mod tests {
 
     #[test]
     fn add_sub() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-        let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
 
         let c = &a + &b;
         assert_eq!(c[(0, 0)], 6.0);
@@ -493,8 +392,8 @@ mod tests {
 
     #[test]
     fn add_assign() {
-        let mut a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-        let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+        let mut a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
         a += &b;
         assert_eq!(a[(0, 0)], 6.0);
         a -= &b;
@@ -503,7 +402,7 @@ mod tests {
 
     #[test]
     fn neg() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, -2.0, 3.0, -4.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, -2.0, 3.0, -4.0]);
         let b = -a;
         assert_eq!(b[(0, 0)], -1.0);
         assert_eq!(b[(0, 1)], 2.0);
@@ -511,8 +410,8 @@ mod tests {
 
     #[test]
     fn matrix_multiply() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-        let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
         let c = &a * &b;
         assert_eq!(c[(0, 0)], 19.0);
         assert_eq!(c[(0, 1)], 22.0);
@@ -522,8 +421,8 @@ mod tests {
 
     #[test]
     fn matrix_multiply_non_square() {
-        let a = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-        let b = DynMatrix::from_slice(3, 2, &[7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
+        let a = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = DynMatrix::from_rows(3, 2, &[7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
         let c = &a * &b;
         assert_eq!(c.nrows(), 2);
         assert_eq!(c.ncols(), 2);
@@ -534,14 +433,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "dimension mismatch")]
     fn multiply_dim_mismatch() {
-        let a = DynMatrix::from_slice(2, 3, &[0.0; 6]);
-        let b = DynMatrix::from_slice(2, 2, &[0.0; 4]);
+        let a = DynMatrix::from_rows(2, 3, &[0.0; 6]);
+        let b = DynMatrix::from_rows(2, 2, &[0.0; 4]);
         let _ = &a * &b;
     }
 
     #[test]
     fn scalar_multiply() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         let b = &a * 3.0;
         assert_eq!(b[(0, 0)], 3.0);
         assert_eq!(b[(1, 1)], 12.0);
@@ -552,7 +451,7 @@ mod tests {
 
     #[test]
     fn scalar_divide() {
-        let a = DynMatrix::from_slice(2, 2, &[2.0, 4.0, 6.0, 8.0]);
+        let a = DynMatrix::from_rows(2, 2, &[2.0, 4.0, 6.0, 8.0]);
         let b = &a / 2.0;
         assert_eq!(b[(0, 0)], 1.0);
         assert_eq!(b[(1, 1)], 4.0);
@@ -560,7 +459,7 @@ mod tests {
 
     #[test]
     fn mul_div_assign() {
-        let mut a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let mut a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         a *= 2.0;
         assert_eq!(a[(0, 0)], 2.0);
         a /= 2.0;
@@ -569,8 +468,8 @@ mod tests {
 
     #[test]
     fn element_mul() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-        let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
         let c = a.element_mul(&b);
         assert_eq!(c[(0, 0)], 5.0);
         assert_eq!(c[(1, 1)], 32.0);
@@ -578,8 +477,8 @@ mod tests {
 
     #[test]
     fn element_div() {
-        let a = DynMatrix::from_slice(2, 2, &[10.0, 12.0, 21.0, 32.0]);
-        let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+        let a = DynMatrix::from_rows(2, 2, &[10.0, 12.0, 21.0, 32.0]);
+        let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
         let c = a.element_div(&b);
         assert_eq!(c[(0, 0)], 2.0);
         assert_eq!(c[(1, 1)], 4.0);
@@ -587,7 +486,7 @@ mod tests {
 
     #[test]
     fn transpose() {
-        let a = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let a = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let t = a.transpose();
         assert_eq!(t.nrows(), 3);
         assert_eq!(t.ncols(), 2);
@@ -598,8 +497,8 @@ mod tests {
 
     #[test]
     fn ref_variants() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-        let b = DynMatrix::from_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let b = DynMatrix::from_rows(2, 2, &[5.0, 6.0, 7.0, 8.0]);
 
         // All ref combinations should produce the same result
         let sum1 = &a + &b;
@@ -613,7 +512,7 @@ mod tests {
 
     #[test]
     fn identity_multiply() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         let id = DynMatrix::eye(2, 0.0_f64);
         assert_eq!(&a * &id, a);
         assert_eq!(&id * &a, a);

@@ -101,15 +101,7 @@ impl<T: Scalar, const M: usize, const N: usize, const P: usize> Mul<Matrix<T, N,
 
     fn mul(self, rhs: Matrix<T, N, P>) -> Matrix<T, M, P> {
         let mut out = Matrix::<T, M, P>::zeros();
-        for i in 0..M {
-            for j in 0..P {
-                let mut sum = T::zero();
-                for k in 0..N {
-                    sum = sum + self[(i, k)] * rhs[(k, j)];
-                }
-                out[(i, j)] = sum;
-            }
-        }
+        crate::simd::matmul_dispatch(self.as_slice(), rhs.as_slice(), out.as_mut_slice(), M, N, P);
         out
     }
 }
@@ -402,12 +394,12 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn vecmul(&self, v: &Vector<T, N>) -> Vector<T, M> {
         let mut out = Vector::<T, M>::zeros();
-        for i in 0..M {
-            let mut sum = T::zero();
-            for j in 0..N {
-                sum = sum + self[(i, j)] * v[j];
+        // Column-oriented: out += col_k * v[k]
+        for k in 0..N {
+            let v_k = v[k];
+            for i in 0..M {
+                out[i] = out[i] + self[(i, k)] * v_k;
             }
-            out[i] = sum;
         }
         out
     }

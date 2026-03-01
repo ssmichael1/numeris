@@ -20,13 +20,13 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     where
         T: Copy + Default,
     {
-        let mut data = [[T::default(); N]; M];
-        for i in 0..M {
-            for j in 0..N {
-                data[i][j] = f(i, j);
+        let mut data = [[T::default(); M]; N];
+        for j in 0..N {
+            for i in 0..M {
+                data[j][i] = f(i, j);
             }
         }
-        Self::new(data)
+        Self { data }
     }
 
     /// Apply a function to every element, producing a new matrix.
@@ -42,13 +42,13 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     where
         T: Copy,
     {
-        let mut data = [[U::default(); N]; M];
-        for i in 0..M {
-            for j in 0..N {
-                data[i][j] = f(self[(i, j)]);
+        let mut data = [[U::default(); M]; N];
+        for j in 0..N {
+            for i in 0..M {
+                data[j][i] = f(self[(i, j)]);
             }
         }
-        Matrix::new(data)
+        Matrix { data }
     }
 }
 
@@ -64,8 +64,8 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn sum(&self) -> T {
         let mut s = T::zero();
-        for i in 0..M {
-            for j in 0..N {
+        for j in 0..N {
+            for i in 0..M {
                 s = s + self[(i, j)];
             }
         }
@@ -87,8 +87,8 @@ impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn abs(&self) -> Self {
         let mut out = *self;
-        for i in 0..M {
-            for j in 0..N {
+        for j in 0..N {
+            for i in 0..M {
                 out[(i, j)] = self[(i, j)].abs();
             }
         }
@@ -113,8 +113,8 @@ impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn element_max(&self, rhs: &Self) -> Self {
         let mut out = *self;
-        for i in 0..M {
-            for j in 0..N {
+        for j in 0..N {
+            for i in 0..M {
                 if rhs[(i, j)] > self[(i, j)] {
                     out[(i, j)] = rhs[(i, j)];
                 }
@@ -126,7 +126,7 @@ impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 // ── Row / Column manipulation ───────────────────────────────────────
 
-impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
+impl<T: Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Swap two rows in place.
     ///
     /// ```
@@ -138,12 +138,16 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn swap_rows(&mut self, a: usize, b: usize) {
         if a != b {
-            self.data.swap(a, b);
+            for j in 0..N {
+                let tmp = self.data[j][a];
+                self.data[j][a] = self.data[j][b];
+                self.data[j][b] = tmp;
+            }
         }
     }
 }
 
-impl<T: Copy, const M: usize, const N: usize> Matrix<T, M, N> {
+impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Swap two columns in place.
     ///
     /// ```
@@ -155,11 +159,7 @@ impl<T: Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn swap_cols(&mut self, a: usize, b: usize) {
         if a != b {
-            for i in 0..M {
-                let tmp = self[(i, a)];
-                self[(i, a)] = self[(i, b)];
-                self[(i, b)] = tmp;
-            }
+            self.data.swap(a, b);
         }
     }
 }
@@ -221,10 +221,7 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 impl<T: fmt::Display, const M: usize, const N: usize> fmt::Display for Matrix<T, M, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Find max width per column for alignment
-        // Use a fixed buffer to avoid alloc
         let mut widths = [0usize; N];
-        // We'll format twice: once to measure, once to print.
-        // For no_std, measure by formatting to a counting sink.
         for j in 0..N {
             for i in 0..M {
                 let w = WriteCounting::count(|wc| write!(wc, "{}", self[(i, j)]));

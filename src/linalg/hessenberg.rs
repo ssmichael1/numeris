@@ -1,3 +1,4 @@
+use crate::linalg::split_two_col_slices;
 use crate::traits::{LinalgScalar, MatrixMut};
 use num_traits::Zero;
 
@@ -26,10 +27,10 @@ pub fn hessenberg<T: LinalgScalar>(
     }
 
     for k in 0..n.saturating_sub(2) {
-        // Form Householder vector from a[k+1:n, k]
+        // Form Householder vector from a[k+1:n, k] (contiguous column data)
+        let sub_col = a.col_as_slice(k, k + 1);
         let mut norm_sq = T::Real::zero();
-        for i in (k + 1)..n {
-            let v = *a.get(i, k);
+        for &v in sub_col {
             norm_sq = norm_sq + (v * v.conj()).re();
         }
 
@@ -50,9 +51,11 @@ pub fn hessenberg<T: LinalgScalar>(
         let v0 = ak1k + sigma;
 
         // Store normalized Householder vector in a[k+2:n, k] (v[0] = 1 implicit)
-        for i in (k + 2)..n {
-            let val = *a.get(i, k) / v0;
-            *a.get_mut(i, k) = val;
+        {
+            let sub_col = a.col_as_mut_slice(k, k + 2);
+            for x in sub_col.iter_mut() {
+                *x = *x / v0;
+            }
         }
 
         // tau = v0 / sigma for the real case, or more generally:
@@ -60,20 +63,20 @@ pub fn hessenberg<T: LinalgScalar>(
 
         // Apply from the left: A[k+1:n, k+1:n] = (I - tau v v^H) A[k+1:n, k+1:n]
         // v = [1, a[k+2,k], ..., a[n-1,k]]
+        // Column-major: v sub-column and A[:,j] sub-column are contiguous.
         // Note: column k is NOT included because the reflector was computed from it;
         // the result for column k is set explicitly below (a[k+1,k] = -sigma).
         for j in (k + 1)..n {
             let mut dot = *a.get(k + 1, j); // v[0]=1, conj(1)=1
-            for i in (k + 2)..n {
-                dot = dot + (*a.get(i, k)).conj() * *a.get(i, j);
+            let (v_slice, a_j_slice) = split_two_col_slices(a, k, j, k + 2);
+            for idx in 0..v_slice.len() {
+                dot = dot + v_slice[idx].conj() * a_j_slice[idx];
             }
             dot = dot * tau;
 
             *a.get_mut(k + 1, j) = *a.get(k + 1, j) - dot;
-            for i in (k + 2)..n {
-                let vi = *a.get(i, k);
-                *a.get_mut(i, j) = *a.get(i, j) - dot * vi;
-            }
+            let (v_slice, a_j_slice) = split_two_col_slices(a, k, j, k + 2);
+            crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
         }
 
         // Apply from the right: A[0:n, k+1:n] = A[0:n, k+1:n] (I - tau v v^H)^H

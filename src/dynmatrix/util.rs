@@ -13,7 +13,7 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// assert_eq!(m.sum(), 10.0);
     /// ```
     pub fn sum(&self) -> T {
@@ -32,7 +32,7 @@ impl<T> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, 4.0, 9.0, 16.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0_f64, 4.0, 9.0, 16.0]);
     /// let r = m.map(|x: f64| x.sqrt());
     /// assert_eq!(r[(0, 0)], 1.0);
     /// assert_eq!(r[(1, 1)], 4.0);
@@ -57,7 +57,7 @@ impl<T: FloatScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, -3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0_f64, -2.0, -3.0, 4.0]);
     /// let a = m.abs();
     /// assert_eq!(a[(0, 1)], 2.0);
     /// assert_eq!(a[(1, 0)], 3.0);
@@ -70,8 +70,8 @@ impl<T: FloatScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 2, &[1.0_f64, 5.0, 3.0, 2.0]);
-    /// let b = DynMatrix::from_slice(2, 2, &[4.0, 2.0, 1.0, 6.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[1.0_f64, 5.0, 3.0, 2.0]);
+    /// let b = DynMatrix::from_rows(2, 2, &[4.0, 2.0, 1.0, 6.0]);
     /// let c = a.element_max(&b);
     /// assert_eq!(c[(0, 0)], 4.0);
     /// assert_eq!(c[(0, 1)], 5.0);
@@ -103,16 +103,15 @@ impl<T> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let mut m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let mut m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// m.swap_rows(0, 1);
     /// assert_eq!(m[(0, 0)], 3.0);
     /// assert_eq!(m[(1, 0)], 1.0);
     /// ```
     pub fn swap_rows(&mut self, a: usize, b: usize) {
         if a != b {
-            let n = self.ncols;
-            for j in 0..n {
-                self.data.swap(a * n + j, b * n + j);
+            for j in 0..self.ncols {
+                self.data.swap(j * self.nrows + a, j * self.nrows + b);
             }
         }
     }
@@ -123,17 +122,16 @@ impl<T: Copy> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let mut m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let mut m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// m.swap_cols(0, 1);
     /// assert_eq!(m[(0, 0)], 2.0);
     /// assert_eq!(m[(0, 1)], 1.0);
     /// ```
     pub fn swap_cols(&mut self, a: usize, b: usize) {
         if a != b {
-            for i in 0..self.nrows {
-                let ia = i * self.ncols + a;
-                let ib = i * self.ncols + b;
-                self.data.swap(ia, ib);
+            let n = self.nrows;
+            for i in 0..n {
+                self.data.swap(a * n + i, b * n + i);
             }
         }
     }
@@ -146,13 +144,17 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// let r = m.row(0);
     /// assert_eq!(r[0], 1.0);
     /// assert_eq!(r[1], 2.0);
     /// ```
     pub fn row(&self, i: usize) -> DynVector<T> {
-        DynVector::from_slice(self.row_slice(i))
+        let mut data = Vec::with_capacity(self.ncols);
+        for j in 0..self.ncols {
+            data.push(self[(i, j)]);
+        }
+        DynVector::from_vec(data)
     }
 
     /// Set row `i` from a `DynVector`.
@@ -167,17 +169,13 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// let c = m.col(1);
     /// assert_eq!(c[0], 2.0);
     /// assert_eq!(c[1], 4.0);
     /// ```
     pub fn col(&self, j: usize) -> DynVector<T> {
-        let mut data = Vec::with_capacity(self.nrows);
-        for i in 0..self.nrows {
-            data.push(self[(i, j)]);
-        }
-        DynVector::from_vec(data)
+        DynVector::from_slice(self.col_slice(j))
     }
 
     /// Set column `j` from a `DynVector`.
@@ -249,13 +247,13 @@ mod tests {
 
     #[test]
     fn sum() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         assert_eq!(m.sum(), 10.0);
     }
 
     #[test]
     fn map() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         let doubled = m.map(|x| x * 2.0);
         assert_eq!(doubled[(0, 0)], 2.0);
         assert_eq!(doubled[(1, 1)], 8.0);
@@ -263,7 +261,7 @@ mod tests {
 
     #[test]
     fn map_type_change() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
         let rounded = m.map(|x| x as i32);
         assert_eq!(rounded[(0, 0)], 1);
         assert_eq!(rounded[(1, 1)], 4);
@@ -271,7 +269,7 @@ mod tests {
 
     #[test]
     fn abs() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, -3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0_f64, -2.0, -3.0, 4.0]);
         let a = m.abs();
         assert_eq!(a[(0, 0)], 1.0);
         assert_eq!(a[(0, 1)], 2.0);
@@ -281,8 +279,8 @@ mod tests {
 
     #[test]
     fn element_max() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0_f64, 5.0, 3.0, 2.0]);
-        let b = DynMatrix::from_slice(2, 2, &[4.0, 2.0, 1.0, 6.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0_f64, 5.0, 3.0, 2.0]);
+        let b = DynMatrix::from_rows(2, 2, &[4.0, 2.0, 1.0, 6.0]);
         let c = a.element_max(&b);
         assert_eq!(c[(0, 0)], 4.0);
         assert_eq!(c[(0, 1)], 5.0);
@@ -292,7 +290,7 @@ mod tests {
 
     #[test]
     fn swap_rows() {
-        let mut m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let mut m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         m.swap_rows(0, 1);
         assert_eq!(m[(0, 0)], 3.0);
         assert_eq!(m[(1, 0)], 1.0);
@@ -300,7 +298,7 @@ mod tests {
 
     #[test]
     fn swap_cols() {
-        let mut m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let mut m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         m.swap_cols(0, 1);
         assert_eq!(m[(0, 0)], 2.0);
         assert_eq!(m[(0, 1)], 1.0);
@@ -308,7 +306,7 @@ mod tests {
 
     #[test]
     fn row_col() {
-        let m = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let m = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let r = m.row(0);
         assert_eq!(r[0], 1.0);
         assert_eq!(r[2], 3.0);
@@ -332,7 +330,7 @@ mod tests {
 
     #[test]
     fn display() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         let s = format!("{}", m);
         assert!(s.contains("1"));
         assert!(s.contains("4"));
@@ -341,7 +339,7 @@ mod tests {
 
     #[test]
     fn display_alignment() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0, 100.0, 1000.0, 2.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0, 100.0, 1000.0, 2.0]);
         let s = format!("{}", m);
         let lines: Vec<&str> = s.lines().collect();
         assert_eq!(lines[0].len(), lines[1].len());

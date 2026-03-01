@@ -20,9 +20,9 @@ use num_complex::Complex;
 /// assert_eq!(m_float.trace(), 5.0);
 /// assert_eq!(m_int.trace(), 5);
 /// ```
-pub trait Scalar: Copy + PartialEq + Debug + Zero + One + Num {}
+pub trait Scalar: Copy + PartialEq + Debug + Zero + One + Num + 'static {}
 
-impl<T: Copy + PartialEq + Debug + Zero + One + Num> Scalar for T {}
+impl<T: Copy + PartialEq + Debug + Zero + One + Num + 'static> Scalar for T {}
 
 /// Trait for floating-point matrix elements.
 ///
@@ -158,6 +158,12 @@ pub trait MatrixRef<T> {
     fn ncols(&self) -> usize;
     /// Reference to the element at `(row, col)`.
     fn get(&self, row: usize, col: usize) -> &T;
+
+    /// Contiguous slice of column `col` from row `row_start` to end.
+    ///
+    /// Returns `&[T]` of length `nrows - row_start`. Available because
+    /// both `Matrix` and `DynMatrix` use column-major contiguous storage.
+    fn col_as_slice(&self, col: usize, row_start: usize) -> &[T];
 }
 
 /// Mutable access to a matrix-like type.
@@ -184,4 +190,7 @@ pub trait MatrixRef<T> {
 pub trait MatrixMut<T>: MatrixRef<T> {
     /// Mutable reference to the element at `(row, col)`.
     fn get_mut(&mut self, row: usize, col: usize) -> &mut T;
+
+    /// Mutable contiguous slice of column `col` from row `row_start` to end.
+    fn col_as_mut_slice(&mut self, col: usize, row_start: usize) -> &mut [T];
 }

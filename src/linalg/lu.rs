@@ -1,4 +1,4 @@
-use crate::linalg::LinalgError;
+use crate::linalg::{split_two_col_slices, LinalgError};
 use crate::matrix::vector::Vector;
 use crate::traits::{LinalgScalar, MatrixMut, MatrixRef};
 use crate::Matrix;
@@ -52,16 +52,27 @@ pub fn lu_in_place<T: LinalgScalar>(
             even = !even;
         }
 
-        // Eliminate below pivot, storing L factors in lower triangle
+        // Column-major LAPACK dgetf2 style elimination:
+        // 1. Scale sub-column by 1/pivot (contiguous in col-major)
+        // 2. AXPY: for each column j > col, a[col+1:n, j] -= a[col, j] * a[col+1:n, col]
+        //    Both source and destination are contiguous column slices → SIMD-friendly.
         let pivot = *a.get(col, col);
-        for row in (col + 1)..n {
-            let factor = *a.get(row, col) / pivot;
-            *a.get_mut(row, col) = factor;
-            for j in (col + 1)..n {
-                let u_val = *a.get(col, j);
-                let cur = *a.get(row, j);
-                *a.get_mut(row, j) = cur - factor * u_val;
+        let inv_pivot = T::one() / pivot;
+
+        // Scale sub-column: a[col+1:n, col] /= pivot
+        {
+            let sub_col = a.col_as_mut_slice(col, col + 1);
+            for x in sub_col.iter_mut() {
+                *x = *x * inv_pivot;
             }
+        }
+
+        // Rank-1 update: a[col+1:n, j] -= a[col, j] * a[col+1:n, col]
+        for j in (col + 1)..n {
+            let a_col_j = *a.get(col, j);
+            // Both slices are contiguous column data — use SIMD AXPY
+            let (left, right) = split_two_col_slices(a, col, j, col + 1);
+            crate::simd::axpy_neg_dispatch(right, a_col_j, left);
         }
     }
 

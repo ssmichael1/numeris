@@ -55,7 +55,7 @@ impl core::fmt::Display for DimensionMismatch {
 
 /// Dynamically-sized heap-allocated matrix.
 ///
-/// Row-major `Vec<T>` storage, matching the layout of fixed-size [`Matrix`].
+/// Column-major `Vec<T>` storage, matching the layout of fixed-size [`Matrix`].
 /// Dimensions are set at runtime. Implements [`MatrixRef`] and [`MatrixMut`],
 /// so all generic linalg free functions work with `DynMatrix` out of the box.
 ///
@@ -64,7 +64,7 @@ impl core::fmt::Display for DimensionMismatch {
 /// ```
 /// use numeris::DynMatrix;
 ///
-/// let a = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+/// let a = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
 /// assert_eq!(a[(0, 1)], 2.0);
 /// assert_eq!(a.nrows(), 2);
 /// assert_eq!(a.ncols(), 2);
@@ -135,15 +135,18 @@ impl<T: Scalar> DynMatrix<T> {
         m
     }
 
-    /// Create a matrix from a flat slice in row-major order.
+    /// Create a matrix from a flat slice in column-major order.
     ///
     /// Panics if `slice.len() != nrows * ncols`.
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-    /// assert_eq!(m[(0, 2)], 3.0);
-    /// assert_eq!(m[(1, 0)], 4.0);
+    /// // Column-major: col0=[1,3], col1=[2,4]
+    /// let m = DynMatrix::from_slice(2, 2, &[1.0, 3.0, 2.0, 4.0]);
+    /// assert_eq!(m[(0, 0)], 1.0);
+    /// assert_eq!(m[(1, 0)], 3.0);
+    /// assert_eq!(m[(0, 1)], 2.0);
+    /// assert_eq!(m[(1, 1)], 4.0);
     /// ```
     pub fn from_slice(nrows: usize, ncols: usize, slice: &[T]) -> Self {
         assert_eq!(
@@ -161,13 +164,42 @@ impl<T: Scalar> DynMatrix<T> {
         }
     }
 
-    /// Create a matrix from an owned `Vec<T>` in row-major order.
+    /// Create a matrix from a flat slice in row-major order.
+    ///
+    /// Transposes the data to column-major internal storage.
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let m = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// assert_eq!(m[(0, 2)], 3.0);
+    /// assert_eq!(m[(1, 0)], 4.0);
+    /// ```
+    pub fn from_rows(nrows: usize, ncols: usize, row_major: &[T]) -> Self {
+        assert_eq!(
+            row_major.len(),
+            nrows * ncols,
+            "slice length {} does not match {}x{} matrix",
+            row_major.len(),
+            nrows,
+            ncols,
+        );
+        let mut data = vec![T::zero(); nrows * ncols];
+        for i in 0..nrows {
+            for j in 0..ncols {
+                data[j * nrows + i] = row_major[i * ncols + j];
+            }
+        }
+        Self { data, nrows, ncols }
+    }
+
+    /// Create a matrix from an owned `Vec<T>` in column-major order.
     ///
     /// Panics if `data.len() != nrows * ncols`.
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_vec(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// // Column-major: col0=[1,3], col1=[2,4]
+    /// let m = DynMatrix::from_vec(2, 2, vec![1.0, 3.0, 2.0, 4.0]);
     /// assert_eq!(m[(0, 0)], 1.0);
     /// assert_eq!(m[(1, 1)], 4.0);
     /// ```
@@ -213,8 +245,8 @@ impl<T> DynMatrix<T> {
     /// ```
     pub fn from_fn(nrows: usize, ncols: usize, f: impl Fn(usize, usize) -> T) -> Self {
         let mut data = Vec::with_capacity(nrows * ncols);
-        for i in 0..nrows {
-            for j in 0..ncols {
+        for j in 0..ncols {
+            for i in 0..nrows {
                 data.push(f(i, j));
             }
         }
@@ -237,14 +269,28 @@ impl<T> MatrixRef<T> for DynMatrix<T> {
 
     #[inline]
     fn get(&self, row: usize, col: usize) -> &T {
-        &self.data[row * self.ncols + col]
+        &self.data[col * self.nrows + row]
+    }
+
+    #[inline]
+    fn col_as_slice(&self, col: usize, row_start: usize) -> &[T] {
+        let start = col * self.nrows + row_start;
+        let end = col * self.nrows + self.nrows;
+        &self.data[start..end]
     }
 }
 
 impl<T> MatrixMut<T> for DynMatrix<T> {
     #[inline]
     fn get_mut(&mut self, row: usize, col: usize) -> &mut T {
-        &mut self.data[row * self.ncols + col]
+        &mut self.data[col * self.nrows + row]
+    }
+
+    #[inline]
+    fn col_as_mut_slice(&mut self, col: usize, row_start: usize) -> &mut [T] {
+        let start = col * self.nrows + row_start;
+        let end = col * self.nrows + self.nrows;
+        &mut self.data[start..end]
     }
 }
 
@@ -255,14 +301,14 @@ impl<T> Index<(usize, usize)> for DynMatrix<T> {
 
     #[inline]
     fn index(&self, (row, col): (usize, usize)) -> &T {
-        &self.data[row * self.ncols + col]
+        &self.data[col * self.nrows + row]
     }
 }
 
 impl<T> IndexMut<(usize, usize)> for DynMatrix<T> {
     #[inline]
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut T {
-        &mut self.data[row * self.ncols + col]
+        &mut self.data[col * self.nrows + row]
     }
 }
 
@@ -306,7 +352,7 @@ impl<T: Scalar, const M: usize, const N: usize> TryFrom<&DynMatrix<T>> for Matri
     ///
     /// ```
     /// use numeris::{Matrix, DynMatrix};
-    /// let d = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let d = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// let m: Matrix<f64, 2, 2> = (&d).try_into().unwrap();
     /// assert_eq!(m[(0, 0)], 1.0);
     /// assert_eq!(m[(1, 1)], 4.0);
@@ -318,6 +364,7 @@ impl<T: Scalar, const M: usize, const N: usize> TryFrom<&DynMatrix<T>> for Matri
                 got: (d.nrows, d.ncols),
             });
         }
+        // Both are column-major, so from_slice works directly
         Ok(Matrix::from_slice(d.data.as_slice()))
     }
 }
@@ -360,8 +407,8 @@ mod tests {
     }
 
     #[test]
-    fn from_slice() {
-        let m = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    fn from_rows() {
+        let m = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         assert_eq!(m[(0, 0)], 1.0);
         assert_eq!(m[(0, 2)], 3.0);
         assert_eq!(m[(1, 0)], 4.0);
@@ -370,13 +417,14 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "slice length")]
-    fn from_slice_wrong_length() {
-        let _ = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0]);
+    fn from_rows_wrong_length() {
+        let _ = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0]);
     }
 
     #[test]
     fn from_vec() {
-        let m = DynMatrix::from_vec(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        // Column-major: col0=[1,3], col1=[2,4]
+        let m = DynMatrix::from_vec(2, 2, vec![1.0, 3.0, 2.0, 4.0]);
         assert_eq!(m[(0, 0)], 1.0);
         assert_eq!(m[(1, 1)], 4.0);
     }
@@ -398,7 +446,7 @@ mod tests {
 
     #[test]
     fn matrix_ref_trait() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         fn trace<T: Scalar>(m: &impl MatrixRef<T>) -> T {
             let mut sum = T::zero();
             let n = m.nrows().min(m.ncols());
@@ -444,7 +492,7 @@ mod tests {
 
     #[test]
     fn try_into_matrix() {
-        let d = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let d = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         let m: Matrix<f64, 2, 2> = (&d).try_into().unwrap();
         assert_eq!(m[(0, 0)], 1.0);
         assert_eq!(m[(1, 1)], 4.0);
@@ -452,7 +500,7 @@ mod tests {
 
     #[test]
     fn try_into_matrix_wrong_dims() {
-        let d = DynMatrix::from_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let d = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let result: Result<Matrix<f64, 2, 2>, _> = (&d).try_into();
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -470,7 +518,7 @@ mod tests {
 
     #[test]
     fn clone_eq() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         let b = a.clone();
         assert_eq!(a, b);
     }

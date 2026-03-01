@@ -98,7 +98,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
     /// assert!((m.frobenius_norm() - 30.0_f64.sqrt()).abs() < 1e-12);
     /// ```
     pub fn frobenius_norm(&self) -> T::Real {
@@ -114,7 +114,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
     /// assert!((m.norm_inf() - 7.0).abs() < 1e-12);
     /// ```
     pub fn norm_inf(&self) -> T::Real {
@@ -135,7 +135,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
     /// assert!((m.norm_one() - 6.0).abs() < 1e-12);
     /// ```
     pub fn norm_one(&self) -> T::Real {
@@ -186,25 +186,25 @@ mod tests {
 
     #[test]
     fn frobenius_norm() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
         assert!((m.frobenius_norm() - 30.0_f64.sqrt()).abs() < 1e-12);
     }
 
     #[test]
     fn frobenius_norm_squared_integer() {
-        let m = DynMatrix::from_slice(2, 2, &[1, 2, 3, 4]);
+        let m = DynMatrix::from_rows(2, 2, &[1, 2, 3, 4]);
         assert_eq!(m.frobenius_norm_squared(), 30);
     }
 
     #[test]
     fn norm_inf() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
         assert!((m.norm_inf() - 7.0).abs() < 1e-12);
     }
 
     #[test]
     fn norm_one() {
-        let m = DynMatrix::from_slice(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
+        let m = DynMatrix::from_rows(2, 2, &[1.0_f64, -2.0, 3.0, 4.0]);
         assert!((m.norm_one() - 6.0).abs() < 1e-12);
     }
 }

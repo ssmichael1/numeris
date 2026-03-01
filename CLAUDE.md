@@ -1,7 +1,8 @@
 # numeris
 
 Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to SciPy.
-Suitable for embedded targets (no heap allocation, no floating-point-unit assumptions).
+Suitable for embedded targets with no std feature (no heap allocation, no floating-point-unit assumptions),
+but designed to be performant for more-powerful systems.
 
 ## Module Plan
 
@@ -23,9 +24,19 @@ Checked items are implemented; unchecked are potential future work.
 
 ## Design Decisions
 
-- **No-std / embedded first** — all code must work without `std` or heap allocation.
+- **No-std / embedded first, high-performance second** — all code must work without `std` or heap
+  allocation, but on capable hardware it should be competitive with optimized libraries.
+  SIMD intrinsics (`core::arch`) accelerate f32/f64 hot paths on aarch64 (NEON) and x86_64
+  (SSE2/AVX/AVX-512) via compile-time `TypeId` dispatch, with zero-cost scalar fallback for
+  integers and other types. No runtime feature detection — no cargo feature flag needed.
+  SSE2 (x86_64) and NEON (aarch64) are always-on baseline. AVX and AVX-512 are compile-time
+  opt-in via `-C target-cpu=native` or `-C target-feature=+avx2,+avx512f`. Dispatch selects
+  the widest available ISA: AVX-512 > AVX > SSE2.
 - **`num-traits`** for generic numeric bounds (`Zero`, `One`, `Num`, `Float`), with `default-features = false`.
-- **Matrix storage** — `[[T; N]; M]` (M rows, N cols), row-major. Stack-allocated, contiguous in memory.
+- **Matrix storage** — `[[T; M]; N]` (N columns of M rows), column-major. Stack-allocated, contiguous
+  in memory. Column-major matches LAPACK conventions and makes column-oriented linalg inner loops
+  (Householder reflections, LU AXPY) operate on contiguous data for SIMD vectorization.
+  `Matrix::new()` still accepts row-major input `[[row0], [row1], ...]` and transposes internally.
   Avoids `[T; M*N]` which requires unstable `generic_const_exprs`.
 - **Const generics** — matrix dimensions are `const M: usize` (rows) and `const N: usize` (cols).
 - **Naming** — `Matrix` is the fixed-size type (the default for embedded). `DynMatrix` (requires `alloc`)
@@ -34,11 +45,14 @@ Checked items are implemented; unchecked are potential future work.
   matrix ops; `FloatScalar` (extends `Scalar + Float`) for quaternions and ordered comparisons;
   `LinalgScalar` for decompositions and norms (covers both real floats and `Complex<T>`).
   Integer matrices work with just `Scalar`.
-- **Matrix access traits** — `MatrixRef<T>` (read-only: `nrows`, `ncols`, `get`) and
-  `MatrixMut<T>: MatrixRef<T>` (adds `get_mut`). Algorithms (Cholesky, LU, etc.) are written as
-  free functions taking `&mut impl MatrixMut<T>` to operate in-place, avoiding the need for
-  nalgebra-style allocator/storage traits. Both `Matrix` and `DynMatrix` implement these.
-- **DynMatrix** — `Vec<T>` row-major storage with runtime dimensions. Implements `MatrixRef`/`MatrixMut`,
+- **Matrix access traits** — `MatrixRef<T>` (read-only: `nrows`, `ncols`, `get`, `col_as_slice`) and
+  `MatrixMut<T>: MatrixRef<T>` (adds `get_mut`, `col_as_mut_slice`). `col_as_slice` returns a
+  contiguous column sub-slice for SIMD-friendly inner loops. Algorithms (Cholesky, LU, etc.) are
+  written as free functions taking `&mut impl MatrixMut<T>` to operate in-place, avoiding the need
+  for nalgebra-style allocator/storage traits. Both `Matrix` and `DynMatrix` implement these.
+- **DynMatrix** — `Vec<T>` column-major storage with runtime dimensions. Element `(row, col)` is at
+  index `col * nrows + row`. `from_rows()` accepts row-major data (transposes internally);
+  `from_slice()` accepts column-major data directly. Implements `MatrixRef`/`MatrixMut`,
   so all linalg free functions work automatically. `DynVector` is a newtype wrapper enforcing 1-row
   constraint with single-index access. `DynLu`/`DynCholesky`/`DynQr` wrappers call the same generic
   free functions as the fixed-size decompositions.
@@ -73,7 +87,7 @@ src/
 │   ├── vector.rs       # Vector, Vector3, ColumnVector, ColumnVector3, dot, cross
 │   ├── block.rs        # block, set_block, top_left/right, head, tail, segment
 │   ├── norm.rs         # L1, L2, Frobenius, infinity, one norms, normalize
-│   ├── slice.rs        # as_slice, row_slice, from_slice, iter, IntoIterator
+│   ├── slice.rs        # as_slice, col_slice, from_slice, iter, IntoIterator
 │   └── util.rs         # from_fn, map, row/col access, swap_rows/cols, Display
 ├── dynmatrix/          # (requires `alloc` feature)
 │   ├── mod.rs          # DynMatrix struct, constructors, MatrixRef/MatrixMut, Index, conversions
@@ -109,6 +123,17 @@ src/
 │   ├── rkv98_efficient.rs # Verner "efficient" 9(8), 26 stages, 9th-degree interpolant
 │   ├── rosenbrock.rs      # Rosenbrock trait, fd_jacobian, integration loop
 │   └── rodas4.rs          # RODAS4: 6-stage, order 4(3), L-stable Rosenbrock
+├── simd/               # private SIMD acceleration (no cargo feature — always-on)
+│   ├── mod.rs          # TypeId dispatch: dot, matmul, add/sub/scale/axpy slices
+│   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch)
+│   ├── f64_neon.rs     # aarch64 NEON f64 kernels (2-wide)
+│   ├── f32_neon.rs     # aarch64 NEON f32 kernels (4-wide)
+│   ├── f64_sse2.rs     # x86_64 SSE2 f64 kernels (2-wide)
+│   ├── f32_sse2.rs     # x86_64 SSE2 f32 kernels (4-wide)
+│   ├── f64_avx.rs      # x86_64 AVX f64 kernels (4-wide, compile-time opt-in)
+│   ├── f32_avx.rs      # x86_64 AVX f32 kernels (8-wide, compile-time opt-in)
+│   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide, compile-time opt-in)
+│   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide, compile-time opt-in)
 ├── control/            # (requires `control` feature)
 │   ├── mod.rs          # ControlError, module declarations, re-exports
 │   ├── biquad.rs       # Biquad, BiquadCascade, DFII-T tick/process, bilinear transform helpers
@@ -130,4 +155,4 @@ src/
 
 ## Current Focus
 
-Next candidates: special functions (gamma), interpolation, SVD decomposition.
+Next candidates: special functions (gamma), interpolation, SIMD extension to remaining linalg inner loops (QR, Cholesky, SVD Householder loops via col_as_slice + dot/AXPY dispatch).

@@ -26,7 +26,7 @@ use super::DynMatrix;
 /// ```
 /// use numeris::{DynMatrix, DynVector};
 ///
-/// let a = DynMatrix::from_slice(2, 2, &[2.0_f64, 1.0, 5.0, 3.0]);
+/// let a = DynMatrix::from_rows(2, 2, &[2.0_f64, 1.0, 5.0, 3.0]);
 /// let lu = a.lu().unwrap();
 ///
 /// let b = DynVector::from_slice(&[4.0, 11.0]);
@@ -111,7 +111,7 @@ impl<T: LinalgScalar> DynLu<T> {
 /// ```
 /// use numeris::{DynMatrix, DynVector};
 ///
-/// let a = DynMatrix::from_slice(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
+/// let a = DynMatrix::from_rows(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
 /// let chol = a.cholesky().unwrap();
 ///
 /// let b = DynVector::from_slice(&[8.0, 7.0]);
@@ -223,7 +223,7 @@ impl<T: LinalgScalar> DynCholesky<T> {
 /// ```
 /// use numeris::{DynMatrix, DynVector};
 ///
-/// let a = DynMatrix::from_slice(3, 2, &[
+/// let a = DynMatrix::from_rows(3, 2, &[
 ///     1.0_f64, 0.0,
 ///     1.0, 1.0,
 ///     1.0, 2.0,
@@ -352,7 +352,7 @@ impl<T: LinalgScalar> DynQr<T> {
 /// ```
 /// use numeris::DynMatrix;
 ///
-/// let a = DynMatrix::from_slice(2, 2, &[2.0_f64, -1.0, -1.0, 2.0]);
+/// let a = DynMatrix::from_rows(2, 2, &[2.0_f64, -1.0, -1.0, 2.0]);
 /// let eig = a.eig_symmetric().unwrap();
 /// assert!((eig.eigenvalues()[0] - 1.0).abs() < 1e-10);
 /// assert!((eig.eigenvalues()[1] - 3.0).abs() < 1e-10);
@@ -437,7 +437,7 @@ impl<T: LinalgScalar> DynSymmetricEigen<T> {
 /// ```
 /// use numeris::DynMatrix;
 ///
-/// let a = DynMatrix::from_slice(2, 2, &[0.0_f64, -1.0, 1.0, 0.0]);
+/// let a = DynMatrix::from_rows(2, 2, &[0.0_f64, -1.0, 1.0, 0.0]);
 /// let schur = a.schur().unwrap();
 /// let (re, im) = schur.eigenvalues();
 /// assert!(re[0].abs() < 1e-10);
@@ -542,7 +542,7 @@ impl<T: FloatScalar> DynSchur<T> {
 /// ```
 /// use numeris::DynMatrix;
 ///
-/// let a = DynMatrix::from_slice(3, 2, &[
+/// let a = DynMatrix::from_rows(3, 2, &[
 ///     1.0_f64, 0.0,
 ///     0.0, 1.0,
 ///     0.0, 0.0,
@@ -754,7 +754,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::{DynMatrix, DynVector};
-    /// let a = DynMatrix::from_slice(2, 2, &[2.0_f64, 1.0, 5.0, 3.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[2.0_f64, 1.0, 5.0, 3.0]);
     /// let b = DynVector::from_slice(&[4.0, 11.0]);
     /// let x = a.solve(&b).unwrap();
     /// assert!((x[0] - 1.0).abs() < 1e-12);
@@ -768,7 +768,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 2, &[4.0_f64, 7.0, 2.0, 6.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[4.0_f64, 7.0, 2.0, 6.0]);
     /// let a_inv = a.inverse().unwrap();
     /// let id = &a * &a_inv;
     /// assert!((id[(0, 0)] - 1.0).abs() < 1e-12);
@@ -789,7 +789,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(3, 2, &[
+    /// let a = DynMatrix::from_rows(3, 2, &[
     ///     1.0_f64, 0.0,
     ///     0.0, 1.0,
     ///     0.0, 0.0,
@@ -805,7 +805,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 2, &[3.0_f64, 0.0, 0.0, 4.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[3.0_f64, 0.0, 0.0, 4.0]);
     /// let sv = a.singular_values_only().unwrap();
     /// assert!((sv[0] - 4.0).abs() < 1e-10);
     /// assert!((sv[1] - 3.0).abs() < 1e-10);
@@ -818,7 +818,7 @@ impl<T: LinalgScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 2, &[5.0_f64, 2.0, 2.0, 2.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[5.0_f64, 2.0, 2.0, 2.0]);
     /// let eig = a.eig_symmetric().unwrap();
     /// assert!((eig.eigenvalues()[0] - 1.0).abs() < 1e-10);
     /// assert!((eig.eigenvalues()[1] - 6.0).abs() < 1e-10);
@@ -839,7 +839,7 @@ impl<T: FloatScalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let a = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+    /// let a = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
     /// let schur = a.schur().unwrap();
     /// let (re, im) = schur.eigenvalues();
     /// let trace = a[(0, 0)] + a[(1, 1)];
@@ -863,7 +863,7 @@ mod tests {
 
     #[test]
     fn symmetric_eigen_2x2() {
-        let a = DynMatrix::from_slice(2, 2, &[2.0_f64, -1.0, -1.0, 2.0]);
+        let a = DynMatrix::from_rows(2, 2, &[2.0_f64, -1.0, -1.0, 2.0]);
         let eig = a.eig_symmetric().unwrap();
         assert!((eig.eigenvalues()[0] - 1.0).abs() < 1e-10);
         assert!((eig.eigenvalues()[1] - 3.0).abs() < 1e-10);
@@ -871,7 +871,7 @@ mod tests {
 
     #[test]
     fn symmetric_eigen_3x3_reconstruction() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3, 3,
             &[4.0_f64, 1.0, -1.0, 1.0, 3.0, 2.0, -1.0, 2.0, 5.0],
         );
@@ -911,7 +911,7 @@ mod tests {
 
     #[test]
     fn symmetric_eigenvalues_only() {
-        let a = DynMatrix::from_slice(2, 2, &[5.0_f64, 2.0, 2.0, 2.0]);
+        let a = DynMatrix::from_rows(2, 2, &[5.0_f64, 2.0, 2.0, 2.0]);
         let vals = a.eigenvalues_symmetric().unwrap();
         assert!((vals[0] - 1.0).abs() < 1e-10);
         assert!((vals[1] - 6.0).abs() < 1e-10);
@@ -922,7 +922,7 @@ mod tests {
     #[test]
     fn schur_2x2_complex_pair() {
         // Rotation: eigenvalues ±i
-        let a = DynMatrix::from_slice(2, 2, &[0.0_f64, -1.0, 1.0, 0.0]);
+        let a = DynMatrix::from_rows(2, 2, &[0.0_f64, -1.0, 1.0, 0.0]);
         let schur = a.schur().unwrap();
         let (re, im) = schur.eigenvalues();
         assert!(re[0].abs() < 1e-10);
@@ -931,7 +931,7 @@ mod tests {
 
     #[test]
     fn schur_3x3_similarity() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3, 3,
             &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0],
         );
@@ -961,7 +961,7 @@ mod tests {
 
     #[test]
     fn schur_eigenvalues() {
-        let a = DynMatrix::from_slice(2, 2, &[2.0_f64, -1.0, 1.0, 0.0]);
+        let a = DynMatrix::from_rows(2, 2, &[2.0_f64, -1.0, 1.0, 0.0]);
         let (re, im) = a.eigenvalues().unwrap();
         assert!((re[0] - 1.0).abs() < 1e-10);
         assert!((re[1] - 1.0).abs() < 1e-10);
@@ -972,7 +972,7 @@ mod tests {
 
     #[test]
     fn lu_solve_2x2() {
-        let a = DynMatrix::from_slice(2, 2, &[3.0_f64, 2.0, 1.0, 4.0]);
+        let a = DynMatrix::from_rows(2, 2, &[3.0_f64, 2.0, 1.0, 4.0]);
         let b = DynVector::from_slice(&[7.0, 9.0]);
         let x = a.solve(&b).unwrap();
         assert!((x[0] - 1.0).abs() < 1e-12);
@@ -981,7 +981,7 @@ mod tests {
 
     #[test]
     fn lu_solve_3x3() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3,
             3,
             &[2.0_f64, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0],
@@ -995,7 +995,7 @@ mod tests {
 
     #[test]
     fn lu_inverse_2x2() {
-        let a = DynMatrix::from_slice(2, 2, &[4.0_f64, 7.0, 2.0, 6.0]);
+        let a = DynMatrix::from_rows(2, 2, &[4.0_f64, 7.0, 2.0, 6.0]);
         let a_inv = a.inverse().unwrap();
         let id = &a * &a_inv;
         for i in 0..2 {
@@ -1008,20 +1008,20 @@ mod tests {
 
     #[test]
     fn lu_det() {
-        let a = DynMatrix::from_slice(2, 2, &[3.0_f64, 8.0, 4.0, 6.0]);
+        let a = DynMatrix::from_rows(2, 2, &[3.0_f64, 8.0, 4.0, 6.0]);
         let lu = a.lu().unwrap();
         assert!((lu.det() - (-14.0)).abs() < 1e-12);
     }
 
     #[test]
     fn lu_singular() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0_f64, 2.0, 2.0, 4.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 2.0, 4.0]);
         assert_eq!(a.lu().unwrap_err(), LinalgError::Singular);
     }
 
     #[test]
     fn cholesky_solve() {
-        let a = DynMatrix::from_slice(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
+        let a = DynMatrix::from_rows(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
         let b = DynVector::from_slice(&[8.0, 7.0]);
         let chol = a.cholesky().unwrap();
         let x = chol.solve(&b);
@@ -1037,7 +1037,7 @@ mod tests {
 
     #[test]
     fn cholesky_det() {
-        let a = DynMatrix::from_slice(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
+        let a = DynMatrix::from_rows(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
         let chol = a.cholesky().unwrap();
         let det_chol = chol.det();
         let det_lu = a.lu().unwrap().det();
@@ -1046,7 +1046,7 @@ mod tests {
 
     #[test]
     fn cholesky_inverse() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3,
             3,
             &[4.0_f64, 2.0, 1.0, 2.0, 10.0, 3.5, 1.0, 3.5, 4.5],
@@ -1071,13 +1071,13 @@ mod tests {
 
     #[test]
     fn cholesky_not_pd() {
-        let a = DynMatrix::from_slice(2, 2, &[1.0_f64, 5.0, 5.0, 1.0]);
+        let a = DynMatrix::from_rows(2, 2, &[1.0_f64, 5.0, 5.0, 1.0]);
         assert_eq!(a.cholesky().unwrap_err(), LinalgError::NotPositiveDefinite);
     }
 
     #[test]
     fn qr_solve_square() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3,
             3,
             &[2.0_f64, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0],
@@ -1092,7 +1092,7 @@ mod tests {
 
     #[test]
     fn qr_least_squares() {
-        let a = DynMatrix::from_slice(3, 2, &[1.0_f64, 0.0, 1.0, 1.0, 1.0, 2.0]);
+        let a = DynMatrix::from_rows(3, 2, &[1.0_f64, 0.0, 1.0, 1.0, 1.0, 2.0]);
         let b = DynVector::from_slice(&[1.0, 2.0, 4.0]);
         let qr = a.qr().unwrap();
         let x = qr.solve(&b);
@@ -1102,7 +1102,7 @@ mod tests {
 
     #[test]
     fn qr_q_orthogonal() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3,
             3,
             &[12.0_f64, -51.0, 4.0, 6.0, 167.0, -68.0, -4.0, 24.0, -41.0],
@@ -1142,7 +1142,7 @@ mod tests {
 
     #[test]
     fn qr_det() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3,
             3,
             &[6.0_f64, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0],
@@ -1156,7 +1156,7 @@ mod tests {
 
     #[test]
     fn svd_3x3_reconstruction() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             3, 3,
             &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0],
         );
@@ -1182,7 +1182,7 @@ mod tests {
 
     #[test]
     fn svd_tall_4x2() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             4, 2,
             &[1.0_f64, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0],
         );
@@ -1214,7 +1214,7 @@ mod tests {
 
     #[test]
     fn svd_wide_2x4() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             2, 4,
             &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
         );
@@ -1284,7 +1284,7 @@ mod tests {
 
     #[test]
     fn svd_singular_values_only() {
-        let a = DynMatrix::from_slice(2, 2, &[3.0_f64, 0.0, 0.0, 4.0]);
+        let a = DynMatrix::from_rows(2, 2, &[3.0_f64, 0.0, 0.0, 4.0]);
         let sv = a.singular_values_only().unwrap();
         assert!((sv[0] - 4.0).abs() < 1e-10);
         assert!((sv[1] - 3.0).abs() < 1e-10);
@@ -1292,7 +1292,7 @@ mod tests {
 
     #[test]
     fn svd_rank_and_condition() {
-        let a = DynMatrix::from_slice(3, 3, &[
+        let a = DynMatrix::from_rows(3, 3, &[
             1.0_f64, 2.0, 3.0,
             2.0, 4.0, 6.0,
             3.0, 6.0, 9.0,
@@ -1304,7 +1304,7 @@ mod tests {
 
     #[test]
     fn solve_verify_residual() {
-        let a = DynMatrix::from_slice(
+        let a = DynMatrix::from_rows(
             4,
             4,
             &[

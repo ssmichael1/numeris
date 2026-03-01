@@ -1,6 +1,8 @@
 # numeris
 
-Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to SciPy, suitable for embedded targets (no heap allocation, no FPU assumptions).
+Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to SciPy, suitable for embedded targets (no heap allocation, no FPU assumptions) while being highly performant on desktop/server hardware via SIMD intrinsics.
+
+**Alpha software** — APIs are unstable and may change without notice.
 
 ## Features
 
@@ -12,6 +14,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
 - **Norms** — L1, L2, Frobenius, infinity, one norms
+- **SIMD acceleration** — NEON (aarch64) and SSE2 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
 - **No-std / embedded** — runs without `std` or heap; float math falls back to software `libm`
 
 ## Quick start
@@ -75,7 +78,7 @@ When dimensions aren't known at compile time, use `DynMatrix` (requires `alloc`,
 use numeris::{DynMatrix, DynVector};
 
 // Runtime-sized matrix
-let a = DynMatrix::from_slice(3, 3, &[
+let a = DynMatrix::from_rows(3, 3, &[
     2.0_f64, 1.0, -1.0,
     -3.0, -1.0, 2.0,
     -2.0, 1.0, 2.0,
@@ -447,6 +450,22 @@ Checked items are implemented; unchecked are potential future work.
 - [ ] **poly** — Polynomial operations and root-finding
 - [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
 
+## Performance
+
+numeris is designed for two use cases: no-std embedded systems and high-performance desktop/server computing.
+
+**SIMD acceleration** is always-on for f32/f64 — no feature flag needed. On aarch64 (NEON) and x86_64 (SSE2/AVX/AVX-512), matrix multiply, dot products, and element-wise operations use hardware SIMD intrinsics via `core::arch`. Matrix multiply uses register-blocked micro-kernels (inspired by [nano-gemm](https://github.com/sarah-quinones/nano-gemm) by Sarah Quinones) that accumulate MR×NR tiles in SIMD registers across the full k-loop, writing C only once — reducing memory traffic by up to O(n) vs. naive implementations. Integer and complex types fall back to scalar loops at zero cost (dead-code eliminated at monomorphization via `TypeId` dispatch).
+
+SSE2 and NEON are always-on baselines. AVX and AVX-512 are compile-time opt-in via `-C target-cpu=native`; dispatch selects the widest available ISA.
+
+| Architecture | ISA | f64 tile (MR×NR) | f32 tile (MR×NR) |
+|---|---|---|---|
+| aarch64 | NEON (128-bit) | 4×4 | 8×4 |
+| x86_64 | SSE2 (128-bit) | 4×4 | 8×4 |
+| x86_64 | AVX (256-bit) | 8×4 | 16×4 |
+| x86_64 | AVX-512 (512-bit) | 16×4 | 32×4 |
+| other | scalar fallback | 4×4 | 4×4 |
+
 ## Design decisions
 
 - **Stack-allocated**: `[[T; N]; M]` storage, no heap. Dimensions are const generics.
@@ -455,6 +474,10 @@ Checked items are implemented; unchecked are potential future work.
 - **In-place algorithms**: Decompositions operate on `&mut impl MatrixMut<T>`, avoiding allocator/storage trait complexity. Both `Matrix` and `DynMatrix` implement `MatrixMut`, so the same free functions work for both.
 - **Integer matrices**: Work with `Scalar` (all basic ops). Float-only operations (`det`, norms, decompositions) require `LinalgScalar` or `FloatScalar`.
 - **Complex support**: Additive, behind a feature flag. Zero cost for real-only usage.
+
+## Acknowledgments
+
+The register-blocked SIMD matrix multiply micro-kernels are inspired by [nano-gemm](https://github.com/sarah-quinones/nano-gemm) and [faer](https://github.com/sarah-quinones/faer-rs) by Sarah Quinones.
 
 ## License
 

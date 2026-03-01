@@ -94,6 +94,7 @@ extern crate alloc;
 pub mod dynmatrix;
 pub mod linalg;
 pub mod matrix;
+mod simd;
 #[cfg(feature = "ode")]
 pub mod ode;
 #[cfg(feature = "control")]

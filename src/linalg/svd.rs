@@ -1,4 +1,4 @@
-use crate::linalg::LinalgError;
+use crate::linalg::{split_two_col_slices, LinalgError};
 use crate::linalg::symmetric_eigen::givens;
 use crate::traits::{LinalgScalar, MatrixMut};
 use crate::Matrix;
@@ -49,9 +49,9 @@ pub(crate) fn bidiagonalize<T: LinalgScalar>(
 
     for k in 0..n {
         // ── Left Householder: zero out a[k+1:m, k] ──
+        let sub_col = a.col_as_slice(k, k);
         let mut norm_sq = <T::Real as Zero>::zero();
-        for i in k..m {
-            let val = *a.get(i, k);
+        for &val in sub_col {
             norm_sq = norm_sq + (val * val.conj()).re();
         }
 
@@ -69,27 +69,29 @@ pub(crate) fn bidiagonalize<T: LinalgScalar>(
             let v0 = akk + sigma;
             *a.get_mut(k, k) = v0;
 
-            // Scale sub-diagonal entries
-            for i in (k + 1)..m {
-                let val = *a.get(i, k) / v0;
-                *a.get_mut(i, k) = val;
+            // Scale sub-diagonal entries (contiguous column data)
+            {
+                let sub_col = a.col_as_mut_slice(k, k + 1);
+                for x in sub_col.iter_mut() {
+                    *x = *x / v0;
+                }
             }
 
             let tau = v0 / sigma;
 
             // Apply to trailing columns: A[k:m, k+1:n] -= tau * v * (v^H * A)
+            // Column-major: v sub-column and A[:,j] sub-column are contiguous.
             for j in (k + 1)..n {
                 let mut dot = *a.get(k, j); // v[0] = 1 (implicit)
-                for i in (k + 1)..m {
-                    dot = dot + (*a.get(i, k)).conj() * *a.get(i, j);
+                let (v_slice, a_j_slice) = split_two_col_slices(a, k, j, k + 1);
+                for idx in 0..v_slice.len() {
+                    dot = dot + v_slice[idx].conj() * a_j_slice[idx];
                 }
                 dot = dot * tau;
 
                 *a.get_mut(k, j) = *a.get(k, j) - dot;
-                for i in (k + 1)..m {
-                    let vi = *a.get(i, k);
-                    *a.get_mut(i, j) = *a.get(i, j) - dot * vi;
-                }
+                let (v_slice, a_j_slice) = split_two_col_slices(a, k, j, k + 1);
+                crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
             }
 
             // Accumulate U: U = U * H_L = U * (I - tau * v * v^H)

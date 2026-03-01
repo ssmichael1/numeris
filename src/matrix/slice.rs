@@ -4,41 +4,43 @@ use crate::Matrix;
 // ── Slice access ────────────────────────────────────────────────────
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// View the entire matrix as a flat slice in row-major order.
+    /// View the entire matrix as a flat slice in column-major order.
     #[inline]
     pub fn as_slice(&self) -> &[T] {
         self.data.as_flattened()
     }
 
-    /// View the entire matrix as a mutable flat slice in row-major order.
+    /// View the entire matrix as a mutable flat slice in column-major order.
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         self.data.as_flattened_mut()
     }
 
-    /// View row `i` as a slice. Zero-cost — rows are contiguous in memory.
+    /// View column `j` as a slice. Zero-cost — columns are contiguous in memory.
     #[inline]
-    pub fn row_slice(&self, i: usize) -> &[T] {
-        &self.data[i]
+    pub fn col_slice(&self, j: usize) -> &[T] {
+        &self.data[j]
     }
 
-    /// View row `i` as a mutable slice.
+    /// View column `j` as a mutable slice.
     #[inline]
-    pub fn row_slice_mut(&mut self, i: usize) -> &mut [T] {
-        &mut self.data[i]
+    pub fn col_slice_mut(&mut self, j: usize) -> &mut [T] {
+        &mut self.data[j]
     }
 }
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Create a matrix from a flat slice in row-major order.
+    /// Create a matrix from a flat slice in column-major order.
     ///
     /// Panics if `slice.len() != M * N`.
     ///
     /// ```
     /// use numeris::Matrix;
-    /// let m: Matrix<f64, 2, 3> = Matrix::from_slice(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-    /// assert_eq!(m[(0, 2)], 3.0);
+    /// // Column-major: col0=[1,4], col1=[2,5], col2=[3,6]
+    /// let m: Matrix<f64, 2, 3> = Matrix::from_slice(&[1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
+    /// assert_eq!(m[(0, 0)], 1.0);
     /// assert_eq!(m[(1, 0)], 4.0);
+    /// assert_eq!(m[(0, 2)], 3.0);
     /// ```
     pub fn from_slice(slice: &[T]) -> Self {
         assert_eq!(
@@ -50,9 +52,9 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
             N
         );
         let mut m = Self::zeros();
-        for i in 0..M {
-            for j in 0..N {
-                m[(i, j)] = slice[i * N + j];
+        for j in 0..N {
+            for i in 0..M {
+                m[(i, j)] = slice[j * M + i];
             }
         }
         m
@@ -62,27 +64,27 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 // ── Iterators ───────────────────────────────────────────────────────
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Iterate over all elements in row-major order.
+    /// Iterate over all elements in column-major order.
     #[inline]
     pub fn iter(&self) -> core::slice::Iter<'_, T> {
         self.as_slice().iter()
     }
 
-    /// Iterate mutably over all elements in row-major order.
+    /// Iterate mutably over all elements in column-major order.
     #[inline]
     pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
         self.as_mut_slice().iter_mut()
     }
 
-    /// Iterate over rows, each as a slice `&[T; N]`.
+    /// Iterate over columns, each as an array `&[T; M]`.
     #[inline]
-    pub fn iter_rows(&self) -> core::slice::Iter<'_, [T; N]> {
+    pub fn iter_cols(&self) -> impl Iterator<Item = &[T; M]> {
         self.data.iter()
     }
 
-    /// Iterate mutably over rows, each as `&mut [T; N]`.
+    /// Iterate mutably over columns, each as `&mut [T; M]`.
     #[inline]
-    pub fn iter_rows_mut(&mut self) -> core::slice::IterMut<'_, [T; N]> {
+    pub fn iter_cols_mut(&mut self) -> impl Iterator<Item = &mut [T; M]> {
         self.data.iter_mut()
     }
 }
@@ -113,40 +115,44 @@ mod tests {
     use crate::matrix::vector::Vector;
 
     #[test]
-    fn as_slice() {
+    fn as_slice_col_major() {
         let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
         let s = m.as_slice();
-        assert_eq!(s, &[1.0, 2.0, 3.0, 4.0]);
+        // Column-major: col0=[1,3], col1=[2,4]
+        assert_eq!(s, &[1.0, 3.0, 2.0, 4.0]);
     }
 
     #[test]
     fn as_mut_slice() {
         let mut m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
+        // Column-major: [0] is (0,0)
         m.as_mut_slice()[0] = 99.0;
         assert_eq!(m[(0, 0)], 99.0);
     }
 
     #[test]
-    fn row_slice() {
+    fn col_slice() {
         let m = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-        assert_eq!(m.row_slice(0), &[1.0, 2.0, 3.0]);
-        assert_eq!(m.row_slice(1), &[4.0, 5.0, 6.0]);
+        assert_eq!(m.col_slice(0), &[1.0, 4.0]);
+        assert_eq!(m.col_slice(1), &[2.0, 5.0]);
+        assert_eq!(m.col_slice(2), &[3.0, 6.0]);
     }
 
     #[test]
-    fn row_slice_mut() {
+    fn col_slice_mut() {
         let mut m: Matrix<f64, 2, 3> = Matrix::zeros();
-        m.row_slice_mut(1).copy_from_slice(&[7.0, 8.0, 9.0]);
-        assert_eq!(m[(1, 0)], 7.0);
-        assert_eq!(m[(1, 2)], 9.0);
+        m.col_slice_mut(1).copy_from_slice(&[7.0, 8.0]);
+        assert_eq!(m[(0, 1)], 7.0);
+        assert_eq!(m[(1, 1)], 8.0);
     }
 
     #[test]
-    fn from_slice() {
-        let m: Matrix<f64, 2, 3> = Matrix::from_slice(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    fn from_slice_col_major() {
+        // Column-major: col0=[1,4], col1=[2,5], col2=[3,6]
+        let m: Matrix<f64, 2, 3> = Matrix::from_slice(&[1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
         assert_eq!(m[(0, 0)], 1.0);
-        assert_eq!(m[(0, 2)], 3.0);
         assert_eq!(m[(1, 0)], 4.0);
+        assert_eq!(m[(0, 2)], 3.0);
         assert_eq!(m[(1, 2)], 6.0);
     }
 
@@ -174,11 +180,12 @@ mod tests {
     }
 
     #[test]
-    fn iter_rows() {
+    fn iter_cols() {
         let m = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
-        let rows: Vec<&[f64; 2]> = m.iter_rows().collect();
-        assert_eq!(rows[0], &[1.0, 2.0]);
-        assert_eq!(rows[1], &[3.0, 4.0]);
+        let cols: Vec<&[f64; 2]> = m.iter_cols().collect();
+        // Column 0 = [1, 3], Column 1 = [2, 4]
+        assert_eq!(cols[0], &[1.0, 3.0]);
+        assert_eq!(cols[1], &[2.0, 4.0]);
     }
 
     #[test]

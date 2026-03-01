@@ -1,6 +1,6 @@
-use crate::linalg::LinalgError;
+use crate::linalg::{split_two_col_slices, LinalgError};
 use crate::matrix::vector::Vector;
-use crate::traits::{LinalgScalar, MatrixMut};
+use crate::traits::{LinalgScalar, MatrixMut, MatrixRef};
 use crate::Matrix;
 use num_traits::Zero;
 
@@ -29,9 +29,9 @@ pub fn qr_in_place<T: LinalgScalar>(
     for col in 0..k {
         // Compute the squared norm of the sub-column a[col:m, col]
         // using |v|^2 = v * conj(v) for complex support
+        let sub_col = a.col_as_slice(col, col);
         let mut norm_sq = <T::Real as Zero>::zero();
-        for i in col..m {
-            let v = *a.get(i, col);
+        for &v in sub_col {
             norm_sq = norm_sq + (v * v.conj()).re();
         }
 
@@ -64,30 +64,32 @@ pub fn qr_in_place<T: LinalgScalar>(
         tau[col] = tau_val;
 
         // Scale the sub-diagonal entries by 1/v0 for storage
-        for i in (col + 1)..m {
-            let val = *a.get(i, col) / v0;
-            *a.get_mut(i, col) = val;
+        {
+            let sub_col = a.col_as_mut_slice(col, col + 1);
+            for x in sub_col.iter_mut() {
+                *x = *x / v0;
+            }
         }
 
         // Apply H to trailing columns: A[col:m, col+1:n] -= tau * v * (v^H * A)
         // where v = [1, a[col+1,col], ..., a[m-1,col]] (stored values)
         // v^H * A uses conj(v_i) for complex.
+        //
+        // Column-major: v sub-column and A[:,j] sub-column are contiguous.
+        // The AXPY step (no conjugation) uses SIMD dispatch on the slices.
         for j in (col + 1)..n {
-            // Compute v^H * A[:, j] over rows col..m
-            // v^H[0] = conj(1) = 1 for the implicit leading 1
+            // Compute v^H * A[:, j] over rows col..m (needs conj for complex)
             let mut dot = *a.get(col, j); // conj(1) * A[col,j] = A[col,j]
-            for i in (col + 1)..m {
-                dot = dot + (*a.get(i, col)).conj() * *a.get(i, j);
+            let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
+            for idx in 0..v_slice.len() {
+                dot = dot + v_slice[idx].conj() * a_j_slice[idx];
             }
             dot = dot * tau_val;
 
-            // A[:, j] -= dot * v
+            // A[:, j] -= dot * v (no conjugation — uses SIMD AXPY dispatch)
             *a.get_mut(col, j) = *a.get(col, j) - dot; // v[0] = 1
-            for i in (col + 1)..m {
-                let vi = *a.get(i, col);
-                let old = *a.get(i, j);
-                *a.get_mut(i, j) = old - dot * vi;
-            }
+            let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
+            crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
         }
 
         // Store -sigma (the R diagonal entry) in a[col, col]
@@ -185,17 +187,18 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
             // Apply H_col to Q[col:M, col:N]
             // v = [1, qr[col+1,col], ..., qr[M-1,col]]
             // H = I - tau * v * v^H
+            let v_slice = self.qr.col_as_slice(col, col + 1);
             for j in col..N {
                 let mut dot = q[(col, j)]; // conj(1) * q[col,j]
-                for i in (col + 1)..M {
-                    dot = dot + self.qr[(i, col)].conj() * q[(i, j)];
+                let q_j_slice = q.col_as_slice(j, col + 1);
+                for idx in 0..v_slice.len() {
+                    dot = dot + v_slice[idx].conj() * q_j_slice[idx];
                 }
                 dot = dot * tau_val;
 
                 q[(col, j)] = q[(col, j)] - dot;
-                for i in (col + 1)..M {
-                    q[(i, j)] = q[(i, j)] - dot * self.qr[(i, col)];
-                }
+                let q_j_slice = q.col_as_mut_slice(j, col + 1);
+                crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
             }
         }
 
@@ -216,16 +219,15 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
         for col in 0..N {
             let tau_val = self.tau[col];
             // v = [1, qr[col+1,col], ..., qr[M-1,col]]
+            let v_slice = self.qr.col_as_slice(col, col + 1);
             let mut dot = qtb[col]; // conj(1) * qtb[col]
-            for i in (col + 1)..M {
-                dot = dot + self.qr[(i, col)].conj() * qtb[i];
+            for idx in 0..v_slice.len() {
+                dot = dot + v_slice[idx].conj() * qtb[col + 1 + idx];
             }
             dot = dot * tau_val;
 
             qtb[col] = qtb[col] - dot;
-            for i in (col + 1)..M {
-                qtb[i] = qtb[i] - dot * self.qr[(i, col)];
-            }
+            crate::simd::axpy_neg_dispatch(&mut qtb[col + 1..], dot, v_slice);
         }
 
         // Back substitution with R (upper triangle of qr, first N rows)

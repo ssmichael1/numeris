@@ -30,13 +30,18 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     /// ```
     #[inline]
     pub fn from_array(data: [T; N]) -> Self {
-        Self::new([data])
+        // Vector is 1×N: column-major storage is [[T;1]; N]
+        // Each column has exactly one element = data[i]
+        let col_data: [[T; 1]; N] = data.map(|x| [x]);
+        Self { data: col_data }
     }
 
     /// Create a vector filled with a single value.
     #[inline]
     pub fn fill(value: T) -> Self {
-        Self::new([[value; N]])
+        Self {
+            data: [[value]; N],
+        }
     }
 
     /// Number of elements.
@@ -55,11 +60,7 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     /// ```
     #[inline]
     pub fn dot(&self, rhs: &Self) -> T {
-        let mut sum = T::zero();
-        for i in 0..N {
-            sum = sum + self[(0, i)] * rhs[(0, i)];
-        }
-        sum
+        crate::simd::dot_dispatch(self.as_slice(), rhs.as_slice())
     }
 }
 
@@ -152,7 +153,8 @@ impl<T: Scalar, const N: usize> ColumnVector<T, N> {
     /// ```
     #[inline]
     pub fn from_column(data: [T; N]) -> Self {
-        Self::new(data.map(|x| [x]))
+        // ColumnVector is N×1: column-major storage is [[T;N]; 1]
+        Self { data: [data] }
     }
 }
 
