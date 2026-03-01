@@ -58,10 +58,10 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
 
 /// Matrix multiply C += A * B using NEON with register-blocked micro-kernel.
 ///
-/// Uses an MR×NR (4×4) register-blocked micro-kernel with k-blocking (KC=256)
-/// to keep the A panel and B micro-panel in L2 cache. Accumulates the full
-/// k-block in NEON registers before writing back to C. Technique inspired by
-/// nano-gemm (Sarah Quinones, <https://github.com/sarah-quinones/nano-gemm>).
+/// Uses an MR×NR (8×4) register-blocked micro-kernel with k-blocking (KC=256).
+/// The 8×4 tile uses 16 accumulator registers (4 NEON f64 vectors × 4 columns),
+/// maximizing register utilization on aarch64's 32-register file. Technique
+/// inspired by nano-gemm (Sarah Quinones, <https://github.com/sarah-quinones/nano-gemm>).
 ///
 /// `a` is m×n, `b` is n×p, `c` is m×p (column-major flat slices).
 /// Column-major indexing: element (row, col) is at `col * nrows + row`.
@@ -71,7 +71,7 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
     debug_assert_eq!(b.len(), n * p);
     debug_assert_eq!(c.len(), m * p);
 
-    const MR: usize = 4; // 2 NEON registers × 2 f64 lanes
+    const MR: usize = 8; // 4 NEON registers × 2 f64 lanes
     const NR: usize = 4;
     const KC: usize = 256;
 
@@ -87,12 +87,19 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
             let j0 = jb * NR;
             for ib in 0..m_full / MR {
                 let i0 = ib * MR;
-                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe { microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end); }
             }
         }
 
         // Bottom edge: rows m_full..m, cols 0..p_full
         let mut i0 = m_full;
+        while i0 + 4 <= m {
+            for jb in 0..p_full / NR {
+                let j0 = jb * NR;
+                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+            }
+            i0 += 4;
+        }
         while i0 + 2 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
@@ -134,6 +141,98 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         }
 
         kb += KC;
+    }
+}
+
+/// Register-blocked 8×4 micro-kernel: accumulates C[i0..i0+8, j0..j0+4] in
+/// 16 NEON registers across a k-block, writing C only once per block.
+/// Uses 4 NEON f64 vectors (8 elements) × 4 columns = 16 accumulators.
+#[inline(always)]
+unsafe fn microkernel_8x4(
+    a: &[f64], b: &[f64], c: &mut [f64],
+    m: usize, n: usize, i0: usize, j0: usize,
+    k_start: usize, k_end: usize,
+) {
+    unsafe {
+        let a_ptr = a.as_ptr();
+        let b_ptr = b.as_ptr();
+
+        // 16 accumulator registers: 4 vectors × 4 columns
+        let mut acc00 = vdupq_n_f64(0.0);
+        let mut acc10 = vdupq_n_f64(0.0);
+        let mut acc20 = vdupq_n_f64(0.0);
+        let mut acc30 = vdupq_n_f64(0.0);
+        let mut acc01 = vdupq_n_f64(0.0);
+        let mut acc11 = vdupq_n_f64(0.0);
+        let mut acc21 = vdupq_n_f64(0.0);
+        let mut acc31 = vdupq_n_f64(0.0);
+        let mut acc02 = vdupq_n_f64(0.0);
+        let mut acc12 = vdupq_n_f64(0.0);
+        let mut acc22 = vdupq_n_f64(0.0);
+        let mut acc32 = vdupq_n_f64(0.0);
+        let mut acc03 = vdupq_n_f64(0.0);
+        let mut acc13 = vdupq_n_f64(0.0);
+        let mut acc23 = vdupq_n_f64(0.0);
+        let mut acc33 = vdupq_n_f64(0.0);
+
+        for k in k_start..k_end {
+            let a_off = k * m + i0;
+            let a0 = vld1q_f64(a_ptr.add(a_off));
+            let a1 = vld1q_f64(a_ptr.add(a_off + 2));
+            let a2 = vld1q_f64(a_ptr.add(a_off + 4));
+            let a3 = vld1q_f64(a_ptr.add(a_off + 6));
+
+            let b0 = vdupq_n_f64(*b_ptr.add(j0 * n + k));
+            acc00 = vfmaq_f64(acc00, a0, b0);
+            acc10 = vfmaq_f64(acc10, a1, b0);
+            acc20 = vfmaq_f64(acc20, a2, b0);
+            acc30 = vfmaq_f64(acc30, a3, b0);
+
+            let b1 = vdupq_n_f64(*b_ptr.add((j0 + 1) * n + k));
+            acc01 = vfmaq_f64(acc01, a0, b1);
+            acc11 = vfmaq_f64(acc11, a1, b1);
+            acc21 = vfmaq_f64(acc21, a2, b1);
+            acc31 = vfmaq_f64(acc31, a3, b1);
+
+            let b2 = vdupq_n_f64(*b_ptr.add((j0 + 2) * n + k));
+            acc02 = vfmaq_f64(acc02, a0, b2);
+            acc12 = vfmaq_f64(acc12, a1, b2);
+            acc22 = vfmaq_f64(acc22, a2, b2);
+            acc32 = vfmaq_f64(acc32, a3, b2);
+
+            let b3 = vdupq_n_f64(*b_ptr.add((j0 + 3) * n + k));
+            acc03 = vfmaq_f64(acc03, a0, b3);
+            acc13 = vfmaq_f64(acc13, a1, b3);
+            acc23 = vfmaq_f64(acc23, a2, b3);
+            acc33 = vfmaq_f64(acc33, a3, b3);
+        }
+
+        // Write back: C += acc
+        let c_ptr = c.as_mut_ptr();
+
+        let off0 = j0 * m + i0;
+        vst1q_f64(c_ptr.add(off0), vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc00));
+        vst1q_f64(c_ptr.add(off0 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 2)), acc10));
+        vst1q_f64(c_ptr.add(off0 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 4)), acc20));
+        vst1q_f64(c_ptr.add(off0 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 6)), acc30));
+
+        let off1 = (j0 + 1) * m + i0;
+        vst1q_f64(c_ptr.add(off1), vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc01));
+        vst1q_f64(c_ptr.add(off1 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 2)), acc11));
+        vst1q_f64(c_ptr.add(off1 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 4)), acc21));
+        vst1q_f64(c_ptr.add(off1 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 6)), acc31));
+
+        let off2 = (j0 + 2) * m + i0;
+        vst1q_f64(c_ptr.add(off2), vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc02));
+        vst1q_f64(c_ptr.add(off2 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 2)), acc12));
+        vst1q_f64(c_ptr.add(off2 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 4)), acc22));
+        vst1q_f64(c_ptr.add(off2 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 6)), acc32));
+
+        let off3 = (j0 + 3) * m + i0;
+        vst1q_f64(c_ptr.add(off3), vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03));
+        vst1q_f64(c_ptr.add(off3 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13));
+        vst1q_f64(c_ptr.add(off3 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 4)), acc23));
+        vst1q_f64(c_ptr.add(off3 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 6)), acc33));
     }
 }
 

@@ -106,6 +106,8 @@ pub(crate) fn dot_dispatch<T: Scalar>(a: &[T], b: &[T]) -> T {
 /// Dispatch matrix multiply to SIMD or scalar fallback.
 ///
 /// `c` must be zero-initialized. Computes `C += A * B` in-place.
+///
+/// `c` must be zero-initialized. Computes `C += A * B` in-place.
 #[inline]
 pub(crate) fn matmul_dispatch<T: Scalar>(
     a: &[T],
