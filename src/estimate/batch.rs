@@ -55,7 +55,10 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
         x0: &ColumnVector<T, N>,
         p0: &Matrix<T, N, N>,
     ) -> Result<Self, EstimateError> {
-        let p0_inv = p0.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        let p0_inv = p0
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let eta = p0_inv * *x0;
         Ok(Self {
             info: p0_inv,
@@ -74,7 +77,10 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
         h: &Matrix<T, M, N>,
         r: &Matrix<T, M, M>,
     ) -> Result<(), EstimateError> {
-        let r_inv = r.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        let r_inv = r
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let ht = h.transpose(); // N×M
         let ht_rinv = ht * r_inv; // N×M
         self.info = self.info + ht_rinv * *h; // N×N
@@ -88,7 +94,11 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
     /// Returns `SingularInnovation` if the information matrix is singular
     /// (insufficient observations to determine all states).
     pub fn solve(&self) -> Result<(ColumnVector<T, N>, Matrix<T, N, N>), EstimateError> {
-        let p = self.info.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        let p = self
+            .info
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let x = p * self.eta;
         Ok((x, p))
     }

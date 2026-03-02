@@ -203,6 +203,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
 
         self.x = x_mean;
         self.p = if let Some(q) = q { p_new + *q } else { p_new };
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
 
         Ok(())
     }
@@ -215,12 +217,14 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     ///
     /// Generates sigma points from the predicted state, transforms through `h`,
     /// and computes the Kalman gain via the cross-covariance and innovation covariance.
+    ///
+    /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
         z: &ColumnVector<T, M>,
         h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
         r: &Matrix<T, M, M>,
-    ) -> Result<(), EstimateError> {
+    ) -> Result<T, EstimateError> {
         let (scaled_l, _) = self.sigma_cholesky()?;
         let (wm_0, wc_0, w_i) = self.weights();
 
@@ -296,14 +300,22 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         }
 
         // Kalman gain K = Pxz S⁻¹
-        let s_inv = s.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        let s_inv = s
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let k = pxz * s_inv;
 
-        // Update state and covariance
+        // Innovation and NIS = yᵀ S⁻¹ y
         let innovation = *z - z_mean;
-        self.x = self.x + k * innovation;
-        self.p = self.p - k * s * k.transpose();
+        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
 
-        Ok(())
+        // Update state and covariance: P = P - K·Pxzᵀ
+        self.x = self.x + k * innovation;
+        self.p = self.p - k * pxz.transpose();
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
+
+        Ok(nis)
     }
 }

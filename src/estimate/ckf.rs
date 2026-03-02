@@ -135,6 +135,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
 
         self.x = x_mean;
         self.p = if let Some(q) = q { p_new + *q } else { p_new };
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
 
         Ok(())
     }
@@ -146,13 +148,15 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// - `r` — measurement noise covariance
     ///
     /// Generates cubature points from the predicted state, transforms through `h`,
-    /// and computes the Kalman gain. Uses Joseph form for numerical stability.
+    /// and computes the Kalman gain.
+    ///
+    /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
         z: &ColumnVector<T, M>,
         h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
         r: &Matrix<T, M, M>,
-    ) -> Result<(), EstimateError> {
+    ) -> Result<T, EstimateError> {
         let chol =
             CholeskyDecomposition::new(&self.p).map_err(|_| EstimateError::CovarianceNotPD)?;
         let l = chol.l_full();
@@ -197,18 +201,22 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         }
 
         // Kalman gain: K = Pxz · S⁻¹
-        let s_inv = s.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        let s_inv = s
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let k = pxz * s_inv;
 
-        // State update
+        // Innovation and NIS = yᵀ S⁻¹ y
         let innovation = *z - z_mean;
+        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
+
+        // Update state and covariance: P = P - K·Pxzᵀ
         self.x = self.x + k * innovation;
+        self.p = self.p - k * pxz.transpose();
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
 
-        // Joseph form: P = (I - KH_eff)P(I - KH_eff)ᵀ + KRKᵀ
-        // But we don't have an explicit H, so use the standard form:
-        // P = P - K·S·Kᵀ
-        self.p = self.p - k * s * k.transpose();
-
-        Ok(())
+        Ok(nis)
     }
 }

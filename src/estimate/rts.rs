@@ -127,8 +127,9 @@ pub fn rts_smooth<T: FloatScalar, const N: usize>(
         let f_next = steps[k + 1].f_jacobian;
         let p_pred_next_inv = steps[k + 1]
             .p_predicted
-            .inverse()
-            .map_err(|_| EstimateError::SingularInnovation)?;
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
 
         let g = steps[k].p_updated * f_next.transpose() * p_pred_next_inv;
 

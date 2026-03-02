@@ -209,6 +209,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         if let Some(q) = q {
             p_new = p_new + *q;
         }
+        let half = T::from(0.5).unwrap();
+        p_new = (p_new + p_new.transpose()) * half;
 
         // Cholesky to get new S
         let chol =
@@ -225,12 +227,14 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
     /// - `z` — measurement vector
     /// - `h` — measurement model: `z = h(x)`
     /// - `r` — measurement noise covariance
+    ///
+    /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
         z: &ColumnVector<T, M>,
         h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
         r: &Matrix<T, M, M>,
-    ) -> Result<(), EstimateError> {
+    ) -> Result<T, EstimateError> {
         let n = T::from(N).unwrap();
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
         let scale = (n + lambda).sqrt();
@@ -310,19 +314,27 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         }
 
         // Kalman gain: K = Pxz · S⁻¹
-        let s_inv = s_mat.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        let s_inv = s_mat
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let k = pxz * s_inv;
 
-        // State update
+        // Innovation and NIS = yᵀ S⁻¹ y
         let innovation = *z - z_mean;
+        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
+
+        // State update
         self.x = self.x + k * innovation;
 
-        // Covariance update: P_new = P - K·S_mat·Kᵀ, then re-Cholesky
-        let p_new = self.covariance() - k * s_mat * k.transpose();
+        // Covariance update: P_new = P - K·Pxzᵀ, then re-Cholesky
+        let mut p_new = self.covariance() - k * pxz.transpose();
+        let half = T::from(0.5).unwrap();
+        p_new = (p_new + p_new.transpose()) * half;
         let chol =
             CholeskyDecomposition::new(&p_new).map_err(|_| EstimateError::CovarianceNotPD)?;
         self.s = chol.l_full();
 
-        Ok(())
+        Ok(nis)
     }
 }

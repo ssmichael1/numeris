@@ -86,6 +86,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         if let Some(q) = q {
             self.p = self.p + *q;
         }
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
     }
 
     /// Predict step with finite-difference Jacobian.
@@ -103,6 +105,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         if let Some(q) = q {
             self.p = self.p + *q;
         }
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
     }
 
     /// Update step with explicit measurement Jacobian.
@@ -114,21 +118,28 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     ///
     /// Uses Joseph form for numerical stability:
     /// `P = (I - KH) P (I - KH)ᵀ + K R Kᵀ`
+    ///
+    /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
         z: &ColumnVector<T, M>,
         h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
         hj: impl Fn(&ColumnVector<T, N>) -> Matrix<T, M, N>,
         r: &Matrix<T, M, M>,
-    ) -> Result<(), EstimateError> {
+    ) -> Result<T, EstimateError> {
         let big_h = hj(&self.x);
         let y = *z - h(&self.x); // innovation
         let s = big_h * self.p * big_h.transpose() + *r; // innovation covariance
 
-        // K = P Hᵀ S⁻¹  →  solve Sᵀ (P Hᵀ)ᵀ = Sᵀ (Hᵀᵀ Pᵀ) ... simpler: just invert S
-        // For small M, LU inverse is fine.
-        let s_inv = s.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        // K = P Hᵀ S⁻¹  — S is SPD, so use Cholesky inverse.
+        let s_inv = s
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let k = self.p * big_h.transpose() * s_inv; // N×M
+
+        // NIS = yᵀ S⁻¹ y
+        let nis = (y.transpose() * s_inv * y)[(0, 0)];
 
         self.x = self.x + k * y;
 
@@ -136,32 +147,44 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         let eye: Matrix<T, N, N> = Matrix::eye();
         let i_kh = eye - k * big_h;
         self.p = i_kh * self.p * i_kh.transpose() + k * *r * k.transpose();
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
 
-        Ok(())
+        Ok(nis)
     }
 
     /// Update step with finite-difference measurement Jacobian.
     ///
     /// Computes the Jacobian of `h` automatically using forward differences.
+    ///
+    /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update_fd(
         &mut self,
         z: &ColumnVector<T, M>,
         h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
         r: &Matrix<T, M, M>,
-    ) -> Result<(), EstimateError> {
+    ) -> Result<T, EstimateError> {
         let big_h = fd_jacobian(&h, &self.x);
         let y = *z - h(&self.x);
         let s = big_h * self.p * big_h.transpose() + *r;
 
-        let s_inv = s.inverse().map_err(|_| EstimateError::SingularInnovation)?;
+        let s_inv = s
+            .cholesky()
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
         let k = self.p * big_h.transpose() * s_inv;
+
+        // NIS = yᵀ S⁻¹ y
+        let nis = (y.transpose() * s_inv * y)[(0, 0)];
 
         self.x = self.x + k * y;
 
         let eye: Matrix<T, N, N> = Matrix::eye();
         let i_kh = eye - k * big_h;
         self.p = i_kh * self.p * i_kh.transpose() + k * *r * k.transpose();
+        let half = T::from(0.5).unwrap();
+        self.p = (self.p + self.p.transpose()) * half;
 
-        Ok(())
+        Ok(nis)
     }
 }
