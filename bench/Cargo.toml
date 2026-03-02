@@ -1,0 +1,15 @@
+[package]
+name = "numeris-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+nalgebra = "0.34"
+faer = "0.24"
+numeris = { path = "..", features = ["all"] }
+
+[[bench]]
+name = "comparison"
+harness = false
