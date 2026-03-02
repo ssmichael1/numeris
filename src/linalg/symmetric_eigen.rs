@@ -126,20 +126,46 @@ pub fn tridiagonalize<T: LinalgScalar>(
         off_diag[k] = neg_sigma_re;
 
         // Accumulate Q: Q_new = Q * (I - tau * v * v^H)
-        for row in 0..n {
-            let mut s = T::zero();
-            s = s + *q.get(row, k + 1) * v0;
-            for m in 1..sub_n {
-                let vm = w[(k + 1 + m) * n + k];
-                s = s + *q.get(row, k + 1 + m) * vm;
-            }
-            s = tau * s;
+        //
+        // Restructured as column-by-column for SIMD-friendly contiguous access:
+        //   1. Compute s = Q * v  (accumulate v[m] * Q[:,k+1+m] over m)
+        //   2. s *= tau
+        //   3. For each column j: Q[:,k+1+j] -= v[j].conj() * s  (AXPY)
+        let mut s_vec = alloc_work_vec::<T>(n);
 
-            *q.get_mut(row, k + 1) = *q.get(row, k + 1) - s * v0.conj();
-            for j in 1..sub_n {
-                let vj = w[(k + 1 + j) * n + k];
-                *q.get_mut(row, k + 1 + j) = *q.get(row, k + 1 + j) - s * vj.conj();
-            }
+        // s = v0 * Q[:, k+1]
+        crate::simd::scale_slices_dispatch(
+            q.col_as_slice(k + 1, 0),
+            v0,
+            &mut s_vec[..n],
+        );
+        // s += v[m] * Q[:, k+1+m] for m = 1..sub_n
+        // axpy_neg does y -= alpha*x, so negate vm to get y += vm*x
+        for m in 1..sub_n {
+            let neg_vm = T::zero() - w[(k + 1 + m) * n + k];
+            crate::simd::axpy_neg_dispatch(
+                &mut s_vec[..n],
+                neg_vm,
+                q.col_as_slice(k + 1 + m, 0),
+            );
+        }
+
+        // s *= tau
+        for r in 0..n {
+            s_vec[r] = tau * s_vec[r];
+        }
+
+        // Q[:, k+1] -= v0.conj() * s  (AXPY on contiguous column)
+        {
+            let alpha = v0.conj();
+            let col_slice = q.col_as_mut_slice(k + 1, 0);
+            crate::simd::axpy_neg_dispatch(col_slice, alpha, &s_vec[..n]);
+        }
+        // Q[:, k+1+j] -= v[j].conj() * s  for j = 1..sub_n
+        for j in 1..sub_n {
+            let vj_conj = w[(k + 1 + j) * n + k].conj();
+            let col_slice = q.col_as_mut_slice(k + 1 + j, 0);
+            crate::simd::axpy_neg_dispatch(col_slice, vj_conj, &s_vec[..n]);
         }
     }
 
