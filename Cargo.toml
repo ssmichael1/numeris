@@ -3,7 +3,7 @@ members = [".", "bench"]
 
 [package]
 name = "numeris"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 rust-version = "1.70"
 description = "Pure-Rust numerical algorithms library — no-std compatible"
