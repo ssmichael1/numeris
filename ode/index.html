@@ -1,0 +1,1580 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Pure-Rust numerical algorithms library — no-std compatible, SciPy-inspired scope">
+      
+      
+      
+        <link rel="canonical" href="https://ssmichael1.github.io/numeris/ode/">
+      
+      
+        <link rel="prev" href="../linalg/">
+      
+      
+        <link rel="next" href="../optim/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>ODE Integration - numeris</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ode-integration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="numeris" class="md-header__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            numeris
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ODE Integration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../matrix/" class="md-tabs__link">
+          
+  
+  
+  Modules
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../performance/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Performance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../no-std/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  No-std / Embedded
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../design/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Design
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://docs.rs/numeris" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference ↗
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="numeris" class="md-nav__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    numeris
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modules
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynmatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DynMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linalg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ODE Integration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ODE Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fixed-step-rk4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed-Step RK4
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adaptive-solvers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adaptive Solvers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adaptive Solvers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#solver-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver Table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adaptivesettings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdaptiveSettings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#solution-struct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solution struct
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-output-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense Output (Interpolation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stiff-solver-rodas4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stiff Solver: RODAS4
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stiff Solver: RODAS4">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#van-der-pol-oscillator-1000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Van der Pol oscillator (μ = 1000)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rodas4-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RODAS4 Properties
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../optim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../control/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Digital Control
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpolation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../special/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Special Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quaternion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quaternion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../no-std/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    No-std / Embedded
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.rs/numeris" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference ↗
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fixed-step-rk4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed-Step RK4
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adaptive-solvers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adaptive Solvers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adaptive Solvers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#solver-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver Table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adaptivesettings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdaptiveSettings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#solution-struct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solution struct
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-output-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense Output (Interpolation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stiff-solver-rodas4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stiff Solver: RODAS4
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stiff Solver: RODAS4">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#van-der-pol-oscillator-1000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Van der Pol oscillator (μ = 1000)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rodas4-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RODAS4 Properties
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="ode-integration">ODE Integration<a class="headerlink" href="#ode-integration" title="Permanent link">&para;</a></h1>
+<p>numeris provides fixed-step and adaptive ODE integrators for non-stiff and stiff systems. All solvers work on <code>Vector&lt;T, N&gt;</code> state vectors and closure-based dynamics functions.</p>
+<p>Requires the <code>ode</code> feature (default).</p>
+<h2 id="fixed-step-rk4">Fixed-Step RK4<a class="headerlink" href="#fixed-step-rk4" title="Permanent link">&para;</a></h2>
+<p>Classic 4th-order Runge-Kutta — no error estimation, fixed step size.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">rk4</span><span class="p">,</span><span class="w"> </span><span class="n">rk4_step</span><span class="p">};</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">Vector</span><span class="p">;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">|</span><span class="n">_t</span><span class="p">:</span><span class="w"> </span><span class="kt">f64</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Vector</span><span class="o">&lt;</span><span class="kt">f64</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="o">&gt;|</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span><span class="w">  </span><span class="c1">// harmonic oscillator</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">};</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="kd">let</span><span class="w"> </span><span class="n">dt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.01</span><span class="p">;</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="kd">let</span><span class="w"> </span><span class="n">t_end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="kt">f64</span><span class="p">::</span><span class="n">consts</span><span class="p">::</span><span class="n">PI</span><span class="p">;</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1">// Integrate from t=0 to t=t_end</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rk4</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="n">t_end</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">dt</span><span class="p">);</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1">// Or take a single step</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="kd">let</span><span class="w"> </span><span class="n">y1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rk4_step</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">dt</span><span class="p">);</span>
+</code></pre></div>
+<p>RK4 is fully no-std and no-alloc — suitable for embedded real-time control loops.</p>
+<h2 id="adaptive-solvers">Adaptive Solvers<a class="headerlink" href="#adaptive-solvers" title="Permanent link">&para;</a></h2>
+<p>Seven adaptive Runge-Kutta solvers via the <code>RKAdaptive</code> trait. All use embedded error estimation and a PI step-size controller (Söderlind &amp; Wang 2006) for automatic step adjustment.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">RKAdaptive</span><span class="p">,</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">Vector</span><span class="p">;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">tau</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="kt">f64</span><span class="p">::</span><span class="n">consts</span><span class="p">::</span><span class="n">PI</span><span class="p">;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="n">tau</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;y(2π) = {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">y</span><span class="p">);</span><span class="w">       </span><span class="c1">// final state</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;steps taken = {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">steps</span><span class="p">);</span><span class="w"> </span><span class="c1">// number of accepted steps</span>
+</code></pre></div>
+<h3 id="solver-table">Solver Table<a class="headerlink" href="#solver-table" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Solver</th>
+<th>Stages</th>
+<th>Order</th>
+<th>FSAL</th>
+<th>Interpolant</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RKF45</code></td>
+<td>6</td>
+<td>5(4)</td>
+<td>no</td>
+<td>—</td>
+<td>Classic baseline</td>
+</tr>
+<tr>
+<td><code>RKTS54</code></td>
+<td>7</td>
+<td>5(4)</td>
+<td>yes</td>
+<td>4th degree</td>
+<td>General purpose</td>
+</tr>
+<tr>
+<td><code>RKV65</code></td>
+<td>10</td>
+<td>6(5)</td>
+<td>no</td>
+<td>6th degree</td>
+<td>Moderate accuracy</td>
+</tr>
+<tr>
+<td><code>RKV87</code></td>
+<td>17</td>
+<td>8(7)</td>
+<td>no</td>
+<td>7th degree</td>
+<td>High accuracy</td>
+</tr>
+<tr>
+<td><code>RKV98</code></td>
+<td>21</td>
+<td>9(8)</td>
+<td>no</td>
+<td>8th degree</td>
+<td>Very high accuracy</td>
+</tr>
+<tr>
+<td><code>RKV98NoInterp</code></td>
+<td>16</td>
+<td>9(8)</td>
+<td>no</td>
+<td>—</td>
+<td>Very high acc., no dense output</td>
+</tr>
+<tr>
+<td><code>RKV98Efficient</code></td>
+<td>26</td>
+<td>9(8)</td>
+<td>no</td>
+<td>9th degree</td>
+<td>Max accuracy + dense output</td>
+</tr>
+</tbody>
+</table>
+<p><strong>FSAL</strong> (First Same As Last): the last function evaluation of one step is reused as the first of the next, saving one function evaluation per step.</p>
+<div id="plot-ode" style="width:100%;height:400px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-ode',[{"type": "scatter", "mode": "lines", "name": "position x(t)", "x": [0.0, 0.042028, 0.084056, 0.126084, 0.168112, 0.21014, 0.252168, 0.294196, 0.336224, 0.378252, 0.42028, 0.462308, 0.504336, 0.546364, 0.588392, 0.63042, 0.672448, 0.714476, 0.756504, 0.798532, 0.84056, 0.882588, 0.924616, 0.966644, 1.008672, 1.0507, 1.092728, 1.134756, 1.176784, 1.218812, 1.26084, 1.302868, 1.344896, 1.386924, 1.428952, 1.47098, 1.513008, 1.555036, 1.597064, 1.639092, 1.68112, 1.723148, 1.765176, 1.807204, 1.849232, 1.89126, 1.933288, 1.975316, 2.017344, 2.059372, 2.1014, 2.143428, 2.185456, 2.227484, 2.269512, 2.31154, 2.353568, 2.395596, 2.437624, 2.479652, 2.52168, 2.563708, 2.605736, 2.647764, 2.689792, 2.73182, 2.773848, 2.815876, 2.857904, 2.899932, 2.94196, 2.983988, 3.026016, 3.068044, 3.110072, 3.1521, 3.194128, 3.236156, 3.278184, 3.320212, 3.36224, 3.404268, 3.446296, 3.488324, 3.530352, 3.57238, 3.614408, 3.656436, 3.698464, 3.740492, 3.78252, 3.824548, 3.866576, 3.908604, 3.950632, 3.99266, 4.034688, 4.076716, 4.118744, 4.160772, 4.2028, 4.244828, 4.286856, 4.328884, 4.370912, 4.41294, 4.454968, 4.496996, 4.539023, 4.581051, 4.623079, 4.665107, 4.707135, 4.749163, 4.791191, 4.833219, 4.875247, 4.917275, 4.959303, 5.001331, 5.043359, 5.085387, 5.127415, 5.169443, 5.211471, 5.253499, 5.295527, 5.337555, 5.379583, 5.421611, 5.463639, 5.505667, 5.547695, 5.589723, 5.631751, 5.673779, 5.715807, 5.757835, 5.799863, 5.841891, 5.883919, 5.925947, 5.967975, 6.010003, 6.052031, 6.094059, 6.136087, 6.178115, 6.220143, 6.262171, 6.304199, 6.346227, 6.388255, 6.430283, 6.472311, 6.514339, 6.556367, 6.598395, 6.640423, 6.682451, 6.724479, 6.766507, 6.808535, 6.850563, 6.892591, 6.934619, 6.976647, 7.018675, 7.060703, 7.102731, 7.144759, 7.186787, 7.228815, 7.270843, 7.312871, 7.354899, 7.396927, 7.438955, 7.480983, 7.523011, 7.565039, 7.607067, 7.649095, 7.691123, 7.733151, 7.775179, 7.817207, 7.859235, 7.901263, 7.943291, 7.985319, 8.027347, 8.069375, 8.111403, 8.153431, 8.195459, 8.237487, 8.279515, 8.321543, 8.363571, 8.405599, 8.447627, 8.489655, 8.531683, 8.573711, 8.615739, 8.657767, 8.699795, 8.741823, 8.783851, 8.825879, 8.867907, 8.909935, 8.951963, 8.993991, 9.036019, 9.078047, 9.120075, 9.162103, 9.204131, 9.246159, 9.288187, 9.330215, 9.372243, 9.414271, 9.456299, 9.498327, 9.540355, 9.582383, 9.624411, 9.666439, 9.708467, 9.750495, 9.792523, 9.834551, 9.876579, 9.918607, 9.960635, 10.002663, 10.044691, 10.086719, 10.128747, 10.170775, 10.212803, 10.254831, 10.296859, 10.338887, 10.380915, 10.422943, 10.464971, 10.506999, 10.549027, 10.591055, 10.633083, 10.675111, 10.717139, 10.759167, 10.801195, 10.843223, 10.885251, 10.927279, 10.969307, 11.011335, 11.053363, 11.095391, 11.137419, 11.179447, 11.221475, 11.263503, 11.305531, 11.347559, 11.389587, 11.431615, 11.473643, 11.515671, 11.557699, 11.599727, 11.641755, 11.683783, 11.725811, 11.767839, 11.809867, 11.851895, 11.893923, 11.935951, 11.977979, 12.020007, 12.062035, 12.104063, 12.146091, 12.188119, 12.230147, 12.272175, 12.314203, 12.356231, 12.398259, 12.440287, 12.482315, 12.524343, 12.566371], "y": [1.0, 0.999117, 0.996469, 0.992062, 0.985902, 0.978002, 0.968374, 0.957036, 0.944007, 0.929312, 0.912975, 0.895026, 0.875496, 0.854419, 0.831834, 0.80778, 0.782299, 0.755437, 0.72724, 0.697759, 0.667046, 0.635154, 0.602141, 0.568065, 0.532985, 0.496964, 0.460065, 0.422354, 0.383897, 0.344761, 0.305017, 0.264734, 0.223984, 0.182838, 0.141369, 0.099651, 0.057756, 0.01576, -0.026264, -0.068242, -0.1101, -0.151763, -0.193158, -0.234212, -0.274852, -0.315006, -0.354605, -0.393577, -0.431854, -0.469368, -0.506054, -0.541846, -0.57668, -0.610497, -0.643235, -0.674837, -0.705247, -0.734412, -0.762279, -0.788801, -0.813929, -0.83762, -0.859831, -0.880524, -0.899662, -0.917211, -0.93314, -0.947422, -0.960029, -0.970942, -0.980139, -0.987606, -0.993328, -0.997296, -0.999503, -0.999945, -0.99862, -0.995532, -0.990686, -0.98409, -0.975756, -0.965699, -0.953936, -0.940489, -0.92538, -0.908637, -0.89029, -0.87037, -0.848913, -0.825957, -0.801542, -0.775711, -0.748511, -0.719988, -0.690194, -0.659181, -0.627004, -0.59372, -0.559386, -0.524065, -0.487819, -0.450711, -0.412807, -0.374174, -0.33488, -0.294994, -0.254588, -0.213732, -0.172498, -0.13096, -0.089191, -0.047264, -0.005253, 0.036766, 0.078721, 0.120537, 0.16214, 0.203456, 0.244413, 0.284939, 0.324961, 0.364409, 0.403214, 0.441307, 0.47862, 0.515088, 0.550646, 0.585232, 0.618784, 0.651244, 0.682553, 0.712657, 0.741502, 0.769038, 0.795215, 0.819988, 0.843313, 0.865148, 0.885456, 0.9042, 0.921347, 0.936866, 0.950731, 0.962917, 0.973403, 0.982169, 0.989201, 0.994485, 0.998014, 0.999779, 0.999779, 0.998014, 0.994485, 0.989201, 0.982169, 0.973403, 0.962917, 0.950731, 0.936866, 0.921347, 0.9042, 0.885456, 0.865148, 0.843313, 0.819988, 0.795215, 0.769038, 0.741502, 0.712657, 0.682553, 0.651244, 0.618784, 0.585232, 0.550646, 0.515088, 0.47862, 0.441307, 0.403214, 0.364409, 0.324961, 0.284939, 0.244413, 0.203456, 0.16214, 0.120537, 0.078721, 0.036766, -0.005253, -0.047264, -0.089191, -0.13096, -0.172498, -0.213732, -0.254588, -0.294994, -0.33488, -0.374174, -0.412807, -0.450711, -0.487819, -0.524065, -0.559386, -0.59372, -0.627004, -0.659181, -0.690194, -0.719988, -0.748511, -0.775711, -0.801542, -0.825957, -0.848913, -0.87037, -0.89029, -0.908637, -0.92538, -0.940489, -0.953936, -0.965699, -0.975756, -0.98409, -0.990686, -0.995532, -0.99862, -0.999945, -0.999503, -0.997296, -0.993328, -0.987606, -0.980139, -0.970942, -0.960029, -0.947422, -0.93314, -0.917211, -0.899662, -0.880524, -0.859831, -0.83762, -0.813929, -0.788801, -0.762279, -0.734412, -0.705247, -0.674837, -0.643235, -0.610497, -0.57668, -0.541846, -0.506054, -0.469368, -0.431854, -0.393577, -0.354605, -0.315006, -0.274852, -0.234212, -0.193158, -0.151763, -0.1101, -0.068242, -0.026264, 0.01576, 0.057756, 0.099651, 0.141369, 0.182838, 0.223984, 0.264734, 0.305017, 0.344761, 0.383897, 0.422354, 0.460065, 0.496964, 0.532985, 0.568065, 0.602141, 0.635154, 0.667046, 0.697759, 0.72724, 0.755437, 0.782299, 0.80778, 0.831834, 0.854419, 0.875496, 0.895025, 0.912975, 0.929312, 0.944007, 0.957036, 0.968374, 0.978002, 0.985902, 0.992062, 0.996469, 0.999117, 1.0], "line": {"width": 2}}, {"type": "scatter", "mode": "lines", "name": "velocity v(t)", "x": [0.0, 0.042028, 0.084056, 0.126084, 0.168112, 0.21014, 0.252168, 0.294196, 0.336224, 0.378252, 0.42028, 0.462308, 0.504336, 0.546364, 0.588392, 0.63042, 0.672448, 0.714476, 0.756504, 0.798532, 0.84056, 0.882588, 0.924616, 0.966644, 1.008672, 1.0507, 1.092728, 1.134756, 1.176784, 1.218812, 1.26084, 1.302868, 1.344896, 1.386924, 1.428952, 1.47098, 1.513008, 1.555036, 1.597064, 1.639092, 1.68112, 1.723148, 1.765176, 1.807204, 1.849232, 1.89126, 1.933288, 1.975316, 2.017344, 2.059372, 2.1014, 2.143428, 2.185456, 2.227484, 2.269512, 2.31154, 2.353568, 2.395596, 2.437624, 2.479652, 2.52168, 2.563708, 2.605736, 2.647764, 2.689792, 2.73182, 2.773848, 2.815876, 2.857904, 2.899932, 2.94196, 2.983988, 3.026016, 3.068044, 3.110072, 3.1521, 3.194128, 3.236156, 3.278184, 3.320212, 3.36224, 3.404268, 3.446296, 3.488324, 3.530352, 3.57238, 3.614408, 3.656436, 3.698464, 3.740492, 3.78252, 3.824548, 3.866576, 3.908604, 3.950632, 3.99266, 4.034688, 4.076716, 4.118744, 4.160772, 4.2028, 4.244828, 4.286856, 4.328884, 4.370912, 4.41294, 4.454968, 4.496996, 4.539023, 4.581051, 4.623079, 4.665107, 4.707135, 4.749163, 4.791191, 4.833219, 4.875247, 4.917275, 4.959303, 5.001331, 5.043359, 5.085387, 5.127415, 5.169443, 5.211471, 5.253499, 5.295527, 5.337555, 5.379583, 5.421611, 5.463639, 5.505667, 5.547695, 5.589723, 5.631751, 5.673779, 5.715807, 5.757835, 5.799863, 5.841891, 5.883919, 5.925947, 5.967975, 6.010003, 6.052031, 6.094059, 6.136087, 6.178115, 6.220143, 6.262171, 6.304199, 6.346227, 6.388255, 6.430283, 6.472311, 6.514339, 6.556367, 6.598395, 6.640423, 6.682451, 6.724479, 6.766507, 6.808535, 6.850563, 6.892591, 6.934619, 6.976647, 7.018675, 7.060703, 7.102731, 7.144759, 7.186787, 7.228815, 7.270843, 7.312871, 7.354899, 7.396927, 7.438955, 7.480983, 7.523011, 7.565039, 7.607067, 7.649095, 7.691123, 7.733151, 7.775179, 7.817207, 7.859235, 7.901263, 7.943291, 7.985319, 8.027347, 8.069375, 8.111403, 8.153431, 8.195459, 8.237487, 8.279515, 8.321543, 8.363571, 8.405599, 8.447627, 8.489655, 8.531683, 8.573711, 8.615739, 8.657767, 8.699795, 8.741823, 8.783851, 8.825879, 8.867907, 8.909935, 8.951963, 8.993991, 9.036019, 9.078047, 9.120075, 9.162103, 9.204131, 9.246159, 9.288187, 9.330215, 9.372243, 9.414271, 9.456299, 9.498327, 9.540355, 9.582383, 9.624411, 9.666439, 9.708467, 9.750495, 9.792523, 9.834551, 9.876579, 9.918607, 9.960635, 10.002663, 10.044691, 10.086719, 10.128747, 10.170775, 10.212803, 10.254831, 10.296859, 10.338887, 10.380915, 10.422943, 10.464971, 10.506999, 10.549027, 10.591055, 10.633083, 10.675111, 10.717139, 10.759167, 10.801195, 10.843223, 10.885251, 10.927279, 10.969307, 11.011335, 11.053363, 11.095391, 11.137419, 11.179447, 11.221475, 11.263503, 11.305531, 11.347559, 11.389587, 11.431615, 11.473643, 11.515671, 11.557699, 11.599727, 11.641755, 11.683783, 11.725811, 11.767839, 11.809867, 11.851895, 11.893923, 11.935951, 11.977979, 12.020007, 12.062035, 12.104063, 12.146091, 12.188119, 12.230147, 12.272175, 12.314203, 12.356231, 12.398259, 12.440287, 12.482315, 12.524343, 12.566371], "y": [0.0, -0.042016, -0.083957, -0.12575, -0.167321, -0.208597, -0.249504, -0.28997, -0.329925, -0.369297, -0.408016, -0.446015, -0.483226, -0.519584, -0.555024, -0.589484, -0.622903, -0.655222, -0.686383, -0.716332, -0.745017, -0.772385, -0.79839, -0.822984, -0.846125, -0.867771, -0.887885, -0.906431, -0.923376, -0.93869, -0.952347, -0.964321, -0.974593, -0.983143, -0.989957, -0.995022, -0.998331, -0.999876, -0.999655, -0.997669, -0.993921, -0.988417, -0.981168, -0.972186, -0.961487, -0.94909, -0.935016, -0.919292, -0.901943, -0.883002, -0.862502, -0.840478, -0.81697, -0.792019, -0.765669, -0.737967, -0.708962, -0.678704, -0.647248, -0.614649, -0.580964, -0.546254, -0.510578, -0.474001, -0.436586, -0.398401, -0.359512, -0.319988, -0.279899, -0.239316, -0.19831, -0.156953, -0.11532, -0.073483, -0.031516, 0.010507, 0.052511, 0.094422, 0.136167, 0.177671, 0.218861, 0.259665, 0.30001, 0.339825, 0.37904, 0.417586, 0.455394, 0.492398, 0.528532, 0.563733, 0.597939, 0.631088, 0.663123, 0.693986, 0.723624, 0.751984, 0.779016, 0.804672, 0.828907, 0.851678, 0.872945, 0.89267, 0.910819, 0.927359, 0.942261, 0.955499, 0.96705, 0.976892, 0.98501, 0.991388, 0.996015, 0.998882, 0.999986, 0.999324, 0.996897, 0.992709, 0.986768, 0.979084, 0.969671, 0.958546, 0.945727, 0.931239, 0.915106, 0.897356, 0.878022, 0.857137, 0.834739, 0.810866, 0.785561, 0.758868, 0.730836, 0.701513, 0.670951, 0.639203, 0.606327, 0.57238, 0.537423, 0.501516, 0.464723, 0.42711, 0.388742, 0.349688, 0.310016, 0.269797, 0.229101, 0.188001, 0.146568, 0.104877, 0.063, 0.021012, -0.021012, -0.063, -0.104877, -0.146568, -0.188001, -0.229101, -0.269797, -0.310016, -0.349688, -0.388742, -0.42711, -0.464723, -0.501516, -0.537423, -0.57238, -0.606327, -0.639203, -0.670951, -0.701513, -0.730836, -0.758868, -0.785561, -0.810866, -0.834739, -0.857137, -0.878022, -0.897356, -0.915106, -0.931239, -0.945727, -0.958546, -0.969671, -0.979084, -0.986768, -0.992709, -0.996897, -0.999324, -0.999986, -0.998882, -0.996015, -0.991388, -0.98501, -0.976892, -0.96705, -0.955499, -0.942261, -0.927359, -0.910819, -0.89267, -0.872945, -0.851678, -0.828907, -0.804672, -0.779016, -0.751984, -0.723624, -0.693986, -0.663123, -0.631088, -0.597939, -0.563733, -0.528532, -0.492398, -0.455394, -0.417586, -0.37904, -0.339825, -0.30001, -0.259665, -0.218861, -0.177671, -0.136167, -0.094422, -0.052511, -0.010507, 0.031516, 0.073483, 0.11532, 0.156953, 0.19831, 0.239316, 0.279899, 0.319988, 0.359512, 0.398401, 0.436586, 0.474001, 0.510578, 0.546254, 0.580964, 0.614649, 0.647248, 0.678704, 0.708962, 0.737967, 0.765669, 0.792019, 0.81697, 0.840478, 0.862502, 0.883002, 0.901943, 0.919292, 0.935016, 0.94909, 0.961487, 0.972186, 0.981168, 0.988417, 0.993921, 0.997669, 0.999655, 0.999876, 0.998331, 0.995022, 0.989957, 0.983143, 0.974593, 0.964321, 0.952347, 0.93869, 0.923376, 0.906431, 0.887885, 0.867771, 0.846125, 0.822984, 0.79839, 0.772385, 0.745017, 0.716332, 0.686383, 0.655222, 0.622903, 0.589484, 0.555024, 0.519584, 0.483226, 0.446015, 0.408016, 0.369297, 0.329925, 0.28997, 0.249504, 0.208597, 0.167321, 0.12575, 0.083957, 0.042016, -0.0], "line": {"width": 2, "dash": "dash"}}],{"title": "Harmonic oscillator \u2014 RKTS54 dense output (300 pts on [0, 4\u03c0])", "xaxis": {"title": "t"}, "yaxis": {"title": "value"}, "legend": {"orientation": "h", "y": -0.2}, "margin": {"t": 50, "b": 60}},{responsive:true})});
+</script>
+
+<h3 id="adaptivesettings">AdaptiveSettings<a class="headerlink" href="#adaptivesettings" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::</span><span class="n">AdaptiveSettings</span><span class="p">;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">settings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="n">rtol</span><span class="p">:</span><span class="w"> </span><span class="mf">1e-8</span><span class="p">,</span><span class="w">       </span><span class="c1">// relative tolerance (default 1e-6)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="n">atol</span><span class="p">:</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">,</span><span class="w">      </span><span class="c1">// absolute tolerance (default 1e-9)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="n">h0</span><span class="p">:</span><span class="w">   </span><span class="nb">Some</span><span class="p">(</span><span class="mf">0.01</span><span class="p">),</span><span class="w"> </span><span class="c1">// initial step size (auto if None)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="n">hmax</span><span class="p">:</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span><span class="w">  </span><span class="c1">// maximum step size (unlimited if None)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="n">max_steps</span><span class="p">:</span><span class="w"> </span><span class="mi">100_000</span><span class="p">,</span><span class="w"> </span><span class="c1">// step limit</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="o">..</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">()</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">};</span>
+</code></pre></div>
+<h3 id="solution-struct">Solution struct<a class="headerlink" href="#solution-struct" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">settings</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">y_final</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">sol</span><span class="p">.</span><span class="n">y</span><span class="p">;</span><span class="w">       </span><span class="c1">// final state Vector&lt;T, N&gt;</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">t_final</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="n">sol</span><span class="p">.</span><span class="n">t</span><span class="p">;</span><span class="w">       </span><span class="c1">// final time (= t_end if successful)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">n_steps</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">steps</span><span class="p">;</span><span class="w">   </span><span class="c1">// number of accepted steps</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="kd">let</span><span class="w"> </span><span class="n">n_reject</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">rejected</span><span class="p">;</span><span class="w"> </span><span class="c1">// number of rejected steps</span>
+</code></pre></div>
+<h2 id="dense-output-interpolation">Dense Output (Interpolation)<a class="headerlink" href="#dense-output-interpolation" title="Permanent link">&para;</a></h2>
+<p>Solvers with an interpolant can return intermediate values at arbitrary times without re-integrating. Requires <code>std</code> feature (uses <code>Vec</code> internally).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">RKAdaptive</span><span class="p">,</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">Vector</span><span class="p">;</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate_dense</span><span class="p">(</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">6.28</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c1">// Interpolate at arbitrary time point</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="kd">let</span><span class="w"> </span><span class="n">y_at_pi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">std</span><span class="p">::</span><span class="kt">f64</span><span class="p">::</span><span class="n">consts</span><span class="p">::</span><span class="n">PI</span><span class="p">);</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="c1">// y[0] ≈ -1.0 (cosine at π)</span>
+</code></pre></div>
+<h2 id="stiff-solver-rodas4">Stiff Solver: RODAS4<a class="headerlink" href="#stiff-solver-rodas4" title="Permanent link">&para;</a></h2>
+<p>For stiff ODEs (chemical kinetics, circuit simulation, orbital mechanics with drag), use <code>RODAS4</code> — an L-stable linearly-implicit Rosenbrock method. It solves linear systems involving the Jacobian instead of nonlinear Newton iterations, making it suitable for very stiff problems without tuning.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">Rosenbrock</span><span class="p">,</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::{</span><span class="n">Vector</span><span class="p">,</span><span class="w"> </span><span class="n">Matrix</span><span class="p">};</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1">// Stiff decay: y&#39; = -1000y,  y(0) = 1</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">]);</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1">// With user-supplied Jacobian</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.01</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="o">-</span><span class="mf">1000.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">_y</span><span class="o">|</span><span class="w"> </span><span class="n">Matrix</span><span class="p">::</span><span class="n">new</span><span class="p">([[</span><span class="o">-</span><span class="mf">1000.0_</span><span class="k">f64</span><span class="p">]]),</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">sol</span><span class="p">.</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="o">-</span><span class="mf">10.0_</span><span class="k">f64</span><span class="p">).</span><span class="n">exp</span><span class="p">()).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-8</span><span class="p">);</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="c1">// With automatic finite-difference Jacobian (no need to supply ∂f/∂y)</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">::</span><span class="n">integrate_auto</span><span class="p">(</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.01</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="o">-</span><span class="mf">1000.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+</code></pre></div>
+<h3 id="van-der-pol-oscillator-1000">Van der Pol oscillator (μ = 1000)<a class="headerlink" href="#van-der-pol-oscillator-1000" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">Rosenbrock</span><span class="p">,</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::{</span><span class="n">Vector</span><span class="p">,</span><span class="w"> </span><span class="n">Matrix</span><span class="p">};</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">mu</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1000.0_</span><span class="k">f64</span><span class="p">;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">2.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3000.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">mu</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="mf">1.0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Matrix</span><span class="p">::</span><span class="n">new</span><span class="p">([</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">        </span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="w">                                    </span><span class="mf">1.0</span><span class="p">],</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">        </span><span class="p">[</span><span class="o">-</span><span class="mf">2.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mu</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="n">mu</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="mf">1.0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">])],</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span><span class="p">]),</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+</code></pre></div>
+<h3 id="rodas4-properties">RODAS4 Properties<a class="headerlink" href="#rodas4-properties" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stages</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Order</td>
+<td>4(3) embedded pair</td>
+</tr>
+<tr>
+<td>L-stable</td>
+<td>Yes (no oscillation for arbitrarily large step sizes)</td>
+</tr>
+<tr>
+<td>Stiffly accurate</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Jacobian</td>
+<td>User-supplied or auto finite-difference</td>
+</tr>
+</tbody>
+</table>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::</span><span class="n">OdeError</span><span class="p">;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">match</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">settings</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">sol</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* success */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">OdeError</span><span class="p">::</span><span class="n">MaxStepsExceeded</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* increase max_steps or rtol/atol */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">OdeError</span><span class="p">::</span><span class="n">StepSizeTooSmall</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* likely a stiff problem — use RODAS4 */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">OdeError</span><span class="p">::</span><span class="n">SingularJacobian</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* RODAS4 specific */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">}</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      MIT License
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "content.code.copy", "content.code.annotate", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+      
+    
+  </body>
+</html>

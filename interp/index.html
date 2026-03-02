@@ -1,0 +1,1455 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Pure-Rust numerical algorithms library — no-std compatible, SciPy-inspired scope">
+      
+      
+      
+        <link rel="canonical" href="https://ssmichael1.github.io/numeris/interp/">
+      
+      
+        <link rel="prev" href="../estimate/">
+      
+      
+        <link rel="next" href="../special/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Interpolation - numeris</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#interpolation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="numeris" class="md-header__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            numeris
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Interpolation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../matrix/" class="md-tabs__link">
+          
+  
+  
+  Modules
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../performance/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Performance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../no-std/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  No-std / Embedded
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../design/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Design
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://docs.rs/numeris" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference ↗
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="numeris" class="md-nav__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    numeris
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modules
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynmatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DynMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linalg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ODE Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../optim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../control/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Digital Control
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpolation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpolation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#method-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#linear-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linear Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hermite-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hermite Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#barycentric-lagrange-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Barycentric Lagrange Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#natural-cubic-spline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Natural Cubic Spline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bilinear-interpolation-2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bilinear Interpolation (2D)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#method-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../special/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Special Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quaternion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quaternion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../no-std/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    No-std / Embedded
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.rs/numeris" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference ↗
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#method-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#linear-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linear Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hermite-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hermite Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#barycentric-lagrange-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Barycentric Lagrange Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#natural-cubic-spline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Natural Cubic Spline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bilinear-interpolation-2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bilinear Interpolation (2D)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#method-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="interpolation">Interpolation<a class="headerlink" href="#interpolation" title="Permanent link">&para;</a></h1>
+<p>Four interpolation methods plus bilinear 2D interpolation. Each method has a fixed-size variant (stack-allocated, const-generic number of knots) and a dynamic variant (heap-allocated, requires <code>alloc</code>).</p>
+<p>Requires the <code>interp</code> Cargo feature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">numeris</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">&quot;0.2&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">features</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;interp&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<h2 id="method-summary">Method Summary<a class="headerlink" href="#method-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Struct</th>
+<th>Continuity</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linear</td>
+<td><code>LinearInterp</code></td>
+<td>C⁰</td>
+<td>Fast, piecewise linear data</td>
+</tr>
+<tr>
+<td>Hermite</td>
+<td><code>HermiteInterp</code></td>
+<td>C¹</td>
+<td>Data with known derivatives</td>
+</tr>
+<tr>
+<td>Lagrange</td>
+<td><code>LagrangeInterp</code></td>
+<td>Cⁿ⁻¹</td>
+<td>Global polynomial through all points</td>
+</tr>
+<tr>
+<td>Cubic Spline</td>
+<td><code>CubicSpline</code></td>
+<td>C²</td>
+<td>Smooth curves, natural boundary conditions</td>
+</tr>
+<tr>
+<td>Bilinear</td>
+<td><code>BilinearInterp</code></td>
+<td>C⁰</td>
+<td>2D rectangular grid data</td>
+</tr>
+</tbody>
+</table>
+<p>Dynamic variants: <code>DynLinearInterp</code>, <code>DynHermiteInterp</code>, <code>DynLagrangeInterp</code>, <code>DynCubicSpline</code>, <code>DynBilinearInterp</code>.</p>
+<h2 id="linear-interpolation">Linear Interpolation<a class="headerlink" href="#linear-interpolation" title="Permanent link">&para;</a></h2>
+<p>Piecewise linear interpolation between knots. O(log N) per evaluation (binary search).</p>
+<p>Out-of-bounds queries extrapolate using the nearest segment.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">LinearInterp</span><span class="p">;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1">// Fixed-size: 4 knots</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span><span class="p">];</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">ys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">];</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="kd">let</span><span class="w"> </span><span class="n">interp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LinearInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">1.5</span><span class="p">);</span><span class="w">  </span><span class="c1">// 0.5</span>
+</code></pre></div>
+<p>Dynamic variant:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">DynLinearInterp</span><span class="p">;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">interp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DynLinearInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">1.5</span><span class="p">);</span>
+</code></pre></div>
+<h2 id="hermite-interpolation">Hermite Interpolation<a class="headerlink" href="#hermite-interpolation" title="Permanent link">&para;</a></h2>
+<p>Cubic Hermite interpolation with user-supplied derivatives at each knot. Guarantees C¹ continuity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">HermiteInterp</span><span class="p">;</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span><span class="p">];</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">ys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">];</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1">// Derivatives at each knot (e.g., from finite differences or analytic formula)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="kd">let</span><span class="w"> </span><span class="n">ds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">];</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">interp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">HermiteInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ds</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">1.5</span><span class="p">);</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="kd">let</span><span class="w"> </span><span class="n">dy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval_deriv</span><span class="p">(</span><span class="mf">1.5</span><span class="p">);</span><span class="w">  </span><span class="c1">// first derivative</span>
+</code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">When to use Hermite</p>
+<p>Use Hermite when you have physical knowledge of derivatives — e.g., velocity data from an accelerometer alongside position data. It avoids Runge's phenomenon better than high-degree Lagrange polynomials.</p>
+</div>
+<h2 id="barycentric-lagrange-interpolation">Barycentric Lagrange Interpolation<a class="headerlink" href="#barycentric-lagrange-interpolation" title="Permanent link">&para;</a></h2>
+<p>Global polynomial interpolation through all N knots. O(N²) setup (barycentric weights), O(N) per evaluation. C^(N-1) continuity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">LagrangeInterp</span><span class="p">;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.5</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.5</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">];</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">ys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.479</span><span class="p">,</span><span class="w"> </span><span class="mf">0.841</span><span class="p">,</span><span class="w"> </span><span class="mf">0.997</span><span class="p">,</span><span class="w"> </span><span class="mf">0.909</span><span class="p">];</span><span class="w">  </span><span class="c1">// ≈ sin(x)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="kd">let</span><span class="w"> </span><span class="n">interp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LagrangeInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">0.75</span><span class="p">);</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="kd">let</span><span class="w"> </span><span class="n">dy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval_deriv</span><span class="p">(</span><span class="mf">0.75</span><span class="p">);</span><span class="w">  </span><span class="c1">// first derivative</span>
+</code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">Runge's phenomenon</p>
+<p>High-degree Lagrange polynomials on uniformly-spaced nodes can oscillate wildly near the boundaries. Prefer cubic splines for smooth data with many knots, or use Chebyshev nodes for Lagrange when possible.</p>
+</div>
+<h2 id="natural-cubic-spline">Natural Cubic Spline<a class="headerlink" href="#natural-cubic-spline" title="Permanent link">&para;</a></h2>
+<p>Piecewise cubic with C² continuity (continuous second derivative). Natural boundary conditions (<code>S''(x₀) = S''(xₙ) = 0</code>). Solved via Thomas algorithm (tridiagonal, O(N)).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">CubicSpline</span><span class="p">;</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span><span class="p">,</span><span class="w"> </span><span class="mf">4.0</span><span class="p">];</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">ys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">];</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="kd">let</span><span class="w"> </span><span class="n">spline</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CubicSpline</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">spline</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">1.5</span><span class="p">);</span><span class="w">       </span><span class="c1">// smooth interpolation</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="kd">let</span><span class="w"> </span><span class="n">dy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">spline</span><span class="p">.</span><span class="n">eval_deriv</span><span class="p">(</span><span class="mf">1.5</span><span class="p">);</span><span class="w"> </span><span class="c1">// first derivative</span>
+</code></pre></div>
+<p>Dynamic variant:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">DynCubicSpline</span><span class="p">;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">spline</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DynCubicSpline</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">spline</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">2.7</span><span class="p">);</span>
+</code></pre></div>
+<h2 id="bilinear-interpolation-2d">Bilinear Interpolation (2D)<a class="headerlink" href="#bilinear-interpolation-2d" title="Permanent link">&para;</a></h2>
+<p>For data on a rectangular grid. Interpolates within each cell using the four corner values.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">BilinearInterp</span><span class="p">;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1">// Grid: 3 x-nodes × 4 y-nodes</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">];</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">ys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span><span class="p">];</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1">// Values at each (xi, yj) node — stored row-by-row (x varies fastest)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1">// z[i*ny + j] = f(xs[i], ys[j])</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="kd">let</span><span class="w"> </span><span class="n">zs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span><span class="p">,</span><span class="w">   </span><span class="c1">// xs[0]=0 row</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="mf">1.0</span><span class="p">,</span><span class="w">     </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span><span class="p">,</span><span class="w"> </span><span class="mf">4.0</span><span class="p">,</span><span class="w">   </span><span class="c1">// xs[1]=1 row</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span><span class="mf">4.0</span><span class="p">,</span><span class="w">     </span><span class="mf">5.0</span><span class="p">,</span><span class="w"> </span><span class="mf">6.0</span><span class="p">,</span><span class="w"> </span><span class="mf">7.0</span><span class="p">,</span><span class="w">   </span><span class="c1">// xs[2]=2 row</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="p">];</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="kd">let</span><span class="w"> </span><span class="n">interp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BilinearInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">zs</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="kd">let</span><span class="w"> </span><span class="n">z</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span><span class="w"> </span><span class="mf">1.5</span><span class="p">);</span><span class="w">  </span><span class="c1">// interpolate at (x=0.5, y=1.5)</span>
+</code></pre></div>
+<p>Dynamic variant:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">DynBilinearInterp</span><span class="p">;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">interp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DynBilinearInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">zs</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">z</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">interp</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span><span class="w"> </span><span class="mf">1.5</span><span class="p">);</span>
+</code></pre></div>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::</span><span class="n">InterpError</span><span class="p">;</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">match</span><span class="w"> </span><span class="n">CubicSpline</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">spline</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* use spline */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">InterpError</span><span class="p">::</span><span class="n">NotSorted</span><span class="p">)</span><span class="w">         </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* xs must be strictly increasing */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">InterpError</span><span class="p">::</span><span class="n">LengthMismatch</span><span class="p">)</span><span class="w">    </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* xs.len() != ys.len() */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">InterpError</span><span class="p">::</span><span class="n">InsufficientPoints</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* need at least 2 knots */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="p">}</span>
+</code></pre></div>
+<h2 id="method-comparison">Method Comparison<a class="headerlink" href="#method-comparison" title="Permanent link">&para;</a></h2>
+<div id="plot-interp" style="width:100%;height:420px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-interp',[{"type": "scatter", "mode": "lines", "name": "sin(x) true", "x": [0.0, 0.031574, 0.063148, 0.094721, 0.126295, 0.157869, 0.189443, 0.221017, 0.25259, 0.284164, 0.315738, 0.347312, 0.378886, 0.410459, 0.442033, 0.473607, 0.505181, 0.536755, 0.568328, 0.599902, 0.631476, 0.66305, 0.694624, 0.726197, 0.757771, 0.789345, 0.820919, 0.852492, 0.884066, 0.91564, 0.947214, 0.978788, 1.010361, 1.041935, 1.073509, 1.105083, 1.136657, 1.16823, 1.199804, 1.231378, 1.262952, 1.294526, 1.326099, 1.357673, 1.389247, 1.420821, 1.452395, 1.483968, 1.515542, 1.547116, 1.57869, 1.610264, 1.641837, 1.673411, 1.704985, 1.736559, 1.768133, 1.799706, 1.83128, 1.862854, 1.894428, 1.926002, 1.957575, 1.989149, 2.020723, 2.052297, 2.083871, 2.115444, 2.147018, 2.178592, 2.210166, 2.241739, 2.273313, 2.304887, 2.336461, 2.368035, 2.399608, 2.431182, 2.462756, 2.49433, 2.525904, 2.557477, 2.589051, 2.620625, 2.652199, 2.683773, 2.715346, 2.74692, 2.778494, 2.810068, 2.841642, 2.873215, 2.904789, 2.936363, 2.967937, 2.999511, 3.031084, 3.062658, 3.094232, 3.125806, 3.15738, 3.188953, 3.220527, 3.252101, 3.283675, 3.315249, 3.346822, 3.378396, 3.40997, 3.441544, 3.473118, 3.504691, 3.536265, 3.567839, 3.599413, 3.630986, 3.66256, 3.694134, 3.725708, 3.757282, 3.788855, 3.820429, 3.852003, 3.883577, 3.915151, 3.946724, 3.978298, 4.009872, 4.041446, 4.07302, 4.104593, 4.136167, 4.167741, 4.199315, 4.230889, 4.262462, 4.294036, 4.32561, 4.357184, 4.388758, 4.420331, 4.451905, 4.483479, 4.515053, 4.546627, 4.5782, 4.609774, 4.641348, 4.672922, 4.704496, 4.736069, 4.767643, 4.799217, 4.830791, 4.862365, 4.893938, 4.925512, 4.957086, 4.98866, 5.020233, 5.051807, 5.083381, 5.114955, 5.146529, 5.178102, 5.209676, 5.24125, 5.272824, 5.304398, 5.335971, 5.367545, 5.399119, 5.430693, 5.462267, 5.49384, 5.525414, 5.556988, 5.588562, 5.620136, 5.651709, 5.683283, 5.714857, 5.746431, 5.778005, 5.809578, 5.841152, 5.872726, 5.9043, 5.935874, 5.967447, 5.999021, 6.030595, 6.062169, 6.093743, 6.125316, 6.15689, 6.188464, 6.220038, 6.251612, 6.283185], "y": [0.0, 0.031569, 0.063106, 0.09458, 0.12596, 0.157214, 0.188312, 0.219222, 0.249913, 0.280355, 0.310518, 0.340371, 0.369885, 0.399031, 0.427778, 0.456099, 0.483966, 0.51135, 0.538224, 0.564562, 0.590337, 0.615523, 0.640096, 0.664031, 0.687304, 0.709892, 0.731772, 0.752923, 0.773323, 0.792953, 0.811792, 0.829821, 0.847024, 0.863382, 0.87888, 0.893501, 0.907232, 0.920059, 0.931968, 0.942948, 0.952989, 0.962079, 0.970211, 0.977375, 0.983565, 0.988775, 0.992999, 0.996233, 0.998474, 0.99972, 0.999969, 0.999221, 0.997478, 0.99474, 0.99101, 0.986293, 0.980592, 0.973914, 0.966265, 0.957653, 0.948087, 0.937575, 0.926129, 0.913759, 0.900479, 0.886301, 0.87124, 0.85531, 0.838527, 0.820909, 0.802472, 0.783236, 0.763218, 0.74244, 0.720922, 0.698685, 0.675752, 0.652145, 0.627888, 0.603005, 0.577521, 0.551462, 0.524852, 0.49772, 0.470091, 0.441994, 0.413456, 0.384506, 0.355173, 0.325485, 0.295473, 0.265167, 0.234597, 0.203792, 0.172784, 0.141605, 0.110283, 0.078853, 0.047343, 0.015786, -0.015786, -0.047343, -0.078853, -0.110283, -0.141605, -0.172784, -0.203792, -0.234597, -0.265167, -0.295473, -0.325485, -0.355173, -0.384506, -0.413456, -0.441994, -0.470091, -0.49772, -0.524852, -0.551462, -0.577521, -0.603005, -0.627888, -0.652145, -0.675752, -0.698685, -0.720922, -0.74244, -0.763218, -0.783236, -0.802472, -0.820909, -0.838527, -0.85531, -0.87124, -0.886301, -0.900479, -0.913759, -0.926129, -0.937575, -0.948087, -0.957653, -0.966265, -0.973914, -0.980592, -0.986293, -0.99101, -0.99474, -0.997478, -0.999221, -0.999969, -0.99972, -0.998474, -0.996233, -0.992999, -0.988775, -0.983565, -0.977375, -0.970211, -0.962079, -0.952989, -0.942948, -0.931968, -0.920059, -0.907232, -0.893501, -0.87888, -0.863382, -0.847024, -0.829821, -0.811792, -0.792953, -0.773323, -0.752923, -0.731772, -0.709892, -0.687304, -0.664031, -0.640096, -0.615523, -0.590337, -0.564562, -0.538224, -0.51135, -0.483966, -0.456099, -0.427778, -0.399031, -0.369885, -0.340371, -0.310518, -0.280355, -0.249913, -0.219222, -0.188312, -0.157214, -0.12596, -0.09458, -0.063106, -0.031569, -0.0], "line": {"width": 2, "color": "#888"}}, {"type": "scatter", "mode": "lines", "name": "Linear", "x": [0.0, 0.031574, 0.063148, 0.094721, 0.126295, 0.157869, 0.189443, 0.221017, 0.25259, 0.284164, 0.315738, 0.347312, 0.378886, 0.410459, 0.442033, 0.473607, 0.505181, 0.536755, 0.568328, 0.599902, 0.631476, 0.66305, 0.694624, 0.726197, 0.757771, 0.789345, 0.820919, 0.852492, 0.884066, 0.91564, 0.947214, 0.978788, 1.010361, 1.041935, 1.073509, 1.105083, 1.136657, 1.16823, 1.199804, 1.231378, 1.262952, 1.294526, 1.326099, 1.357673, 1.389247, 1.420821, 1.452395, 1.483968, 1.515542, 1.547116, 1.57869, 1.610264, 1.641837, 1.673411, 1.704985, 1.736559, 1.768133, 1.799706, 1.83128, 1.862854, 1.894428, 1.926002, 1.957575, 1.989149, 2.020723, 2.052297, 2.083871, 2.115444, 2.147018, 2.178592, 2.210166, 2.241739, 2.273313, 2.304887, 2.336461, 2.368035, 2.399608, 2.431182, 2.462756, 2.49433, 2.525904, 2.557477, 2.589051, 2.620625, 2.652199, 2.683773, 2.715346, 2.74692, 2.778494, 2.810068, 2.841642, 2.873215, 2.904789, 2.936363, 2.967937, 2.999511, 3.031084, 3.062658, 3.094232, 3.125806, 3.15738, 3.188953, 3.220527, 3.252101, 3.283675, 3.315249, 3.346822, 3.378396, 3.40997, 3.441544, 3.473118, 3.504691, 3.536265, 3.567839, 3.599413, 3.630986, 3.66256, 3.694134, 3.725708, 3.757282, 3.788855, 3.820429, 3.852003, 3.883577, 3.915151, 3.946724, 3.978298, 4.009872, 4.041446, 4.07302, 4.104593, 4.136167, 4.167741, 4.199315, 4.230889, 4.262462, 4.294036, 4.32561, 4.357184, 4.388758, 4.420331, 4.451905, 4.483479, 4.515053, 4.546627, 4.5782, 4.609774, 4.641348, 4.672922, 4.704496, 4.736069, 4.767643, 4.799217, 4.830791, 4.862365, 4.893938, 4.925512, 4.957086, 4.98866, 5.020233, 5.051807, 5.083381, 5.114955, 5.146529, 5.178102, 5.209676, 5.24125, 5.272824, 5.304398, 5.335971, 5.367545, 5.399119, 5.430693, 5.462267, 5.49384, 5.525414, 5.556988, 5.588562, 5.620136, 5.651709, 5.683283, 5.714857, 5.746431, 5.778005, 5.809578, 5.841152, 5.872726, 5.9043, 5.935874, 5.967447, 5.999021, 6.030595, 6.062169, 6.093743, 6.125316, 6.15689, 6.188464, 6.220038, 6.251612, 6.283185], "y": [0.0, 0.023896, 0.047792, 0.071688, 0.095584, 0.119479, 0.143375, 0.167271, 0.191167, 0.215063, 0.238959, 0.262855, 0.286751, 0.310647, 0.334542, 0.358438, 0.382334, 0.40623, 0.430126, 0.454022, 0.477918, 0.501814, 0.52571, 0.549606, 0.573501, 0.597397, 0.621293, 0.645189, 0.669085, 0.692981, 0.716877, 0.740773, 0.764669, 0.788564, 0.81246, 0.836356, 0.860252, 0.884148, 0.908044, 0.93194, 0.949231, 0.940104, 0.930976, 0.921849, 0.912721, 0.903594, 0.894467, 0.885339, 0.876212, 0.867084, 0.857957, 0.848829, 0.839702, 0.830575, 0.821447, 0.81232, 0.803192, 0.794065, 0.784937, 0.77581, 0.766683, 0.757555, 0.748428, 0.7393, 0.730173, 0.721046, 0.711918, 0.702791, 0.693663, 0.684536, 0.675408, 0.666281, 0.657154, 0.648026, 0.638899, 0.629771, 0.620644, 0.611517, 0.602389, 0.593262, 0.57597, 0.546434, 0.516897, 0.48736, 0.457823, 0.428286, 0.398749, 0.369212, 0.339675, 0.310138, 0.280601, 0.251064, 0.221527, 0.19199, 0.162453, 0.132916, 0.103379, 0.073842, 0.044305, 0.014768, -0.014768, -0.044305, -0.073842, -0.103379, -0.132916, -0.162453, -0.19199, -0.221527, -0.251064, -0.280601, -0.310138, -0.339675, -0.369212, -0.398749, -0.428286, -0.457823, -0.48736, -0.516897, -0.546434, -0.57597, -0.593262, -0.602389, -0.611517, -0.620644, -0.629771, -0.638899, -0.648026, -0.657154, -0.666281, -0.675408, -0.684536, -0.693663, -0.702791, -0.711918, -0.721046, -0.730173, -0.7393, -0.748428, -0.757555, -0.766683, -0.77581, -0.784937, -0.794065, -0.803192, -0.81232, -0.821447, -0.830575, -0.839702, -0.848829, -0.857957, -0.867084, -0.876212, -0.885339, -0.894467, -0.903594, -0.912721, -0.921849, -0.930976, -0.940104, -0.949231, -0.93194, -0.908044, -0.884148, -0.860252, -0.836356, -0.81246, -0.788564, -0.764669, -0.740773, -0.716877, -0.692981, -0.669085, -0.645189, -0.621293, -0.597397, -0.573501, -0.549606, -0.52571, -0.501814, -0.477918, -0.454022, -0.430126, -0.40623, -0.382334, -0.358438, -0.334542, -0.310647, -0.286751, -0.262855, -0.238959, -0.215063, -0.191167, -0.167271, -0.143375, -0.119479, -0.095584, -0.071688, -0.047792, -0.023896, -0.0], "line": {"width": 2}}, {"type": "scatter", "mode": "lines", "name": "Hermite", "x": [0.0, 0.031574, 0.063148, 0.094721, 0.126295, 0.157869, 0.189443, 0.221017, 0.25259, 0.284164, 0.315738, 0.347312, 0.378886, 0.410459, 0.442033, 0.473607, 0.505181, 0.536755, 0.568328, 0.599902, 0.631476, 0.66305, 0.694624, 0.726197, 0.757771, 0.789345, 0.820919, 0.852492, 0.884066, 0.91564, 0.947214, 0.978788, 1.010361, 1.041935, 1.073509, 1.105083, 1.136657, 1.16823, 1.199804, 1.231378, 1.262952, 1.294526, 1.326099, 1.357673, 1.389247, 1.420821, 1.452395, 1.483968, 1.515542, 1.547116, 1.57869, 1.610264, 1.641837, 1.673411, 1.704985, 1.736559, 1.768133, 1.799706, 1.83128, 1.862854, 1.894428, 1.926002, 1.957575, 1.989149, 2.020723, 2.052297, 2.083871, 2.115444, 2.147018, 2.178592, 2.210166, 2.241739, 2.273313, 2.304887, 2.336461, 2.368035, 2.399608, 2.431182, 2.462756, 2.49433, 2.525904, 2.557477, 2.589051, 2.620625, 2.652199, 2.683773, 2.715346, 2.74692, 2.778494, 2.810068, 2.841642, 2.873215, 2.904789, 2.936363, 2.967937, 2.999511, 3.031084, 3.062658, 3.094232, 3.125806, 3.15738, 3.188953, 3.220527, 3.252101, 3.283675, 3.315249, 3.346822, 3.378396, 3.40997, 3.441544, 3.473118, 3.504691, 3.536265, 3.567839, 3.599413, 3.630986, 3.66256, 3.694134, 3.725708, 3.757282, 3.788855, 3.820429, 3.852003, 3.883577, 3.915151, 3.946724, 3.978298, 4.009872, 4.041446, 4.07302, 4.104593, 4.136167, 4.167741, 4.199315, 4.230889, 4.262462, 4.294036, 4.32561, 4.357184, 4.388758, 4.420331, 4.451905, 4.483479, 4.515053, 4.546627, 4.5782, 4.609774, 4.641348, 4.672922, 4.704496, 4.736069, 4.767643, 4.799217, 4.830791, 4.862365, 4.893938, 4.925512, 4.957086, 4.98866, 5.020233, 5.051807, 5.083381, 5.114955, 5.146529, 5.178102, 5.209676, 5.24125, 5.272824, 5.304398, 5.335971, 5.367545, 5.399119, 5.430693, 5.462267, 5.49384, 5.525414, 5.556988, 5.588562, 5.620136, 5.651709, 5.683283, 5.714857, 5.746431, 5.778005, 5.809578, 5.841152, 5.872726, 5.9043, 5.935874, 5.967447, 5.999021, 6.030595, 6.062169, 6.093743, 6.125316, 6.15689, 6.188464, 6.220038, 6.251612, 6.283185], "y": [0.0, 0.031539, 0.062993, 0.094336, 0.125545, 0.156595, 0.187461, 0.218119, 0.248545, 0.278714, 0.308602, 0.338184, 0.367435, 0.396331, 0.424849, 0.452962, 0.480647, 0.50788, 0.534635, 0.560889, 0.586616, 0.611793, 0.636395, 0.660397, 0.683775, 0.706505, 0.728561, 0.749921, 0.770558, 0.790449, 0.809569, 0.827894, 0.845398, 0.862059, 0.877851, 0.892749, 0.90673, 0.919769, 0.931841, 0.942922, 0.952986, 0.961995, 0.969942, 0.976836, 0.982687, 0.987505, 0.991298, 0.994076, 0.995848, 0.996624, 0.996413, 0.995225, 0.993068, 0.989953, 0.985887, 0.980882, 0.974945, 0.968088, 0.960317, 0.951644, 0.942078, 0.931627, 0.920302, 0.908111, 0.895064, 0.881171, 0.86644, 0.85088, 0.834503, 0.817315, 0.799328, 0.78055, 0.760991, 0.74066, 0.719566, 0.697719, 0.675128, 0.651802, 0.627752, 0.602985, 0.57752, 0.551448, 0.524816, 0.497655, 0.469995, 0.441866, 0.413298, 0.384322, 0.354968, 0.325266, 0.295246, 0.264939, 0.234375, 0.203583, 0.172596, 0.141442, 0.110151, 0.078755, 0.047283, 0.015766, -0.015766, -0.047283, -0.078755, -0.110151, -0.141442, -0.172596, -0.203583, -0.234375, -0.264939, -0.295246, -0.325266, -0.354968, -0.384322, -0.413298, -0.441866, -0.469995, -0.497655, -0.524816, -0.551448, -0.57752, -0.602985, -0.627752, -0.651802, -0.675128, -0.697719, -0.719566, -0.74066, -0.760991, -0.78055, -0.799328, -0.817315, -0.834503, -0.85088, -0.86644, -0.881171, -0.895064, -0.908111, -0.920302, -0.931627, -0.942078, -0.951644, -0.960317, -0.968088, -0.974945, -0.980882, -0.985887, -0.989953, -0.993068, -0.995225, -0.996413, -0.996624, -0.995848, -0.994076, -0.991298, -0.987505, -0.982687, -0.976836, -0.969942, -0.961995, -0.952986, -0.942922, -0.931841, -0.919769, -0.90673, -0.892749, -0.877851, -0.862059, -0.845398, -0.827894, -0.809569, -0.790449, -0.770558, -0.749921, -0.728561, -0.706505, -0.683775, -0.660397, -0.636395, -0.611793, -0.586616, -0.560889, -0.534635, -0.50788, -0.480647, -0.452962, -0.424849, -0.396331, -0.367435, -0.338184, -0.308602, -0.278714, -0.248545, -0.218119, -0.187461, -0.156595, -0.125545, -0.094336, -0.062993, -0.031539, -0.0], "line": {"width": 2}}, {"type": "scatter", "mode": "lines", "name": "Lagrange", "x": [0.0, 0.031574, 0.063148, 0.094721, 0.126295, 0.157869, 0.189443, 0.221017, 0.25259, 0.284164, 0.315738, 0.347312, 0.378886, 0.410459, 0.442033, 0.473607, 0.505181, 0.536755, 0.568328, 0.599902, 0.631476, 0.66305, 0.694624, 0.726197, 0.757771, 0.789345, 0.820919, 0.852492, 0.884066, 0.91564, 0.947214, 0.978788, 1.010361, 1.041935, 1.073509, 1.105083, 1.136657, 1.16823, 1.199804, 1.231378, 1.262952, 1.294526, 1.326099, 1.357673, 1.389247, 1.420821, 1.452395, 1.483968, 1.515542, 1.547116, 1.57869, 1.610264, 1.641837, 1.673411, 1.704985, 1.736559, 1.768133, 1.799706, 1.83128, 1.862854, 1.894428, 1.926002, 1.957575, 1.989149, 2.020723, 2.052297, 2.083871, 2.115444, 2.147018, 2.178592, 2.210166, 2.241739, 2.273313, 2.304887, 2.336461, 2.368035, 2.399608, 2.431182, 2.462756, 2.49433, 2.525904, 2.557477, 2.589051, 2.620625, 2.652199, 2.683773, 2.715346, 2.74692, 2.778494, 2.810068, 2.841642, 2.873215, 2.904789, 2.936363, 2.967937, 2.999511, 3.031084, 3.062658, 3.094232, 3.125806, 3.15738, 3.188953, 3.220527, 3.252101, 3.283675, 3.315249, 3.346822, 3.378396, 3.40997, 3.441544, 3.473118, 3.504691, 3.536265, 3.567839, 3.599413, 3.630986, 3.66256, 3.694134, 3.725708, 3.757282, 3.788855, 3.820429, 3.852003, 3.883577, 3.915151, 3.946724, 3.978298, 4.009872, 4.041446, 4.07302, 4.104593, 4.136167, 4.167741, 4.199315, 4.230889, 4.262462, 4.294036, 4.32561, 4.357184, 4.388758, 4.420331, 4.451905, 4.483479, 4.515053, 4.546627, 4.5782, 4.609774, 4.641348, 4.672922, 4.704496, 4.736069, 4.767643, 4.799217, 4.830791, 4.862365, 4.893938, 4.925512, 4.957086, 4.98866, 5.020233, 5.051807, 5.083381, 5.114955, 5.146529, 5.178102, 5.209676, 5.24125, 5.272824, 5.304398, 5.335971, 5.367545, 5.399119, 5.430693, 5.462267, 5.49384, 5.525414, 5.556988, 5.588562, 5.620136, 5.651709, 5.683283, 5.714857, 5.746431, 5.778005, 5.809578, 5.841152, 5.872726, 5.9043, 5.935874, 5.967447, 5.999021, 6.030595, 6.062169, 6.093743, 6.125316, 6.15689, 6.188464, 6.220038, 6.251612, 6.283185], "y": [0.0, 0.026607, 0.053819, 0.081557, 0.109746, 0.138313, 0.167187, 0.196297, 0.225578, 0.254965, 0.284394, 0.313804, 0.343138, 0.372337, 0.401348, 0.430116, 0.458593, 0.486727, 0.514472, 0.541783, 0.568616, 0.594929, 0.620682, 0.645838, 0.670359, 0.694212, 0.717363, 0.73978, 0.761434, 0.782298, 0.802343, 0.821547, 0.839885, 0.857335, 0.873878, 0.889495, 0.904167, 0.917881, 0.93062, 0.942373, 0.953127, 0.962872, 0.9716, 0.979303, 0.985973, 0.991608, 0.996202, 0.999753, 1.00226, 1.003722, 1.004141, 1.003518, 1.001858, 0.999163, 0.995441, 0.990696, 0.984936, 0.978171, 0.970409, 0.96166, 0.951937, 0.941251, 0.929615, 0.917044, 0.903552, 0.889155, 0.873869, 0.857712, 0.840701, 0.822855, 0.804194, 0.784738, 0.764508, 0.743524, 0.721809, 0.699386, 0.676277, 0.652507, 0.6281, 0.603081, 0.577474, 0.551305, 0.524602, 0.497389, 0.469695, 0.441546, 0.412971, 0.383997, 0.354652, 0.324966, 0.294967, 0.264684, 0.234146, 0.203383, 0.172425, 0.141301, 0.110042, 0.078677, 0.047236, 0.01575, -0.01575, -0.047236, -0.078677, -0.110042, -0.141301, -0.172425, -0.203383, -0.234146, -0.264684, -0.294967, -0.324966, -0.354652, -0.383997, -0.412971, -0.441546, -0.469695, -0.497389, -0.524602, -0.551305, -0.577474, -0.603081, -0.6281, -0.652507, -0.676277, -0.699386, -0.721809, -0.743524, -0.764508, -0.784738, -0.804194, -0.822855, -0.840701, -0.857712, -0.873869, -0.889155, -0.903552, -0.917044, -0.929615, -0.941251, -0.951937, -0.96166, -0.970409, -0.978171, -0.984936, -0.990696, -0.995441, -0.999163, -1.001858, -1.003518, -1.004141, -1.003722, -1.00226, -0.999753, -0.996202, -0.991608, -0.985973, -0.979303, -0.9716, -0.962872, -0.953127, -0.942373, -0.93062, -0.917881, -0.904167, -0.889495, -0.873878, -0.857335, -0.839885, -0.821547, -0.802343, -0.782298, -0.761434, -0.73978, -0.717363, -0.694212, -0.670359, -0.645838, -0.620682, -0.594929, -0.568616, -0.541783, -0.514472, -0.486727, -0.458593, -0.430116, -0.401348, -0.372337, -0.343138, -0.313804, -0.284394, -0.254965, -0.225578, -0.196297, -0.167187, -0.138313, -0.109746, -0.081557, -0.053819, -0.026607, -0.0], "line": {"width": 2}}, {"type": "scatter", "mode": "lines", "name": "Cubic Spline", "x": [0.0, 0.031574, 0.063148, 0.094721, 0.126295, 0.157869, 0.189443, 0.221017, 0.25259, 0.284164, 0.315738, 0.347312, 0.378886, 0.410459, 0.442033, 0.473607, 0.505181, 0.536755, 0.568328, 0.599902, 0.631476, 0.66305, 0.694624, 0.726197, 0.757771, 0.789345, 0.820919, 0.852492, 0.884066, 0.91564, 0.947214, 0.978788, 1.010361, 1.041935, 1.073509, 1.105083, 1.136657, 1.16823, 1.199804, 1.231378, 1.262952, 1.294526, 1.326099, 1.357673, 1.389247, 1.420821, 1.452395, 1.483968, 1.515542, 1.547116, 1.57869, 1.610264, 1.641837, 1.673411, 1.704985, 1.736559, 1.768133, 1.799706, 1.83128, 1.862854, 1.894428, 1.926002, 1.957575, 1.989149, 2.020723, 2.052297, 2.083871, 2.115444, 2.147018, 2.178592, 2.210166, 2.241739, 2.273313, 2.304887, 2.336461, 2.368035, 2.399608, 2.431182, 2.462756, 2.49433, 2.525904, 2.557477, 2.589051, 2.620625, 2.652199, 2.683773, 2.715346, 2.74692, 2.778494, 2.810068, 2.841642, 2.873215, 2.904789, 2.936363, 2.967937, 2.999511, 3.031084, 3.062658, 3.094232, 3.125806, 3.15738, 3.188953, 3.220527, 3.252101, 3.283675, 3.315249, 3.346822, 3.378396, 3.40997, 3.441544, 3.473118, 3.504691, 3.536265, 3.567839, 3.599413, 3.630986, 3.66256, 3.694134, 3.725708, 3.757282, 3.788855, 3.820429, 3.852003, 3.883577, 3.915151, 3.946724, 3.978298, 4.009872, 4.041446, 4.07302, 4.104593, 4.136167, 4.167741, 4.199315, 4.230889, 4.262462, 4.294036, 4.32561, 4.357184, 4.388758, 4.420331, 4.451905, 4.483479, 4.515053, 4.546627, 4.5782, 4.609774, 4.641348, 4.672922, 4.704496, 4.736069, 4.767643, 4.799217, 4.830791, 4.862365, 4.893938, 4.925512, 4.957086, 4.98866, 5.020233, 5.051807, 5.083381, 5.114955, 5.146529, 5.178102, 5.209676, 5.24125, 5.272824, 5.304398, 5.335971, 5.367545, 5.399119, 5.430693, 5.462267, 5.49384, 5.525414, 5.556988, 5.588562, 5.620136, 5.651709, 5.683283, 5.714857, 5.746431, 5.778005, 5.809578, 5.841152, 5.872726, 5.9043, 5.935874, 5.967447, 5.999021, 6.030595, 6.062169, 6.093743, 6.125316, 6.15689, 6.188464, 6.220038, 6.251612, 6.283185], "y": [0.0, 0.031042, 0.062058, 0.093019, 0.123898, 0.15467, 0.185306, 0.215779, 0.246063, 0.276131, 0.305954, 0.335507, 0.364761, 0.393691, 0.422268, 0.450467, 0.478259, 0.505617, 0.532515, 0.558926, 0.584822, 0.610176, 0.634961, 0.659151, 0.682717, 0.705634, 0.727873, 0.749408, 0.770212, 0.790257, 0.809517, 0.827964, 0.845572, 0.862313, 0.87816, 0.893086, 0.907064, 0.920067, 0.932067, 0.943039, 0.952954, 0.961796, 0.969573, 0.976294, 0.981971, 0.986613, 0.990231, 0.992834, 0.994435, 0.995042, 0.994666, 0.993318, 0.991007, 0.987745, 0.983541, 0.978407, 0.972351, 0.965385, 0.957519, 0.948763, 0.939128, 0.928624, 0.917261, 0.905049, 0.892, 0.878123, 0.863429, 0.847928, 0.83163, 0.814546, 0.796686, 0.77806, 0.758679, 0.738553, 0.717693, 0.696109, 0.67381, 0.650808, 0.627113, 0.602735, 0.577685, 0.551983, 0.525662, 0.498754, 0.471295, 0.443316, 0.414852, 0.385935, 0.356601, 0.326881, 0.29681, 0.26642, 0.235746, 0.204821, 0.173679, 0.142352, 0.110874, 0.07928, 0.047601, 0.015873, -0.015873, -0.047601, -0.07928, -0.110874, -0.142352, -0.173679, -0.204821, -0.235746, -0.26642, -0.29681, -0.326881, -0.356601, -0.385935, -0.414852, -0.443316, -0.471295, -0.498754, -0.525662, -0.551983, -0.577685, -0.602735, -0.627113, -0.650808, -0.67381, -0.696109, -0.717693, -0.738553, -0.758679, -0.77806, -0.796686, -0.814546, -0.83163, -0.847928, -0.863429, -0.878123, -0.892, -0.905049, -0.917261, -0.928624, -0.939128, -0.948763, -0.957519, -0.965385, -0.972351, -0.978407, -0.983541, -0.987745, -0.991007, -0.993318, -0.994666, -0.995042, -0.994435, -0.992834, -0.990231, -0.986613, -0.981971, -0.976294, -0.969573, -0.961796, -0.952954, -0.943039, -0.932067, -0.920067, -0.907064, -0.893086, -0.87816, -0.862313, -0.845572, -0.827964, -0.809517, -0.790257, -0.770212, -0.749408, -0.727873, -0.705634, -0.682717, -0.659151, -0.634961, -0.610176, -0.584822, -0.558926, -0.532515, -0.505617, -0.478259, -0.450467, -0.422268, -0.393691, -0.364761, -0.335507, -0.305954, -0.276131, -0.246063, -0.215779, -0.185306, -0.15467, -0.123898, -0.093019, -0.062058, -0.031042, -0.0], "line": {"width": 2}}, {"type": "scatter", "mode": "markers", "name": "knots", "x": [0.0, 1.256637, 2.513274, 3.769911, 5.026548, 6.283185], "y": [0.0, 0.951057, 0.587785, -0.587785, -0.951057, -0.0], "marker": {"size": 8, "color": "#333"}}],{"title": "Interpolation methods on sin(x) \u2014 6 knots, 200 eval points", "xaxis": {"title": "x"}, "yaxis": {"title": "y"}, "legend": {"orientation": "h", "y": -0.25}, "margin": {"t": 50, "b": 80}},{responsive:true})});
+</script>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">interp</span><span class="p">::{</span><span class="n">LinearInterp</span><span class="p">,</span><span class="w"> </span><span class="n">HermiteInterp</span><span class="p">,</span><span class="w"> </span><span class="n">LagrangeInterp</span><span class="p">,</span><span class="w"> </span><span class="n">CubicSpline</span><span class="p">};</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">3.0</span><span class="p">];</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">ys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.841</span><span class="p">,</span><span class="w"> </span><span class="mf">0.909</span><span class="p">,</span><span class="w"> </span><span class="mf">0.141</span><span class="p">];</span><span class="w">  </span><span class="c1">// ≈ sin(x)</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">ds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.540</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">0.416</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">0.990</span><span class="p">];</span><span class="w"> </span><span class="c1">// ≈ cos(x) (derivatives)</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="kd">let</span><span class="w"> </span><span class="n">linear</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">LinearInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">hermite</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">HermiteInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ds</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="kd">let</span><span class="w"> </span><span class="n">lagrange</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LagrangeInterp</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="kd">let</span><span class="w"> </span><span class="n">spline</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">CubicSpline</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xs</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ys</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="kd">let</span><span class="w"> </span><span class="n">x_query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.5</span><span class="p">;</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;linear   = {:.6}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">linear</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="n">x_query</span><span class="p">));</span><span class="w">   </span><span class="c1">// piecewise linear</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;hermite  = {:.6}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">hermite</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="n">x_query</span><span class="p">));</span><span class="w">  </span><span class="c1">// smooth, uses derivatives</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;lagrange = {:.6}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">lagrange</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="n">x_query</span><span class="p">));</span><span class="w"> </span><span class="c1">// global polynomial</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;spline   = {:.6}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">spline</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="n">x_query</span><span class="p">));</span><span class="w">   </span><span class="c1">// C² cubic spline</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="c1">// All should be close to sin(1.5) ≈ 0.997</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      MIT License
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "content.code.copy", "content.code.annotate", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+      
+    
+  </body>
+</html>
