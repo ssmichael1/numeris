@@ -87,7 +87,7 @@ pub trait ContinuousDistribution<T> {
     fn cdf(&self, x: T) -> T;
     /// Quantile function (inverse CDF). Returns x such that P(X ≤ x) = p.
     fn quantile(&self, p: T) -> T;
-    /// Expected value E[X].
+    /// Expected value E\[X\].
     fn mean(&self) -> T;
     /// Variance Var(X).
     fn variance(&self) -> T;
@@ -101,7 +101,7 @@ pub trait DiscreteDistribution<T> {
     fn ln_pmf(&self, k: u64) -> T;
     /// Cumulative distribution function P(X ≤ k).
     fn cdf(&self, k: u64) -> T;
-    /// Expected value E[X].
+    /// Expected value E\[X\].
     fn mean(&self) -> T;
     /// Variance Var(X).
     fn variance(&self) -> T;

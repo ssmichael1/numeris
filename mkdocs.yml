@@ -1,0 +1,73 @@
+site_name: numeris
+site_description: Pure-Rust numerical algorithms library — no-std compatible, SciPy-inspired scope
+site_url: https://ssmichael1.github.io/numeris
+repo_url: https://github.com/ssmichael1/numeris
+repo_name: ssmichael1/numeris
+copyright: MIT License
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+    - search.suggest
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Modules:
+      - Matrix: matrix.md
+      - DynMatrix: dynmatrix.md
+      - Linear Algebra: linalg.md
+      - ODE Integration: ode.md
+      - Optimization: optim.md
+      - Digital Control: control.md
+      - State Estimation: estimate.md
+      - Interpolation: interp.md
+      - Special Functions: special.md
+      - Statistics: stats.md
+      - Quaternion: quaternion.md
+  - Performance: performance.md
+  - No-std / Embedded: no-std.md
+  - Design: design.md
+  - API Reference ↗: https://docs.rs/numeris
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - def_list
+  - toc:
+      permalink: true
+
+plugins:
+  - search
