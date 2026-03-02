@@ -64,6 +64,8 @@ println!("steps taken = {}", sol.steps); // number of accepted steps
 
 **FSAL** (First Same As Last): the last function evaluation of one step is reused as the first of the next, saving one function evaluation per step.
 
+--8<-- "includes/plot_ode.html"
+
 ### AdaptiveSettings
 
 ```rust

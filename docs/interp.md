@@ -159,6 +159,8 @@ match CubicSpline::new(&xs, &ys) {
 
 ## Method Comparison
 
+--8<-- "includes/plot_interp.html"
+
 ```rust
 use numeris::interp::{LinearInterp, HermiteInterp, LagrangeInterp, CubicSpline};
 

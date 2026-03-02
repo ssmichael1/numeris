@@ -7,6 +7,7 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'docs/requirements.txt'
+      - 'docs/examples/**'
 
 permissions:
   contents: write
@@ -19,5 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --examples --features "ode,interp,stats" --release
       - run: pip install -r docs/requirements.txt
+      - run: python docs/gen_plots.py
       - run: mkdocs gh-deploy --force

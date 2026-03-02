@@ -38,6 +38,15 @@ criterion = { version = "0.5", features = ["html_reports"] }
 nalgebra = "0.34"
 faer = "0.24"
 
+[[example]]
+name = "plot_ode"
+path = "docs/examples/plot_ode.rs"
+
+[[example]]
+name = "plot_interp"
+path = "docs/examples/plot_interp.rs"
+required-features = ["interp"]
+
 [[bench]]
 name = "comparison"
 harness = false

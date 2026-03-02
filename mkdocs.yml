@@ -62,7 +62,8 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: docs
   - tables
   - attr_list
   - def_list
@@ -71,3 +72,6 @@ markdown_extensions:
 
 plugins:
   - search
+
+extra_javascript:
+  - https://cdn.plot.ly/plotly-2.35.0.min.js
