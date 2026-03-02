@@ -146,7 +146,7 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
         Vector::from_array(x)
     }
 
-    /// Compute the determinant: det(A) = (Π L[i,i])².
+    /// Compute the determinant: det(A) = (Π L\[i,i\])².
     pub fn det(&self) -> T {
         let mut prod = T::one();
         for i in 0..N {
@@ -155,7 +155,7 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
         prod * prod
     }
 
-    /// Compute the log-determinant: ln(det(A)) = 2 · Σ ln(L[i,i]).
+    /// Compute the log-determinant: ln(det(A)) = 2 · Σ ln(L\[i,i\]).
     ///
     /// More numerically stable than `det()` for large matrices.
     pub fn ln_det(&self) -> T {
