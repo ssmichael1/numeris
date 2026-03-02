@@ -1,9 +1,10 @@
-//! Interpolation: linear, Hermite, barycentric Lagrange, and natural cubic spline.
+//! Interpolation: linear, Hermite, barycentric Lagrange, natural cubic spline,
+//! and bilinear (2D).
 //!
-//! All interpolants are constructed from sorted knots `(x_i, y_i)` and support
-//! evaluation at arbitrary points via `.eval(x)`. Out-of-bounds queries extrapolate
-//! using the nearest boundary segment. Each method provides both a fixed-size
-//! (const N, stack-allocated, no-std) and a dynamic (`Dyn*`, requires `alloc`) variant.
+//! All interpolants are constructed from sorted knots and support evaluation at
+//! arbitrary points. Out-of-bounds queries extrapolate using the nearest boundary
+//! segment. Each method provides both a fixed-size (const-generic, stack-allocated,
+//! no-std) and a dynamic (`Dyn*`, requires `alloc`) variant.
 //!
 //! # Examples
 //!
@@ -16,6 +17,7 @@
 //! assert!((interp.eval(0.5) - 0.5).abs() < 1e-14);
 //! ```
 
+mod bilinear;
 mod hermite;
 mod lagrange;
 mod linear;
@@ -24,11 +26,14 @@ mod spline;
 #[cfg(test)]
 mod tests;
 
+pub use bilinear::BilinearInterp;
 pub use hermite::HermiteInterp;
 pub use lagrange::LagrangeInterp;
 pub use linear::LinearInterp;
 pub use spline::CubicSpline;
 
+#[cfg(feature = "alloc")]
+pub use bilinear::DynBilinearInterp;
 #[cfg(feature = "alloc")]
 pub use hermite::DynHermiteInterp;
 #[cfg(feature = "alloc")]

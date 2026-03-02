@@ -38,8 +38,22 @@ pub struct Matrix<T, const M: usize, const N: usize> {
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Create a matrix from a row-major 2D array.
     ///
-    /// The input is `[[row0], [row1], ...]` (M arrays of N elements each).
-    /// Internally transposed to column-major storage.
+    /// The input is `[[row0], [row1], ...]` (M arrays of N elements each),
+    /// so the visual layout in source code matches the mathematical layout.
+    /// Internally transposed to column-major storage for performance.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    ///
+    /// // Input is row-major: each inner array is a row.
+    /// let m = Matrix::new([
+    ///     [1.0, 2.0, 3.0],  // row 0
+    ///     [4.0, 5.0, 6.0],  // row 1
+    /// ]);
+    /// assert_eq!(m[(0, 0)], 1.0); // row 0, col 0
+    /// assert_eq!(m[(0, 2)], 3.0); // row 0, col 2
+    /// assert_eq!(m[(1, 0)], 4.0); // row 1, col 0
+    /// ```
     #[inline]
     pub fn new(rows: [[T; N]; M]) -> Self
     where

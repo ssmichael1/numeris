@@ -18,8 +18,8 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
 - [ ] **fft** — Fast Fourier Transform
-- [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma, erf, erfc)
-- [ ] **stats** — Statistics and distributions
+- [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
+- [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
 - [ ] **poly** — Polynomial operations and root-finding
 - [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
 
@@ -68,12 +68,13 @@ Checked items are implemented; unchecked are potential future work.
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
-- **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma, erf, erfc).
+- **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
+- **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
   via the `libm` crate. When `std` is also enabled, `std` takes precedence.
 - **`complex`** — adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. All decompositions
   and norms work with complex elements. Zero overhead for real-only code paths.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `complex`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -144,6 +145,7 @@ src/
 │   ├── hermite.rs      # HermiteInterp<T, N> + DynHermiteInterp<T>
 │   ├── lagrange.rs     # LagrangeInterp<T, N> + DynLagrangeInterp<T> (barycentric)
 │   ├── spline.rs       # CubicSpline<T, N> + DynCubicSpline<T> (natural BCs, Thomas algorithm)
+│   ├── bilinear.rs     # BilinearInterp<T, NX, NY> + DynBilinearInterp<T> (2D rectangular grid)
 │   └── tests.rs        # comprehensive tests
 ├── control/            # (requires `control` feature)
 │   ├── mod.rs          # ControlError, module declarations, re-exports
@@ -177,11 +179,25 @@ src/
 │   ├── digamma_fn.rs   # digamma (recurrence + asymptotic series)
 │   ├── beta_fn.rs      # beta, lbeta (via lgamma)
 │   ├── incgamma.rs     # gamma_inc, gamma_inc_upper (series + continued fraction)
+│   ├── betainc.rs      # betainc — regularized incomplete beta I_x(a,b) (continued fraction)
 │   ├── erf_fn.rs       # erf, erfc (via regularized incomplete gamma P(1/2, x²))
+│   └── tests.rs        # comprehensive tests
+├── stats/              # (requires `stats` feature, implies `special`)
+│   ├── mod.rs          # ContinuousDistribution, DiscreteDistribution traits, StatsError, helpers
+│   ├── normal.rs       # Normal<T> — Gaussian distribution
+│   ├── uniform.rs      # Uniform<T> — continuous uniform on [a, b]
+│   ├── exponential.rs  # Exponential<T> — exponential with rate λ
+│   ├── gamma_dist.rs   # Gamma<T> — gamma with shape α and rate β
+│   ├── beta_dist.rs    # Beta<T> — beta with shape parameters α, β
+│   ├── chi_squared.rs  # ChiSquared<T> — chi-squared with k degrees of freedom
+│   ├── student_t.rs    # StudentT<T> — Student's t with ν degrees of freedom
+│   ├── bernoulli.rs    # Bernoulli<T> — Bernoulli with probability p
+│   ├── binomial.rs     # Binomial<T> — binomial with n trials, probability p
+│   ├── poisson.rs      # Poisson<T> — Poisson with rate λ
 │   └── tests.rs        # comprehensive tests
 └── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle
 ```
 
 ## Current Focus
 
-Next candidates: special functions (gamma), SIMD extension to remaining linalg inner loops (QR, Cholesky, SVD Householder loops via col_as_slice + dot/AXPY dispatch).
+Next candidates: SIMD extension to remaining linalg inner loops (QR, Cholesky, SVD Householder loops via col_as_slice + dot/AXPY dispatch).

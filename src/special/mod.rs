@@ -45,6 +45,7 @@ mod digamma_fn;
 mod beta_fn;
 mod incgamma;
 mod erf_fn;
+mod betainc;
 
 #[cfg(test)]
 mod tests;
@@ -54,6 +55,7 @@ pub use digamma_fn::digamma;
 pub use beta_fn::{beta, lbeta};
 pub use incgamma::{gamma_inc, gamma_inc_upper};
 pub use erf_fn::{erf, erfc};
+pub use betainc::betainc;
 
 /// Errors from special function evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

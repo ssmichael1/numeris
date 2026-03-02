@@ -407,6 +407,174 @@ fn find_interval_basic() {
     assert_eq!(find_interval(&xs, 5.0), 3);
 }
 
+// ======================== Bilinear ========================
+
+#[test]
+fn bilinear_corners() {
+    // 3×3 grid with distinct values
+    let xs = [0.0_f64, 1.0, 2.0];
+    let ys = [0.0, 1.0, 2.0];
+    let zs = [
+        [1.0, 2.0, 3.0], // y = 0
+        [4.0, 5.0, 6.0], // y = 1
+        [7.0, 8.0, 9.0], // y = 2
+    ];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    // All 9 grid points should be exact
+    for iy in 0..3 {
+        for ix in 0..3 {
+            let expected = zs[iy][ix];
+            let got = interp.eval(xs[ix], ys[iy]);
+            assert!(
+                (got - expected).abs() < 1e-14,
+                "corner ({ix},{iy}): {got} vs {expected}"
+            );
+        }
+    }
+}
+
+#[test]
+fn bilinear_midpoint() {
+    // Cell center should be the average of 4 corners
+    let xs = [0.0_f64, 1.0];
+    let ys = [0.0, 1.0];
+    let zs = [
+        [1.0, 3.0], // y = 0
+        [5.0, 7.0], // y = 1
+    ];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    let mid = interp.eval(0.5, 0.5);
+    let expected = (1.0 + 3.0 + 5.0 + 7.0) / 4.0;
+    assert!((mid - expected).abs() < 1e-14, "midpoint: {mid} vs {expected}");
+}
+
+#[test]
+fn bilinear_x_edge() {
+    let xs = [0.0_f64, 1.0];
+    let ys = [0.0, 1.0];
+    let zs = [
+        [0.0, 2.0], // y = 0
+        [4.0, 6.0], // y = 1
+    ];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    // Midpoint along x at y=0: (0+2)/2 = 1
+    assert!((interp.eval(0.5, 0.0) - 1.0).abs() < 1e-14);
+    // Midpoint along x at y=1: (4+6)/2 = 5
+    assert!((interp.eval(0.5, 1.0) - 5.0).abs() < 1e-14);
+}
+
+#[test]
+fn bilinear_y_edge() {
+    let xs = [0.0_f64, 1.0];
+    let ys = [0.0, 1.0];
+    let zs = [
+        [0.0, 2.0], // y = 0
+        [4.0, 6.0], // y = 1
+    ];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    // Midpoint along y at x=0: (0+4)/2 = 2
+    assert!((interp.eval(0.0, 0.5) - 2.0).abs() < 1e-14);
+    // Midpoint along y at x=1: (2+6)/2 = 4
+    assert!((interp.eval(1.0, 0.5) - 4.0).abs() < 1e-14);
+}
+
+#[test]
+fn bilinear_linear_plane() {
+    // z = 2x + 3y + 1 should be reproduced exactly
+    let xs = [0.0_f64, 1.0, 2.0, 3.0];
+    let ys = [0.0, 1.0, 2.0];
+    let zs = [
+        [1.0, 3.0, 5.0, 7.0],   // y = 0: 2x + 1
+        [4.0, 6.0, 8.0, 10.0],  // y = 1: 2x + 4
+        [7.0, 9.0, 11.0, 13.0], // y = 2: 2x + 7
+    ];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    for &x in &[0.0, 0.3, 1.0, 1.7, 2.5, 3.0] {
+        for &y in &[0.0, 0.4, 1.0, 1.5, 2.0] {
+            let expected = 2.0 * x + 3.0 * y + 1.0;
+            let got = interp.eval(x, y);
+            assert!(
+                (got - expected).abs() < 1e-12,
+                "plane at ({x},{y}): {got} vs {expected}"
+            );
+        }
+    }
+}
+
+#[test]
+fn bilinear_extrapolation() {
+    let xs = [1.0_f64, 2.0];
+    let ys = [1.0, 2.0];
+    // z = x + y
+    let zs = [
+        [2.0, 3.0], // y = 1
+        [3.0, 4.0], // y = 2
+    ];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    // Beyond all four boundaries — extrapolates linearly from boundary cell
+    let _ = interp.eval(0.0, 1.5); // left
+    let _ = interp.eval(3.0, 1.5); // right
+    let _ = interp.eval(1.5, 0.0); // below
+    let _ = interp.eval(1.5, 3.0); // above
+}
+
+#[test]
+fn bilinear_sorted_error_x() {
+    let r = BilinearInterp::new(
+        [2.0_f64, 1.0, 3.0],
+        [0.0, 1.0],
+        [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+    );
+    assert_eq!(r.unwrap_err(), InterpError::NotSorted);
+}
+
+#[test]
+fn bilinear_sorted_error_y() {
+    let r = BilinearInterp::new(
+        [0.0_f64, 1.0],
+        [1.0, 0.0],
+        [[0.0, 0.0], [0.0, 0.0]],
+    );
+    assert_eq!(r.unwrap_err(), InterpError::NotSorted);
+}
+
+#[test]
+fn bilinear_too_few_x() {
+    let r = BilinearInterp::new([0.0_f64], [0.0, 1.0], [[0.0], [0.0]]);
+    assert_eq!(r.unwrap_err(), InterpError::TooFewPoints);
+}
+
+#[test]
+fn bilinear_too_few_y() {
+    let r = BilinearInterp::new([0.0_f64, 1.0], [0.0], [[0.0, 0.0]]);
+    assert_eq!(r.unwrap_err(), InterpError::TooFewPoints);
+}
+
+#[test]
+fn bilinear_f32() {
+    let xs = [0.0_f32, 1.0];
+    let ys = [0.0, 1.0];
+    let zs = [[0.0, 1.0], [2.0, 3.0]];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    assert!((interp.eval(0.5, 0.5) - 1.5).abs() < 1e-6);
+}
+
+#[test]
+fn bilinear_non_uniform_grid() {
+    // Non-uniform spacing
+    let xs = [0.0_f64, 1.0, 4.0];
+    let ys = [0.0, 2.0];
+    // z = x * y
+    let zs = [
+        [0.0, 0.0, 0.0], // y = 0
+        [0.0, 2.0, 8.0], // y = 2
+    ];
+    let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+    // At (0.5, 1.0): tx=0.5 in [0,1], ty=0.5 in [0,2]
+    // z00=0, z10=0, z01=0, z11=2 → 0.5*0.5*2 = 0.5
+    assert!((interp.eval(0.5, 1.0) - 0.5).abs() < 1e-14);
+}
+
 // ======================== Dynamic variants ========================
 
 #[cfg(feature = "alloc")]
@@ -559,6 +727,95 @@ mod dyn_tests {
         let r = DynCubicSpline::new(
             alloc::vec![0.0_f64, 1.0, 2.0],
             alloc::vec![0.0, 1.0],
+        );
+        assert_eq!(r.unwrap_err(), InterpError::LengthMismatch);
+    }
+
+    #[test]
+    fn dyn_bilinear_basic() {
+        let interp = DynBilinearInterp::new(
+            alloc::vec![0.0_f64, 1.0, 2.0],
+            alloc::vec![0.0, 1.0],
+            alloc::vec![
+                alloc::vec![1.0, 2.0, 3.0], // y = 0
+                alloc::vec![4.0, 5.0, 6.0], // y = 1
+            ],
+        )
+        .unwrap();
+        // Corners
+        assert!((interp.eval(0.0, 0.0) - 1.0).abs() < 1e-14);
+        assert!((interp.eval(2.0, 1.0) - 6.0).abs() < 1e-14);
+        // Midpoint of first cell: (1+2+4+5)/4 = 3
+        assert!((interp.eval(0.5, 0.5) - 3.0).abs() < 1e-14);
+    }
+
+    #[test]
+    fn dyn_bilinear_from_slice() {
+        // Column-major: zs[ix * ny + iy]
+        // 2×2 grid, z = x + y: z(0,0)=0, z(0,1)=1, z(1,0)=1, z(1,1)=2
+        let interp = DynBilinearInterp::from_slice(
+            alloc::vec![0.0_f64, 1.0],
+            alloc::vec![0.0, 1.0],
+            alloc::vec![0.0, 1.0, 1.0, 2.0], // col-major: [z(0,0), z(0,1), z(1,0), z(1,1)]
+        )
+        .unwrap();
+        assert!((interp.eval(0.0, 0.0) - 0.0).abs() < 1e-14);
+        assert!((interp.eval(1.0, 1.0) - 2.0).abs() < 1e-14);
+        assert!((interp.eval(0.5, 0.5) - 1.0).abs() < 1e-14);
+    }
+
+    #[test]
+    fn dyn_bilinear_matches_fixed() {
+        let xs = [0.0_f64, 1.0, 2.0];
+        let ys = [0.0, 1.0, 2.0];
+        let zs = [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0],
+        ];
+        let fixed = BilinearInterp::new(xs, ys, zs).unwrap();
+        let dyn_interp = DynBilinearInterp::new(
+            xs.to_vec(),
+            ys.to_vec(),
+            zs.iter().map(|row| row.to_vec()).collect(),
+        )
+        .unwrap();
+        for &x in &[0.0, 0.5, 1.0, 1.5, 2.0] {
+            for &y in &[0.0, 0.5, 1.0, 1.5, 2.0] {
+                assert!(
+                    (fixed.eval(x, y) - dyn_interp.eval(x, y)).abs() < 1e-14,
+                    "mismatch at ({x},{y})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn dyn_bilinear_length_mismatch_rows() {
+        let r = DynBilinearInterp::new(
+            alloc::vec![0.0_f64, 1.0],
+            alloc::vec![0.0, 1.0],
+            alloc::vec![alloc::vec![0.0, 0.0]], // only 1 row, need 2
+        );
+        assert_eq!(r.unwrap_err(), InterpError::LengthMismatch);
+    }
+
+    #[test]
+    fn dyn_bilinear_length_mismatch_cols() {
+        let r = DynBilinearInterp::new(
+            alloc::vec![0.0_f64, 1.0],
+            alloc::vec![0.0, 1.0],
+            alloc::vec![alloc::vec![0.0], alloc::vec![0.0]], // rows too short
+        );
+        assert_eq!(r.unwrap_err(), InterpError::LengthMismatch);
+    }
+
+    #[test]
+    fn dyn_bilinear_from_slice_length_mismatch() {
+        let r = DynBilinearInterp::from_slice(
+            alloc::vec![0.0_f64, 1.0],
+            alloc::vec![0.0, 1.0],
+            alloc::vec![0.0, 1.0, 2.0], // 3 elements, need 4
         );
         assert_eq!(r.unwrap_err(), InterpError::LengthMismatch);
     }

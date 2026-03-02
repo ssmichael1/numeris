@@ -76,8 +76,15 @@
 //! - [`special`] — Special functions: [`special::gamma`], [`special::lgamma`],
 //!   [`special::digamma`], [`special::beta`] / [`special::lbeta`],
 //!   regularized incomplete gamma ([`special::gamma_inc`] / [`special::gamma_inc_upper`]),
+//!   regularized incomplete beta ([`special::betainc`]),
 //!   and error functions ([`special::erf`] / [`special::erfc`]).
 //!   Generic over `FloatScalar` (f32/f64), fully no-std. Requires `special` feature.
+//!
+//! - [`stats`] — Statistical distributions with [`stats::ContinuousDistribution`] and
+//!   [`stats::DiscreteDistribution`] traits. Continuous: [`stats::Normal`],
+//!   [`stats::Uniform`], [`stats::Exponential`], [`stats::Gamma`], [`stats::Beta`],
+//!   [`stats::ChiSquared`], [`stats::StudentT`]. Discrete: [`stats::Bernoulli`],
+//!   [`stats::Binomial`], [`stats::Poisson`]. Requires `stats` feature (implies `special`).
 //!
 //! - [`quaternion`] — Unit quaternion for 3D rotations. Scalar-first `[w, x, y, z]`.
 //!   Construct from axis-angle, Euler angles, or rotation matrices. Supports
@@ -107,10 +114,11 @@
 //! | `control` | no       | Digital IIR filters (Butterworth, Chebyshev Type I) |
 //! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
 //! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline) |
-//! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma) |
+//! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma/beta) |
+//! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.). Implies `special` |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
-//! | `all`     | no       | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `special` + `complex` |
+//! | `all`     | no       | All features |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -134,6 +142,8 @@ pub mod interp;
 pub mod optim;
 #[cfg(feature = "special")]
 pub mod special;
+#[cfg(feature = "stats")]
+pub mod stats;
 pub mod quaternion;
 pub mod traits;
 
