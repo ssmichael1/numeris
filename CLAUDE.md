@@ -155,12 +155,12 @@ src/
 │   ├── pid.rs          # Pid<T> discrete-time PID controller with anti-windup and derivative filter
 │   └── tests.rs        # comprehensive tests
 ├── estimate/           # (requires `estimate` feature, implies `alloc`)
-│   ├── mod.rs          # EstimateError, fd_jacobian helper, re-exports
-│   ├── ekf.rs          # Ekf<T, N, M> — Extended Kalman Filter (fully no-std)
-│   ├── ukf.rs          # Ukf<T, N, M> — Unscented Kalman Filter (requires `alloc`)
+│   ├── mod.rs          # EstimateError, fd_jacobian, cholesky_with_jitter, apply_var_floor, re-exports
+│   ├── ekf.rs          # Ekf<T, N, M> — EKF: predict/update/update_fd/update_gated/update_iterated
+│   ├── ukf.rs          # Ukf<T, N, M> — UKF: predict/update/update_gated (requires `alloc`)
 │   ├── cholupdate.rs   # Cholesky rank-1 update/downdate (private helper)
-│   ├── srukf.rs        # SrUkf<T, N, M> — Square-Root UKF (requires `alloc`)
-│   ├── ckf.rs          # Ckf<T, N, M> — Cubature Kalman Filter (requires `alloc`)
+│   ├── srukf.rs        # SrUkf<T, N, M> — SR-UKF: predict/update/update_gated (requires `alloc`)
+│   ├── ckf.rs          # Ckf<T, N, M> — CKF: predict/update/update_gated (requires `alloc`)
 │   ├── rts.rs          # EkfStep, rts_smooth — RTS fixed-interval smoother (requires `alloc`)
 │   ├── batch.rs        # BatchLsq<T, N> — Batch least-squares (fully no-std)
 │   └── tests.rs        # comprehensive tests
