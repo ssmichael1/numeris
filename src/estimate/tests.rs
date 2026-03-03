@@ -1658,9 +1658,12 @@ fn fd_jacobian_rectangular() {
 
 #[test]
 fn ekf_singular_innovation() {
-    // Zero R with a zero-variance prior → S should be near-singular
+    // Zero R with zero-covariance prior → S is identically zero.
+    // The jitter helper adds ε·I so Cholesky succeeds, giving K=P·Hᵀ·S⁻¹=0
+    // (because P=0). The filter correctly ignores the measurement, and the
+    // NIS is enormous (the measurement is wildly inconsistent with the state).
     let x0 = ColumnVector::from_column([0.0_f64]);
-    let p0 = Matrix::new([[0.0]]); // zero covariance
+    let p0 = Matrix::new([[0.0]]); // zero covariance — 100% certain
     let r = Matrix::new([[0.0]]); // zero measurement noise
     let mut ekf = Ekf::<f64, 1, 1>::new(x0, p0);
 
@@ -1671,7 +1674,12 @@ fn ekf_singular_innovation() {
         &r,
     );
 
-    assert_eq!(result, Err(EstimateError::SingularInnovation));
+    // Jitter recovery means this now returns Ok with a huge NIS.
+    assert!(result.is_ok(), "expected Ok with jitter recovery, got {result:?}");
+    let nis = result.unwrap();
+    assert!(nis > 1e6, "NIS should be huge for inconsistent measurement, got {nis}");
+    // State must be unchanged (K=0 since P=0).
+    approx_eq(ekf.x[(0, 0)], 0.0, 1e-14);
 }
 
 #[test]
@@ -1693,4 +1701,423 @@ fn estimate_error_display() {
         alloc::format!("{}", e),
         "Cholesky downdate failed: result not positive definite"
     );
+}
+
+// ── Robustness feature tests ─────────────────────────────────────────
+
+// 1. Cholesky with diagonal jitter ─────────────────────────────────
+
+#[test]
+fn cholesky_jitter_retries_near_singular() {
+    // A matrix that is mathematically PD but with a tiny eigenvalue;
+    // adding a small negative perturbation makes it appear non-PD.
+    // The jitter helper should succeed where plain Cholesky might fail
+    // on slightly corrupted P matrices accumulated from filter updates.
+    use super::cholesky_with_jitter;
+    use crate::linalg::CholeskyDecomposition;
+
+    // Construct a near-singular 2×2 PD matrix.
+    let eps = 1e-10_f64;
+    let p = Matrix::new([[1.0 + eps, 1.0], [1.0, 1.0 + eps]]);
+
+    // Plain Cholesky fails for the exact singular case.
+    let singular = Matrix::new([[1.0_f64, 1.0], [1.0, 1.0]]);
+    assert!(CholeskyDecomposition::new(&singular).is_err());
+
+    // Jitter helper recovers on the near-singular case.
+    let result = cholesky_with_jitter(&p);
+    assert!(result.is_ok());
+
+    // Verify the factor is correct: L*Lᵀ ≈ p.
+    let l = result.unwrap().l_full();
+    let p_reconstructed = l * l.transpose();
+    for i in 0..2 {
+        for j in 0..2 {
+            approx_eq(p_reconstructed[(i, j)], p[(i, j)], 1e-8);
+        }
+    }
+}
+
+// 2. K·S·Kᵀ covariance update (UKF and CKF) ────────────────────────
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ukf_kskt_covariance_stays_pd_after_many_updates() {
+    // Run many update steps; P should remain positive definite.
+    use crate::linalg::CholeskyDecomposition;
+    let x0 = ColumnVector::from_column([0.0_f64, 1.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[0.1]]);
+    let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
+
+    for k in 0..200 {
+        let z_val = 0.1 * k as f64;
+        ukf.update(
+            &ColumnVector::from_column([z_val]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            &r,
+        )
+        .unwrap();
+        // After each update P must still be PD.
+        assert!(CholeskyDecomposition::new(&ukf.p).is_ok(), "P non-PD at step {k}");
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ckf_kskt_covariance_stays_pd_after_many_updates() {
+    use crate::linalg::CholeskyDecomposition;
+    let x0 = ColumnVector::from_column([0.0_f64, 1.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[0.1]]);
+    let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
+
+    for k in 0..200 {
+        let z_val = 0.1 * k as f64;
+        ckf.update(
+            &ColumnVector::from_column([z_val]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            &r,
+        )
+        .unwrap();
+        assert!(CholeskyDecomposition::new(&ckf.p).is_ok(), "P non-PD at step {k}");
+    }
+}
+
+// 3. alpha=1.0 default gives non-negative weights ──────────────────
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ukf_default_alpha_one_converges() {
+    // With alpha=1.0 all sigma-point weights are non-negative; filter should
+    // converge just as well as before.
+    let dt = 0.1;
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[10.0, 0.0], [0.0, 10.0]]);
+    let q = Matrix::new([[0.01, 0.0], [0.0, 0.01]]);
+    let r = Matrix::new([[0.1]]);
+    let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0); // default alpha=1.0
+
+    let mut true_pos = 5.0;
+    let true_vel = 1.0;
+    for _ in 0..100 {
+        ukf.predict(
+            |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+            Some(&q),
+        )
+        .unwrap();
+        true_pos += dt * true_vel;
+        ukf.update(
+            &ColumnVector::from_column([true_pos]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            &r,
+        )
+        .unwrap();
+    }
+
+    approx_eq(ukf.x[(0, 0)], true_pos, 0.5);
+    approx_eq(ukf.x[(1, 0)], true_vel, 0.5);
+}
+
+// 4. Covariance floor (min_variance) ───────────────────────────────
+
+#[test]
+fn ekf_min_variance_floor_applied() {
+    // With a tiny R and many updates the diagonal would shrink below the floor.
+    let x0 = ColumnVector::from_column([0.0_f64]);
+    let p0 = Matrix::new([[1.0_f64]]);
+    let r = Matrix::new([[1e-6_f64]]); // near-perfect measurements
+    let floor = 1e-4_f64;
+    let mut ekf = Ekf::<f64, 1, 1>::new(x0, p0).with_min_variance(floor);
+
+    for _ in 0..200 {
+        ekf.update(
+            &ColumnVector::from_column([0.0]),
+            |x| *x,
+            |_x| Matrix::new([[1.0]]),
+            &r,
+        )
+        .unwrap();
+        assert!(ekf.p[(0, 0)] >= floor, "P fell below floor: {}", ekf.p[(0, 0)]);
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ukf_min_variance_floor_applied() {
+    let x0 = ColumnVector::from_column([0.0_f64]);
+    let p0 = Matrix::new([[1.0_f64]]);
+    let r = Matrix::new([[1e-6_f64]]);
+    let floor = 1e-4_f64;
+    let mut ukf = Ukf::<f64, 1, 1>::new(x0, p0).with_min_variance(floor);
+
+    for _ in 0..200 {
+        ukf.update(
+            &ColumnVector::from_column([0.0]),
+            |x| *x,
+            &r,
+        )
+        .unwrap();
+        assert!(ukf.p[(0, 0)] >= floor, "P fell below floor: {}", ukf.p[(0, 0)]);
+    }
+}
+
+// 5. Innovation gating ─────────────────────────────────────────────
+
+#[test]
+fn ekf_gate_rejects_large_innovation() {
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[1.0]]);
+    let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
+
+    // A measurement of 1000 should be rejected with a tight gate of 10.0.
+    let result = ekf
+        .update_gated(
+            &ColumnVector::from_column([1000.0]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            |_x| Matrix::new([[1.0, 0.0]]),
+            &r,
+            10.0,
+        )
+        .unwrap();
+    assert!(result.is_none(), "large innovation should be gated out");
+    // State must be unchanged.
+    approx_eq(ekf.x[(0, 0)], 0.0, 1e-14);
+
+    // A consistent measurement should be accepted.
+    let result = ekf
+        .update_gated(
+            &ColumnVector::from_column([0.5]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            |_x| Matrix::new([[1.0, 0.0]]),
+            &r,
+            10.0,
+        )
+        .unwrap();
+    assert!(result.is_some(), "consistent innovation should pass gate");
+    assert!(ekf.x[(0, 0)] > 0.0, "state should move toward measurement");
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ukf_gate_rejects_large_innovation() {
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[1.0]]);
+    let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
+
+    let result = ukf
+        .update_gated(
+            &ColumnVector::from_column([1000.0]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            &r,
+            10.0,
+        )
+        .unwrap();
+    assert!(result.is_none());
+    approx_eq(ukf.x[(0, 0)], 0.0, 1e-14);
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ckf_gate_rejects_large_innovation() {
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[1.0]]);
+    let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
+
+    let result = ckf
+        .update_gated(
+            &ColumnVector::from_column([1000.0]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            &r,
+            10.0,
+        )
+        .unwrap();
+    assert!(result.is_none());
+    approx_eq(ckf.x[(0, 0)], 0.0, 1e-14);
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn srukf_gate_rejects_large_innovation() {
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[1.0]]);
+    let mut srukf = SrUkf::<f64, 2, 1>::from_covariance(x0, p0).unwrap();
+
+    let result = srukf
+        .update_gated(
+            &ColumnVector::from_column([1000.0]),
+            |x| ColumnVector::from_column([x[(0, 0)]]),
+            &r,
+            10.0,
+        )
+        .unwrap();
+    assert!(result.is_none());
+    approx_eq(srukf.x[(0, 0)], 0.0, 1e-14);
+}
+
+// 6. Iterated EKF ──────────────────────────────────────────────────
+
+#[test]
+fn iekf_nonlinear_measurement_more_accurate_than_ekf() {
+    // Range measurement: h(x) = sqrt(x[0]^2 + x[1]^2)
+    // True state far from prior so linearization matters.
+    let x0 = ColumnVector::from_column([4.0_f64, 3.0]);  // prior near truth
+    let p0 = Matrix::new([[0.5, 0.0], [0.0, 0.5]]);
+    let r = Matrix::new([[0.001]]);  // precise measurement
+
+    let true_x = ColumnVector::from_column([3.0_f64, 4.0]);
+    let true_range = (3.0_f64 * 3.0 + 4.0 * 4.0).sqrt();
+
+    let h = |x: &ColumnVector<f64, 2>| {
+        ColumnVector::from_column([(x[(0, 0)] * x[(0, 0)] + x[(1, 0)] * x[(1, 0)]).sqrt()])
+    };
+    let hj = |x: &ColumnVector<f64, 2>| {
+        let r = (x[(0, 0)] * x[(0, 0)] + x[(1, 0)] * x[(1, 0)]).sqrt();
+        Matrix::new([[x[(0, 0)] / r, x[(1, 0)] / r]])
+    };
+
+    let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
+    let mut iekf = Ekf::<f64, 2, 1>::new(x0, p0);
+
+    let z = ColumnVector::from_column([true_range]);
+    ekf.update(&z, h, hj, &r).unwrap();
+    iekf.update_iterated(&z, h, hj, &r, 20, 1e-8).unwrap();
+
+    let ekf_err = ((ekf.x[(0, 0)] - true_x[(0, 0)]).powi(2)
+        + (ekf.x[(1, 0)] - true_x[(1, 0)]).powi(2))
+    .sqrt();
+    let iekf_err = ((iekf.x[(0, 0)] - true_x[(0, 0)]).powi(2)
+        + (iekf.x[(1, 0)] - true_x[(1, 0)]).powi(2))
+    .sqrt();
+
+    // IEKF should be closer to the true state.
+    assert!(
+        iekf_err <= ekf_err + 1e-8,
+        "IEKF err {iekf_err:.6} should be ≤ EKF err {ekf_err:.6}"
+    );
+}
+
+#[test]
+fn iekf_linear_matches_ekf() {
+    // For a linear model, IEKF must converge in one iteration and match EKF.
+    let x0 = ColumnVector::from_column([1.0_f64, 2.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[0.5]]);
+    let z = ColumnVector::from_column([1.3]);
+
+    let h = |x: &ColumnVector<f64, 2>| ColumnVector::from_column([x[(0, 0)]]);
+    let hj = |_x: &ColumnVector<f64, 2>| Matrix::new([[1.0, 0.0]]);
+
+    let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
+    let mut iekf = Ekf::<f64, 2, 1>::new(x0, p0);
+
+    ekf.update(&z, h, hj, &r).unwrap();
+    iekf.update_iterated(&z, h, hj, &r, 10, 1e-10).unwrap();
+
+    for i in 0..2 {
+        approx_eq(ekf.x[(i, 0)], iekf.x[(i, 0)], 1e-10);
+        for j in 0..2 {
+            approx_eq(ekf.p[(i, j)], iekf.p[(i, j)], 1e-10);
+        }
+    }
+}
+
+#[test]
+fn iekf_fd_matches_explicit() {
+    // FD-Jacobian iterated EKF should agree with explicit Jacobian version.
+    let x0 = ColumnVector::from_column([4.0_f64, 3.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+    let r = Matrix::new([[0.1]]);
+    let z = ColumnVector::from_column([5.0]);
+
+    let h = |x: &ColumnVector<f64, 2>| {
+        ColumnVector::from_column([(x[(0, 0)] * x[(0, 0)] + x[(1, 0)] * x[(1, 0)]).sqrt()])
+    };
+    let hj = |x: &ColumnVector<f64, 2>| {
+        let rng = (x[(0, 0)] * x[(0, 0)] + x[(1, 0)] * x[(1, 0)]).sqrt();
+        Matrix::new([[x[(0, 0)] / rng, x[(1, 0)] / rng]])
+    };
+
+    let mut iekf_explicit = Ekf::<f64, 2, 1>::new(x0, p0);
+    let mut iekf_fd = Ekf::<f64, 2, 1>::new(x0, p0);
+
+    iekf_explicit.update_iterated(&z, h, hj, &r, 20, 1e-10).unwrap();
+    iekf_fd.update_fd_iterated(&z, h, &r, 20, 1e-10).unwrap();
+
+    for i in 0..2 {
+        approx_eq(iekf_explicit.x[(i, 0)], iekf_fd.x[(i, 0)], 1e-5);
+    }
+}
+
+// 7. Fading memory (gamma) ─────────────────────────────────────────
+
+#[test]
+fn ekf_fading_memory_inflates_covariance() {
+    // With gamma > 1 the predicted covariance should be larger.
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+
+    let mut ekf_std = Ekf::<f64, 2, 1>::new(x0, p0);
+    let mut ekf_fade = Ekf::<f64, 2, 1>::new(x0, p0).with_fading_memory(1.05);
+
+    let f = |x: &ColumnVector<f64, 2>| {
+        ColumnVector::from_column([x[(0, 0)] + 0.1 * x[(1, 0)], x[(1, 0)]])
+    };
+    let fj = |_x: &ColumnVector<f64, 2>| Matrix::new([[1.0, 0.1], [0.0, 1.0]]);
+
+    ekf_std.predict(f, fj, None);
+    ekf_fade.predict(f, fj, None);
+
+    // Fading memory filter must have larger (or equal) diagonal variances.
+    assert!(
+        ekf_fade.p[(0, 0)] > ekf_std.p[(0, 0)],
+        "fading covariance should exceed standard: {} vs {}",
+        ekf_fade.p[(0, 0)],
+        ekf_std.p[(0, 0)]
+    );
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ukf_fading_memory_inflates_covariance() {
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+
+    let mut ukf_std = Ukf::<f64, 2, 1>::new(x0, p0);
+    let mut ukf_fade = Ukf::<f64, 2, 1>::new(x0, p0).with_fading_memory(1.05);
+
+    let f = |x: &ColumnVector<f64, 2>| {
+        ColumnVector::from_column([x[(0, 0)] + 0.1 * x[(1, 0)], x[(1, 0)]])
+    };
+
+    ukf_std.predict(f, None).unwrap();
+    ukf_fade.predict(f, None).unwrap();
+
+    assert!(
+        ukf_fade.p[(0, 0)] > ukf_std.p[(0, 0)],
+        "fading covariance should exceed standard"
+    );
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ckf_fading_memory_inflates_covariance() {
+    let x0 = ColumnVector::from_column([0.0_f64, 0.0]);
+    let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
+
+    let mut ckf_std = Ckf::<f64, 2, 1>::new(x0, p0);
+    let mut ckf_fade = Ckf::<f64, 2, 1>::new(x0, p0).with_fading_memory(1.05);
+
+    let f = |x: &ColumnVector<f64, 2>| {
+        ColumnVector::from_column([x[(0, 0)] + 0.1 * x[(1, 0)], x[(1, 0)]])
+    };
+
+    ckf_std.predict(f, None).unwrap();
+    ckf_fade.predict(f, None).unwrap();
+
+    assert!(ckf_fade.p[(0, 0)] > ckf_std.p[(0, 0)]);
 }

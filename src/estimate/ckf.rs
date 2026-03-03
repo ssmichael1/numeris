@@ -1,12 +1,11 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use crate::linalg::CholeskyDecomposition;
 use crate::matrix::vector::ColumnVector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
-use super::EstimateError;
+use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
 
 /// Cubature Kalman Filter with third-degree spherical-radial cubature rule.
 ///
@@ -47,12 +46,35 @@ pub struct Ckf<T: FloatScalar, const N: usize, const M: usize> {
     pub x: ColumnVector<T, N>,
     /// State covariance.
     pub p: Matrix<T, N, N>,
+    /// Minimum allowed diagonal variance (0 = disabled).
+    min_variance: T,
+    /// Fading-memory factor γ≥1 applied to the sigma-point covariance (1 = standard).
+    gamma: T,
 }
 
 impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// Create a new CKF with initial state `x0` and covariance `p0`.
     pub fn new(x0: ColumnVector<T, N>, p0: Matrix<T, N, N>) -> Self {
-        Self { x: x0, p: p0 }
+        Self {
+            x: x0,
+            p: p0,
+            min_variance: T::zero(),
+            gamma: T::one(),
+        }
+    }
+
+    /// Set a minimum diagonal variance floor applied after every predict/update.
+    pub fn with_min_variance(mut self, min_variance: T) -> Self {
+        self.min_variance = min_variance;
+        self
+    }
+
+    /// Set a fading-memory factor `γ ≥ 1` applied to the propagated covariance.
+    ///
+    /// The predicted covariance becomes `γ · P_cubature + Q`. Default is `1.0`.
+    pub fn with_fading_memory(mut self, gamma: T) -> Self {
+        self.gamma = gamma;
+        self
     }
 
     /// Reference to the current state estimate.
@@ -76,7 +98,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         let mut points = Vec::with_capacity(2 * N);
 
         for i in 0..N {
-            // Positive direction: x + sqrt(N) * L·e_i = x + sqrt(N) * col_i(L)
+            // x ± sqrt(N) · L·e_i = x ± sqrt(N) · col_i(L)
             let mut pos = *x;
             let mut neg = *x;
             for r in 0..N {
@@ -97,14 +119,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// - `q` — process noise covariance (pass `None` for zero process noise)
     ///
     /// Generates `2N` cubature points, propagates through `f`, and
-    /// reconstructs the predicted mean and covariance.
+    /// reconstructs the predicted mean and covariance as `γ · P_cubature + Q`.
     pub fn predict(
         &mut self,
         f: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, N>,
         q: Option<&Matrix<T, N, N>>,
     ) -> Result<(), EstimateError> {
-        let chol =
-            CholeskyDecomposition::new(&self.p).map_err(|_| EstimateError::CovarianceNotPD)?;
+        let chol = cholesky_with_jitter(&self.p)?;
         let l = chol.l_full();
 
         let points = Self::cubature_points(&self.x, &l);
@@ -122,7 +143,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             propagated.push(fp);
         }
 
-        // Covariance
+        // Cubature covariance (without Q)
         let mut p_new = Matrix::<T, N, N>::zeros();
         for pt in &propagated {
             let d = *pt - x_mean;
@@ -133,10 +154,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             }
         }
 
+        // Fading memory: scale cubature covariance by γ before adding Q.
+        p_new = p_new * self.gamma;
         self.x = x_mean;
         self.p = if let Some(q) = q { p_new + *q } else { p_new };
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
+        apply_var_floor(&mut self.p, self.min_variance);
 
         Ok(())
     }
@@ -147,8 +171,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// - `h` — measurement model: `z = h(x)`
     /// - `r` — measurement noise covariance
     ///
-    /// Generates cubature points from the predicted state, transforms through `h`,
-    /// and computes the Kalman gain.
+    /// Covariance update uses the symmetric `P - K S Kᵀ` form.
     ///
     /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
@@ -157,8 +180,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
-        let chol =
-            CholeskyDecomposition::new(&self.p).map_err(|_| EstimateError::CovarianceNotPD)?;
+        let chol = cholesky_with_jitter(&self.p)?;
         let l = chol.l_full();
 
         let points = Self::cubature_points(&self.x, &l);
@@ -176,19 +198,19 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             z_points.push(zp);
         }
 
-        // Innovation covariance: S = (1/2N) Σ (z_i - z̄)(z_i - z̄)ᵀ + R
-        let mut s = Matrix::<T, M, M>::zeros();
+        // Innovation covariance S = (1/2N) Σ (z_i - z̄)(z_i - z̄)ᵀ + R
+        let mut s_mat = Matrix::<T, M, M>::zeros();
         for zp in &z_points {
             let dz = *zp - z_mean;
             for ri in 0..M {
                 for ci in 0..M {
-                    s[(ri, ci)] = s[(ri, ci)] + w * dz[(ri, 0)] * dz[(ci, 0)];
+                    s_mat[(ri, ci)] = s_mat[(ri, ci)] + w * dz[(ri, 0)] * dz[(ci, 0)];
                 }
             }
         }
-        s = s + *r;
+        s_mat = s_mat + *r;
 
-        // Cross-covariance: Pxz = (1/2N) Σ (x_i - x̄)(z_i - z̄)ᵀ
+        // Cross-covariance Pxz = (1/2N) Σ (x_i - x̄)(z_i - z̄)ᵀ
         let mut pxz = Matrix::<T, N, M>::zeros();
         for (pt, zp) in points.iter().zip(z_points.iter()) {
             let dx = *pt - self.x;
@@ -201,8 +223,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         }
 
         // Kalman gain: K = Pxz · S⁻¹
-        let s_inv = s
-            .cholesky()
+        let s_inv = cholesky_with_jitter(&s_mat)
             .map_err(|_| EstimateError::SingularInnovation)?
             .inverse();
         let k = pxz * s_inv;
@@ -211,12 +232,67 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         let innovation = *z - z_mean;
         let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
 
-        // Update state and covariance: P = P - K·Pxzᵀ
+        // Update state and covariance: P = P - K·S·Kᵀ (symmetric, manifestly PSD-subtracted)
         self.x = self.x + k * innovation;
-        self.p = self.p - k * pxz.transpose();
+        self.p = self.p - k * s_mat * k.transpose();
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
+        apply_var_floor(&mut self.p, self.min_variance);
 
         Ok(nis)
+    }
+
+    /// Update with innovation gating — skips state update if NIS exceeds `gate`.
+    ///
+    /// Returns `Ok(None)` when rejected, `Ok(Some(nis))` when accepted.
+    ///
+    /// Chi-squared thresholds: M=1 → 99%: 6.63 | M=2 → 9.21 | M=3 → 11.34
+    pub fn update_gated(
+        &mut self,
+        z: &ColumnVector<T, M>,
+        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        r: &Matrix<T, M, M>,
+        gate: T,
+    ) -> Result<Option<T>, EstimateError> {
+        // Compute NIS without modifying state.
+        let chol = cholesky_with_jitter(&self.p)?;
+        let l = chol.l_full();
+
+        let points = Self::cubature_points(&self.x, &l);
+        let w = T::one() / T::from(2 * N).unwrap();
+
+        let mut z_points: Vec<ColumnVector<T, M>> = Vec::with_capacity(2 * N);
+        let mut z_mean = ColumnVector::<T, M>::zeros();
+
+        for pt in &points {
+            let zp = h(pt);
+            for r_i in 0..M {
+                z_mean[(r_i, 0)] = z_mean[(r_i, 0)] + w * zp[(r_i, 0)];
+            }
+            z_points.push(zp);
+        }
+
+        let mut s_mat = Matrix::<T, M, M>::zeros();
+        for zp in &z_points {
+            let dz = *zp - z_mean;
+            for ri in 0..M {
+                for ci in 0..M {
+                    s_mat[(ri, ci)] = s_mat[(ri, ci)] + w * dz[(ri, 0)] * dz[(ci, 0)];
+                }
+            }
+        }
+        s_mat = s_mat + *r;
+
+        let s_inv = cholesky_with_jitter(&s_mat)
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
+        let innovation = *z - z_mean;
+        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
+
+        if nis > gate {
+            return Ok(None);
+        }
+        let nis = self.update(z, h, r)?;
+        Ok(Some(nis))
     }
 }

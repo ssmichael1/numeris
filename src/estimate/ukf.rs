@@ -1,12 +1,11 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use crate::linalg::CholeskyDecomposition;
 use crate::matrix::vector::ColumnVector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
-use super::EstimateError;
+use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
 
 /// Unscented Kalman Filter with Merwe-scaled sigma points.
 ///
@@ -16,6 +15,12 @@ use super::EstimateError;
 ///
 /// Requires the `alloc` feature for temporary sigma point storage
 /// in `predict` and `update`.
+///
+/// # Default parameters
+///
+/// `alpha=1.0`, `beta=2.0`, `kappa=0.0` — all sigma-point weights are non-negative,
+/// sigma points are placed at distance `√N · L[:,i]` from the mean.
+/// For tight sigma point clustering, reduce `alpha` toward 0.1.
 ///
 /// # Example
 ///
@@ -52,15 +57,22 @@ pub struct Ukf<T: FloatScalar, const N: usize, const M: usize> {
     alpha: T,
     beta: T,
     kappa: T,
+    /// Minimum allowed diagonal variance (0 = disabled).
+    min_variance: T,
+    /// Fading-memory factor γ≥1 applied to predicted covariance (1 = standard).
+    gamma: T,
 }
 
 impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
-    /// Create a new UKF with default Merwe parameters: `alpha=0.001`, `beta=2.0`, `kappa=0.0`.
+    /// Create a new UKF with default Merwe parameters: `alpha=1.0`, `beta=2.0`, `kappa=0.0`.
+    ///
+    /// These defaults yield non-negative sigma-point weights for all state dimensions.
+    /// For tighter sigma point spread, use `with_params` to reduce `alpha`.
     pub fn new(x0: ColumnVector<T, N>, p0: Matrix<T, N, N>) -> Self {
         Self::with_params(
             x0,
             p0,
-            T::from(0.001).unwrap(),
+            T::one(),
             T::from(2.0).unwrap(),
             T::zero(),
         )
@@ -68,9 +80,10 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
 
     /// Create a new UKF with custom scaling parameters.
     ///
-    /// - `alpha` — spread of sigma points around mean (typically 1e-4 to 1)
+    /// - `alpha` — spread of sigma points around mean (1.0 gives non-negative weights;
+    ///   values < ~0.52 give negative central weight `wc_0`)
     /// - `beta` — prior distribution knowledge (2.0 optimal for Gaussian)
-    /// - `kappa` — secondary scaling (typically 0 or 3-N)
+    /// - `kappa` — secondary scaling (0 or 3-N)
     pub fn with_params(
         x0: ColumnVector<T, N>,
         p0: Matrix<T, N, N>,
@@ -84,7 +97,24 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             alpha,
             beta,
             kappa,
+            min_variance: T::zero(),
+            gamma: T::one(),
         }
+    }
+
+    /// Set a minimum diagonal variance floor applied after every predict/update.
+    pub fn with_min_variance(mut self, min_variance: T) -> Self {
+        self.min_variance = min_variance;
+        self
+    }
+
+    /// Set a fading-memory factor `γ ≥ 1` applied to the propagated covariance.
+    ///
+    /// The predicted covariance becomes `γ · P_sigma + Q` where `P_sigma` is
+    /// the sigma-point weighted covariance (without Q). Default is `1.0`.
+    pub fn with_fading_memory(mut self, gamma: T) -> Self {
+        self.gamma = gamma;
+        self
     }
 
     /// Reference to the current state estimate.
@@ -99,9 +129,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         &self.p
     }
 
-    /// Compute Merwe weights: `(wm, wc)` where `wm[0]` and `wc[0]` are special.
-    ///
-    /// Returns `(wm_0, wc_0, w_i)` where `w_i = wm_i = wc_i` for i > 0.
+    /// Compute Merwe weights: `(wm_0, wc_0, w_i)` where `w_i = wm_i = wc_i` for i > 0.
     fn weights(&self) -> (T, T, T) {
         let n = T::from(N).unwrap();
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
@@ -118,23 +146,15 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         self.alpha * self.alpha * (n + self.kappa) - n
     }
 
-    /// Generate sigma points and Cholesky factor.
+    /// Generate scaled Cholesky factor for sigma point generation.
     ///
-    /// Returns (L, scale) where L is the Cholesky factor and scale = sqrt(N + lambda).
-    fn sigma_cholesky(&self) -> Result<(Matrix<T, N, N>, T), EstimateError> {
+    /// Returns `scaled_L = sqrt(N + lambda) · L` where `L = chol(P)`.
+    fn sigma_cholesky(&self) -> Result<Matrix<T, N, N>, EstimateError> {
         let n = T::from(N).unwrap();
         let lambda = self.lambda();
         let scale = (n + lambda).sqrt();
-
-        // Compute Cholesky of P
-        let chol =
-            CholeskyDecomposition::new(&self.p).map_err(|_| EstimateError::CovarianceNotPD)?;
-        let l = chol.l_full();
-
-        // Scale L by sqrt(N + lambda)
-        let scaled_l = l * scale;
-
-        Ok((scaled_l, scale))
+        let chol = cholesky_with_jitter(&self.p)?;
+        Ok(chol.l_full() * scale)
     }
 
     /// Predict step.
@@ -143,13 +163,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     /// - `q` — process noise covariance (pass `None` for zero process noise)
     ///
     /// Generates `2N+1` sigma points, propagates through `f`, and
-    /// reconstructs the predicted mean and covariance.
+    /// reconstructs the predicted mean and covariance as `γ · P_sigma + Q`.
     pub fn predict(
         &mut self,
         f: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, N>,
         q: Option<&Matrix<T, N, N>>,
     ) -> Result<(), EstimateError> {
-        let (scaled_l, _) = self.sigma_cholesky()?;
+        let scaled_l = self.sigma_cholesky()?;
         let (wm_0, wc_0, w_i) = self.weights();
 
         // Propagate sigma points and store
@@ -180,16 +200,14 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             }
         }
 
-        // Weighted covariance
+        // Weighted covariance (sigma-point part, without Q)
         let mut p_new = Matrix::<T, N, N>::zeros();
-        // Central point contribution
         let d0 = sigmas[0] - x_mean;
         for r in 0..N {
             for c in 0..N {
                 p_new[(r, c)] = p_new[(r, c)] + wc_0 * d0[(r, 0)] * d0[(c, 0)];
             }
         }
-        // Remaining sigma points
         for i in 0..N {
             let dp = sigmas[2 * i + 1] - x_mean;
             let dm = sigmas[2 * i + 2] - x_mean;
@@ -201,10 +219,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             }
         }
 
+        // Fading memory: scale sigma-point covariance by γ before adding Q.
+        p_new = p_new * self.gamma;
         self.x = x_mean;
         self.p = if let Some(q) = q { p_new + *q } else { p_new };
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
+        apply_var_floor(&mut self.p, self.min_variance);
 
         Ok(())
     }
@@ -218,6 +239,9 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     /// Generates sigma points from the predicted state, transforms through `h`,
     /// and computes the Kalman gain via the cross-covariance and innovation covariance.
     ///
+    /// Covariance update uses the symmetric `P - K S Kᵀ` form (equivalent to
+    /// `P - K Pxzᵀ` but manifestly PSD-subtracted).
+    ///
     /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
@@ -225,7 +249,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
-        let (scaled_l, _) = self.sigma_cholesky()?;
+        let scaled_l = self.sigma_cholesky()?;
         let (wm_0, wc_0, w_i) = self.weights();
 
         // Generate state sigma points
@@ -276,7 +300,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
                 }
             }
         }
-        s = s + *r;
+        let s_mat = s + *r; // full innovation covariance
 
         // Cross-covariance Pxz = Σ wc_i (x_i - x̄)(z_i - z̄)ᵀ
         let mut pxz = Matrix::<T, N, M>::zeros();
@@ -300,8 +324,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         }
 
         // Kalman gain K = Pxz S⁻¹
-        let s_inv = s
-            .cholesky()
+        let s_inv = cholesky_with_jitter(&s_mat)
             .map_err(|_| EstimateError::SingularInnovation)?
             .inverse();
         let k = pxz * s_inv;
@@ -310,12 +333,88 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         let innovation = *z - z_mean;
         let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
 
-        // Update state and covariance: P = P - K·Pxzᵀ
+        // Update state and covariance: P = P - K·S·Kᵀ (symmetric, manifestly PSD-subtracted)
         self.x = self.x + k * innovation;
-        self.p = self.p - k * pxz.transpose();
+        self.p = self.p - k * s_mat * k.transpose();
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
+        apply_var_floor(&mut self.p, self.min_variance);
 
         Ok(nis)
+    }
+
+    /// Update with innovation gating — skips state update if NIS exceeds `gate`.
+    ///
+    /// Returns `Ok(None)` when rejected, `Ok(Some(nis))` when accepted.
+    ///
+    /// Chi-squared thresholds: M=1 → 99%: 6.63 | M=2 → 9.21 | M=3 → 11.34
+    pub fn update_gated(
+        &mut self,
+        z: &ColumnVector<T, M>,
+        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        r: &Matrix<T, M, M>,
+        gate: T,
+    ) -> Result<Option<T>, EstimateError> {
+        // Compute NIS without modifying state by running the full sigma-point transform.
+        let scaled_l = self.sigma_cholesky()?;
+        let (wm_0, wc_0, w_i) = self.weights();
+
+        let mut sigmas_x: Vec<ColumnVector<T, N>> = Vec::with_capacity(2 * N + 1);
+        sigmas_x.push(self.x);
+        for i in 0..N {
+            let mut col = ColumnVector::<T, N>::zeros();
+            for r_i in 0..N {
+                col[(r_i, 0)] = scaled_l[(r_i, i)];
+            }
+            sigmas_x.push(self.x + col);
+            sigmas_x.push(self.x - col);
+        }
+
+        let mut sigmas_z: Vec<ColumnVector<T, M>> = Vec::with_capacity(2 * N + 1);
+        for sx in &sigmas_x {
+            sigmas_z.push(h(sx));
+        }
+
+        let mut z_mean = ColumnVector::<T, M>::zeros();
+        for r_i in 0..M {
+            z_mean[(r_i, 0)] = wm_0 * sigmas_z[0][(r_i, 0)];
+        }
+        for i in 0..N {
+            for r_i in 0..M {
+                z_mean[(r_i, 0)] = z_mean[(r_i, 0)]
+                    + w_i * (sigmas_z[2 * i + 1][(r_i, 0)] + sigmas_z[2 * i + 2][(r_i, 0)]);
+            }
+        }
+
+        let mut s_mat = Matrix::<T, M, M>::zeros();
+        let dz0 = sigmas_z[0] - z_mean;
+        for r_i in 0..M {
+            for ci in 0..M {
+                s_mat[(r_i, ci)] = s_mat[(r_i, ci)] + wc_0 * dz0[(r_i, 0)] * dz0[(ci, 0)];
+            }
+        }
+        for i in 0..N {
+            let dzp = sigmas_z[2 * i + 1] - z_mean;
+            let dzm = sigmas_z[2 * i + 2] - z_mean;
+            for r_i in 0..M {
+                for ci in 0..M {
+                    s_mat[(r_i, ci)] = s_mat[(r_i, ci)]
+                        + w_i * (dzp[(r_i, 0)] * dzp[(ci, 0)] + dzm[(r_i, 0)] * dzm[(ci, 0)]);
+                }
+            }
+        }
+        s_mat = s_mat + *r;
+
+        let s_inv = cholesky_with_jitter(&s_mat)
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
+        let innovation = *z - z_mean;
+        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
+
+        if nis > gate {
+            return Ok(None);
+        }
+        let nis = self.update(z, h, r)?;
+        Ok(Some(nis))
     }
 }

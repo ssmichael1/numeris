@@ -106,6 +106,7 @@ pub use ckf::Ckf;
 pub use rts::{EkfStep, rts_smooth};
 pub use batch::BatchLsq;
 
+use crate::linalg::CholeskyDecomposition;
 use crate::matrix::vector::ColumnVector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
@@ -132,6 +133,47 @@ impl core::fmt::Display for EstimateError {
             }
             EstimateError::CholdowndateFailed => {
                 write!(f, "Cholesky downdate failed: result not positive definite")
+            }
+        }
+    }
+}
+
+/// Attempt Cholesky decomposition, retrying with increasing diagonal jitter if needed.
+///
+/// Accumulated floating-point errors can make a mathematically positive-definite matrix
+/// appear non-PD by ~1e-14. Rather than failing immediately, this tries adding
+/// `ε·I` for ε ∈ {1e-9, 1e-7, 1e-5} before giving up.
+pub(crate) fn cholesky_with_jitter<T: FloatScalar, const N: usize>(
+    p: &Matrix<T, N, N>,
+) -> Result<CholeskyDecomposition<T, N>, EstimateError> {
+    if let Ok(c) = CholeskyDecomposition::new(p) {
+        return Ok(c);
+    }
+    for exp in [9u32, 7, 5] {
+        let eps = T::from(10.0f64.powi(-(exp as i32))).unwrap();
+        let mut pj = *p;
+        for i in 0..N {
+            pj[(i, i)] = pj[(i, i)] + eps;
+        }
+        if let Ok(c) = CholeskyDecomposition::new(&pj) {
+            return Ok(c);
+        }
+    }
+    Err(EstimateError::CovarianceNotPD)
+}
+
+/// Clamp the diagonal of `p` so that `p[i,i] >= min_var` for all `i`.
+///
+/// A no-op when `min_var <= 0`. Prevents the covariance from degenerating to
+/// zero or going negative after many updates.
+pub(crate) fn apply_var_floor<T: FloatScalar, const N: usize>(
+    p: &mut Matrix<T, N, N>,
+    min_var: T,
+) {
+    if min_var > T::zero() {
+        for i in 0..N {
+            if p[(i, i)] < min_var {
+                p[(i, i)] = min_var;
             }
         }
     }

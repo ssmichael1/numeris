@@ -1,12 +1,11 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use crate::linalg::CholeskyDecomposition;
 use crate::matrix::vector::ColumnVector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
-use super::EstimateError;
+use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
 
 /// Square-Root Unscented Kalman Filter.
 ///
@@ -18,6 +17,10 @@ use super::EstimateError;
 ///
 /// `N` is the state dimension, `M` is the measurement dimension.
 /// Requires the `alloc` feature for temporary sigma point storage.
+///
+/// # Default parameters
+///
+/// `alpha=1.0`, `beta=2.0`, `kappa=0.0` — all sigma-point weights non-negative.
 ///
 /// # Example
 ///
@@ -52,17 +55,21 @@ pub struct SrUkf<T: FloatScalar, const N: usize, const M: usize> {
     alpha: T,
     beta: T,
     kappa: T,
+    /// Minimum allowed diagonal variance (0 = disabled). Applied to P before re-Cholesky.
+    min_variance: T,
+    /// Fading-memory factor γ≥1 applied to the sigma-point covariance (1 = standard).
+    gamma: T,
 }
 
 impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
     /// Create from an existing Cholesky factor `s0` (must be lower-triangular).
     ///
-    /// Uses default Merwe parameters: `alpha=0.001`, `beta=2.0`, `kappa=0.0`.
+    /// Uses default Merwe parameters: `alpha=1.0`, `beta=2.0`, `kappa=0.0`.
     pub fn new(x0: ColumnVector<T, N>, s0: Matrix<T, N, N>) -> Self {
         Self::with_params(
             x0,
             s0,
-            T::from(0.001).unwrap(),
+            T::one(),
             T::from(2.0).unwrap(),
             T::zero(),
         )
@@ -75,7 +82,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         x0: ColumnVector<T, N>,
         p0: Matrix<T, N, N>,
     ) -> Result<Self, EstimateError> {
-        let chol = CholeskyDecomposition::new(&p0).map_err(|_| EstimateError::CovarianceNotPD)?;
+        let chol = cholesky_with_jitter(&p0)?;
         Ok(Self::new(x0, chol.l_full()))
     }
 
@@ -87,7 +94,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         beta: T,
         kappa: T,
     ) -> Result<Self, EstimateError> {
-        let chol = CholeskyDecomposition::new(&p0).map_err(|_| EstimateError::CovarianceNotPD)?;
+        let chol = cholesky_with_jitter(&p0)?;
         Ok(Self::with_params(x0, chol.l_full(), alpha, beta, kappa))
     }
 
@@ -105,7 +112,23 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             alpha,
             beta,
             kappa,
+            min_variance: T::zero(),
+            gamma: T::one(),
         }
+    }
+
+    /// Set a minimum diagonal variance floor applied before re-Cholesky in each step.
+    pub fn with_min_variance(mut self, min_variance: T) -> Self {
+        self.min_variance = min_variance;
+        self
+    }
+
+    /// Set a fading-memory factor `γ ≥ 1` applied to the sigma-point covariance.
+    ///
+    /// The predicted covariance becomes `γ · P_sigma + Q`. Default is `1.0`.
+    pub fn with_fading_memory(mut self, gamma: T) -> Self {
+        self.gamma = gamma;
+        self
     }
 
     /// Reference to the current state estimate.
@@ -178,14 +201,10 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             }
         }
 
-        // QR factorization of the compound matrix to get the new S.
-        // Rows of the compound matrix are: sqrt(w_i) * (sigma_i - x_mean) for i=1..2N
-        // This is 2N rows × N cols. QR gives an N×N upper-triangular R; Sᵀ = R.
-        //
-        // For simplicity, form the weighted covariance and Cholesky it:
+        // Sigma-point covariance (without Q)
         let mut p_new = Matrix::<T, N, N>::zeros();
 
-        // Contributions from i=1..2N (the non-central sigma points)
+        // Non-central sigma points
         for i in 0..N {
             let dp = sigmas[2 * i + 1] - x_mean;
             let dm = sigmas[2 * i + 2] - x_mean;
@@ -197,7 +216,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             }
         }
 
-        // Central sigma point: rank-1 update with wc_0
+        // Central sigma point
         let d0 = sigmas[0] - x_mean;
         for r in 0..N {
             for c in 0..N {
@@ -205,16 +224,17 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             }
         }
 
-        // Add process noise
+        // Fading memory: scale sigma-point covariance by γ before adding Q.
+        p_new = p_new * self.gamma;
         if let Some(q) = q {
             p_new = p_new + *q;
         }
         let half = T::from(0.5).unwrap();
         p_new = (p_new + p_new.transpose()) * half;
+        apply_var_floor(&mut p_new, self.min_variance);
 
-        // Cholesky to get new S
-        let chol =
-            CholeskyDecomposition::new(&p_new).map_err(|_| EstimateError::CovarianceNotPD)?;
+        // Re-Cholesky (with jitter fallback).
+        let chol = cholesky_with_jitter(&p_new)?;
 
         self.x = x_mean;
         self.s = chol.l_full();
@@ -227,6 +247,9 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
     /// - `z` — measurement vector
     /// - `h` — measurement model: `z = h(x)`
     /// - `r` — measurement noise covariance
+    ///
+    /// Covariance update uses `P - K·S·Kᵀ` (symmetric, manifestly PSD-subtracted),
+    /// then re-Choleskyizes to maintain the square-root factor.
     ///
     /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
@@ -272,7 +295,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             }
         }
 
-        // Innovation covariance Sz via Cholesky of Pzz + R
+        // Innovation covariance Pzz + R
         let mut pzz = Matrix::<T, M, M>::zeros();
         let dz0 = sigmas_z[0] - z_mean;
         for ri in 0..M {
@@ -290,7 +313,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
                 }
             }
         }
-        let s_mat = pzz + *r;
+        let s_mat = pzz + *r; // full innovation covariance
 
         // Cross-covariance Pxz
         let mut pxz = Matrix::<T, N, M>::zeros();
@@ -314,8 +337,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         }
 
         // Kalman gain: K = Pxz · S⁻¹
-        let s_inv = s_mat
-            .cholesky()
+        let s_inv = cholesky_with_jitter(&s_mat)
             .map_err(|_| EstimateError::SingularInnovation)?
             .inverse();
         let k = pxz * s_inv;
@@ -327,14 +349,92 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         // State update
         self.x = self.x + k * innovation;
 
-        // Covariance update: P_new = P - K·Pxzᵀ, then re-Cholesky
-        let mut p_new = self.covariance() - k * pxz.transpose();
+        // Covariance update: P_new = P - K·S·Kᵀ, then re-Cholesky.
+        let mut p_new = self.covariance() - k * s_mat * k.transpose();
         let half = T::from(0.5).unwrap();
         p_new = (p_new + p_new.transpose()) * half;
-        let chol =
-            CholeskyDecomposition::new(&p_new).map_err(|_| EstimateError::CovarianceNotPD)?;
+        apply_var_floor(&mut p_new, self.min_variance);
+        let chol = cholesky_with_jitter(&p_new)?;
         self.s = chol.l_full();
 
         Ok(nis)
+    }
+
+    /// Update with innovation gating — skips state update if NIS exceeds `gate`.
+    ///
+    /// Returns `Ok(None)` when rejected, `Ok(Some(nis))` when accepted.
+    ///
+    /// Chi-squared thresholds: M=1 → 99%: 6.63 | M=2 → 9.21 | M=3 → 11.34
+    pub fn update_gated(
+        &mut self,
+        z: &ColumnVector<T, M>,
+        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        r: &Matrix<T, M, M>,
+        gate: T,
+    ) -> Result<Option<T>, EstimateError> {
+        let n = T::from(N).unwrap();
+        let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
+        let scale = (n + lambda).sqrt();
+        let (wm_0, wc_0, w_i) = self.weights();
+
+        let scaled_s = self.s * scale;
+
+        let mut sigmas_x: Vec<ColumnVector<T, N>> = Vec::with_capacity(2 * N + 1);
+        sigmas_x.push(self.x);
+        for i in 0..N {
+            let mut col = ColumnVector::<T, N>::zeros();
+            for r_i in 0..N {
+                col[(r_i, 0)] = scaled_s[(r_i, i)];
+            }
+            sigmas_x.push(self.x + col);
+            sigmas_x.push(self.x - col);
+        }
+
+        let mut sigmas_z: Vec<ColumnVector<T, M>> = Vec::with_capacity(2 * N + 1);
+        for sx in &sigmas_x {
+            sigmas_z.push(h(sx));
+        }
+
+        let mut z_mean = ColumnVector::<T, M>::zeros();
+        for r_i in 0..M {
+            z_mean[(r_i, 0)] = wm_0 * sigmas_z[0][(r_i, 0)];
+        }
+        for i in 0..N {
+            for r_i in 0..M {
+                z_mean[(r_i, 0)] = z_mean[(r_i, 0)]
+                    + w_i * (sigmas_z[2 * i + 1][(r_i, 0)] + sigmas_z[2 * i + 2][(r_i, 0)]);
+            }
+        }
+
+        let mut s_mat = Matrix::<T, M, M>::zeros();
+        let dz0 = sigmas_z[0] - z_mean;
+        for r_i in 0..M {
+            for ci in 0..M {
+                s_mat[(r_i, ci)] = s_mat[(r_i, ci)] + wc_0 * dz0[(r_i, 0)] * dz0[(ci, 0)];
+            }
+        }
+        for i in 0..N {
+            let dzp = sigmas_z[2 * i + 1] - z_mean;
+            let dzm = sigmas_z[2 * i + 2] - z_mean;
+            for r_i in 0..M {
+                for ci in 0..M {
+                    s_mat[(r_i, ci)] = s_mat[(r_i, ci)]
+                        + w_i * (dzp[(r_i, 0)] * dzp[(ci, 0)] + dzm[(r_i, 0)] * dzm[(ci, 0)]);
+                }
+            }
+        }
+        s_mat = s_mat + *r;
+
+        let s_inv = cholesky_with_jitter(&s_mat)
+            .map_err(|_| EstimateError::SingularInnovation)?
+            .inverse();
+        let innovation = *z - z_mean;
+        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
+
+        if nis > gate {
+            return Ok(None);
+        }
+        let nis = self.update(z, h, r)?;
+        Ok(Some(nis))
     }
 }
