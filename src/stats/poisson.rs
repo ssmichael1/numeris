@@ -47,6 +47,27 @@ impl<T: FloatScalar> DiscreteDistribution<T> for Poisson<T> {
         gamma_inc_upper(a, self.lambda).unwrap_or(T::nan())
     }
 
+    fn quantile(&self, p: T) -> u64 {
+        if p <= T::zero() {
+            return 0;
+        }
+        if p >= T::one() {
+            // Use lambda + 8·sqrt(lambda) + 1 as a conservative upper bound and search down.
+            let k_hi = (self.lambda + T::from(8.0).unwrap() * self.lambda.sqrt() + T::one())
+                .to_u64()
+                .unwrap_or(u64::MAX / 2);
+            return super::discrete_quantile_search(|k| self.cdf(k), p, k_hi);
+        }
+        // Normal approximation: k0 ≈ lambda + sqrt(lambda)·z_p
+        let z = super::normal_quantile_standard(p);
+        let k0 = (self.lambda + self.lambda.sqrt() * z)
+            .max(T::zero())
+            .floor()
+            .to_u64()
+            .unwrap_or(0);
+        super::discrete_quantile_search(|k| self.cdf(k), p, k0)
+    }
+
     fn mean(&self) -> T {
         self.lambda
     }

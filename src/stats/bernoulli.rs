@@ -56,6 +56,15 @@ impl<T: FloatScalar> DiscreteDistribution<T> for Bernoulli<T> {
         }
     }
 
+    fn quantile(&self, p: T) -> u64 {
+        // Support is {0, 1}. CDF(0) = 1 - self.p, CDF(1) = 1.
+        if p <= T::zero() || self.cdf(0) >= p {
+            0
+        } else {
+            1
+        }
+    }
+
     fn mean(&self) -> T {
         self.p
     }

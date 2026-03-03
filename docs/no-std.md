@@ -1,6 +1,6 @@
 # No-std / Embedded
 
-numeris is designed to run on embedded targets with no operating system, no heap, and no floating-point hardware. All core modules compile and run correctly in `no_std` environments.
+numeris is designed to run on embedded microprocessor targets with no operating system, no heap, and no floating-point hardware. All core modules compile and run correctly in `no_std` environments.
 
 ## Quick Start for Embedded
 

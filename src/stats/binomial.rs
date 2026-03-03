@@ -63,6 +63,26 @@ impl<T: FloatScalar> DiscreteDistribution<T> for Binomial<T> {
         betainc(a, b, one - self.p).unwrap_or(T::nan())
     }
 
+    fn quantile(&self, p: T) -> u64 {
+        if p <= T::zero() {
+            return 0;
+        }
+        if p >= T::one() {
+            return self.n;
+        }
+        // Normal approximation for initial guess: k0 ≈ mean + std·z_p
+        let mean = T::from(self.n).unwrap() * self.p;
+        let std = (mean * (T::one() - self.p)).sqrt();
+        let z = super::normal_quantile_standard(p);
+        let k0 = (mean + std * z)
+            .max(T::zero())
+            .min(T::from(self.n).unwrap())
+            .floor()
+            .to_u64()
+            .unwrap_or(0);
+        super::discrete_quantile_search(|k| self.cdf(k), p, k0)
+    }
+
     fn mean(&self) -> T {
         T::from(self.n).unwrap() * self.p
     }

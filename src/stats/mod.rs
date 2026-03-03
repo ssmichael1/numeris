@@ -101,6 +101,8 @@ pub trait DiscreteDistribution<T> {
     fn ln_pmf(&self, k: u64) -> T;
     /// Cumulative distribution function P(X ≤ k).
     fn cdf(&self, k: u64) -> T;
+    /// Quantile function (inverse CDF). Returns the smallest k such that P(X ≤ k) ≥ p.
+    fn quantile(&self, p: T) -> u64;
     /// Expected value E\[X\].
     fn mean(&self) -> T;
     /// Variance Var(X).
@@ -165,6 +167,27 @@ pub(crate) fn normal_quantile_standard<T: FloatScalar>(p: T) -> T {
         -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6)
             / ((((d1 * q + d2) * q + d3) * q + d4) * q + one)
     }
+}
+
+/// Discrete quantile search: smallest k such that `cdf(k) >= p`.
+///
+/// Starts at `k0` (an initial guess close to the answer), walks forward until
+/// `CDF(k) >= p`, then walks backward to find the minimum such k.
+pub(crate) fn discrete_quantile_search<T: FloatScalar>(
+    cdf_fn: impl Fn(u64) -> T,
+    p: T,
+    k0: u64,
+) -> u64 {
+    let mut k = k0;
+    // Walk forward until CDF(k) >= p
+    while cdf_fn(k) < p {
+        k = k.saturating_add(1);
+    }
+    // Walk backward while CDF(k-1) still satisfies >= p, to find the minimum k
+    while k > 0 && cdf_fn(k - 1) >= p {
+        k -= 1;
+    }
+    k
 }
 
 /// Newton-Raphson with bisection fallback for quantile computation.

@@ -418,6 +418,85 @@ fn poisson_invalid() {
     assert_eq!(Poisson::new(-1.0_f64).unwrap_err(), StatsError::InvalidParameter);
 }
 
+// ======================== Discrete quantile ========================
+
+#[test]
+fn bernoulli_quantile() {
+    let b = Bernoulli::new(0.3_f64).unwrap();
+    assert_eq!(b.quantile(0.0), 0);
+    assert_eq!(b.quantile(0.5), 0);   // CDF(0) = 0.7 >= 0.5
+    assert_eq!(b.quantile(0.7), 0);   // CDF(0) = 0.7 >= 0.7
+    assert_eq!(b.quantile(0.71), 1);  // CDF(0) = 0.7 < 0.71
+    assert_eq!(b.quantile(1.0), 1);
+}
+
+#[test]
+fn bernoulli_quantile_degenerate() {
+    // Bernoulli(0): always returns 0, so CDF(0) = 1 for any p
+    let b0 = Bernoulli::new(0.0_f64).unwrap();
+    assert_eq!(b0.quantile(0.5), 0);
+    assert_eq!(b0.quantile(1.0), 0);
+    // Bernoulli(1): CDF(0) = 0, so quantile > 0 for any p > 0
+    let b1 = Bernoulli::new(1.0_f64).unwrap();
+    assert_eq!(b1.quantile(0.0), 0);
+    assert_eq!(b1.quantile(0.5), 1);
+    assert_eq!(b1.quantile(1.0), 1);
+}
+
+#[test]
+fn binomial_quantile() {
+    let b = Binomial::new(10, 0.5_f64).unwrap();
+    assert_eq!(b.quantile(0.0), 0);
+    assert_eq!(b.quantile(1.0), 10);
+    // Verify minimality: CDF(k) >= p and CDF(k-1) < p
+    for &p in &[0.1, 0.25, 0.5, 0.75, 0.9_f64] {
+        let k = b.quantile(p);
+        assert!(b.cdf(k) >= p, "p={p}: CDF({k})={} < p", b.cdf(k));
+        if k > 0 {
+            assert!(b.cdf(k - 1) < p, "p={p}: CDF({}) >= p (not minimal)", k - 1);
+        }
+    }
+}
+
+#[test]
+fn binomial_quantile_skewed() {
+    // B(20, 0.1): heavy right-skew
+    let b = Binomial::new(20, 0.1_f64).unwrap();
+    for &p in &[0.05, 0.25, 0.5, 0.75, 0.95_f64] {
+        let k = b.quantile(p);
+        assert!(b.cdf(k) >= p);
+        if k > 0 {
+            assert!(b.cdf(k - 1) < p);
+        }
+    }
+}
+
+#[test]
+fn poisson_quantile() {
+    let dist = Poisson::new(3.0_f64).unwrap();
+    assert_eq!(dist.quantile(0.0), 0);
+    for &p in &[0.1, 0.25, 0.5, 0.75, 0.9_f64] {
+        let k = dist.quantile(p);
+        assert!(dist.cdf(k) >= p, "p={p}: CDF({k})={} < p", dist.cdf(k));
+        if k > 0 {
+            assert!(dist.cdf(k - 1) < p, "p={p}: CDF({}) >= p (not minimal)", k - 1);
+        }
+    }
+}
+
+#[test]
+fn poisson_quantile_large_lambda() {
+    // Ensure the normal approximation starting point is accurate for large lambda
+    let dist = Poisson::new(100.0_f64).unwrap();
+    for &p in &[0.1, 0.5, 0.9_f64] {
+        let k = dist.quantile(p);
+        assert!(dist.cdf(k) >= p);
+        if k > 0 {
+            assert!(dist.cdf(k - 1) < p);
+        }
+    }
+}
+
 // ======================== Cross-distribution ========================
 
 #[test]
