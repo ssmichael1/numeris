@@ -311,6 +311,30 @@ pub fn axpy_neg(y: &mut [f32], alpha: f32, x: &[f32]) {
     }
 }
 
+/// AXPY: y[i] += alpha * x[i].
+#[inline]
+pub fn axpy_pos(y: &mut [f32], alpha: f32, x: &[f32]) {
+    debug_assert_eq!(y.len(), x.len());
+    let n = y.len();
+    let chunks = n / 4;
+
+    unsafe {
+        let va = vdupq_n_f32(alpha);
+        for i in 0..chunks {
+            let offset = i * 4;
+            let vy = vld1q_f32(y.as_ptr().add(offset));
+            let vx = vld1q_f32(x.as_ptr().add(offset));
+            let result = vfmaq_f32(vy, va, vx);
+            vst1q_f32(y.as_mut_ptr().add(offset), result);
+        }
+    }
+
+    let tail = chunks * 4;
+    for i in tail..n {
+        y[i] += alpha * x[i];
+    }
+}
+
 /// Scalar multiplication: out[i] = a[i] * scalar.
 #[inline]
 pub fn scale_slices(a: &[f32], scalar: f32, out: &mut [f32]) {

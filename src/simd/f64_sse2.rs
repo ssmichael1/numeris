@@ -336,3 +336,27 @@ pub fn axpy_neg(y: &mut [f64], alpha: f64, x: &[f64]) {
         y[i] -= alpha * x[i];
     }
 }
+
+/// AXPY: y[i] += alpha * x[i].
+#[inline]
+pub fn axpy_pos(y: &mut [f64], alpha: f64, x: &[f64]) {
+    debug_assert_eq!(y.len(), x.len());
+    let n = y.len();
+    let chunks = n / 2;
+
+    unsafe {
+        let va = _mm_set1_pd(alpha);
+        for i in 0..chunks {
+            let offset = i * 2;
+            let vy = _mm_loadu_pd(y.as_ptr().add(offset));
+            let vx = _mm_loadu_pd(x.as_ptr().add(offset));
+            let result = _mm_add_pd(vy, _mm_mul_pd(va, vx));
+            _mm_storeu_pd(y.as_mut_ptr().add(offset), result);
+        }
+    }
+
+    let tail = chunks * 2;
+    for i in tail..n {
+        y[i] += alpha * x[i];
+    }
+}

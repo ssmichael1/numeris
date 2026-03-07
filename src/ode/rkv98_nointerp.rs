@@ -1,7 +1,9 @@
-//! Verner 9(8) Robust (no interpolation) — 16 stages, order 9(8).
+//! Verner 9(8) Efficient (no interpolation) — 16 stages, order 9(8).
 //!
 //! Same core 16 stages as [`RKV98`] but without the 5 extra interpolation
 //! stages. Use this when you only need the final answer.
+//!
+//! Source: <https://www.sfu.ca/~jverner/RKV98.IIa.Efficient.000000349.081209.FLOAT6040OnWeb>
 
 use super::adaptive::RKAdaptive;
 #[cfg(feature = "std")]
@@ -11,7 +13,7 @@ use crate::traits::FloatScalar;
 #[cfg(feature = "std")]
 use crate::matrix::vector::Vector;
 
-/// Verner 9(8) Robust (no interpolation) — 16 stages, order 9(8).
+/// Verner 9(8) Efficient (no interpolation) — 16 stages, order 9(8).
 pub struct RKV98NoInterp;
 
 const BHAT: [f64; 16] = [

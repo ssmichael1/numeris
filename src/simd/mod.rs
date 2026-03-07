@@ -324,6 +324,66 @@ pub(crate) fn axpy_neg_dispatch<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
     scalar::axpy_neg(y, alpha, x);
 }
 
+/// Dispatch AXPY: y[i] += alpha * x[i].
+///
+/// For short slices (< 8 elements), uses a scalar loop to avoid the overhead
+/// of SIMD dispatch and register setup, which dominates at small sizes.
+#[inline]
+pub(crate) fn axpy_pos_dispatch<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
+    let n = y.len();
+    if n < 8 {
+        for i in 0..n {
+            y[i] = y[i] + alpha * x[i];
+        }
+        return;
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        if TypeId::of::<T>() == TypeId::of::<f64>() {
+            let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
+            let a = unsafe { *(&alpha as *const T as *const f64) };
+            let x = unsafe { &*(x as *const [T] as *const [f64]) };
+            f64_neon::axpy_pos(y, a, x);
+            return;
+        }
+        if TypeId::of::<T>() == TypeId::of::<f32>() {
+            let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
+            let a = unsafe { *(&alpha as *const T as *const f32) };
+            let x = unsafe { &*(x as *const [T] as *const [f32]) };
+            f32_neon::axpy_pos(y, a, x);
+            return;
+        }
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if TypeId::of::<T>() == TypeId::of::<f64>() {
+            let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
+            let a = unsafe { *(&alpha as *const T as *const f64) };
+            let x = unsafe { &*(x as *const [T] as *const [f64]) };
+            #[cfg(target_feature = "avx512f")]
+            f64_avx512::axpy_pos(y, a, x);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            f64_avx::axpy_pos(y, a, x);
+            #[cfg(not(target_feature = "avx"))]
+            f64_sse2::axpy_pos(y, a, x);
+            return;
+        }
+        if TypeId::of::<T>() == TypeId::of::<f32>() {
+            let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
+            let a = unsafe { *(&alpha as *const T as *const f32) };
+            let x = unsafe { &*(x as *const [T] as *const [f32]) };
+            #[cfg(target_feature = "avx512f")]
+            f32_avx512::axpy_pos(y, a, x);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            f32_avx::axpy_pos(y, a, x);
+            #[cfg(not(target_feature = "avx"))]
+            f32_sse2::axpy_pos(y, a, x);
+            return;
+        }
+    }
+    scalar::axpy_pos(y, alpha, x);
+}
+
 /// Dispatch scalar multiplication to SIMD or scalar fallback.
 #[inline]
 pub(crate) fn scale_slices_dispatch<T: Scalar>(a: &[T], scalar: T, out: &mut [T]) {
@@ -638,5 +698,55 @@ mod tests {
         let mut y = vec![10_i32, 20, 30, 40, 50];
         axpy_neg_dispatch(&mut y, 3, &x);
         assert_eq!(y, vec![7, 14, 21, 28, 35]);
+    }
+
+    // ── AXPY positive boundary tests ─────────────────────────────────
+
+    #[test]
+    fn axpy_pos_f64_boundary() {
+        for n in [0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17] {
+            let x: Vec<f64> = (0..n).map(|i| (i + 1) as f64).collect();
+            let alpha = 2.5_f64;
+            let mut y: Vec<f64> = (0..n).map(|i| (i * 10) as f64).collect();
+            let expected: Vec<f64> = y.iter().zip(x.iter()).map(|(yi, xi)| yi + alpha * xi).collect();
+
+            axpy_pos_dispatch(&mut y, alpha, &x);
+
+            for i in 0..n {
+                assert!(
+                    (y[i] - expected[i]).abs() < 1e-10,
+                    "axpy_pos f64 n={n} idx={i}: got {}, expected {}",
+                    y[i], expected[i]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn axpy_pos_f32_boundary() {
+        for n in [0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17] {
+            let x: Vec<f32> = (0..n).map(|i| (i + 1) as f32).collect();
+            let alpha = 2.5_f32;
+            let mut y: Vec<f32> = (0..n).map(|i| (i * 10) as f32).collect();
+            let expected: Vec<f32> = y.iter().zip(x.iter()).map(|(yi, xi)| yi + alpha * xi).collect();
+
+            axpy_pos_dispatch(&mut y, alpha, &x);
+
+            for i in 0..n {
+                assert!(
+                    (y[i] - expected[i]).abs() < 1e-4,
+                    "axpy_pos f32 n={n} idx={i}: got {}, expected {}",
+                    y[i], expected[i]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn axpy_pos_integer_fallback() {
+        let x = vec![1_i32, 2, 3, 4, 5];
+        let mut y = vec![10_i32, 20, 30, 40, 50];
+        axpy_pos_dispatch(&mut y, 3, &x);
+        assert_eq!(y, vec![13, 26, 39, 52, 65]);
     }
 }

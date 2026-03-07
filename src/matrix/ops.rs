@@ -10,22 +10,32 @@ impl<T: Scalar, const M: usize, const N: usize> Add for Matrix<T, M, N> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        let mut out = self;
-        for i in 0..M {
+        if M * N <= 36 {
+            let mut out = self;
             for j in 0..N {
-                out[(i, j)] = self[(i, j)] + rhs[(i, j)];
+                for i in 0..M {
+                    out.data[j][i] = self.data[j][i] + rhs.data[j][i];
+                }
             }
+            out
+        } else {
+            let mut out = Self::zeros();
+            crate::simd::add_slices_dispatch(self.as_slice(), rhs.as_slice(), out.as_mut_slice());
+            out
         }
-        out
     }
 }
 
 impl<T: Scalar, const M: usize, const N: usize> AddAssign for Matrix<T, M, N> {
     fn add_assign(&mut self, rhs: Self) {
-        for i in 0..M {
+        if M * N <= 36 {
             for j in 0..N {
-                self[(i, j)] = self[(i, j)] + rhs[(i, j)];
+                for i in 0..M {
+                    self.data[j][i] = self.data[j][i] + rhs.data[j][i];
+                }
             }
+        } else {
+            crate::simd::axpy_pos_dispatch(self.as_mut_slice(), T::one(), rhs.as_slice());
         }
     }
 }
@@ -36,22 +46,32 @@ impl<T: Scalar, const M: usize, const N: usize> Sub for Matrix<T, M, N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        let mut out = self;
-        for i in 0..M {
+        if M * N <= 36 {
+            let mut out = self;
             for j in 0..N {
-                out[(i, j)] = self[(i, j)] - rhs[(i, j)];
+                for i in 0..M {
+                    out.data[j][i] = self.data[j][i] - rhs.data[j][i];
+                }
             }
+            out
+        } else {
+            let mut out = Self::zeros();
+            crate::simd::sub_slices_dispatch(self.as_slice(), rhs.as_slice(), out.as_mut_slice());
+            out
         }
-        out
     }
 }
 
 impl<T: Scalar, const M: usize, const N: usize> SubAssign for Matrix<T, M, N> {
     fn sub_assign(&mut self, rhs: Self) {
-        for i in 0..M {
+        if M * N <= 36 {
             for j in 0..N {
-                self[(i, j)] = self[(i, j)] - rhs[(i, j)];
+                for i in 0..M {
+                    self.data[j][i] = self.data[j][i] - rhs.data[j][i];
+                }
             }
+        } else {
+            crate::simd::axpy_neg_dispatch(self.as_mut_slice(), T::one(), rhs.as_slice());
         }
     }
 }
@@ -63,9 +83,9 @@ impl<T: Scalar, const M: usize, const N: usize> Neg for Matrix<T, M, N> {
 
     fn neg(self) -> Self {
         let mut out = Self::zeros();
-        for i in 0..M {
-            for j in 0..N {
-                out[(i, j)] = T::zero() - self[(i, j)];
+        for j in 0..N {
+            for i in 0..M {
+                out.data[j][i] = T::zero() - self.data[j][i];
             }
         }
         out
@@ -101,7 +121,26 @@ impl<T: Scalar, const M: usize, const N: usize, const P: usize> Mul<Matrix<T, N,
 
     fn mul(self, rhs: Matrix<T, N, P>) -> Matrix<T, M, P> {
         let mut out = Matrix::<T, M, P>::zeros();
-        crate::simd::matmul_dispatch(self.as_slice(), rhs.as_slice(), out.as_mut_slice(), M, N, P);
+        // For very small matrices (all dims ≤ 3), bypass SIMD dispatch.
+        // The compiler fully unrolls the const-generic loops into straight-line
+        // code with no function calls or branch overhead. At 4×4 the SIMD
+        // micro-kernel forms a full MR×NR tile, so dispatch is worthwhile.
+        if M <= 3 && N <= 3 && P <= 3 {
+            // j-k-i loop order (column-major optimal): inner loop over
+            // contiguous column elements, accumulating out[:,j] += a[:,k] * b[k,j].
+            for j in 0..P {
+                for k in 0..N {
+                    let b_kj = rhs.data[j][k];
+                    for i in 0..M {
+                        out.data[j][i] = out.data[j][i] + self.data[k][i] * b_kj;
+                    }
+                }
+            }
+        } else {
+            crate::simd::matmul_dispatch(
+                self.as_slice(), rhs.as_slice(), out.as_mut_slice(), M, N, P,
+            );
+        }
         out
     }
 }
@@ -113,9 +152,9 @@ impl<T: Scalar, const M: usize, const N: usize> Add<T> for Matrix<T, M, N> {
 
     fn add(self, rhs: T) -> Self {
         let mut out = self;
-        for i in 0..M {
-            for j in 0..N {
-                out[(i, j)] = self[(i, j)] + rhs;
+        for j in 0..N {
+            for i in 0..M {
+                out.data[j][i] = self.data[j][i] + rhs;
             }
         }
         out
@@ -131,9 +170,9 @@ impl<T: Scalar, const M: usize, const N: usize> Add<T> for &Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> AddAssign<T> for Matrix<T, M, N> {
     fn add_assign(&mut self, rhs: T) {
-        for i in 0..M {
-            for j in 0..N {
-                self[(i, j)] = self[(i, j)] + rhs;
+        for j in 0..N {
+            for i in 0..M {
+                self.data[j][i] = self.data[j][i] + rhs;
             }
         }
     }
@@ -146,9 +185,9 @@ impl<T: Scalar, const M: usize, const N: usize> Sub<T> for Matrix<T, M, N> {
 
     fn sub(self, rhs: T) -> Self {
         let mut out = self;
-        for i in 0..M {
-            for j in 0..N {
-                out[(i, j)] = self[(i, j)] - rhs;
+        for j in 0..N {
+            for i in 0..M {
+                out.data[j][i] = self.data[j][i] - rhs;
             }
         }
         out
@@ -164,9 +203,9 @@ impl<T: Scalar, const M: usize, const N: usize> Sub<T> for &Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> SubAssign<T> for Matrix<T, M, N> {
     fn sub_assign(&mut self, rhs: T) {
-        for i in 0..M {
-            for j in 0..N {
-                self[(i, j)] = self[(i, j)] - rhs;
+        for j in 0..N {
+            for i in 0..M {
+                self.data[j][i] = self.data[j][i] - rhs;
             }
         }
     }
@@ -222,22 +261,34 @@ impl<T: Scalar, const M: usize, const N: usize> Mul<T> for Matrix<T, M, N> {
     type Output = Self;
 
     fn mul(self, rhs: T) -> Self {
-        let mut out = self;
-        for i in 0..M {
+        if M * N <= 36 {
+            let mut out = self;
             for j in 0..N {
-                out[(i, j)] = self[(i, j)] * rhs;
+                for i in 0..M {
+                    out.data[j][i] = self.data[j][i] * rhs;
+                }
             }
+            out
+        } else {
+            let mut out = Self::zeros();
+            crate::simd::scale_slices_dispatch(self.as_slice(), rhs, out.as_mut_slice());
+            out
         }
-        out
     }
 }
 
 impl<T: Scalar, const M: usize, const N: usize> MulAssign<T> for Matrix<T, M, N> {
     fn mul_assign(&mut self, rhs: T) {
-        for i in 0..M {
+        if M * N <= 36 {
             for j in 0..N {
-                self[(i, j)] = self[(i, j)] * rhs;
+                for i in 0..M {
+                    self.data[j][i] = self.data[j][i] * rhs;
+                }
             }
+        } else {
+            let mut out = Self::zeros();
+            crate::simd::scale_slices_dispatch(self.as_slice(), rhs, out.as_mut_slice());
+            *self = out;
         }
     }
 }
@@ -350,9 +401,9 @@ impl<T: Scalar, const M: usize, const N: usize> Div<T> for Matrix<T, M, N> {
 
     fn div(self, rhs: T) -> Self {
         let mut out = self;
-        for i in 0..M {
-            for j in 0..N {
-                out[(i, j)] = self[(i, j)] / rhs;
+        for j in 0..N {
+            for i in 0..M {
+                out.data[j][i] = self.data[j][i] / rhs;
             }
         }
         out
@@ -361,9 +412,9 @@ impl<T: Scalar, const M: usize, const N: usize> Div<T> for Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> DivAssign<T> for Matrix<T, M, N> {
     fn div_assign(&mut self, rhs: T) {
-        for i in 0..M {
-            for j in 0..N {
-                self[(i, j)] = self[(i, j)] / rhs;
+        for j in 0..N {
+            for i in 0..M {
+                self.data[j][i] = self.data[j][i] / rhs;
             }
         }
     }
@@ -393,12 +444,24 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// assert_eq!(r[1], 11.0); // 5*1 + 3*2
     /// ```
     pub fn vecmul(&self, v: &Vector<T, N>) -> Vector<T, M> {
+        // Vector<T, M> = Matrix<T, 1, M>: out.data[i][0] is element i.
+        // Matrix<T, M, N>: self.data[k][i] is element (row=i, col=k).
+        // Vector<T, N>: v.data[k][0] is element k.
         let mut out = Vector::<T, M>::zeros();
-        // Column-oriented: out += col_k * v[k]
-        for k in 0..N {
-            let v_k = v[k];
-            for i in 0..M {
-                out[i] = out[i] + self[(i, k)] * v_k;
+        if M <= 6 && N <= 6 {
+            // For small matrices, bypass dispatch overhead.
+            // Compiler fully unrolls the const-generic loops.
+            for k in 0..N {
+                let v_k = v.data[k][0];
+                for i in 0..M {
+                    out.data[i][0] = out.data[i][0] + self.data[k][i] * v_k;
+                }
+            }
+        } else {
+            // Column-oriented AXPY: out += v[k] * col_k (SIMD on contiguous columns)
+            let out_slice = out.as_mut_slice();
+            for k in 0..N {
+                crate::simd::axpy_pos_dispatch(out_slice, v[k], self.col_slice(k));
             }
         }
         out
@@ -420,9 +483,9 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn element_mul(&self, rhs: &Self) -> Self {
         let mut out = *self;
-        for i in 0..M {
-            for j in 0..N {
-                out[(i, j)] = self[(i, j)] * rhs[(i, j)];
+        for j in 0..N {
+            for i in 0..M {
+                out.data[j][i] = self.data[j][i] * rhs.data[j][i];
             }
         }
         out
@@ -444,9 +507,9 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn element_div(&self, rhs: &Self) -> Self {
         let mut out = *self;
-        for i in 0..M {
-            for j in 0..N {
-                out[(i, j)] = self[(i, j)] / rhs[(i, j)];
+        for j in 0..N {
+            for i in 0..M {
+                out.data[j][i] = self.data[j][i] / rhs.data[j][i];
             }
         }
         out
@@ -468,9 +531,10 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn transpose(&self) -> Matrix<T, N, M> {
         let mut out = Matrix::<T, N, M>::zeros();
-        for i in 0..M {
-            for j in 0..N {
-                out[(j, i)] = self[(i, j)];
+        for j in 0..N {
+            for i in 0..M {
+                // self[(i,j)] = self.data[j][i], out[(j,i)] = out.data[i][j]
+                out.data[i][j] = self.data[j][i];
             }
         }
         out

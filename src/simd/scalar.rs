@@ -165,3 +165,15 @@ pub fn axpy_neg<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
         y[i] = y[i] - alpha * x[i];
     }
 }
+
+/// AXPY: y[i] = y[i] + alpha * x[i].
+///
+/// Positive variant used in matrix-vector products and accumulation loops.
+#[inline]
+#[allow(dead_code)]
+pub fn axpy_pos<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
+    debug_assert_eq!(y.len(), x.len());
+    for i in 0..y.len() {
+        y[i] = y[i] + alpha * x[i];
+    }
+}

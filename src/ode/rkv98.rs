@@ -1,10 +1,11 @@
-//! Verner 9(8) Robust — 21 stages, order 9(8), 8th-degree interpolant.
+//! Verner 9(8) Efficient — 21 stages, order 9(8), 8th-degree interpolant.
 //!
-//! Source: <https://www.sfu.ca/~jverner/RKV98.IIa.Robust.000000351.081209.CoeffsOnlyFLOAT6040>
+//! Source: <https://www.sfu.ca/~jverner/RKV98.IIa.Efficient.000000349.081209.FLOAT6040OnWeb>
+//! 16 core stages + 5 interpolation stages (17–21) for 8th-degree dense output.
 
 use super::adaptive::RKAdaptive;
 
-/// Verner 9(8) Robust — 21 stages, order 9(8).
+/// Verner 9(8) Efficient — 21 stages, order 9(8).
 ///
 /// Has 5 extra stages beyond the 16 core stages to support
 /// 8th-degree dense interpolation.

@@ -387,3 +387,27 @@ pub fn axpy_neg(y: &mut [f64], alpha: f64, x: &[f64]) {
         y[i] -= alpha * x[i];
     }
 }
+
+/// AXPY: y[i] += alpha * x[i].
+#[inline]
+pub fn axpy_pos(y: &mut [f64], alpha: f64, x: &[f64]) {
+    debug_assert_eq!(y.len(), x.len());
+    let n = y.len();
+    let chunks = n / 8;
+
+    unsafe {
+        let va = _mm512_set1_pd(alpha);
+        for i in 0..chunks {
+            let offset = i * 8;
+            let vy = _mm512_loadu_pd(y.as_ptr().add(offset));
+            let vx = _mm512_loadu_pd(x.as_ptr().add(offset));
+            let result = _mm512_add_pd(vy, _mm512_mul_pd(va, vx));
+            _mm512_storeu_pd(y.as_mut_ptr().add(offset), result);
+        }
+    }
+
+    let tail = chunks * 8;
+    for i in tail..n {
+        y[i] += alpha * x[i];
+    }
+}

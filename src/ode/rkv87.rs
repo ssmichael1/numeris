@@ -1,6 +1,7 @@
-//! Verner 8(7) — 17 stages, order 8(7).
+//! Verner 8(7) Robust — 17 stages, order 8(7).
 //!
 //! Source: <https://www.sfu.ca/~jverner/RKV87.IIa.Robust.00000754677.081208.CoeffsOnlyFLOAT>
+//! 13 core stages + 4 interpolation stages (14–17) for 7th-degree dense output.
 
 use super::adaptive::RKAdaptive;
 
@@ -45,7 +46,7 @@ impl RKAdaptive<17, 7> for RKV87 {
         0.45,
         1.0,
         1.0,
-        0.0,
+        1.0,
         0.311_017_763_495_386_4,
         0.536,
         0.132,

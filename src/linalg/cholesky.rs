@@ -81,6 +81,43 @@ pub fn back_substitute_lt<T: LinalgScalar>(
 }
 
 // ---------------------------------------------------------------------------
+// Small-size specialization (N <= 6, direct data access, compiler unrolls)
+// ---------------------------------------------------------------------------
+
+/// Cholesky decomposition using direct `data[col][row]` access.
+/// For small const N the compiler fully unrolls all loops.
+#[inline(always)]
+fn cholesky_direct<T: LinalgScalar, const N: usize>(
+    l: &mut Matrix<T, N, N>,
+) -> Result<(), LinalgError> {
+    let zero_r = <T::Real as num_traits::Zero>::zero();
+
+    for j in 0..N {
+        for k in 0..j {
+            let ljk_conj = l.data[k][j].conj();
+            for i in j..N {
+                l.data[j][i] = l.data[j][i] - ljk_conj * l.data[k][i];
+            }
+        }
+
+        let diag = l.data[j][j];
+        if diag.re() <= zero_r {
+            return Err(LinalgError::NotPositiveDefinite);
+        }
+        let ljj = diag.re().lsqrt();
+        let ljj_t = T::from_real(ljj);
+        l.data[j][j] = ljj_t;
+
+        let inv_ljj = T::one() / ljj_t;
+        for i in (j + 1)..N {
+            l.data[j][i] = l.data[j][i] * inv_ljj;
+        }
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Public CholeskyDecomposition
 // ---------------------------------------------------------------------------
 
@@ -114,7 +151,11 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
     #[inline]
     pub fn new(a: &Matrix<T, N, N>) -> Result<Self, LinalgError> {
         let mut l = *a;
-        cholesky_in_place(&mut l)?;
+        if N <= 6 {
+            cholesky_direct(&mut l)?;
+        } else {
+            cholesky_in_place(&mut l)?;
+        }
         Ok(Self { l })
     }
 
