@@ -32,7 +32,7 @@ use numeris::interp::LinearInterp;
 // Fixed-size: 4 knots
 let xs = [0.0_f64, 1.0, 2.0, 3.0];
 let ys = [0.0_f64, 1.0, 0.0, 1.0];
-let interp = LinearInterp::new(&xs, &ys).unwrap();
+let interp = LinearInterp::new(xs, ys).unwrap();
 
 let y = interp.eval(1.5);  // 0.5
 ```
@@ -42,7 +42,9 @@ Dynamic variant:
 ```rust
 use numeris::interp::DynLinearInterp;
 
-let interp = DynLinearInterp::new(&xs, &ys).unwrap();
+let xs = vec![0.0_f64, 1.0, 2.0, 3.0];
+let ys = vec![0.0_f64, 1.0, 0.0, 1.0];
+let interp = DynLinearInterp::new(xs, ys).unwrap();
 let y = interp.eval(1.5);
 ```
 
@@ -58,7 +60,7 @@ let ys = [0.0_f64, 1.0, 0.0, 1.0];
 // Derivatives at each knot (e.g., from finite differences or analytic formula)
 let ds = [1.0_f64, 0.0, -1.0, 0.0];
 
-let interp = HermiteInterp::new(&xs, &ys, &ds).unwrap();
+let interp = HermiteInterp::new(xs, ys, ds).unwrap();
 
 let y  = interp.eval(1.5);
 let dy = interp.eval_deriv(1.5);  // first derivative
@@ -77,7 +79,7 @@ use numeris::interp::LagrangeInterp;
 let xs = [0.0_f64, 0.5, 1.0, 1.5, 2.0];
 let ys = [0.0_f64, 0.479, 0.841, 0.997, 0.909];  // ≈ sin(x)
 
-let interp = LagrangeInterp::new(&xs, &ys).unwrap();
+let interp = LagrangeInterp::new(xs, ys).unwrap();
 
 let y  = interp.eval(0.75);
 let dy = interp.eval_deriv(0.75);  // first derivative
@@ -96,7 +98,7 @@ use numeris::interp::CubicSpline;
 let xs = [0.0_f64, 1.0, 2.0, 3.0, 4.0];
 let ys = [0.0_f64, 1.0, 0.0, 1.0, 0.0];
 
-let spline = CubicSpline::new(&xs, &ys).unwrap();
+let spline = CubicSpline::new(xs, ys).unwrap();
 
 let y  = spline.eval(1.5);       // smooth interpolation
 let dy = spline.eval_deriv(1.5); // first derivative
@@ -107,53 +109,63 @@ Dynamic variant:
 ```rust
 use numeris::interp::DynCubicSpline;
 
-let spline = DynCubicSpline::new(&xs, &ys).unwrap();
+let xs = vec![0.0_f64, 1.0, 2.0, 3.0, 4.0];
+let ys = vec![0.0_f64, 1.0, 0.0, 1.0, 0.0];
+let spline = DynCubicSpline::new(xs, ys).unwrap();
 let y = spline.eval(2.7);
 ```
 
 ## Bilinear Interpolation (2D)
 
-For data on a rectangular grid. Interpolates within each cell using the four corner values.
+For data on a rectangular grid. Interpolates z = f(x, y) within each cell using the four corner values. Out-of-bounds queries extrapolate using the nearest boundary cell.
+
+Input is **row-major**: `zs[iy][ix]` is the value at `(xs[ix], ys[iy])`, matching the natural "row = fixed y" convention. Internally stored column-major.
 
 ```rust
 use numeris::interp::BilinearInterp;
 
-// Grid: 3 x-nodes × 4 y-nodes
+// 3×2 grid: z = x + y
 let xs = [0.0_f64, 1.0, 2.0];
-let ys = [0.0_f64, 1.0, 2.0, 3.0];
+let ys = [0.0, 1.0];
 
-// Values at each (xi, yj) node — stored row-by-row (x varies fastest)
-// z[i*ny + j] = f(xs[i], ys[j])
+// Row-major: each inner array is a row at fixed y
 let zs = [
-    0.0_f64, 1.0, 2.0, 3.0,   // xs[0]=0 row
-    1.0,     2.0, 3.0, 4.0,   // xs[1]=1 row
-    4.0,     5.0, 6.0, 7.0,   // xs[2]=2 row
+    [0.0, 1.0, 2.0],  // y = 0: z = x + 0
+    [1.0, 2.0, 3.0],  // y = 1: z = x + 1
 ];
 
-let interp = BilinearInterp::new(&xs, &ys, &zs).unwrap();
-
-let z = interp.eval(0.5, 1.5);  // interpolate at (x=0.5, y=1.5)
+let interp = BilinearInterp::new(xs, ys, zs).unwrap();
+assert!((interp.eval(0.5, 0.5) - 1.0).abs() < 1e-14);  // 0.5 + 0.5 = 1.0
+assert!((interp.eval(1.5, 0.0) - 1.5).abs() < 1e-14);  // 1.5 + 0.0 = 1.5
 ```
 
-Dynamic variant:
+Dynamic variant accepts `Vec` data:
 
 ```rust
 use numeris::interp::DynBilinearInterp;
 
-let interp = DynBilinearInterp::new(&xs, &ys, &zs).unwrap();
-let z = interp.eval(0.5, 1.5);
+let xs = vec![0.0_f64, 1.0, 2.0];
+let ys = vec![0.0, 1.0];
+let zs = vec![
+    vec![0.0, 1.0, 2.0],  // y = 0
+    vec![1.0, 2.0, 3.0],  // y = 1
+];
+let interp = DynBilinearInterp::new(xs, ys, zs).unwrap();
+assert!((interp.eval(0.5, 0.5) - 1.0).abs() < 1e-14);
 ```
+
+The dynamic variant also supports pre-flattened column-major data via `DynBilinearInterp::from_slice()`.
 
 ## Error Handling
 
 ```rust
 use numeris::interp::InterpError;
 
-match CubicSpline::new(&xs, &ys) {
+match CubicSpline::new(xs, ys) {
     Ok(spline) => { /* use spline */ }
     Err(InterpError::NotSorted)         => { /* xs must be strictly increasing */ }
     Err(InterpError::LengthMismatch)    => { /* xs.len() != ys.len() */ }
-    Err(InterpError::InsufficientPoints) => { /* need at least 2 knots */ }
+    Err(InterpError::TooFewPoints)       => { /* need at least 2 knots */ }
 }
 ```
 
@@ -168,10 +180,10 @@ let xs = [0.0_f64, 1.0, 2.0, 3.0];
 let ys = [0.0_f64, 0.841, 0.909, 0.141];  // ≈ sin(x)
 let ds = [1.0_f64, 0.540, -0.416, -0.990]; // ≈ cos(x) (derivatives)
 
-let linear  = LinearInterp::new(&xs, &ys).unwrap();
-let hermite = HermiteInterp::new(&xs, &ys, &ds).unwrap();
-let lagrange = LagrangeInterp::new(&xs, &ys).unwrap();
-let spline  = CubicSpline::new(&xs, &ys).unwrap();
+let linear  = LinearInterp::new(xs, ys).unwrap();
+let hermite = HermiteInterp::new(xs, ys, ds).unwrap();
+let lagrange = LagrangeInterp::new(xs, ys).unwrap();
+let spline  = CubicSpline::new(xs, ys).unwrap();
 
 let x_query = 1.5;
 println!("linear   = {:.6}", linear.eval(x_query));   // piecewise linear

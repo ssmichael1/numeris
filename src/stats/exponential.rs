@@ -29,6 +29,23 @@ impl<T: FloatScalar> Exponential<T> {
     }
 }
 
+impl<T: FloatScalar> Exponential<T> {
+    /// Draw a random sample from this distribution (inverse CDF method).
+    pub fn sample(&self, rng: &mut super::Rng) -> T {
+        let u: T = rng.next_float();
+        -(T::one() - u).ln() / self.lambda
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [T; K] {
+        let mut out = [T::zero(); K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> ContinuousDistribution<T> for Exponential<T> {
     fn pdf(&self, x: T) -> T {
         if x < T::zero() {

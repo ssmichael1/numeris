@@ -45,6 +45,7 @@ nav:
       - Digital Control: control.md
       - State Estimation: estimate.md
       - Interpolation: interp.md
+      - Quadrature: quad.md
       - Special Functions: special.md
       - Statistics: stats.md
       - Quaternion: quaternion.md

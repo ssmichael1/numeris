@@ -56,51 +56,45 @@ For each (block_i, block_j) tile of C:
 
 Platform: Apple Silicon M-series (aarch64 NEON), Rust stable.
 
-Compared against nalgebra 0.33 and faer 0.19. All benchmarks run with `cargo bench`.
+Compared against nalgebra 0.34 and faer 0.24. All benchmarks run with `cargo bench`.
 
 | Benchmark | numeris | nalgebra | faer | Winner |
 |---|---|---|---|---|
-| matmul 4×4 | 7.1 ns | **5.2 ns** | 61 ns | nalgebra |
-| matmul 6×6 | **21.2 ns** | 21.1 ns | 93 ns | ~tie |
-| matmul 50×50 (dyn) | **6.8 µs** | 6.9 µs | 6.5 µs | ~tie |
-| matmul 200×200 (dyn) | 367 µs | 310 µs | **174 µs** | faer |
-| dot 100 (dyn) | **12.4 ns** | 13.2 ns | — | numeris |
-| LU 4×4 | 34.8 ns | **30.2 ns** | 212.5 ns | nalgebra |
-| LU 6×6 | 90.3 ns | **80.8 ns** | 300.9 ns | nalgebra |
-| LU 50×50 (dyn) | 8.9 µs | **7.8 µs** | 8.0 µs | nalgebra |
-| Cholesky 4×4 | 26.5 ns | **12.2 ns** | 142.1 ns | nalgebra |
-| Cholesky 6×6 | 76.5 ns | **42.1 ns** | 202.9 ns | nalgebra |
-| QR 4×4 | **62.9 ns** | 101.7 ns | 328.4 ns | numeris |
-| QR 6×6 | **85.9 ns** | 217.3 ns | 521.5 ns | numeris |
-| SVD 4×4 | **313.9 ns** | 489.0 ns | 1365.7 ns | numeris |
-| SVD 6×6 | 1135.5 ns | **975.3 ns** | 2011.1 ns | nalgebra |
-| Inverse 4×4 | **29.6 ns** | 24.8 ns | — | nalgebra |
-| Eigen sym 4×4 | **183.7 ns** | 213.4 ns | 621.5 ns | numeris |
-| Eigen sym 6×6 | **352.0 ns** | 574.8 ns | 1200.5 ns | numeris |
+| matmul 4×4 | **4.9 ns** | 4.9 ns | 58 ns | ~tie |
+| matmul 6×6 | **13.4 ns** | 20.0 ns | 87 ns | numeris |
+| matmul 50×50 (dyn) | **5.76 µs** | 6.63 µs | 6.3 µs | numeris |
+| matmul 200×200 (dyn) | 369 µs | 361 µs | **193 µs** | faer |
+| dot 100 (dyn) | **11.6 ns** | 14.5 ns | — | numeris |
+| LU 4×4 | 33.2 ns | **28.2 ns** | 203 ns | nalgebra |
+| LU 6×6 | 84.7 ns | **82.1 ns** | 292 ns | nalgebra |
+| LU 50×50 (dyn) | 8.4 µs | **7.5 µs** | 7.7 µs | nalgebra |
+| Cholesky 4×4 | 25.2 ns | **11.8 ns** | 139 ns | nalgebra |
+| Cholesky 6×6 | 70.7 ns | **39.6 ns** | 186 ns | nalgebra |
+| QR 4×4 | **46.4 ns** | 90.6 ns | 303 ns | numeris |
+| QR 6×6 | **85.5 ns** | 207.9 ns | 445 ns | numeris |
+| SVD 4×4 | **299 ns** | 461 ns | 1278 ns | numeris |
+| SVD 6×6 | 1171 ns | **925 ns** | 1858 ns | nalgebra |
+| Inverse 4×4 | 27.6 ns | **23.3 ns** | — | nalgebra |
+| Inverse 6×6 | 163 ns | **127 ns** | — | nalgebra |
+| Eigen sym 4×4 | **165 ns** | 201 ns | 578 ns | numeris |
+| Eigen sym 6×6 | **287 ns** | 528 ns | 1088 ns | numeris |
 
 ### Summary
 
-- **numeris wins**: QR (2.5×), SVD 4×4, symmetric eigendecomposition (1.5–2×), dot product, matmul 50×50
-- **nalgebra wins**: small matmul 4×4, Cholesky, LU, inverse — gaps are small
-- **faer wins**: large dynamic matmul (200×200) — A/B panel packing dominates at that scale
+- **numeris wins**: matmul 6×6 (1.5×), QR (2×), SVD 4×4 (1.5×), symmetric eigendecomposition (1.2–1.8×), dot product, matmul 50×50
+- **nalgebra wins**: Cholesky, LU, inverse, SVD 6×6 — Cholesky gap is a measurement artifact (see below)
+- **faer wins**: large dynamic matmul (200×200) — A+B packing, cache-aware blocking
 - faer has high overhead at small sizes due to dynamic dispatch / runtime machinery
+- matmul 4×4: dead heat with nalgebra (4.9 ns each)
 
-## Improvements vs. Initial Baseline
-
-| Benchmark | Before | After | Speedup |
-|---|---|---|---|
-| matmul 200×200 | 562 µs | 367 µs | **1.5×** |
-| matmul 50×50 | 12.5 µs | 6.8 µs | **1.8×** |
-| matmul 6×6 | 62.1 ns | 21.2 ns | **2.9×** |
-| inverse 4×4 | 79.9 ns | 29.6 ns | **2.7×** |
-| LU 4×4 | 45.3 ns | 34.8 ns | **1.3×** |
-| dot 100 | 25.2 ns | 12.4 ns | **2.0×** |
+!!! note "Cholesky benchmark artifact"
+    The ~2× Cholesky gap is a **measurement artifact**, not a real performance difference. Micro-benchmarking shows raw computation is within 4% of nalgebra. The gap comes from Criterion's `black_box` reading `Result<CholeskyDecomposition, LinalgError>` byte-by-byte (48 `ldrb` instructions) vs nalgebra's `Option<Cholesky>` using word-sized `ldr` (17 instructions).
 
 ## Remaining Opportunities
 
-- **Cholesky**: still ~2× behind nalgebra — bottleneck is sqrt/division cost, not dispatch overhead
-- **Large matmul**: A/B panel packing could close the remaining ~2× gap with faer
-- **Small matmul 4×4**: nalgebra's hardcoded unrolled kernel is difficult to beat generically
+- **Large matmul**: A-panel packing + larger tile sizes could close the remaining ~2× gap with faer
+- **SVD 6×6**: 27% behind nalgebra — likely dominated by Givens rotations in bidiagonal QR
+- **LU**: small margin behind nalgebra — possibly similar `Result` vs `Option` artifact
 
 ## No-std Performance
 

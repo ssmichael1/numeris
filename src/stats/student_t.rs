@@ -28,6 +28,27 @@ impl<T: FloatScalar> StudentT<T> {
     }
 }
 
+impl<T: FloatScalar> StudentT<T> {
+    /// Draw a random sample from this distribution.
+    ///
+    /// Samples Z ~ Normal(0,1), V ~ ChiSquared(df), returns Z / sqrt(V / df).
+    pub fn sample(&self, rng: &mut super::Rng) -> T {
+        let two = T::one() + T::one();
+        let z: T = rng.next_normal();
+        let v = rng.next_gamma(self.df / two) * two; // chi-squared(df)
+        z / (v / self.df).sqrt()
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [T; K] {
+        let mut out = [T::zero(); K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> ContinuousDistribution<T> for StudentT<T> {
     fn pdf(&self, x: T) -> T {
         self.ln_pdf(x).exp()

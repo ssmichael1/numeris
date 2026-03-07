@@ -32,6 +32,46 @@ impl<T: FloatScalar> Binomial<T> {
     }
 }
 
+impl<T: FloatScalar> Binomial<T> {
+    /// Draw a random sample from this distribution.
+    ///
+    /// For small n, sums n Bernoulli trials. For large n (> 20 and
+    /// np > 5 and n(1-p) > 5), uses a normal approximation with
+    /// rounding and clamping.
+    pub fn sample(&self, rng: &mut super::Rng) -> u64 {
+        let np = T::from(self.n).unwrap() * self.p;
+        let nq = T::from(self.n).unwrap() * (T::one() - self.p);
+        let five = T::from(5.0).unwrap();
+
+        if self.n <= 20 || np < five || nq < five {
+            // Direct summation of Bernoulli trials
+            let mut count = 0u64;
+            for _ in 0..self.n {
+                if rng.next_float::<T>() < self.p {
+                    count += 1;
+                }
+            }
+            count
+        } else {
+            // Normal approximation
+            let mean = np;
+            let std = (np * (T::one() - self.p)).sqrt();
+            let x = mean + std * rng.next_normal::<T>();
+            let k = x.round().to_u64().unwrap_or(0);
+            k.min(self.n)
+        }
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [u64; K] {
+        let mut out = [0u64; K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> DiscreteDistribution<T> for Binomial<T> {
     fn pmf(&self, k: u64) -> T {
         if k > self.n {

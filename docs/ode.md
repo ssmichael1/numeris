@@ -141,18 +141,23 @@ let sol2 = RODAS4::integrate_auto(
 ).unwrap();
 ```
 
-### Van der Pol oscillator (μ = 1000)
+### Van der Pol oscillator
+
+--8<-- "includes/plot_vanderpol.html"
 
 ```rust
 use numeris::ode::{Rosenbrock, RODAS4, AdaptiveSettings};
 use numeris::{Vector, Matrix};
 
-let mu = 1000.0_f64;
+let mu = 20.0_f64;
 let y0 = Vector::from_array([2.0_f64, 0.0]);
 
 let sol = RODAS4::integrate(
-    0.0, 3000.0, &y0,
-    |_t, y| Vector::from_array([y[1], mu * (1.0 - y[0] * y[0]) * y[1] - y[0]]),
+    0.0, 120.0, &y0,
+    |_t, y| Vector::from_array([
+        y[1],
+        mu * (1.0 - y[0] * y[0]) * y[1] - y[0],
+    ]),
     |_t, y| Matrix::new([
         [0.0,                                    1.0],
         [-2.0 * mu * y[0] * y[1] - 1.0, mu * (1.0 - y[0] * y[0])],

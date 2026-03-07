@@ -33,6 +33,7 @@
 //! assert!((n.mean()).abs() < 1e-14);
 //! ```
 
+mod rng;
 mod normal;
 mod uniform;
 mod exponential;
@@ -47,6 +48,7 @@ mod poisson;
 #[cfg(test)]
 mod tests;
 
+pub use rng::Rng;
 pub use normal::Normal;
 pub use uniform::Uniform;
 pub use exponential::Exponential;

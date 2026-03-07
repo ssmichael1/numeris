@@ -1,5 +1,343 @@
 use super::*;
 
+// ======================== RNG ========================
+
+#[test]
+fn rng_reproducible() {
+    let mut a = Rng::new(42);
+    let mut b = Rng::new(42);
+    for _ in 0..100 {
+        assert_eq!(a.next_u64(), b.next_u64());
+    }
+}
+
+#[test]
+fn rng_different_seeds() {
+    let mut a = Rng::new(1);
+    let mut b = Rng::new(2);
+    // Extremely unlikely to match
+    assert_ne!(a.next_u64(), b.next_u64());
+}
+
+#[test]
+fn rng_f64_range() {
+    let mut rng = Rng::new(123);
+    for _ in 0..10000 {
+        let x = rng.next_f64();
+        assert!(x >= 0.0 && x < 1.0);
+    }
+}
+
+#[test]
+fn rng_f32_range() {
+    let mut rng = Rng::new(456);
+    for _ in 0..10000 {
+        let x = rng.next_f32();
+        assert!(x >= 0.0 && x < 1.0);
+    }
+}
+
+#[test]
+fn rng_normal_mean_variance() {
+    let mut rng = Rng::new(789);
+    let n = 50000;
+    let mut sum = 0.0_f64;
+    let mut sum2 = 0.0_f64;
+    for _ in 0..n {
+        let x = rng.next_normal_f64();
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    assert!(mean.abs() < 0.03, "normal mean={mean}");
+    assert!((var - 1.0).abs() < 0.05, "normal var={var}");
+}
+
+// ======================== Sampling: continuous ========================
+
+#[test]
+fn sample_normal() {
+    let dist = Normal::new(5.0_f64, 2.0).unwrap();
+    let mut rng = Rng::new(100);
+    let n = 20000;
+    let mut sum = 0.0;
+    let mut sum2 = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    assert!((mean - 5.0).abs() < 0.1, "normal mean={mean}");
+    assert!((var - 4.0).abs() < 0.2, "normal var={var}");
+}
+
+#[test]
+fn sample_normal_f32() {
+    let dist = Normal::new(0.0_f32, 1.0).unwrap();
+    let mut rng = Rng::new(101);
+    let n = 10000;
+    let mut sum = 0.0_f32;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        sum += x;
+    }
+    let mean = sum / n as f32;
+    assert!(mean.abs() < 0.1, "f32 normal mean={mean}");
+}
+
+#[test]
+fn sample_uniform() {
+    let dist = Uniform::new(2.0_f64, 5.0).unwrap();
+    let mut rng = Rng::new(200);
+    let n = 20000;
+    let mut sum = 0.0;
+    let mut sum2 = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x >= 2.0 && x < 5.0, "uniform out of range: {x}");
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    assert!((mean - 3.5).abs() < 0.1, "uniform mean={mean}");
+    assert!((var - 0.75).abs() < 0.1, "uniform var={var}");
+}
+
+#[test]
+fn sample_exponential() {
+    let dist = Exponential::new(2.0_f64).unwrap();
+    let mut rng = Rng::new(300);
+    let n = 20000;
+    let mut sum = 0.0;
+    let mut sum2 = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x >= 0.0, "exp negative: {x}");
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    assert!((mean - 0.5).abs() < 0.03, "exp mean={mean}");
+    assert!((var - 0.25).abs() < 0.03, "exp var={var}");
+}
+
+#[test]
+fn sample_gamma() {
+    let dist = Gamma::new(3.0_f64, 2.0).unwrap();
+    let mut rng = Rng::new(400);
+    let n = 20000;
+    let mut sum = 0.0;
+    let mut sum2 = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x > 0.0, "gamma non-positive: {x}");
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    // Gamma(3,2): mean=1.5, var=0.75
+    assert!((mean - 1.5).abs() < 0.05, "gamma mean={mean}");
+    assert!((var - 0.75).abs() < 0.1, "gamma var={var}");
+}
+
+#[test]
+fn sample_gamma_small_shape() {
+    // shape < 1: uses the Gamma(alpha+1) * U^(1/alpha) trick
+    let dist = Gamma::new(0.5_f64, 1.0).unwrap();
+    let mut rng = Rng::new(401);
+    let n = 20000;
+    let mut sum = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x > 0.0);
+        sum += x;
+    }
+    let mean = sum / n as f64;
+    assert!((mean - 0.5).abs() < 0.05, "gamma(0.5,1) mean={mean}");
+}
+
+#[test]
+fn sample_beta() {
+    let dist = Beta::new(2.0_f64, 5.0).unwrap();
+    let mut rng = Rng::new(500);
+    let n = 20000;
+    let mut sum = 0.0;
+    let mut sum2 = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x > 0.0 && x < 1.0, "beta out of [0,1]: {x}");
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    // Beta(2,5): mean=2/7≈0.2857, var=10/392≈0.02551
+    let expected_mean = 2.0 / 7.0;
+    let expected_var = 2.0 * 5.0 / (49.0 * 8.0);
+    assert!((mean - expected_mean).abs() < 0.02, "beta mean={mean}");
+    assert!((var - expected_var).abs() < 0.01, "beta var={var}");
+}
+
+#[test]
+fn sample_chi_squared() {
+    let dist = ChiSquared::new(5.0_f64).unwrap();
+    let mut rng = Rng::new(600);
+    let n = 20000;
+    let mut sum = 0.0;
+    let mut sum2 = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x > 0.0);
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    assert!((mean - 5.0).abs() < 0.2, "chi2 mean={mean}");
+    assert!((var - 10.0).abs() < 0.6, "chi2 var={var}");
+}
+
+#[test]
+fn sample_student_t() {
+    let dist = StudentT::new(10.0_f64).unwrap();
+    let mut rng = Rng::new(700);
+    let n = 20000;
+    let mut sum = 0.0;
+    let mut sum2 = 0.0;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum / n as f64;
+    let var = sum2 / n as f64 - mean * mean;
+    // t(10): mean=0, var=10/8=1.25
+    assert!(mean.abs() < 0.1, "t mean={mean}");
+    assert!((var - 1.25).abs() < 0.2, "t var={var}");
+}
+
+// ======================== Sampling: discrete ========================
+
+#[test]
+fn sample_bernoulli() {
+    let dist = Bernoulli::new(0.3_f64).unwrap();
+    let mut rng = Rng::new(800);
+    let n = 20000;
+    let mut ones = 0u64;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x == 0 || x == 1);
+        ones += x;
+    }
+    let mean = ones as f64 / n as f64;
+    assert!((mean - 0.3).abs() < 0.03, "bernoulli mean={mean}");
+}
+
+#[test]
+fn sample_binomial_small() {
+    let dist = Binomial::new(10, 0.4_f64).unwrap();
+    let mut rng = Rng::new(900);
+    let n = 20000;
+    let mut sum = 0u64;
+    let mut sum2 = 0u64;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x <= 10);
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum as f64 / n as f64;
+    let var = sum2 as f64 / n as f64 - mean * mean;
+    // B(10, 0.4): mean=4, var=2.4
+    assert!((mean - 4.0).abs() < 0.15, "binomial mean={mean}");
+    assert!((var - 2.4).abs() < 0.3, "binomial var={var}");
+}
+
+#[test]
+fn sample_binomial_large() {
+    // Large n triggers normal approximation path
+    let dist = Binomial::new(100, 0.5_f64).unwrap();
+    let mut rng = Rng::new(901);
+    let n = 10000;
+    let mut sum = 0u64;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        assert!(x <= 100);
+        sum += x;
+    }
+    let mean = sum as f64 / n as f64;
+    assert!((mean - 50.0).abs() < 1.0, "binomial(100,0.5) mean={mean}");
+}
+
+#[test]
+fn sample_poisson_small() {
+    let dist = Poisson::new(3.0_f64).unwrap();
+    let mut rng = Rng::new(1000);
+    let n = 20000;
+    let mut sum = 0u64;
+    let mut sum2 = 0u64;
+    for _ in 0..n {
+        let x = dist.sample(&mut rng);
+        sum += x;
+        sum2 += x * x;
+    }
+    let mean = sum as f64 / n as f64;
+    let var = sum2 as f64 / n as f64 - mean * mean;
+    assert!((mean - 3.0).abs() < 0.1, "poisson mean={mean}");
+    assert!((var - 3.0).abs() < 0.2, "poisson var={var}");
+}
+
+#[test]
+fn sample_poisson_large() {
+    // lambda >= 30 triggers normal approximation
+    let dist = Poisson::new(50.0_f64).unwrap();
+    let mut rng = Rng::new(1001);
+    let n = 10000;
+    let mut sum = 0u64;
+    for _ in 0..n {
+        sum += dist.sample(&mut rng);
+    }
+    let mean = sum as f64 / n as f64;
+    assert!((mean - 50.0).abs() < 1.5, "poisson(50) mean={mean}");
+}
+
+// ======================== sample_array ========================
+
+#[test]
+fn sample_array_normal() {
+    let dist = Normal::new(0.0_f64, 1.0).unwrap();
+    let mut rng = Rng::new(1100);
+    let arr: [f64; 5] = dist.sample_array(&mut rng);
+    // Just check we get 5 finite values
+    for &x in &arr {
+        assert!(x.is_finite());
+    }
+}
+
+#[test]
+fn sample_array_bernoulli() {
+    let dist = Bernoulli::new(0.5_f64).unwrap();
+    let mut rng = Rng::new(1101);
+    let arr: [u64; 10] = dist.sample_array(&mut rng);
+    for &x in &arr {
+        assert!(x == 0 || x == 1);
+    }
+}
+
+#[test]
+fn sample_array_zero_length() {
+    let dist = Normal::new(0.0_f64, 1.0).unwrap();
+    let mut rng = Rng::new(1102);
+    let arr: [f64; 0] = dist.sample_array(&mut rng);
+    assert_eq!(arr.len(), 0);
+}
+
 // ======================== Normal ========================
 
 #[test]

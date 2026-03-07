@@ -1,7 +1,8 @@
 //! # numeris
 //!
-//! Pure-Rust numerical algorithms library, no-std compatible. Similar in scope
-//! to SciPy, suitable for embedded targets (no heap allocation, no FPU assumptions).
+//! Pure-Rust numerical algorithms library — high performance with SIMD support
+//! (NEON, SSE2, AVX, AVX-512) while also supporting no-std for embedded and WASM
+//! targets. Similar in scope to SciPy.
 //!
 //! ## Quick start
 //!
@@ -59,8 +60,11 @@
 //!
 //! - [`control`] — Digital IIR filters: [`control::Biquad`] second-order section and
 //!   [`control::BiquadCascade`] for cascaded filters. Design functions for Butterworth
-//!   and Chebyshev Type I lowpass/highpass. No `complex` feature dependency.
-//!   Requires `control` feature.
+//!   and Chebyshev Type I lowpass/highpass. [`control::Pid`] discrete-time PID controller
+//!   with anti-windup. [`control::lead_compensator`] and [`control::lag_compensator`] for
+//!   compensator design via bilinear transform. PID tuning via [`control::FopdtModel`]
+//!   (Ziegler-Nichols, Cohen-Coon, SIMC) and [`control::ziegler_nichols_ultimate`].
+//!   No `complex` feature dependency. Requires `control` feature.
 //!
 //! - [`estimate`] — State estimation: [`estimate::Ekf`] (Extended Kalman Filter),
 //!   [`estimate::Ukf`] (Unscented Kalman Filter), [`estimate::SrUkf`] (Square-Root UKF),
@@ -71,7 +75,8 @@
 //!   Requires `estimate` feature.
 //!
 //! - [`interp`] — Interpolation: [`interp::LinearInterp`], [`interp::HermiteInterp`],
-//!   [`interp::LagrangeInterp`] (barycentric), and [`interp::CubicSpline`] (natural BCs).
+//!   [`interp::LagrangeInterp`] (barycentric), [`interp::CubicSpline`] (natural BCs),
+//!   and [`interp::BilinearInterp`] (2D rectangular grid).
 //!   Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires
 //!   `alloc`). Out-of-bounds evaluations extrapolate. Requires `interp` feature.
 //!
@@ -82,11 +87,18 @@
 //!   and error functions ([`special::erf`] / [`special::erfc`]).
 //!   Generic over `FloatScalar` (f32/f64), fully no-std. Requires `special` feature.
 //!
+//! - [`quad`] — Numerical quadrature (integration): [`quad::gauss_legendre`] (N-point
+//!   Gauss-Legendre, N=1..10,15,20), [`quad::adaptive_simpson`] (automatic subdivision),
+//!   [`quad::trapezoid`] and [`quad::simpson`] (composite rules). All no-alloc.
+//!   Requires `quad` feature.
+//!
 //! - [`stats`] — Statistical distributions with [`stats::ContinuousDistribution`] and
 //!   [`stats::DiscreteDistribution`] traits. Continuous: [`stats::Normal`],
 //!   [`stats::Uniform`], [`stats::Exponential`], [`stats::Gamma`], [`stats::Beta`],
 //!   [`stats::ChiSquared`], [`stats::StudentT`]. Discrete: [`stats::Bernoulli`],
-//!   [`stats::Binomial`], [`stats::Poisson`]. Requires `stats` feature (implies `special`).
+//!   [`stats::Binomial`], [`stats::Poisson`]. Built-in [`stats::Rng`] (xoshiro256++)
+//!   with `sample()` / `sample_array()` on every distribution.
+//!   Requires `stats` feature (implies `special`).
 //!
 //! - [`quaternion`] — Unit quaternion for 3D rotations. Scalar-first `[w, x, y, z]`.
 //!   Construct from axis-angle, Euler angles, or rotation matrices. Supports
@@ -113,11 +125,12 @@
 //! | `alloc`   | via std  | `DynMatrix` / `DynVector` (heap-allocated, runtime-sized) |
 //! | `ode`     | yes      | ODE integration (RK4, adaptive solvers) |
 //! | `optim`   | no       | Optimization (root finding, BFGS, Gauss-Newton, LM) |
-//! | `control` | no       | Digital IIR filters (Butterworth, Chebyshev Type I) |
+//! | `control` | no       | Digital IIR filters, PID, lead/lag compensators, PID tuning |
 //! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
-//! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline) |
+//! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline, bilinear 2D) |
+//! | `quad`    | no       | Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite rules) |
 //! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma/beta) |
-//! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.). Implies `special` |
+//! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.) with sampling. Implies `special` |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
 //! | `all`     | no       | All features |
@@ -142,6 +155,8 @@ pub mod estimate;
 pub mod interp;
 #[cfg(feature = "optim")]
 pub mod optim;
+#[cfg(feature = "quad")]
+pub mod quad;
 #[cfg(feature = "special")]
 pub mod special;
 #[cfg(feature = "stats")]

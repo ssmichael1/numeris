@@ -15,6 +15,18 @@ q = w + xi + yj + zk    where w = cos(θ/2), [x,y,z] = sin(θ/2)·axis
 - `q * p` composes rotation `q` applied *after* rotation `p`
 - `q * v` rotates vector `v` by the rotation represented by `q`
 
+## Euler Angle Convention
+
+numeris uses **ZYX intrinsic** (Tait-Bryan) Euler angles, the standard aerospace convention. `from_euler(roll, pitch, yaw)` applies rotations in this order:
+
+1. **Yaw** ψ — rotate about the fixed **Z** axis (heading)
+2. **Pitch** θ — rotate about the new **Y'** axis (nose up/down)
+3. **Roll** φ — rotate about the final **X''** axis (bank)
+
+The equivalent rotation matrix is **R = R_x(φ) · R_y(θ) · R_z(ψ)** (rightmost applied first). The quaternion composition follows the same order: **q = q_x(φ) ⊗ q_y(θ) ⊗ q_z(ψ)**.
+
+`to_euler()` returns `(roll, pitch, yaw)` in radians. Pitch is clamped to ±π/2 at gimbal lock (pitch = ±90°), where roll and yaw become degenerate.
+
 ## Construction
 
 ```rust

@@ -15,18 +15,20 @@ All distributions work with `f32` and `f64`, are no-std compatible, and have no 
 ```rust
 pub trait ContinuousDistribution<T> {
     fn pdf(&self, x: T) -> T;       // probability density function
+    fn ln_pdf(&self, x: T) -> T;    // log-PDF (avoids underflow)
     fn cdf(&self, x: T) -> T;       // cumulative distribution function
+    fn quantile(&self, p: T) -> T;  // inverse CDF: x such that P(X ≤ x) = p
     fn mean(&self) -> T;
     fn variance(&self) -> T;
-    fn std_dev(&self) -> T;
 }
 
 pub trait DiscreteDistribution<T> {
     fn pmf(&self, k: u64) -> T;     // probability mass function P(X = k)
+    fn ln_pmf(&self, k: u64) -> T;  // log-PMF (avoids underflow)
     fn cdf(&self, k: u64) -> T;     // cumulative P(X ≤ k)
+    fn quantile(&self, p: T) -> u64; // smallest k such that P(X ≤ k) ≥ p
     fn mean(&self) -> T;
     fn variance(&self) -> T;
-    fn std_dev(&self) -> T;
 }
 ```
 
@@ -35,6 +37,8 @@ pub trait DiscreteDistribution<T> {
 ### Normal (Gaussian)
 
 `Normal<T> { mean: T, std_dev: T }`
+
+--8<-- "includes/plot_normal_pdf.html"
 
 ```rust
 use numeris::stats::Normal;
@@ -80,6 +84,8 @@ assert!((e.mean() - 0.5).abs() < 1e-12);
 
 The chi-squared and exponential distributions are special cases.
 
+--8<-- "includes/plot_gamma_pdf.html"
+
 ```rust
 use numeris::stats::Gamma;
 
@@ -93,6 +99,8 @@ assert!((g.variance() - 2.0).abs() < 1e-10);
 ### Beta
 
 `Beta<T> { alpha: T, beta: T }` — shape parameters α, β. Support: [0, 1].
+
+--8<-- "includes/plot_beta_pdf.html"
 
 ```rust
 use numeris::stats::Beta;
@@ -130,6 +138,10 @@ assert_eq!(t.mean(), 0.0);
 assert!((t.variance() - 10.0/8.0).abs() < 1e-10);  // ν/(ν-2)
 ```
 
+### CDF Comparison
+
+--8<-- "includes/plot_continuous_cdf.html"
+
 ## Discrete Distributions
 
 ### Bernoulli
@@ -150,6 +162,8 @@ assert!((b.variance() - 0.21).abs() < 1e-12);
 
 `Binomial<T> { n: u64, p: T }` — n independent Bernoulli trials.
 
+--8<-- "includes/plot_binomial_pmf.html"
+
 ```rust
 use numeris::stats::Binomial;
 
@@ -163,6 +177,8 @@ assert!((b.variance() - 2.5).abs() < 1e-10);
 ### Poisson
 
 `Poisson<T> { lambda: T }` — number of events in a fixed interval.
+
+--8<-- "includes/plot_poisson_pmf.html"
 
 ```rust
 use numeris::stats::Poisson;
@@ -188,6 +204,87 @@ assert_eq!(pois.variance(), 3.0);
 | `Bernoulli` | Discrete | p | p | p(1-p) |
 | `Binomial` | Discrete | n, p | np | np(1-p) |
 | `Poisson` | Discrete | λ | λ | λ |
+
+## Random Sampling
+
+Every distribution provides `sample()` and `sample_array()` methods using the built-in [`Rng`] (xoshiro256++ PRNG). No external crate dependency.
+
+```rust
+use numeris::stats::{Rng, Normal, Uniform, Poisson};
+use numeris::stats::{ContinuousDistribution, DiscreteDistribution};
+
+let mut rng = Rng::new(42);  // seed with any u64
+
+// Sample from a normal distribution
+let n = Normal::new(0.0_f64, 1.0).unwrap();
+let x = n.sample(&mut rng);
+
+// Fill an array with 100 samples
+let samples: [f64; 100] = n.sample_array(&mut rng);
+
+// Works with all distributions
+let u = Uniform::new(0.0_f64, 10.0).unwrap();
+let y = u.sample(&mut rng);
+
+let pois = Poisson::new(3.0_f64).unwrap();
+let k = pois.sample(&mut rng);  // returns T (float), cast to integer if needed
+```
+
+The `Rng` struct is deterministic — same seed produces the same sequence, useful for reproducible simulations.
+
+```rust
+use numeris::stats::Rng;
+
+let mut rng1 = Rng::new(123);
+let mut rng2 = Rng::new(123);
+assert_eq!(rng1.next_u64(), rng2.next_u64());
+assert_eq!(rng1.next_f64(), rng2.next_f64());
+```
+
+### Rng Methods
+
+| Method | Returns |
+|---|---|
+| `next_u64()` | Uniform `u64` |
+| `next_f64()` | Uniform `f64` in [0, 1) |
+| `next_f32()` | Uniform `f32` in [0, 1) |
+| `next_normal_f64()` | Standard normal `f64` (Box-Muller) |
+| `next_normal_f32()` | Standard normal `f32` (Box-Muller) |
+
+### Sampling Algorithms
+
+| Distribution | Algorithm |
+|---|---|
+| Normal | Box-Muller transform |
+| Uniform | Inverse CDF (affine transform) |
+| Exponential | Inverse CDF (−ln(U)/λ) |
+| Gamma | Marsaglia & Tsang's method |
+| Beta | Ratio of two Gamma variates |
+| Chi-Squared | Gamma(k/2, 1/2) |
+| Student's t | Normal / √(χ²/ν) |
+| Bernoulli | Threshold on uniform |
+| Binomial | Sum of Bernoulli (small n) or normal approximation (large n) |
+| Poisson | Knuth's method (small λ) or normal approximation (large λ) |
+
+## Quantile (Inverse CDF)
+
+All distributions implement `quantile()` for computing percentiles:
+
+```rust
+use numeris::stats::{Normal, ContinuousDistribution};
+
+let n = Normal::new(0.0_f64, 1.0).unwrap();
+let z_95 = n.quantile(0.95);  // ≈ 1.645
+let z_99 = n.quantile(0.99);  // ≈ 2.326
+```
+
+```rust
+use numeris::stats::{Binomial, DiscreteDistribution};
+
+let b = Binomial::new(20, 0.5_f64).unwrap();
+let k = b.quantile(0.95);  // smallest k with P(X ≤ k) ≥ 0.95
+assert_eq!(k, 14);
+```
 
 ## Error Handling
 

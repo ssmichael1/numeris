@@ -3,10 +3,10 @@ members = [".", "bench"]
 
 [package]
 name = "numeris"
-version = "0.2.7"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.70"
-description = "Pure-Rust numerical algorithms library — no-std compatible"
+description = "Pure-Rust numerical algorithms library — high performance with SIMD support while also supporting no-std for embedded and WASM targets."
 license = "MIT"
 repository = "https://github.com/ssmichael1/numeris"
 readme = "README.md"
@@ -19,13 +19,25 @@ all-features = true
 
 [features]
 default = ["std", "ode"]
-all = ["std", "ode", "optim", "control", "complex", "interp", "estimate", "special", "stats"]
+all = [
+    "std",
+    "ode",
+    "optim",
+    "quad",
+    "control",
+    "complex",
+    "interp",
+    "estimate",
+    "special",
+    "stats",
+]
 control = []
 estimate = ["alloc"]
 interp = []
 alloc = []
 ode = []
 optim = []
+quad = []
 special = []
 stats = ["special"]
 std = ["alloc", "num-traits/std", "num-complex?/std"]
@@ -37,13 +49,9 @@ num-traits = { version = "0.2", default-features = false, features = ["libm"] }
 num-complex = { version = "0.4", default-features = false, optional = true }
 
 [[example]]
-name = "plot_ode"
-path = "docs/examples/plot_ode.rs"
-
-[[example]]
-name = "plot_interp"
-path = "docs/examples/plot_interp.rs"
-required-features = ["interp"]
+name = "gen_plots"
+path = "docs/examples/gen_plots.rs"
+required-features = ["all"]
 
 [profile.test]
 opt-level = 3

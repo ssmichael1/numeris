@@ -34,6 +34,23 @@ impl<T: FloatScalar> Gamma<T> {
     }
 }
 
+impl<T: FloatScalar> Gamma<T> {
+    /// Draw a random sample from this distribution (Marsaglia & Tsang's method).
+    pub fn sample(&self, rng: &mut super::Rng) -> T {
+        // Gamma(shape, rate) = Gamma(shape, 1) / rate
+        rng.next_gamma(self.shape) / self.rate
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [T; K] {
+        let mut out = [T::zero(); K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> ContinuousDistribution<T> for Gamma<T> {
     fn pdf(&self, x: T) -> T {
         if x < T::zero() {

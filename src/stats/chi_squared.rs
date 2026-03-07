@@ -30,6 +30,25 @@ impl<T: FloatScalar> ChiSquared<T> {
     }
 }
 
+impl<T: FloatScalar> ChiSquared<T> {
+    /// Draw a random sample from this distribution.
+    ///
+    /// Chi-squared(k) = Gamma(k/2, 1/2), so we sample Gamma(k/2, 1) * 2.
+    pub fn sample(&self, rng: &mut super::Rng) -> T {
+        let two = T::one() + T::one();
+        rng.next_gamma(self.k / two) * two
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [T; K] {
+        let mut out = [T::zero(); K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> ContinuousDistribution<T> for ChiSquared<T> {
     fn pdf(&self, x: T) -> T {
         if x <= T::zero() {

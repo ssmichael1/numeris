@@ -386,7 +386,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `alloc` | via `std` | Enables `DynMatrix` / `DynVector` (heap-allocated, runtime-sized). |
 | `ode` | yes | ODE integration (RK4, adaptive solvers). |
 | `optim` | no | Optimization (root finding, BFGS, Gauss-Newton, LM). |
-| `control` | no | Digital IIR filters (Butterworth, Chebyshev Type I). |
+| `control` | no | Digital IIR filters, PID controller, lead/lag compensators, PID tuning. |
 | `estimate` | no | State estimation (EKF, UKF, SR-UKF, CKF, RTS, batch LSQ). Implies `alloc`. |
 | `interp` | no | Interpolation (linear, Hermite, barycentric Lagrange, cubic spline, bilinear). |
 | `special` | no | Special functions (gamma, beta, erf, incomplete gamma/beta, digamma). |
@@ -502,7 +502,7 @@ Six estimators with const-generic state (`N`) and measurement (`M`) dimensions. 
 
 ### `control` — Digital filters and controllers (requires `control` feature)
 
-Biquad cascade filters designed via the bilinear transform, and a discrete-time PID controller. No `complex` feature dependency.
+Biquad cascade filters designed via the bilinear transform, PID controller, lead/lag compensator design, and PID tuning rules. No `complex` feature dependency.
 
 - `Biquad<T>` — single second-order section, Direct Form II Transposed
 - `BiquadCascade<T, N>` — cascade of `N` biquad sections (filter order ≤ 2N)
@@ -510,6 +510,9 @@ Biquad cascade filters designed via the bilinear transform, and a discrete-time 
 - Supports arbitrary even/odd filter orders; odd-order uses degenerate first-order last section
 - `tick`, `process`, `process_inplace` for sample-by-sample or bulk filtering
 - `Pid<T>` — PID controller with derivative filtering, output clamping, anti-windup back-calculation
+- `lead_compensator` / `lag_compensator` — continuous-to-discrete compensator design via bilinear transform
+- `FopdtModel` — FOPDT process model with `ziegler_nichols`, `cohen_coon`, `simc` tuning methods
+- `ziegler_nichols_ultimate` — closed-loop ultimate gain PID tuning
 
 ### `interp` — Interpolation (requires `interp` feature)
 
@@ -589,7 +592,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
 - [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
 - [ ] **poly** — Polynomial operations and root-finding
-- [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
+- [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controller, lead/lag compensators, PID tuning (Ziegler-Nichols, Cohen-Coon, SIMC)
 
 ## Performance
 

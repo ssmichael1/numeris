@@ -1,6 +1,6 @@
 # Digital Control
 
-Biquad-cascade IIR filters and a discrete-time PID controller. All components are no-std compatible, use no complex arithmetic at runtime, and work with both `f32` and `f64`.
+Biquad-cascade IIR filters, PID controller, lead/lag compensator design, and PID tuning rules. All components are no-std compatible, use no complex arithmetic at runtime, and work with both `f32` and `f64`.
 
 Requires the `control` Cargo feature:
 
@@ -93,6 +93,10 @@ fn chebyshev1_highpass<T, const N: usize>(
 ) -> Result<BiquadCascade<T, N>, ControlError>
 ```
 
+### Frequency Response
+
+--8<-- "includes/plot_control.html"
+
 ### Comparison
 
 | Design | Passband | Stopband | Notes |
@@ -116,13 +120,12 @@ Coefficients follow the convention `H(z) = (b0 + b1 z⁻¹ + b2 z⁻²) / (1 + a
 use numeris::control::Biquad;
 
 // Construct manually (e.g., from external design tool)
-let bq = Biquad::new(
-    1.0_f64, 2.0, 1.0,   // b0, b1, b2
-    1.0, -1.8, 0.81,     // a0 (must be 1.0), a1, a2
+let mut bq = Biquad::new(
+    [1.0_f64, 2.0, 1.0],   // [b0, b1, b2]
+    [1.0, -1.8, 0.81],     // [a0 (must be 1.0), a1, a2]
 );
 
-let mut state = bq.initial_state();
-let y = bq.tick(1.0, &mut state);
+let y = bq.tick(1.0);
 ```
 
 `BiquadCascade<T, N>` chains `N` biquad sections in series.
@@ -183,6 +186,89 @@ u[k] = clamp(Kp*e[k] + I[k] + D[k])
 ```
 
 Anti-windup: if `u` is clamped, the integrator is back-corrected: `I[k] -= Kb * (u_unclamped - u_clamped)`.
+
+## Lead/Lag Compensators
+
+Design continuous-time lead or lag compensators and convert to discrete-time biquad filters via the bilinear transform.
+
+### Lead Compensator
+
+Adds phase lead to improve stability margins. Parameterized by desired maximum phase lead and the frequency where it occurs.
+
+```rust
+use numeris::control::{lead_compensator, Biquad};
+
+// 45° phase lead at 50 Hz, unity gain, 1 kHz sample rate
+let mut comp = lead_compensator(
+    std::f64::consts::FRAC_PI_4, 50.0, 1.0, 1000.0,
+).unwrap();
+let y = comp.tick(1.0);
+```
+
+### Lag Compensator
+
+Boosts low-frequency gain for improved steady-state accuracy without significantly affecting phase margin.
+
+```rust
+use numeris::control::{lag_compensator, Biquad};
+
+// 10× DC boost with corner at 5 Hz, 1 kHz sample rate
+let mut comp = lag_compensator(10.0, 5.0, 1000.0).unwrap();
+let y = comp.tick(1.0);
+```
+
+### Bode Plots
+
+--8<-- "includes/plot_lead_lag.html"
+
+## PID Tuning
+
+Automatic PID gain computation from process models or relay experiments.
+
+### FOPDT Model Tuning
+
+Model the process as First-Order Plus Dead Time: `G(s) = K·e^(-Ls) / (τs + 1)`, then apply a tuning rule:
+
+```rust
+use numeris::control::{FopdtModel, Pid};
+
+// Identify process: gain=2.5, time constant=3s, dead time=0.5s
+let model = FopdtModel::new(2.5, 3.0, 0.5).unwrap();
+
+// Ziegler-Nichols (aggressive, ~25% overshoot)
+let zn = model.ziegler_nichols();
+
+// Cohen-Coon (better for large dead time)
+let cc = model.cohen_coon();
+
+// SIMC with tau_c = L (balanced performance/robustness)
+let simc = model.simc(0.5);
+
+// Apply tuning to a PID controller at 100 Hz
+let dt = 0.01;
+let mut pid = Pid::new(simc.kp, simc.ki, simc.kd, dt)
+    .with_output_limits(-10.0, 10.0);
+```
+
+### Ultimate Gain Tuning
+
+From relay or bump-test experiments where you've found the ultimate gain `Ku` and ultimate period `Tu`:
+
+```rust
+use numeris::control::ziegler_nichols_ultimate;
+
+let gains = ziegler_nichols_ultimate(10.0_f64, 0.5).unwrap();
+// gains.kp = 6.0, gains.ki = 24.0, gains.kd = 0.375
+```
+
+### Tuning Rules Summary
+
+| Method | Source | Character |
+|---|---|---|
+| `ziegler_nichols()` | FOPDT model | Aggressive, ~25% overshoot |
+| `cohen_coon()` | FOPDT model | Better for L/τ > 0.5 |
+| `simc(tau_c)` | FOPDT model | Adjustable aggressiveness |
+| `ziegler_nichols_ultimate()` | Ku, Tu experiment | Classic closed-loop tuning |
 
 ## Error Handling
 

@@ -31,6 +31,22 @@ impl<T: FloatScalar> Bernoulli<T> {
     }
 }
 
+impl<T: FloatScalar> Bernoulli<T> {
+    /// Draw a random sample (0 or 1) from this distribution.
+    pub fn sample(&self, rng: &mut super::Rng) -> u64 {
+        if rng.next_float::<T>() < self.p { 1 } else { 0 }
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [u64; K] {
+        let mut out = [0u64; K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> DiscreteDistribution<T> for Bernoulli<T> {
     fn pmf(&self, k: u64) -> T {
         match k {

@@ -4,6 +4,8 @@
 
 numeris is suitable for use on **embedded microprocessors** with no operating system or heap allocation (`no-std`), while still taking advantage of SIMD instructions to be highly performant on more capable hardware. The same code compiles and runs correctly in both environments.
 
+Numeris API reference is [here](https://docs.rs/numeris/)
+
 !!! warning "Alpha software"
     APIs are unstable and may change without notice before 1.0.
 

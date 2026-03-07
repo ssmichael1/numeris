@@ -31,6 +31,26 @@ impl<T: FloatScalar> Beta<T> {
     }
 }
 
+impl<T: FloatScalar> Beta<T> {
+    /// Draw a random sample from this distribution.
+    ///
+    /// Samples X ~ Gamma(alpha, 1), Y ~ Gamma(beta, 1), returns X / (X + Y).
+    pub fn sample(&self, rng: &mut super::Rng) -> T {
+        let x = rng.next_gamma(self.alpha);
+        let y = rng.next_gamma(self.beta);
+        x / (x + y)
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [T; K] {
+        let mut out = [T::zero(); K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> ContinuousDistribution<T> for Beta<T> {
     fn pdf(&self, x: T) -> T {
         if x < T::zero() || x > T::one() {

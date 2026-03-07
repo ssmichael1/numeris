@@ -30,6 +30,47 @@ impl<T: FloatScalar> Poisson<T> {
     }
 }
 
+impl<T: FloatScalar> Poisson<T> {
+    /// Draw a random sample from this distribution.
+    ///
+    /// For small lambda (< 30), uses Knuth's algorithm.
+    /// For large lambda, uses a normal approximation.
+    pub fn sample(&self, rng: &mut super::Rng) -> u64 {
+        let thirty = T::from(30.0).unwrap();
+        if self.lambda < thirty {
+            // Knuth's algorithm
+            let l = (-self.lambda).exp();
+            let mut k = 0u64;
+            let mut p = T::one();
+            loop {
+                k += 1;
+                p = p * rng.next_float::<T>();
+                if p <= l {
+                    return k - 1;
+                }
+            }
+        } else {
+            // Normal approximation for large lambda
+            let z: T = rng.next_normal();
+            let x = self.lambda + self.lambda.sqrt() * z;
+            if x < T::zero() {
+                0
+            } else {
+                x.round().to_u64().unwrap_or(0)
+            }
+        }
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [u64; K] {
+        let mut out = [0u64; K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> DiscreteDistribution<T> for Poisson<T> {
     fn pmf(&self, k: u64) -> T {
         self.ln_pmf(k).exp()

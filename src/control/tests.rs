@@ -547,3 +547,222 @@ fn chebyshev1_lp6() {
     let cutoff_db = 20.0 * cutoff.log10();
     assert_near(cutoff_db, -0.5, 0.1, "Cheb1 LP6 cutoff");
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Lead/Lag compensator tests
+// ═══════════════════════════════════════════════════════════════
+
+/// Evaluate a single biquad's frequency response magnitude at a given frequency.
+fn biquad_freq_response_mag(bq: &Biquad<f64>, freq: f64, fs: f64) -> f64 {
+    let omega = 2.0 * core::f64::consts::PI * freq / fs;
+    let (s, c) = omega.sin_cos();
+    let (b, a) = bq.coefficients();
+    let num_re = b[0] + b[1] * c + b[2] * (2.0 * c * c - 1.0);
+    let num_im = -b[1] * s - b[2] * 2.0 * s * c;
+    let den_re = a[0] + a[1] * c + a[2] * (2.0 * c * c - 1.0);
+    let den_im = -a[1] * s - a[2] * 2.0 * s * c;
+    let num_mag = (num_re * num_re + num_im * num_im).sqrt();
+    let den_mag = (den_re * den_re + den_im * den_im).sqrt();
+    num_mag / den_mag
+}
+
+/// Evaluate a single biquad's frequency response phase at a given frequency.
+fn biquad_freq_response_phase(bq: &Biquad<f64>, freq: f64, fs: f64) -> f64 {
+    let omega = 2.0 * core::f64::consts::PI * freq / fs;
+    let (s, c) = omega.sin_cos();
+    let (b, a) = bq.coefficients();
+    let num_re = b[0] + b[1] * c + b[2] * (2.0 * c * c - 1.0);
+    let num_im = -b[1] * s - b[2] * 2.0 * s * c;
+    let den_re = a[0] + a[1] * c + a[2] * (2.0 * c * c - 1.0);
+    let den_im = -a[1] * s - a[2] * 2.0 * s * c;
+    num_im.atan2(num_re) - den_im.atan2(den_re)
+}
+
+#[test]
+fn lead_compensator_basic() {
+    use core::f64::consts::FRAC_PI_4;
+    let comp = lead_compensator(FRAC_PI_4, 10.0, 1.0, 1000.0).unwrap();
+    // DC gain should be close to 1/(alpha) * alpha = gain = 1
+    // Actually for lead: DC = gain (since both zero and pole contribute)
+    let dc = biquad_freq_response_mag(&comp, 0.001, 1000.0);
+    assert_near(dc, 1.0, 0.01, "lead DC gain ≈ 1");
+}
+
+#[test]
+fn lead_compensator_adds_phase() {
+    use core::f64::consts::FRAC_PI_4;
+    let comp = lead_compensator(FRAC_PI_4, 50.0, 1.0, 1000.0).unwrap();
+    // Phase at the center frequency should be close to the requested phase lead
+    let phase = biquad_freq_response_phase(&comp, 50.0, 1000.0);
+    // Bilinear transform warps frequency, so phase won't be exact, but should be positive
+    assert!(phase > 0.3, "lead adds positive phase at center freq: {}", phase);
+}
+
+#[test]
+fn lead_compensator_errors() {
+    // Phase out of range
+    assert!(lead_compensator(0.0_f64, 10.0, 1.0, 1000.0).is_err());
+    assert!(lead_compensator(core::f64::consts::FRAC_PI_2, 10.0, 1.0, 1000.0).is_err());
+    assert!(lead_compensator(-0.1_f64, 10.0, 1.0, 1000.0).is_err());
+    // Frequency above Nyquist
+    assert!(lead_compensator(0.5_f64, 600.0, 1.0, 1000.0).is_err());
+    // Zero/negative frequencies
+    assert!(lead_compensator(0.5_f64, 0.0, 1.0, 1000.0).is_err());
+    assert!(lead_compensator(0.5_f64, 10.0, 1.0, 0.0).is_err());
+}
+
+#[test]
+fn lag_compensator_dc_boost() {
+    let comp = lag_compensator(10.0, 1.0, 1000.0).unwrap();
+    // DC gain should be close to dc_boost = 10
+    let dc = biquad_freq_response_mag(&comp, 0.001, 1000.0);
+    let dc_db = 20.0 * dc.log10();
+    assert_near(dc_db, 20.0, 0.5, "lag DC gain ≈ 20 dB");
+}
+
+#[test]
+fn lag_compensator_hf_unity() {
+    let comp = lag_compensator(10.0, 1.0, 1000.0).unwrap();
+    // HF gain should be close to 1 (0 dB)
+    let hf = biquad_freq_response_mag(&comp, 100.0, 1000.0);
+    let hf_db = 20.0 * hf.log10();
+    assert!(hf_db.abs() < 1.0, "lag HF gain ≈ 0 dB: {} dB", hf_db);
+}
+
+#[test]
+fn lag_compensator_errors() {
+    // dc_boost must be > 1
+    assert!(lag_compensator(1.0_f64, 1.0, 1000.0).is_err());
+    assert!(lag_compensator(0.5_f64, 1.0, 1000.0).is_err());
+    // Corner above Nyquist
+    assert!(lag_compensator(5.0_f64, 600.0, 1000.0).is_err());
+}
+
+#[test]
+fn lead_compensator_f32() {
+    let comp = lead_compensator(0.5_f32, 10.0, 1.0, 1000.0);
+    assert!(comp.is_ok(), "lead_compensator works with f32");
+}
+
+#[test]
+fn lag_compensator_f32() {
+    let comp = lag_compensator(5.0_f32, 1.0, 1000.0);
+    assert!(comp.is_ok(), "lag_compensator works with f32");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PID tuning tests
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn fopdt_model_construction() {
+    let m = FopdtModel::new(2.0_f64, 1.0, 0.3).unwrap();
+    assert_eq!(m.gain(), 2.0);
+    assert_eq!(m.tau(), 1.0);
+    assert_eq!(m.delay(), 0.3);
+}
+
+#[test]
+fn fopdt_model_errors() {
+    // Zero gain
+    assert!(FopdtModel::new(0.0_f64, 1.0, 0.3).is_err());
+    // Negative tau
+    assert!(FopdtModel::new(1.0_f64, -1.0, 0.3).is_err());
+    // Negative delay
+    assert!(FopdtModel::new(1.0_f64, 1.0, -0.1).is_err());
+    // NaN/Inf
+    assert!(FopdtModel::new(f64::NAN, 1.0, 0.3).is_err());
+    assert!(FopdtModel::new(1.0, f64::INFINITY, 0.3).is_err());
+}
+
+#[test]
+fn fopdt_zero_delay_allowed() {
+    // Zero delay is valid (some tuning rules will panic though)
+    let m = FopdtModel::new(1.0_f64, 1.0, 0.0);
+    assert!(m.is_ok());
+}
+
+#[test]
+fn ziegler_nichols_known_values() {
+    // K=1, τ=1, L=0.2
+    // Kp = 1.2·τ/(K·L) = 1.2·1/(1·0.2) = 6.0
+    // Ti = 2L = 0.4
+    // Td = L/2 = 0.1
+    // Ki = Kp/Ti = 15.0
+    // Kd = Kp·Td = 0.6
+    let m = FopdtModel::new(1.0_f64, 1.0, 0.2).unwrap();
+    let g = m.ziegler_nichols();
+    assert_near(g.kp, 6.0, TOL, "ZN kp");
+    assert_near(g.ki, 15.0, TOL, "ZN ki");
+    assert_near(g.kd, 0.6, TOL, "ZN kd");
+}
+
+#[test]
+#[should_panic]
+fn ziegler_nichols_zero_delay_panics() {
+    let m = FopdtModel::new(1.0_f64, 1.0, 0.0).unwrap();
+    m.ziegler_nichols();
+}
+
+#[test]
+fn cohen_coon_positive_gains() {
+    let m = FopdtModel::new(1.0_f64, 1.0, 0.5).unwrap();
+    let g = m.cohen_coon();
+    assert!(g.kp > 0.0, "CC kp positive");
+    assert!(g.ki > 0.0, "CC ki positive");
+    assert!(g.kd > 0.0, "CC kd positive");
+}
+
+#[test]
+fn simc_known_values() {
+    // K=1, τ=2, L=0.3, tau_c=0.3
+    // Kp = τ/(K·(tau_c+L)) = 2/(1·0.6) = 10/3
+    // Ti = min(τ, 4·(tau_c+L)) = min(2, 2.4) = 2
+    // Td = L/2 = 0.15
+    // Ki = Kp/Ti = 10/6 = 5/3
+    // Kd = Kp·Td = (10/3)·0.15 = 0.5
+    let m = FopdtModel::new(1.0_f64, 2.0, 0.3).unwrap();
+    let g = m.simc(0.3);
+    assert_near(g.kp, 10.0 / 3.0, TOL, "SIMC kp");
+    assert_near(g.ki, 5.0 / 3.0, TOL, "SIMC ki");
+    assert_near(g.kd, 0.5, TOL, "SIMC kd");
+}
+
+#[test]
+#[should_panic]
+fn simc_zero_tau_c_panics() {
+    let m = FopdtModel::new(1.0_f64, 1.0, 0.2).unwrap();
+    m.simc(0.0);
+}
+
+#[test]
+fn ziegler_nichols_ultimate_known_values() {
+    // Ku=10, Tu=0.5
+    // Kp = 0.6·10 = 6
+    // Ti = 0.5/2 = 0.25
+    // Td = 0.5/8 = 0.0625
+    // Ki = 6/0.25 = 24
+    // Kd = 6·0.0625 = 0.375
+    let g = ziegler_nichols_ultimate(10.0_f64, 0.5).unwrap();
+    assert_near(g.kp, 6.0, TOL, "ZN-ult kp");
+    assert_near(g.ki, 24.0, TOL, "ZN-ult ki");
+    assert_near(g.kd, 0.375, TOL, "ZN-ult kd");
+}
+
+#[test]
+fn ziegler_nichols_ultimate_errors() {
+    assert!(ziegler_nichols_ultimate(0.0_f64, 0.5).is_err());
+    assert!(ziegler_nichols_ultimate(-1.0_f64, 0.5).is_err());
+    assert!(ziegler_nichols_ultimate(10.0_f64, 0.0).is_err());
+    assert!(ziegler_nichols_ultimate(10.0_f64, -1.0).is_err());
+}
+
+#[test]
+fn pid_tuning_f32() {
+    let m = FopdtModel::new(1.0_f32, 1.0, 0.2).unwrap();
+    let g = m.ziegler_nichols();
+    assert!((g.kp - 6.0_f32).abs() < 1e-5, "ZN f32 kp");
+
+    let g2 = ziegler_nichols_ultimate(10.0_f32, 0.5).unwrap();
+    assert!((g2.kp - 6.0_f32).abs() < 1e-5, "ZN-ult f32 kp");
+}

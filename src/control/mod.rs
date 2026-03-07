@@ -1,9 +1,10 @@
-//! Digital control: IIR filters (Butterworth, Chebyshev Type I), PID controller.
+//! Digital control: IIR filters, PID controller, compensator design, and tuning.
 //!
 //! Provides biquad (second-order section) cascade filters designed via the
-//! bilinear transform, and a discrete-time PID controller with anti-windup
-//! and derivative filtering. All code is no-std compatible with no `complex`
-//! feature dependency — pole computation uses real arithmetic only.
+//! bilinear transform, a discrete-time PID controller with anti-windup
+//! and derivative filtering, lead/lag compensator design, and PID tuning
+//! rules (Ziegler-Nichols, Cohen-Coon, SIMC). All code is no-std compatible
+//! with no `complex` feature dependency — pole computation uses real arithmetic only.
 //!
 //! # Examples
 //!
@@ -23,11 +24,22 @@
 //!     .with_output_limits(-10.0, 10.0);
 //! let u = pid.tick(1.0, 0.0); // setpoint=1, measurement=0
 //! ```
+//!
+//! ```
+//! use numeris::control::{lead_compensator, Biquad};
+//!
+//! // 45° phase lead at 10 Hz, unity gain, 1 kHz sample rate
+//! let comp = lead_compensator(
+//!     std::f64::consts::FRAC_PI_4, 10.0, 1.0, 1000.0,
+//! ).unwrap();
+//! ```
 
 mod biquad;
 mod butterworth;
 mod chebyshev;
+mod lead_lag;
 mod pid;
+mod pid_tune;
 
 #[cfg(test)]
 mod tests;
@@ -35,7 +47,9 @@ mod tests;
 pub use biquad::{Biquad, BiquadCascade};
 pub use butterworth::{butterworth_highpass, butterworth_lowpass};
 pub use chebyshev::{chebyshev1_highpass, chebyshev1_lowpass};
+pub use lead_lag::{lead_compensator, lag_compensator};
 pub use pid::Pid;
+pub use pid_tune::{FopdtModel, PidGains, ziegler_nichols_ultimate};
 
 use crate::traits::FloatScalar;
 

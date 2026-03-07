@@ -31,6 +31,33 @@ impl<T: FloatScalar> Normal<T> {
     }
 }
 
+impl<T: FloatScalar> Normal<T> {
+    /// Draw a random sample from this distribution.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::stats::{Normal, Rng};
+    ///
+    /// let n = Normal::new(0.0_f64, 1.0).unwrap();
+    /// let mut rng = Rng::new(42);
+    /// let x = n.sample(&mut rng);
+    /// // x is drawn from N(0, 1)
+    /// ```
+    pub fn sample(&self, rng: &mut super::Rng) -> T {
+        self.mu + self.sigma * rng.next_normal::<T>()
+    }
+
+    /// Fill a fixed-size array with independent samples.
+    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [T; K] {
+        let mut out = [T::zero(); K];
+        for v in out.iter_mut() {
+            *v = self.sample(rng);
+        }
+        out
+    }
+}
+
 impl<T: FloatScalar> ContinuousDistribution<T> for Normal<T> {
     fn pdf(&self, x: T) -> T {
         let two = T::one() + T::one();
