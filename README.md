@@ -13,6 +13,9 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Optimization** — root finding (Brent, Newton), BFGS minimization, Gauss-Newton and Levenberg-Marquardt least squares
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
 - **State estimation** — EKF, UKF, Square-Root UKF, Cubature Kalman Filter, RTS smoother, batch least-squares
+- **Interpolation** — linear, Hermite, barycentric Lagrange, natural cubic spline, bilinear (2D)
+- **Special functions** — gamma, lgamma, digamma, beta, incomplete gamma/beta, erf/erfc
+- **Statistical distributions** — Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
 - **Norms** — L1, L2, Frobenius, infinity, one norms
 - **SIMD acceleration** — NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
@@ -125,10 +128,10 @@ assert!((sol.y[0] - 1.0).abs() < 1e-6); // cos(2π) ≈ 1
 | `RKF45` | 6 | 5(4) | no | — |
 | `RKTS54` | 7 | 5(4) | yes | 4th degree |
 | `RKV65` | 10 | 6(5) | no | 6th degree |
-| `RKV87` | 17 | 8(7) | no | 7th degree |
-| `RKV98` | 21 | 9(8) | no | 8th degree |
+| `RKV87` | 13+4 | 8(7) | no | 7th degree |
+| `RKV98` | 16+5 | 9(8) | no | 8th degree |
 | `RKV98NoInterp` | 16 | 9(8) | no | — |
-| `RKV98Efficient` | 26 | 9(8) | no | 9th degree |
+| `RKV98Efficient` | 16+10 | 9(8) | no | 9th degree |
 
 ### Stiff solvers (Rosenbrock)
 
@@ -385,9 +388,12 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `optim` | no | Optimization (root finding, BFGS, Gauss-Newton, LM). |
 | `control` | no | Digital IIR filters (Butterworth, Chebyshev Type I). |
 | `estimate` | no | State estimation (EKF, UKF, SR-UKF, CKF, RTS, batch LSQ). Implies `alloc`. |
+| `interp` | no | Interpolation (linear, Hermite, barycentric Lagrange, cubic spline, bilinear). |
+| `special` | no | Special functions (gamma, beta, erf, incomplete gamma/beta, digamma). |
+| `stats` | no | Statistical distributions (Normal, Gamma, Beta, etc.). Implies `special`. |
 | `libm` | baseline | Pure-Rust software float math. Always available as fallback. |
 | `complex` | no | Adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. |
-| `all` | no | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `complex`. |
+| `all` | no | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `special` + `stats` + `complex`. |
 
 ```bash
 # Default (std + ode)
@@ -505,6 +511,49 @@ Biquad cascade filters designed via the bilinear transform, and a discrete-time 
 - `tick`, `process`, `process_inplace` for sample-by-sample or bulk filtering
 - `Pid<T>` — PID controller with derivative filtering, output clamping, anti-windup back-calculation
 
+### `interp` — Interpolation (requires `interp` feature)
+
+Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires `alloc`). Out-of-bounds evaluations extrapolate.
+
+| Method | Fixed | Dynamic | Notes |
+|---|---|---|---|
+| Linear | `LinearInterp<T, N>` | `DynLinearInterp<T>` | Piecewise linear |
+| Hermite | `HermiteInterp<T, N>` | `DynHermiteInterp<T>` | User-supplied derivatives |
+| Lagrange | `LagrangeInterp<T, N>` | `DynLagrangeInterp<T>` | Barycentric, O(N) eval |
+| Cubic spline | `CubicSpline<T, N>` | `DynCubicSpline<T>` | Natural BCs, Thomas algorithm |
+| Bilinear | `BilinearInterp<T, NX, NY>` | `DynBilinearInterp<T>` | 2D rectangular grid |
+
+### `special` — Special functions (requires `special` feature)
+
+Fully no-std, generic over `FloatScalar` (f32/f64).
+
+| Function | Description |
+|---|---|
+| `gamma(x)`, `lgamma(x)` | Gamma function and log-gamma (Lanczos approximation) |
+| `digamma(x)` | Digamma / psi function (recurrence + asymptotic series) |
+| `beta(a,b)`, `lbeta(a,b)` | Beta function and log-beta |
+| `gamma_inc(a,x)` | Regularized lower incomplete gamma P(a,x) |
+| `gamma_inc_upper(a,x)` | Regularized upper incomplete gamma Q(a,x) |
+| `betainc(a,b,x)` | Regularized incomplete beta I_x(a,b) |
+| `erf(x)`, `erfc(x)` | Error function and complementary error function |
+
+### `stats` — Statistical distributions (requires `stats` feature)
+
+Continuous distributions implement `ContinuousDistribution` (pdf, cdf, quantile, mean, variance). Discrete distributions implement `DiscreteDistribution` (pmf, cdf, quantile, mean, variance). Implies `special` feature.
+
+| Distribution | Struct | Parameters |
+|---|---|---|
+| Normal | `Normal<T>` | mean μ, std dev σ |
+| Uniform | `Uniform<T>` | bounds [a, b] |
+| Exponential | `Exponential<T>` | rate λ |
+| Gamma | `Gamma<T>` | shape α, rate β |
+| Beta | `Beta<T>` | shape α, shape β |
+| Chi-squared | `ChiSquared<T>` | degrees of freedom k |
+| Student's t | `StudentT<T>` | degrees of freedom ν |
+| Bernoulli | `Bernoulli<T>` | probability p |
+| Binomial | `Binomial<T>` | trials n, probability p |
+| Poisson | `Poisson<T>` | rate λ |
+
 ### `quaternion` — Unit quaternion rotations
 
 `Quaternion<T>` with scalar-first convention `[w, x, y, z]`.
@@ -537,8 +586,8 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
 - [ ] **fft** — Fast Fourier Transform
-- [ ] **special** — Special functions (Bessel, gamma, erf, etc.)
-- [ ] **stats** — Statistics and distributions
+- [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
+- [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
 - [ ] **poly** — Polynomial operations and root-finding
 - [x] **control** — Digital IIR filters (Butterworth, Chebyshev), PID controllers, state-space systems, discrete-time control (ZOH, Tustin bilinear transform)
 

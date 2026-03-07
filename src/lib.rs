@@ -47,7 +47,9 @@
 //!
 //! - [`ode`] — Fixed-step RK4 and 7 adaptive Runge-Kutta solvers (RKF45,
 //!   RKTS54, RKV65, RKV87, RKV98, RKV98NoInterp, RKV98Efficient). PI step-size
-//!   controller with dense output / interpolation. Requires `ode` feature.
+//!   controller with dense output / interpolation. RODAS4 L-stable Rosenbrock
+//!   method for stiff systems (user-supplied or finite-difference Jacobians).
+//!   Requires `ode` feature.
 //!
 //! - [`optim`] — Optimization: scalar root finding ([`optim::brent`],
 //!   [`optim::newton_1d`]), BFGS quasi-Newton minimization ([`optim::minimize_bfgs`]),
