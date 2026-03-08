@@ -92,26 +92,13 @@ impl Rng {
     }
 
     /// Sample a standard normal (mean 0, std dev 1) as `f64` via Box-Muller transform.
-    pub fn next_normal_f64(&mut self) -> f64 {
+    pub(crate) fn next_normal_f64(&mut self) -> f64 {
         loop {
             let u1 = self.next_f64();
             let u2 = self.next_f64();
             if u1 > 0.0 {
                 let r = (-2.0 * u1.ln()).sqrt();
                 let theta = 2.0 * core::f64::consts::PI * u2;
-                return r * theta.cos();
-            }
-        }
-    }
-
-    /// Sample a standard normal (mean 0, std dev 1) as `f32` via Box-Muller transform.
-    pub fn next_normal_f32(&mut self) -> f32 {
-        loop {
-            let u1 = self.next_f32();
-            let u2 = self.next_f32();
-            if u1 > 0.0 {
-                let r = (-2.0_f32 * u1.ln()).sqrt();
-                let theta = 2.0_f32 * core::f32::consts::PI * u2;
                 return r * theta.cos();
             }
         }

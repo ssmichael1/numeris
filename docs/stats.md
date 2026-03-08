@@ -248,8 +248,6 @@ assert_eq!(rng1.next_f64(), rng2.next_f64());
 | `next_u64()` | Uniform `u64` |
 | `next_f64()` | Uniform `f64` in [0, 1) |
 | `next_f32()` | Uniform `f32` in [0, 1) |
-| `next_normal_f64()` | Standard normal `f64` (Box-Muller) |
-| `next_normal_f32()` | Standard normal `f32` (Box-Muller) |
 
 ### Sampling Algorithms
 
