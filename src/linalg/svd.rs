@@ -1,6 +1,7 @@
 use crate::linalg::{split_two_col_slices, LinalgError};
 use crate::linalg::symmetric_eigen::givens;
 use crate::traits::{LinalgScalar, MatrixMut};
+use crate::matrix::vector::Vector;
 use crate::Matrix;
 use num_traits::{Float, One, Zero};
 
@@ -586,6 +587,79 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
         self.singular_values.iter().filter(|&&s| s > tol).count()
     }
 
+    /// Least-squares solve min ||Ax - b|| via the pseudo-inverse.
+    ///
+    /// Computes x = V · Σ⁺ · U^H · b, zeroing singular values
+    /// below ε · σ_max · max(M, N).
+    pub fn solve(&self, b: &Vector<T, M>) -> Vector<T, N> {
+        let threshold = if N == 0 {
+            <T::Real as Zero>::zero()
+        } else {
+            let dim = <T::Real as num_traits::NumCast>::from(M.max(N)).unwrap();
+            T::Real::epsilon() * self.singular_values[0] * dim
+        };
+
+        // U^H · b (first N components)
+        let mut uhb = [T::zero(); N];
+        for k in 0..N {
+            let mut sum = T::zero();
+            for i in 0..M {
+                sum = sum + self.u[(i, k)].conj() * b[i];
+            }
+            uhb[k] = sum;
+        }
+
+        // Apply Σ⁺
+        for k in 0..N {
+            if self.singular_values[k] > threshold {
+                uhb[k] = uhb[k] / T::from_real(self.singular_values[k]);
+            } else {
+                uhb[k] = T::zero();
+            }
+        }
+
+        // V · (Σ⁺ U^H b)
+        let mut x = [T::zero(); N];
+        for i in 0..N {
+            let mut sum = T::zero();
+            for k in 0..N {
+                sum = sum + self.vt[(k, i)].conj() * uhb[k];
+            }
+            x[i] = sum;
+        }
+
+        Vector::from_array(x)
+    }
+
+    /// Moore-Penrose pseudo-inverse A⁺ = V · Σ⁺ · U^H.
+    ///
+    /// Singular values below ε · σ_max · max(M, N) are treated as zero.
+    pub fn pseudo_inverse(&self) -> Matrix<T, N, M> {
+        let threshold = if N == 0 {
+            <T::Real as Zero>::zero()
+        } else {
+            let dim = <T::Real as num_traits::NumCast>::from(M.max(N)).unwrap();
+            T::Real::epsilon() * self.singular_values[0] * dim
+        };
+
+        let mut result = Matrix::<T, N, M>::zeros();
+        for i in 0..N {
+            for j in 0..M {
+                let mut sum = T::zero();
+                for k in 0..N {
+                    if self.singular_values[k] > threshold {
+                        let v_ik = self.vt[(k, i)].conj();
+                        let uh_kj = self.u[(j, k)].conj();
+                        sum = sum + v_ik * uh_kj / T::from_real(self.singular_values[k]);
+                    }
+                }
+                result[(i, j)] = sum;
+            }
+        }
+
+        result
+    }
+
     /// Condition number: σ_max / σ_min.
     ///
     /// Returns infinity if the smallest singular value is zero.
@@ -640,6 +714,16 @@ impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn singular_values_only(&self) -> Result<[T::Real; N], LinalgError> {
         SvdDecomposition::singular_values_only(self)
+    }
+
+    /// Moore-Penrose pseudo-inverse via SVD. Requires `M >= N`.
+    pub fn pinv(&self) -> Result<Matrix<T, N, M>, LinalgError> {
+        Ok(self.svd()?.pseudo_inverse())
+    }
+
+    /// Least-squares solve min ||Ax - b|| via SVD. Requires `M >= N`.
+    pub fn solve_svd(&self, b: &Vector<T, M>) -> Result<Vector<T, N>, LinalgError> {
+        Ok(self.svd()?.solve(b))
     }
 }
 
@@ -919,4 +1003,90 @@ mod tests {
 
     // Complex SVD is deferred — requires phase absorption in bidiagonalization
     // to produce a real bidiagonal form from complex Householder reflections.
+
+    #[test]
+    fn solve_overdetermined() {
+        // 3×2 system: A = [[1,0],[0,1],[1,1]], b = [1,2,3]
+        // Least-squares solution
+        let a = Matrix::new([
+            [1.0_f64, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0],
+        ]);
+        let b = Vector::from_array([1.0, 2.0, 3.0]);
+        let x = a.solve_svd(&b).unwrap();
+        // Residual should be small: A*x ≈ b in least-squares sense
+        let ax = a.vecmul(&x);
+        let residual = (ax[0]-1.0).powi(2) + (ax[1]-2.0).powi(2) + (ax[2]-3.0).powi(2);
+        assert!(residual < 1.0, "residual too large: {}", residual);
+        // Normal equations: A^T A x = A^T b
+        // A^T A = [[2,1],[1,2]], A^T b = [4,5] => x = [1, 2]
+        assert_near(x[0], 1.0, 1e-10, "x[0]");
+        assert_near(x[1], 2.0, 1e-10, "x[1]");
+    }
+
+    #[test]
+    fn solve_square_full_rank() {
+        let a = Matrix::new([
+            [2.0_f64, 1.0, -1.0],
+            [-3.0, -1.0, 2.0],
+            [-2.0, 1.0, 2.0],
+        ]);
+        let b = Vector::from_array([8.0, -11.0, -3.0]);
+        let x_svd = a.solve_svd(&b).unwrap();
+        let x_lu = a.solve(&b).unwrap();
+        for i in 0..3 {
+            assert_near(x_svd[i], x_lu[i], 1e-9, &format!("x[{}]", i));
+        }
+    }
+
+    #[test]
+    fn pseudo_inverse_identity() {
+        let eye: Matrix<f64, 3, 3> = Matrix::eye();
+        let pinv = eye.pinv().unwrap();
+        for i in 0..3 {
+            for j in 0..3 {
+                let expected = if i == j { 1.0 } else { 0.0 };
+                assert_near(pinv[(i, j)], expected, 1e-12, &format!("pinv[({},{})]", i, j));
+            }
+        }
+    }
+
+    #[test]
+    fn pseudo_inverse_rectangular() {
+        // A * A⁺ * A ≈ A
+        let a = Matrix::new([
+            [1.0_f64, 2.0],
+            [3.0, 4.0],
+            [5.0, 6.0],
+        ]);
+        let svd = a.svd().unwrap();
+        let pinv = svd.pseudo_inverse();
+        // pinv is 2×3, a is 3×2
+        // A * pinv is 3×3, then * A is 3×2
+        let apa = a * (pinv * a);
+        for i in 0..3 {
+            for j in 0..2 {
+                assert_near(apa[(i, j)], a[(i, j)], 1e-9, &format!("APA[({},{})]", i, j));
+            }
+        }
+    }
+
+    #[test]
+    fn pseudo_inverse_rank_deficient() {
+        // A⁺ * A * A⁺ ≈ A⁺
+        let a = Matrix::new([
+            [1.0_f64, 2.0, 3.0],
+            [2.0, 4.0, 6.0],
+            [3.0, 6.0, 9.0],
+        ]);
+        let svd = a.svd().unwrap();
+        let pinv = svd.pseudo_inverse();
+        let pap = pinv * (a * pinv);
+        for i in 0..3 {
+            for j in 0..3 {
+                assert_near(pap[(i, j)], pinv[(i, j)], 1e-9, &format!("PAP[({},{})]", i, j));
+            }
+        }
+    }
 }

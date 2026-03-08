@@ -1,4 +1,5 @@
 pub(crate) mod cholesky;
+pub(crate) mod expm;
 pub(crate) mod hessenberg;
 pub(crate) mod lu;
 pub(crate) mod qr;
@@ -7,6 +8,7 @@ pub(crate) mod svd;
 pub(crate) mod symmetric_eigen;
 
 pub use cholesky::CholeskyDecomposition;
+pub use expm::expm;
 pub use lu::LuDecomposition;
 pub use qr::QrDecomposition;
 pub use schur::SchurDecomposition;

@@ -351,6 +351,52 @@ impl<T: Scalar> DynMatrix<T> {
         }
     }
 
+    /// Kronecker product (A ⊗ B).
+    ///
+    /// If `self` is m×n and `rhs` is p×q, the result is (m·p) × (n·q).
+    /// Element `(i*p + k, j*q + l) = self[(i,j)] * rhs[(k,l)]`.
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+    /// let b = DynMatrix::eye(2, 0.0_f64);
+    /// let c = a.kronecker(&b);
+    /// assert_eq!(c.nrows(), 4);
+    /// assert_eq!(c.ncols(), 4);
+    /// assert_eq!(c[(0, 0)], 1.0);
+    /// assert_eq!(c[(1, 1)], 1.0);
+    /// assert_eq!(c[(0, 2)], 2.0);
+    /// ```
+    pub fn kronecker(&self, rhs: &Self) -> Self {
+        let m = self.nrows;
+        let n = self.ncols;
+        let p = rhs.nrows;
+        let q = rhs.ncols;
+        let out_rows = m * p;
+        let out_cols = n * q;
+        let mut data = vec![T::zero(); out_rows * out_cols];
+        for j in 0..n {
+            for l in 0..q {
+                let out_col = j * q + l;
+                let self_col = &self.data[j * m..(j + 1) * m];
+                let rhs_col = &rhs.data[l * p..(l + 1) * p];
+                let out_slice = &mut data[out_col * out_rows..(out_col + 1) * out_rows];
+                for i in 0..m {
+                    let a_ij = self_col[i];
+                    let base = i * p;
+                    for k in 0..p {
+                        out_slice[base + k] = a_ij * rhs_col[k];
+                    }
+                }
+            }
+        }
+        DynMatrix {
+            data,
+            nrows: out_rows,
+            ncols: out_cols,
+        }
+    }
+
     /// Transpose: (M×N) → (N×M).
     ///
     /// ```
@@ -516,5 +562,76 @@ mod tests {
         let id = DynMatrix::eye(2, 0.0_f64);
         assert_eq!(&a * &id, a);
         assert_eq!(&id * &a, a);
+    }
+
+    #[test]
+    fn kronecker_identity() {
+        // I₂ ⊗ I₂ = I₄
+        let i2 = DynMatrix::eye(2, 0.0_f64);
+        let i4 = i2.kronecker(&i2);
+        assert_eq!(i4.nrows(), 4);
+        assert_eq!(i4.ncols(), 4);
+        let expected = DynMatrix::eye(4, 0.0_f64);
+        assert_eq!(i4, expected);
+    }
+
+    #[test]
+    fn kronecker_2x2() {
+        // [1 2; 3 4] ⊗ [0 5; 6 7]
+        // = [1*[0 5;6 7]  2*[0 5;6 7]]
+        //   [3*[0 5;6 7]  4*[0 5;6 7]]
+        // = [ 0  5  0 10]
+        //   [ 6  7 12 14]
+        //   [ 0 15  0 20]
+        //   [18 21 24 28]
+        let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
+        let b = DynMatrix::from_rows(2, 2, &[0.0, 5.0, 6.0, 7.0]);
+        let c = a.kronecker(&b);
+        assert_eq!(c.nrows(), 4);
+        assert_eq!(c.ncols(), 4);
+        let expected = DynMatrix::from_rows(
+            4,
+            4,
+            &[
+                0.0, 5.0, 0.0, 10.0, 6.0, 7.0, 12.0, 14.0, 0.0, 15.0, 0.0, 20.0, 18.0, 21.0,
+                24.0, 28.0,
+            ],
+        );
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn kronecker_rectangular() {
+        // (2×3) ⊗ (2×2) → (4×6)
+        let a = DynMatrix::from_rows(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = DynMatrix::from_rows(2, 2, &[1.0, 0.0, 0.0, 1.0]);
+        let c = a.kronecker(&b);
+        assert_eq!(c.nrows(), 4);
+        assert_eq!(c.ncols(), 6);
+        // A ⊗ I₂ produces a block-diagonal expansion of each element
+        // Row 0 of A = [1 2 3], so top-left 2×6 block is:
+        // [1 0 2 0 3 0]
+        // [0 1 0 2 0 3]
+        assert_eq!(c[(0, 0)], 1.0);
+        assert_eq!(c[(0, 1)], 0.0);
+        assert_eq!(c[(0, 2)], 2.0);
+        assert_eq!(c[(1, 1)], 1.0);
+        assert_eq!(c[(1, 3)], 2.0);
+        assert_eq!(c[(2, 2)], 5.0);
+        assert_eq!(c[(2, 4)], 6.0);
+        assert_eq!(c[(3, 3)], 5.0);
+        assert_eq!(c[(3, 5)], 6.0);
+    }
+
+    #[test]
+    fn kronecker_commute_trace() {
+        // tr(A ⊗ B) = tr(A) · tr(B)
+        let a = DynMatrix::<f64>::from_rows(3, 3, &[2.0, 1.0, 0.0, 0.0, 3.0, 1.0, 1.0, 0.0, 5.0]);
+        let b = DynMatrix::<f64>::from_rows(2, 2, &[4.0, 7.0, 2.0, 6.0]);
+        let ab = a.kronecker(&b);
+        let tr_ab: f64 = ab.trace();
+        let tr_a: f64 = a.trace();
+        let tr_b: f64 = b.trace();
+        assert!((tr_ab - tr_a * tr_b).abs() < 1e-12);
     }
 }
