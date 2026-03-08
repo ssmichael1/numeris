@@ -1,0 +1,1970 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Pure-Rust numerical algorithms library — no-std compatible, SciPy-inspired scope">
+      
+      
+      
+        <link rel="canonical" href="https://ssmichael1.github.io/numeris/stats/">
+      
+      
+        <link rel="prev" href="../special/">
+      
+      
+        <link rel="next" href="../quaternion/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+    
+    
+      
+        <title>Statistics - numeris</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="blue-grey">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#statistics" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="numeris" class="md-header__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            numeris
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Statistics
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="blue-grey"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="blue-grey"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../matrix/" class="md-tabs__link">
+          
+  
+  
+  Modules
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../performance/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Performance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../no-std/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  No-std / Embedded
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../design/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Design
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://docs.rs/numeris" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference ↗
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="numeris" class="md-nav__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    numeris
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modules
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynmatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DynMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linalg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ODE Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../optim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../control/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Digital Control
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpolation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quad/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quadrature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../special/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Special Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#distribution-traits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution Traits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#continuous-distributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuous Distributions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Continuous Distributions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#normal-gaussian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Normal (Gaussian)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uniform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uniform
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exponential" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exponential
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gamma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gamma
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Beta
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chi-squared" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chi-Squared
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#students-t" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Student's t
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cdf-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CDF Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discrete-distributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discrete Distributions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Discrete Distributions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bernoulli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bernoulli
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binomial" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Binomial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#poisson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Poisson
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distribution-summary-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution Summary Table
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#random-sampling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Random Sampling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Random Sampling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rng-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rng Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling Algorithms
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quantile-inverse-cdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quantile (Inverse CDF)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quaternion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quaternion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../no-std/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    No-std / Embedded
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.rs/numeris" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference ↗
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#distribution-traits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution Traits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#continuous-distributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuous Distributions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Continuous Distributions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#normal-gaussian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Normal (Gaussian)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uniform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uniform
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exponential" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exponential
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gamma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gamma
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Beta
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chi-squared" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chi-Squared
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#students-t" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Student's t
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cdf-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CDF Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discrete-distributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discrete Distributions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Discrete Distributions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bernoulli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bernoulli
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binomial" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Binomial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#poisson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Poisson
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distribution-summary-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution Summary Table
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#random-sampling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Random Sampling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Random Sampling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rng-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rng Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling Algorithms
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quantile-inverse-cdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quantile (Inverse CDF)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="statistics">Statistics<a class="headerlink" href="#statistics" title="Permanent link">&para;</a></h1>
+<p>Ten probability distributions, each implementing <code>ContinuousDistribution&lt;T&gt;</code> or <code>DiscreteDistribution&lt;T&gt;</code> traits.</p>
+<p>Requires the <code>stats</code> Cargo feature (implies <code>special</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">numeris</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">&quot;0.2&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">features</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;stats&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>All distributions work with <code>f32</code> and <code>f64</code>, are no-std compatible, and have no heap allocation.</p>
+<h2 id="distribution-traits">Distribution Traits<a class="headerlink" href="#distribution-traits" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">pub</span><span class="w"> </span><span class="k">trait</span><span class="w"> </span><span class="n">ContinuousDistribution</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">pdf</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">T</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span><span class="w">       </span><span class="c1">// probability density function</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">ln_pdf</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">T</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span><span class="w">    </span><span class="c1">// log-PDF (avoids underflow)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">cdf</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">T</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span><span class="w">       </span><span class="c1">// cumulative distribution function</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">quantile</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">:</span><span class="w"> </span><span class="nc">T</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span><span class="w">  </span><span class="c1">// inverse CDF: x such that P(X ≤ x) = p</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">mean</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">variance</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">}</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="k">pub</span><span class="w"> </span><span class="k">trait</span><span class="w"> </span><span class="n">DiscreteDistribution</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">pmf</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span><span class="w">     </span><span class="c1">// probability mass function P(X = k)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">ln_pmf</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span><span class="w">  </span><span class="c1">// log-PMF (avoids underflow)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">cdf</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span><span class="w">     </span><span class="c1">// cumulative P(X ≤ k)</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">quantile</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">:</span><span class="w"> </span><span class="nc">T</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u64</span><span class="p">;</span><span class="w"> </span><span class="c1">// smallest k such that P(X ≤ k) ≥ p</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">mean</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">variance</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">T</span><span class="p">;</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="p">}</span>
+</code></pre></div>
+<h2 id="continuous-distributions">Continuous Distributions<a class="headerlink" href="#continuous-distributions" title="Permanent link">&para;</a></h2>
+<h3 id="normal-gaussian">Normal (Gaussian)<a class="headerlink" href="#normal-gaussian" title="Permanent link">&para;</a></h3>
+<p><code>Normal&lt;T&gt; { mean: T, std_dev: T }</code></p>
+<div id="plot-normal-pdf" style="width:100%;height:400px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-normal-pdf',[{"type":"scatter","mode":"lines","name":"μ=0, σ=1","x":[-6.000000,-5.959866,-5.919732,-5.879599,-5.839465,-5.799331,-5.759197,-5.719064,-5.678930,-5.638796,-5.598662,-5.558528,-5.518395,-5.478261,-5.438127,-5.397993,-5.357860,-5.317726,-5.277592,-5.237458,-5.197324,-5.157191,-5.117057,-5.076923,-5.036789,-4.996656,-4.956522,-4.916388,-4.876254,-4.836120,-4.795987,-4.755853,-4.715719,-4.675585,-4.635452,-4.595318,-4.555184,-4.515050,-4.474916,-4.434783,-4.394649,-4.354515,-4.314381,-4.274247,-4.234114,-4.193980,-4.153846,-4.113712,-4.073579,-4.033445,-3.993311,-3.953177,-3.913043,-3.872910,-3.832776,-3.792642,-3.752508,-3.712375,-3.672241,-3.632107,-3.591973,-3.551839,-3.511706,-3.471572,-3.431438,-3.391304,-3.351171,-3.311037,-3.270903,-3.230769,-3.190635,-3.150502,-3.110368,-3.070234,-3.030100,-2.989967,-2.949833,-2.909699,-2.869565,-2.829431,-2.789298,-2.749164,-2.709030,-2.668896,-2.628763,-2.588629,-2.548495,-2.508361,-2.468227,-2.428094,-2.387960,-2.347826,-2.307692,-2.267559,-2.227425,-2.187291,-2.147157,-2.107023,-2.066890,-2.026756,-1.986622,-1.946488,-1.906355,-1.866221,-1.826087,-1.785953,-1.745819,-1.705686,-1.665552,-1.625418,-1.585284,-1.545151,-1.505017,-1.464883,-1.424749,-1.384615,-1.344482,-1.304348,-1.264214,-1.224080,-1.183946,-1.143813,-1.103679,-1.063545,-1.023411,-0.983278,-0.943144,-0.903010,-0.862876,-0.822742,-0.782609,-0.742475,-0.702341,-0.662207,-0.622074,-0.581940,-0.541806,-0.501672,-0.461538,-0.421405,-0.381271,-0.341137,-0.301003,-0.260870,-0.220736,-0.180602,-0.140468,-0.100334,-0.060201,-0.020067,0.000000,0.060201,0.100334,0.140468,0.180602,0.220736,0.260870,0.301003,0.341137,0.381271,0.421405,0.461538,0.501672,0.541806,0.581940,0.622074,0.662207,0.702341,0.742475,0.782609,0.822742,0.862876,0.903010,0.943144,0.983278,1.023411,1.063545,1.103679,1.143813,1.183946,1.224080,1.264214,1.304348,1.344482,1.384615,1.424749,1.464883,1.505017,1.545151,1.585284,1.625418,1.665552,1.705686,1.745819,1.785953,1.826087,1.866221,1.906355,1.946488,1.986622,2.026756,2.066890,2.107023,2.147157,2.187291,2.227425,2.267559,2.307692,2.347826,2.387960,2.428094,2.468227,2.508361,2.548495,2.588629,2.628763,2.668896,2.709030,2.749164,2.789298,2.829431,2.869565,2.909699,2.949833,2.989967,3.030100,3.070234,3.110368,3.150502,3.190635,3.230769,3.270903,3.311037,3.351171,3.391304,3.431438,3.471572,3.511706,3.551839,3.591973,3.632107,3.672241,3.712375,3.752508,3.792642,3.832776,3.872910,3.913043,3.953177,3.993311,4.033445,4.073579,4.113712,4.153846,4.193980,4.234114,4.274247,4.314381,4.354515,4.394649,4.434783,4.474916,4.515050,4.555184,4.595318,4.635452,4.675585,4.715719,4.755853,4.795987,4.836120,4.876254,4.916388,4.956522,4.996656,5.036789,5.076923,5.117057,5.157191,5.197324,5.237458,5.277592,5.317726,5.357860,5.397993,5.438127,5.478261,5.518395,5.558528,5.598662,5.638796,5.678930,5.719064,5.759197,5.799331,5.839465,5.879599,5.919732,5.959866,6.000000],"y":[0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000001,0.000001,0.000001,0.000001,0.000001,0.000002,0.000002,0.000002,0.000003,0.000003,0.000004,0.000005,0.000006,0.000007,0.000009,0.000010,0.000012,0.000015,0.000018,0.000021,0.000026,0.000030,0.000036,0.000043,0.000051,0.000060,0.000071,0.000084,0.000099,0.000117,0.000137,0.000161,0.000189,0.000221,0.000258,0.000300,0.000349,0.000406,0.000471,0.000545,0.000630,0.000727,0.000838,0.000964,0.001107,0.001269,0.001453,0.001661,0.001895,0.002160,0.002457,0.002790,0.003163,0.003581,0.004047,0.004567,0.005145,0.005787,0.006499,0.007286,0.008156,0.009114,0.010170,0.011328,0.012599,0.013990,0.015509,0.017165,0.018968,0.020926,0.023049,0.025347,0.027829,0.030505,0.033385,0.036478,0.039792,0.043339,0.047125,0.051159,0.055450,0.060004,0.064827,0.069925,0.075303,0.080964,0.086910,0.093143,0.099662,0.106466,0.113551,0.120913,0.128545,0.136439,0.144584,0.152969,0.161580,0.170401,0.179414,0.188600,0.197938,0.207403,0.216971,0.226615,0.236307,0.246017,0.255713,0.265364,0.274936,0.284395,0.293706,0.302833,0.311742,0.320396,0.328760,0.336800,0.344481,0.351771,0.358636,0.365047,0.370974,0.376391,0.381273,0.385596,0.389341,0.392489,0.395026,0.396939,0.398220,0.398862,0.398942,0.398220,0.396939,0.395026,0.392489,0.389341,0.385596,0.381273,0.376391,0.370974,0.365047,0.358636,0.351771,0.344481,0.336800,0.328760,0.320396,0.311742,0.302833,0.293706,0.284395,0.274936,0.265364,0.255713,0.246017,0.236307,0.226615,0.216971,0.207403,0.197938,0.188600,0.179414,0.170401,0.161580,0.152969,0.144584,0.136439,0.128545,0.120913,0.113551,0.106466,0.099662,0.093143,0.086910,0.080964,0.075303,0.069925,0.064827,0.060004,0.055450,0.051159,0.047125,0.043339,0.039792,0.036478,0.033385,0.030505,0.027829,0.025347,0.023049,0.020926,0.018968,0.017165,0.015509,0.013990,0.012599,0.011328,0.010170,0.009114,0.008156,0.007286,0.006499,0.005787,0.005145,0.004567,0.004047,0.003581,0.003163,0.002790,0.002457,0.002160,0.001895,0.001661,0.001453,0.001269,0.001107,0.000964,0.000838,0.000727,0.000630,0.000545,0.000471,0.000406,0.000349,0.000300,0.000258,0.000221,0.000189,0.000161,0.000137,0.000117,0.000099,0.000084,0.000071,0.000060,0.000051,0.000043,0.000036,0.000030,0.000026,0.000021,0.000018,0.000015,0.000012,0.000010,0.000009,0.000007,0.000006,0.000005,0.000004,0.000003,0.000003,0.000002,0.000002,0.000002,0.000001,0.000001,0.000001,0.000001,0.000001,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"μ=0, σ=2","x":[-6.000000,-5.959866,-5.919732,-5.879599,-5.839465,-5.799331,-5.759197,-5.719064,-5.678930,-5.638796,-5.598662,-5.558528,-5.518395,-5.478261,-5.438127,-5.397993,-5.357860,-5.317726,-5.277592,-5.237458,-5.197324,-5.157191,-5.117057,-5.076923,-5.036789,-4.996656,-4.956522,-4.916388,-4.876254,-4.836120,-4.795987,-4.755853,-4.715719,-4.675585,-4.635452,-4.595318,-4.555184,-4.515050,-4.474916,-4.434783,-4.394649,-4.354515,-4.314381,-4.274247,-4.234114,-4.193980,-4.153846,-4.113712,-4.073579,-4.033445,-3.993311,-3.953177,-3.913043,-3.872910,-3.832776,-3.792642,-3.752508,-3.712375,-3.672241,-3.632107,-3.591973,-3.551839,-3.511706,-3.471572,-3.431438,-3.391304,-3.351171,-3.311037,-3.270903,-3.230769,-3.190635,-3.150502,-3.110368,-3.070234,-3.030100,-2.989967,-2.949833,-2.909699,-2.869565,-2.829431,-2.789298,-2.749164,-2.709030,-2.668896,-2.628763,-2.588629,-2.548495,-2.508361,-2.468227,-2.428094,-2.387960,-2.347826,-2.307692,-2.267559,-2.227425,-2.187291,-2.147157,-2.107023,-2.066890,-2.026756,-1.986622,-1.946488,-1.906355,-1.866221,-1.826087,-1.785953,-1.745819,-1.705686,-1.665552,-1.625418,-1.585284,-1.545151,-1.505017,-1.464883,-1.424749,-1.384615,-1.344482,-1.304348,-1.264214,-1.224080,-1.183946,-1.143813,-1.103679,-1.063545,-1.023411,-0.983278,-0.943144,-0.903010,-0.862876,-0.822742,-0.782609,-0.742475,-0.702341,-0.662207,-0.622074,-0.581940,-0.541806,-0.501672,-0.461538,-0.421405,-0.381271,-0.341137,-0.301003,-0.260870,-0.220736,-0.180602,-0.140468,-0.100334,-0.060201,-0.020067,0.000000,0.060201,0.100334,0.140468,0.180602,0.220736,0.260870,0.301003,0.341137,0.381271,0.421405,0.461538,0.501672,0.541806,0.581940,0.622074,0.662207,0.702341,0.742475,0.782609,0.822742,0.862876,0.903010,0.943144,0.983278,1.023411,1.063545,1.103679,1.143813,1.183946,1.224080,1.264214,1.304348,1.344482,1.384615,1.424749,1.464883,1.505017,1.545151,1.585284,1.625418,1.665552,1.705686,1.745819,1.785953,1.826087,1.866221,1.906355,1.946488,1.986622,2.026756,2.066890,2.107023,2.147157,2.187291,2.227425,2.267559,2.307692,2.347826,2.387960,2.428094,2.468227,2.508361,2.548495,2.588629,2.628763,2.668896,2.709030,2.749164,2.789298,2.829431,2.869565,2.909699,2.949833,2.989967,3.030100,3.070234,3.110368,3.150502,3.190635,3.230769,3.270903,3.311037,3.351171,3.391304,3.431438,3.471572,3.511706,3.551839,3.591973,3.632107,3.672241,3.712375,3.752508,3.792642,3.832776,3.872910,3.913043,3.953177,3.993311,4.033445,4.073579,4.113712,4.153846,4.193980,4.234114,4.274247,4.314381,4.354515,4.394649,4.434783,4.474916,4.515050,4.555184,4.595318,4.635452,4.675585,4.715719,4.755853,4.795987,4.836120,4.876254,4.916388,4.956522,4.996656,5.036789,5.076923,5.117057,5.157191,5.197324,5.237458,5.277592,5.317726,5.357860,5.397993,5.438127,5.478261,5.518395,5.558528,5.598662,5.638796,5.678930,5.719064,5.759197,5.799331,5.839465,5.879599,5.919732,5.959866,6.000000],"y":[0.002216,0.002353,0.002497,0.002650,0.002810,0.002979,0.003157,0.003344,0.003541,0.003748,0.003965,0.004193,0.004433,0.004684,0.004948,0.005225,0.005514,0.005818,0.006135,0.006468,0.006815,0.007179,0.007558,0.007955,0.008369,0.008801,0.009251,0.009721,0.010211,0.010721,0.011251,0.011804,0.012378,0.012975,0.013596,0.014240,0.014909,0.015603,0.016323,0.017069,0.017842,0.018643,0.019471,0.020328,0.021215,0.022131,0.023078,0.024055,0.025064,0.026104,0.027177,0.028282,0.029420,0.030592,0.031798,0.033038,0.034312,0.035622,0.036966,0.038346,0.039761,0.041212,0.042698,0.044221,0.045779,0.047373,0.049003,0.050668,0.052369,0.054105,0.055877,0.057683,0.059523,0.061398,0.063306,0.065247,0.067221,0.069226,0.071262,0.073329,0.075426,0.077551,0.079704,0.081883,0.084089,0.086319,0.088572,0.090848,0.093144,0.095461,0.097795,0.100146,0.102513,0.104893,0.107285,0.109688,0.112099,0.114517,0.116941,0.119367,0.121795,0.124222,0.126646,0.129066,0.131479,0.133883,0.136276,0.138656,0.141021,0.143369,0.145697,0.148003,0.150285,0.152541,0.154769,0.156965,0.159129,0.161258,0.163349,0.165401,0.167411,0.169378,0.171298,0.173171,0.174993,0.176764,0.178481,0.180141,0.181744,0.183288,0.184770,0.186189,0.187543,0.188831,0.190052,0.191203,0.192284,0.193294,0.194230,0.195092,0.195879,0.196590,0.197225,0.197782,0.198260,0.198660,0.198980,0.199220,0.199381,0.199461,0.199471,0.199381,0.199220,0.198980,0.198660,0.198260,0.197782,0.197225,0.196590,0.195879,0.195092,0.194230,0.193294,0.192284,0.191203,0.190052,0.188831,0.187543,0.186189,0.184770,0.183288,0.181744,0.180141,0.178481,0.176764,0.174993,0.173171,0.171298,0.169378,0.167411,0.165401,0.163349,0.161258,0.159129,0.156965,0.154769,0.152541,0.150285,0.148003,0.145697,0.143369,0.141021,0.138656,0.136276,0.133883,0.131479,0.129066,0.126646,0.124222,0.121795,0.119367,0.116941,0.114517,0.112099,0.109688,0.107285,0.104893,0.102513,0.100146,0.097795,0.095461,0.093144,0.090848,0.088572,0.086319,0.084089,0.081883,0.079704,0.077551,0.075426,0.073329,0.071262,0.069226,0.067221,0.065247,0.063306,0.061398,0.059523,0.057683,0.055877,0.054105,0.052369,0.050668,0.049003,0.047373,0.045779,0.044221,0.042698,0.041212,0.039761,0.038346,0.036966,0.035622,0.034312,0.033038,0.031798,0.030592,0.029420,0.028282,0.027177,0.026104,0.025064,0.024055,0.023078,0.022131,0.021215,0.020328,0.019471,0.018643,0.017842,0.017069,0.016323,0.015603,0.014909,0.014240,0.013596,0.012975,0.012378,0.011804,0.011251,0.010721,0.010211,0.009721,0.009251,0.008801,0.008369,0.007955,0.007558,0.007179,0.006815,0.006468,0.006135,0.005818,0.005514,0.005225,0.004948,0.004684,0.004433,0.004193,0.003965,0.003748,0.003541,0.003344,0.003157,0.002979,0.002810,0.002650,0.002497,0.002353,0.002216],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"μ=2, σ=0.7","x":[-6.000000,-5.959866,-5.919732,-5.879599,-5.839465,-5.799331,-5.759197,-5.719064,-5.678930,-5.638796,-5.598662,-5.558528,-5.518395,-5.478261,-5.438127,-5.397993,-5.357860,-5.317726,-5.277592,-5.237458,-5.197324,-5.157191,-5.117057,-5.076923,-5.036789,-4.996656,-4.956522,-4.916388,-4.876254,-4.836120,-4.795987,-4.755853,-4.715719,-4.675585,-4.635452,-4.595318,-4.555184,-4.515050,-4.474916,-4.434783,-4.394649,-4.354515,-4.314381,-4.274247,-4.234114,-4.193980,-4.153846,-4.113712,-4.073579,-4.033445,-3.993311,-3.953177,-3.913043,-3.872910,-3.832776,-3.792642,-3.752508,-3.712375,-3.672241,-3.632107,-3.591973,-3.551839,-3.511706,-3.471572,-3.431438,-3.391304,-3.351171,-3.311037,-3.270903,-3.230769,-3.190635,-3.150502,-3.110368,-3.070234,-3.030100,-2.989967,-2.949833,-2.909699,-2.869565,-2.829431,-2.789298,-2.749164,-2.709030,-2.668896,-2.628763,-2.588629,-2.548495,-2.508361,-2.468227,-2.428094,-2.387960,-2.347826,-2.307692,-2.267559,-2.227425,-2.187291,-2.147157,-2.107023,-2.066890,-2.026756,-1.986622,-1.946488,-1.906355,-1.866221,-1.826087,-1.785953,-1.745819,-1.705686,-1.665552,-1.625418,-1.585284,-1.545151,-1.505017,-1.464883,-1.424749,-1.384615,-1.344482,-1.304348,-1.264214,-1.224080,-1.183946,-1.143813,-1.103679,-1.063545,-1.023411,-0.983278,-0.943144,-0.903010,-0.862876,-0.822742,-0.782609,-0.742475,-0.702341,-0.662207,-0.622074,-0.581940,-0.541806,-0.501672,-0.461538,-0.421405,-0.381271,-0.341137,-0.301003,-0.260870,-0.220736,-0.180602,-0.140468,-0.100334,-0.060201,-0.020067,0.000000,0.060201,0.100334,0.140468,0.180602,0.220736,0.260870,0.301003,0.341137,0.381271,0.421405,0.461538,0.501672,0.541806,0.581940,0.622074,0.662207,0.702341,0.742475,0.782609,0.822742,0.862876,0.903010,0.943144,0.983278,1.023411,1.063545,1.103679,1.143813,1.183946,1.224080,1.264214,1.304348,1.344482,1.384615,1.424749,1.464883,1.505017,1.545151,1.585284,1.625418,1.665552,1.705686,1.745819,1.785953,1.826087,1.866221,1.906355,1.946488,1.986622,2.026756,2.066890,2.107023,2.147157,2.187291,2.227425,2.267559,2.307692,2.347826,2.387960,2.428094,2.468227,2.508361,2.548495,2.588629,2.628763,2.668896,2.709030,2.749164,2.789298,2.829431,2.869565,2.909699,2.949833,2.989967,3.030100,3.070234,3.110368,3.150502,3.190635,3.230769,3.270903,3.311037,3.351171,3.391304,3.431438,3.471572,3.511706,3.551839,3.591973,3.632107,3.672241,3.712375,3.752508,3.792642,3.832776,3.872910,3.913043,3.953177,3.993311,4.033445,4.073579,4.113712,4.153846,4.193980,4.234114,4.274247,4.314381,4.354515,4.394649,4.434783,4.474916,4.515050,4.555184,4.595318,4.635452,4.675585,4.715719,4.755853,4.795987,4.836120,4.876254,4.916388,4.956522,4.996656,5.036789,5.076923,5.117057,5.157191,5.197324,5.237458,5.277592,5.317726,5.357860,5.397993,5.438127,5.478261,5.518395,5.558528,5.598662,5.638796,5.678930,5.719064,5.759197,5.799331,5.839465,5.879599,5.919732,5.959866,6.000000],"y":[0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000001,0.000001,0.000001,0.000002,0.000002,0.000003,0.000004,0.000005,0.000006,0.000008,0.000011,0.000014,0.000018,0.000024,0.000031,0.000040,0.000051,0.000065,0.000083,0.000105,0.000133,0.000168,0.000211,0.000265,0.000331,0.000412,0.000512,0.000633,0.000781,0.000960,0.001177,0.001437,0.001749,0.002123,0.002567,0.003095,0.003718,0.004452,0.005314,0.006322,0.007497,0.008860,0.009620,0.012254,0.014341,0.016728,0.019448,0.022536,0.026028,0.029964,0.034381,0.039320,0.044821,0.050923,0.057667,0.065090,0.073227,0.082110,0.091769,0.102228,0.113505,0.125613,0.138556,0.152330,0.166925,0.182318,0.198477,0.215358,0.232909,0.251063,0.269744,0.288864,0.308325,0.328016,0.347819,0.367608,0.387248,0.406598,0.425514,0.443848,0.461454,0.478183,0.493892,0.508443,0.521705,0.533557,0.543887,0.552597,0.559604,0.564840,0.568255,0.569813,0.569501,0.567321,0.563295,0.557462,0.549879,0.540619,0.529770,0.517436,0.503730,0.488777,0.472713,0.455675,0.437811,0.419266,0.400189,0.380726,0.361022,0.341213,0.321434,0.301807,0.282448,0.263464,0.244949,0.226988,0.209654,0.193008,0.177100,0.161970,0.147647,0.134149,0.121484,0.109654,0.098652,0.088462,0.079064,0.070433,0.062538,0.055346,0.048820,0.042922,0.037613,0.032853,0.028600,0.024817,0.021463,0.018502,0.015897,0.013614,0.011620,0.009886,0.008383,0.007085,0.005969,0.005012,0.004194,0.003499,0.002909,0.002410,0.001991,0.001639,0.001345,0.001100,0.000897,0.000729,0.000590,0.000476,0.000383,0.000307,0.000246,0.000196,0.000155,0.000123,0.000097,0.000076,0.000060,0.000047,0.000036,0.000028,0.000022,0.000017,0.000013,0.000010,0.000008,0.000006,0.000004,0.000003,0.000002,0.000002,0.000001,0.000001,0.000001,0.000001,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000],"line":{"width":2.5}}],{"title":{"text":"Normal Distribution — PDF","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"x","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"f(x)","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white"},{responsive:true})});
+</script>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Normal</span><span class="p">;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Normal</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w">  </span><span class="c1">// standard normal N(0,1)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">pdf</span><span class="p">(</span><span class="mf">0.0</span><span class="p">);</span><span class="w">      </span><span class="c1">// 1/√(2π) ≈ 0.3989</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">1.645</span><span class="p">);</span><span class="w">    </span><span class="c1">// ≈ 0.95 (95th percentile)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="kd">let</span><span class="w"> </span><span class="n">n2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Normal</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">100.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">15.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w"> </span><span class="c1">// IQ distribution</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">prob_above_130</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n2</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">130.0</span><span class="p">);</span><span class="w">       </span><span class="c1">// P(IQ &gt; 130) ≈ 2.3%</span>
+</code></pre></div>
+<h3 id="uniform">Uniform<a class="headerlink" href="#uniform" title="Permanent link">&para;</a></h3>
+<p><code>Uniform&lt;T&gt; { a: T, b: T }</code> — continuous uniform on [a, b].</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Uniform</span><span class="p">;</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">u</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Uniform</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">pdf</span><span class="p">(</span><span class="mf">0.5</span><span class="p">);</span><span class="w">      </span><span class="c1">// 1.0 (constant density)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">0.3</span><span class="p">);</span><span class="w">      </span><span class="c1">// 0.3</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">u</span><span class="p">.</span><span class="n">mean</span><span class="p">(),</span><span class="w"> </span><span class="mf">0.5</span><span class="p">);</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">u</span><span class="p">.</span><span class="n">variance</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1.0</span><span class="o">/</span><span class="mf">12.0</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="exponential">Exponential<a class="headerlink" href="#exponential" title="Permanent link">&para;</a></h3>
+<p><code>Exponential&lt;T&gt; { rate: T }</code> — rate λ (mean = 1/λ).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Exponential</span><span class="p">;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Exponential</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">2.0_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w">  </span><span class="c1">// λ=2, mean=0.5</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">pdf</span><span class="p">(</span><span class="mf">1.0</span><span class="p">);</span><span class="w">      </span><span class="c1">// 2·e⁻² ≈ 0.2707</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">1.0</span><span class="p">);</span><span class="w">      </span><span class="c1">// 1 - e⁻² ≈ 0.8647</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">e</span><span class="p">.</span><span class="n">mean</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">0.5</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-12</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="gamma">Gamma<a class="headerlink" href="#gamma" title="Permanent link">&para;</a></h3>
+<p><code>Gamma&lt;T&gt; { shape: T, rate: T }</code> — shape α, rate β (mean = α/β).</p>
+<p>The chi-squared and exponential distributions are special cases.</p>
+<div id="plot-gamma-pdf" style="width:100%;height:400px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-gamma-pdf',[{"type":"scatter","mode":"lines","name":"α=1, β=1 (Exp)","x":[0.010000,0.050100,0.090201,0.130301,0.170401,0.210502,0.250602,0.290702,0.330803,0.370903,0.411003,0.451104,0.491204,0.531304,0.571405,0.611505,0.651605,0.691706,0.731806,0.771906,0.812007,0.852107,0.892207,0.932308,0.972408,1.012508,1.052609,1.092709,1.132809,1.172910,1.213010,1.253110,1.293211,1.333311,1.373411,1.413512,1.453612,1.493712,1.533813,1.573913,1.614013,1.654114,1.694214,1.734314,1.774415,1.814515,1.854615,1.894716,1.934816,1.974916,2.015017,2.055117,2.095217,2.135318,2.175418,2.215518,2.255619,2.295719,2.335819,2.375920,2.416020,2.456120,2.496221,2.536321,2.576421,2.616522,2.656622,2.696722,2.736823,2.776923,2.817023,2.857124,2.897224,2.937324,2.977425,3.017525,3.057625,3.097726,3.137826,3.177926,3.218027,3.258127,3.298227,3.338328,3.378428,3.418528,3.458629,3.498729,3.538829,3.578930,3.619030,3.659130,3.699231,3.739331,3.779431,3.819532,3.859632,3.899732,3.939833,3.979933,4.020033,4.060134,4.100234,4.140334,4.180435,4.220535,4.260635,4.300736,4.340836,4.380936,4.421037,4.461137,4.501237,4.541338,4.581438,4.621538,4.661639,4.701739,4.741839,4.781940,4.822040,4.862140,4.902241,4.942341,4.982441,5.022542,5.062642,5.102742,5.142843,5.182943,5.223043,5.263144,5.303244,5.343344,5.383445,5.423545,5.463645,5.503746,5.543846,5.583946,5.624047,5.664147,5.704247,5.744348,5.784448,5.824548,5.864649,5.904749,5.944849,5.984950,6.025050,6.065151,6.105251,6.145351,6.185452,6.225552,6.265652,6.305753,6.345853,6.385953,6.426054,6.466154,6.506254,6.546355,6.586455,6.626555,6.666656,6.706756,6.746856,6.786957,6.827057,6.867157,6.907258,6.947358,6.987458,7.027559,7.067659,7.107759,7.147860,7.187960,7.228060,7.268161,7.308261,7.348361,7.388462,7.428562,7.468662,7.508763,7.548863,7.588963,7.629064,7.669164,7.709264,7.749365,7.789465,7.829565,7.869666,7.909766,7.949866,7.989967,8.030067,8.070167,8.110268,8.150368,8.190468,8.230569,8.270669,8.310769,8.350870,8.390970,8.431070,8.471171,8.511271,8.551371,8.591472,8.631572,8.671672,8.711773,8.751873,8.791973,8.832074,8.872174,8.912274,8.952375,8.992475,9.032575,9.072676,9.112776,9.152876,9.192977,9.233077,9.273177,9.313278,9.353378,9.393478,9.433579,9.473679,9.513779,9.553880,9.593980,9.634080,9.674181,9.714281,9.754381,9.794482,9.834582,9.874682,9.914783,9.954883,9.994983,10.035084,10.075184,10.115284,10.155385,10.195485,10.235585,10.275686,10.315786,10.355886,10.395987,10.436087,10.476187,10.516288,10.556388,10.596488,10.636589,10.676689,10.716789,10.756890,10.796990,10.837090,10.877191,10.917291,10.957391,10.997492,11.037592,11.077692,11.117793,11.157893,11.197993,11.238094,11.278194,11.318294,11.358395,11.398495,11.438595,11.478696,11.518796,11.558896,11.598997,11.639097,11.679197,11.719298,11.759398,11.799498,11.839599,11.879699,11.919799,11.959900,12.000000],"y":[0.990050,0.951134,0.913748,0.877831,0.843326,0.810178,0.778332,0.747738,0.718347,0.690111,0.662985,0.636925,0.611889,0.587838,0.564732,0.542534,0.521208,0.500721,0.481039,0.462131,0.443966,0.426515,0.409750,0.393644,0.378171,0.363307,0.349026,0.335307,0.322127,0.309465,0.297301,0.285615,0.274388,0.263603,0.253242,0.243287,0.233725,0.224538,0.215712,0.207233,0.199087,0.191261,0.183744,0.176521,0.169583,0.162917,0.156513,0.150361,0.144451,0.138773,0.133318,0.128078,0.123043,0.118207,0.113561,0.109097,0.104809,0.100689,0.096731,0.092929,0.089276,0.085767,0.082396,0.079157,0.076046,0.073057,0.070185,0.067426,0.064776,0.062230,0.059784,0.057434,0.055176,0.053007,0.050924,0.048922,0.046999,0.045152,0.043377,0.041672,0.040034,0.038460,0.036949,0.035496,0.034101,0.032761,0.031473,0.030236,0.029047,0.027906,0.026809,0.025755,0.024743,0.023770,0.022836,0.021938,0.021076,0.020247,0.019451,0.018687,0.017952,0.017247,0.016569,0.015918,0.015292,0.014691,0.014113,0.013559,0.013026,0.012514,0.012022,0.011549,0.011095,0.010659,0.010240,0.009838,0.009451,0.009079,0.008723,0.008380,0.008050,0.007734,0.007430,0.007138,0.006857,0.006588,0.006329,0.006080,0.005841,0.005611,0.005391,0.005179,0.004975,0.004780,0.004592,0.004411,0.004238,0.004071,0.003911,0.003758,0.003610,0.003468,0.003332,0.003201,0.003075,0.002954,0.002838,0.002726,0.002619,0.002516,0.002417,0.002322,0.002231,0.002143,0.002059,0.001978,0.001900,0.001826,0.001754,0.001685,0.001619,0.001555,0.001494,0.001435,0.001379,0.001325,0.001273,0.001223,0.001175,0.001128,0.001084,0.001041,0.001000,0.000961,0.000923,0.000887,0.000852,0.000819,0.000787,0.000756,0.000726,0.000697,0.000670,0.000644,0.000618,0.000594,0.000571,0.000548,0.000527,0.000506,0.000486,0.000467,0.000449,0.000431,0.000414,0.000398,0.000382,0.000367,0.000353,0.000339,0.000326,0.000313,0.000300,0.000289,0.000277,0.000266,0.000256,0.000246,0.000236,0.000227,0.000218,0.000209,0.000201,0.000193,0.000186,0.000178,0.000171,0.000165,0.000158,0.000152,0.000146,0.000140,0.000135,0.000129,0.000124,0.000119,0.000115,0.000110,0.000106,0.000102,0.000098,0.000094,0.000090,0.000087,0.000083,0.000080,0.000077,0.000074,0.000071,0.000068,0.000065,0.000063,0.000060,0.000058,0.000056,0.000054,0.000051,0.000049,0.000047,0.000046,0.000044,0.000042,0.000040,0.000039,0.000037,0.000036,0.000034,0.000033,0.000032,0.000031,0.000029,0.000028,0.000027,0.000026,0.000025,0.000024,0.000023,0.000022,0.000021,0.000020,0.000020,0.000019,0.000018,0.000017,0.000017,0.000016,0.000015,0.000015,0.000014,0.000014,0.000013,0.000013,0.000012,0.000012,0.000011,0.000011,0.000010,0.000010,0.000010,0.000009,0.000009,0.000008,0.000008,0.000008,0.000008,0.000007,0.000007,0.000007,0.000006,0.000006],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"α=2, β=1","x":[0.010000,0.050100,0.090201,0.130301,0.170401,0.210502,0.250602,0.290702,0.330803,0.370903,0.411003,0.451104,0.491204,0.531304,0.571405,0.611505,0.651605,0.691706,0.731806,0.771906,0.812007,0.852107,0.892207,0.932308,0.972408,1.012508,1.052609,1.092709,1.132809,1.172910,1.213010,1.253110,1.293211,1.333311,1.373411,1.413512,1.453612,1.493712,1.533813,1.573913,1.614013,1.654114,1.694214,1.734314,1.774415,1.814515,1.854615,1.894716,1.934816,1.974916,2.015017,2.055117,2.095217,2.135318,2.175418,2.215518,2.255619,2.295719,2.335819,2.375920,2.416020,2.456120,2.496221,2.536321,2.576421,2.616522,2.656622,2.696722,2.736823,2.776923,2.817023,2.857124,2.897224,2.937324,2.977425,3.017525,3.057625,3.097726,3.137826,3.177926,3.218027,3.258127,3.298227,3.338328,3.378428,3.418528,3.458629,3.498729,3.538829,3.578930,3.619030,3.659130,3.699231,3.739331,3.779431,3.819532,3.859632,3.899732,3.939833,3.979933,4.020033,4.060134,4.100234,4.140334,4.180435,4.220535,4.260635,4.300736,4.340836,4.380936,4.421037,4.461137,4.501237,4.541338,4.581438,4.621538,4.661639,4.701739,4.741839,4.781940,4.822040,4.862140,4.902241,4.942341,4.982441,5.022542,5.062642,5.102742,5.142843,5.182943,5.223043,5.263144,5.303244,5.343344,5.383445,5.423545,5.463645,5.503746,5.543846,5.583946,5.624047,5.664147,5.704247,5.744348,5.784448,5.824548,5.864649,5.904749,5.944849,5.984950,6.025050,6.065151,6.105251,6.145351,6.185452,6.225552,6.265652,6.305753,6.345853,6.385953,6.426054,6.466154,6.506254,6.546355,6.586455,6.626555,6.666656,6.706756,6.746856,6.786957,6.827057,6.867157,6.907258,6.947358,6.987458,7.027559,7.067659,7.107759,7.147860,7.187960,7.228060,7.268161,7.308261,7.348361,7.388462,7.428562,7.468662,7.508763,7.548863,7.588963,7.629064,7.669164,7.709264,7.749365,7.789465,7.829565,7.869666,7.909766,7.949866,7.989967,8.030067,8.070167,8.110268,8.150368,8.190468,8.230569,8.270669,8.310769,8.350870,8.390970,8.431070,8.471171,8.511271,8.551371,8.591472,8.631572,8.671672,8.711773,8.751873,8.791973,8.832074,8.872174,8.912274,8.952375,8.992475,9.032575,9.072676,9.112776,9.152876,9.192977,9.233077,9.273177,9.313278,9.353378,9.393478,9.433579,9.473679,9.513779,9.553880,9.593980,9.634080,9.674181,9.714281,9.754381,9.794482,9.834582,9.874682,9.914783,9.954883,9.994983,10.035084,10.075184,10.115284,10.155385,10.195485,10.235585,10.275686,10.315786,10.355886,10.395987,10.436087,10.476187,10.516288,10.556388,10.596488,10.636589,10.676689,10.716789,10.756890,10.796990,10.837090,10.877191,10.917291,10.957391,10.997492,11.037592,11.077692,11.117793,11.157893,11.197993,11.238094,11.278194,11.318294,11.358395,11.398495,11.438595,11.478696,11.518796,11.558896,11.598997,11.639097,11.679197,11.719298,11.759398,11.799498,11.839599,11.879699,11.919799,11.959900,12.000000],"y":[0.009900,0.047652,0.082421,0.114382,0.143704,0.170544,0.195052,0.217369,0.237631,0.255964,0.272489,0.287319,0.300562,0.312321,0.322690,0.331762,0.339622,0.346352,0.352028,0.356722,0.360504,0.363437,0.365582,0.366998,0.367737,0.367851,0.367388,0.366393,0.364908,0.362975,0.360629,0.357907,0.354842,0.351465,0.347805,0.343890,0.339745,0.335395,0.330861,0.326166,0.321329,0.316368,0.311301,0.306143,0.300910,0.295615,0.290272,0.284891,0.279486,0.274065,0.268638,0.263215,0.257803,0.252410,0.247042,0.241706,0.236408,0.231154,0.225947,0.220792,0.215693,0.210654,0.205678,0.200768,0.195926,0.191154,0.186455,0.181830,0.177280,0.172807,0.168412,0.164095,0.159858,0.155700,0.151622,0.147624,0.143706,0.139868,0.136109,0.132430,0.128830,0.125309,0.121865,0.118498,0.115208,0.111993,0.108853,0.105787,0.102793,0.099872,0.097021,0.094241,0.091528,0.088884,0.086306,0.083793,0.081345,0.078959,0.076636,0.074373,0.072169,0.070024,0.067936,0.065904,0.063927,0.062003,0.060132,0.058312,0.056542,0.054821,0.053149,0.051523,0.049942,0.048407,0.046915,0.045465,0.044057,0.042689,0.041361,0.040071,0.038819,0.037603,0.036423,0.035278,0.034166,0.033087,0.032041,0.031025,0.030040,0.029084,0.028157,0.027258,0.026386,0.025540,0.024721,0.023926,0.023155,0.022408,0.021684,0.020983,0.020303,0.019644,0.019005,0.018387,0.017787,0.017207,0.016644,0.016099,0.015571,0.015060,0.014565,0.014086,0.013622,0.013172,0.012737,0.012316,0.011908,0.011513,0.011131,0.010761,0.010403,0.010056,0.009721,0.009396,0.009082,0.008778,0.008484,0.008200,0.007925,0.007658,0.007401,0.007152,0.006911,0.006678,0.006452,0.006234,0.006023,0.005819,0.005622,0.005431,0.005247,0.005069,0.004896,0.004730,0.004569,0.004413,0.004262,0.004117,0.003976,0.003840,0.003709,0.003582,0.003459,0.003340,0.003225,0.003115,0.003007,0.002904,0.002804,0.002707,0.002614,0.002524,0.002437,0.002352,0.002271,0.002192,0.002117,0.002043,0.001972,0.001904,0.001838,0.001774,0.001712,0.001653,0.001595,0.001540,0.001486,0.001434,0.001384,0.001336,0.001289,0.001244,0.001201,0.001159,0.001118,0.001079,0.001041,0.001005,0.000969,0.000935,0.000903,0.000871,0.000840,0.000811,0.000782,0.000755,0.000728,0.000702,0.000678,0.000654,0.000631,0.000608,0.000587,0.000566,0.000546,0.000527,0.000508,0.000490,0.000473,0.000456,0.000440,0.000424,0.000409,0.000395,0.000381,0.000367,0.000354,0.000342,0.000329,0.000318,0.000306,0.000295,0.000285,0.000275,0.000265,0.000255,0.000246,0.000238,0.000229,0.000221,0.000213,0.000205,0.000198,0.000191,0.000184,0.000178,0.000171,0.000165,0.000159,0.000153,0.000148,0.000143,0.000138,0.000133,0.000128,0.000123,0.000119,0.000115,0.000110,0.000106,0.000103,0.000099,0.000095,0.000092,0.000089,0.000085,0.000082,0.000079,0.000076,0.000074],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"α=5, β=1","x":[0.010000,0.050100,0.090201,0.130301,0.170401,0.210502,0.250602,0.290702,0.330803,0.370903,0.411003,0.451104,0.491204,0.531304,0.571405,0.611505,0.651605,0.691706,0.731806,0.771906,0.812007,0.852107,0.892207,0.932308,0.972408,1.012508,1.052609,1.092709,1.132809,1.172910,1.213010,1.253110,1.293211,1.333311,1.373411,1.413512,1.453612,1.493712,1.533813,1.573913,1.614013,1.654114,1.694214,1.734314,1.774415,1.814515,1.854615,1.894716,1.934816,1.974916,2.015017,2.055117,2.095217,2.135318,2.175418,2.215518,2.255619,2.295719,2.335819,2.375920,2.416020,2.456120,2.496221,2.536321,2.576421,2.616522,2.656622,2.696722,2.736823,2.776923,2.817023,2.857124,2.897224,2.937324,2.977425,3.017525,3.057625,3.097726,3.137826,3.177926,3.218027,3.258127,3.298227,3.338328,3.378428,3.418528,3.458629,3.498729,3.538829,3.578930,3.619030,3.659130,3.699231,3.739331,3.779431,3.819532,3.859632,3.899732,3.939833,3.979933,4.020033,4.060134,4.100234,4.140334,4.180435,4.220535,4.260635,4.300736,4.340836,4.380936,4.421037,4.461137,4.501237,4.541338,4.581438,4.621538,4.661639,4.701739,4.741839,4.781940,4.822040,4.862140,4.902241,4.942341,4.982441,5.022542,5.062642,5.102742,5.142843,5.182943,5.223043,5.263144,5.303244,5.343344,5.383445,5.423545,5.463645,5.503746,5.543846,5.583946,5.624047,5.664147,5.704247,5.744348,5.784448,5.824548,5.864649,5.904749,5.944849,5.984950,6.025050,6.065151,6.105251,6.145351,6.185452,6.225552,6.265652,6.305753,6.345853,6.385953,6.426054,6.466154,6.506254,6.546355,6.586455,6.626555,6.666656,6.706756,6.746856,6.786957,6.827057,6.867157,6.907258,6.947358,6.987458,7.027559,7.067659,7.107759,7.147860,7.187960,7.228060,7.268161,7.308261,7.348361,7.388462,7.428562,7.468662,7.508763,7.548863,7.588963,7.629064,7.669164,7.709264,7.749365,7.789465,7.829565,7.869666,7.909766,7.949866,7.989967,8.030067,8.070167,8.110268,8.150368,8.190468,8.230569,8.270669,8.310769,8.350870,8.390970,8.431070,8.471171,8.511271,8.551371,8.591472,8.631572,8.671672,8.711773,8.751873,8.791973,8.832074,8.872174,8.912274,8.952375,8.992475,9.032575,9.072676,9.112776,9.152876,9.192977,9.233077,9.273177,9.313278,9.353378,9.393478,9.433579,9.473679,9.513779,9.553880,9.593980,9.634080,9.674181,9.714281,9.754381,9.794482,9.834582,9.874682,9.914783,9.954883,9.994983,10.035084,10.075184,10.115284,10.155385,10.195485,10.235585,10.275686,10.315786,10.355886,10.395987,10.436087,10.476187,10.516288,10.556388,10.596488,10.636589,10.676689,10.716789,10.756890,10.796990,10.837090,10.877191,10.917291,10.957391,10.997492,11.037592,11.077692,11.117793,11.157893,11.197993,11.238094,11.278194,11.318294,11.358395,11.398495,11.438595,11.478696,11.518796,11.558896,11.598997,11.639097,11.679197,11.719298,11.759398,11.799498,11.839599,11.879699,11.919799,11.959900,12.000000],"y":[0.000000,0.000000,0.000003,0.000011,0.000030,0.000066,0.000128,0.000223,0.000358,0.000544,0.000788,0.001099,0.001484,0.001952,0.002508,0.003161,0.003915,0.004776,0.005748,0.006836,0.008042,0.009369,0.010819,0.012392,0.014089,0.015909,0.017853,0.019918,0.022103,0.024404,0.026819,0.029345,0.031977,0.034711,0.037543,0.040467,0.043480,0.046574,0.049745,0.052987,0.056294,0.059659,0.063077,0.066542,0.070047,0.073586,0.077153,0.080742,0.084347,0.087961,0.091578,0.095194,0.098802,0.102396,0.105971,0.109522,0.113044,0.116532,0.119981,0.123386,0.126744,0.130049,0.133299,0.136488,0.139615,0.142674,0.145664,0.148581,0.151422,0.154185,0.156867,0.159467,0.161983,0.164412,0.166753,0.169004,0.171165,0.173235,0.175212,0.177096,0.178886,0.180582,0.182184,0.183691,0.185104,0.186422,0.187647,0.188778,0.189816,0.190762,0.191616,0.192380,0.193054,0.193639,0.194137,0.194548,0.194875,0.195117,0.195278,0.195357,0.195357,0.195279,0.195126,0.194897,0.194596,0.194224,0.193783,0.193274,0.192700,0.192061,0.191361,0.190600,0.189781,0.188906,0.187976,0.186993,0.185960,0.184877,0.183747,0.182572,0.181354,0.180093,0.178793,0.177455,0.176080,0.174671,0.173229,0.171755,0.170253,0.168722,0.167165,0.165583,0.163978,0.162352,0.160705,0.159040,0.157358,0.155660,0.153947,0.152222,0.150485,0.148737,0.146980,0.145216,0.143444,0.141667,0.139885,0.138100,0.136313,0.134524,0.132735,0.130946,0.129159,0.127375,0.125593,0.123816,0.122044,0.120277,0.118517,0.116764,0.115018,0.113281,0.111553,0.109835,0.108127,0.106430,0.104744,0.103070,0.101408,0.099759,0.098123,0.096500,0.094892,0.093297,0.091717,0.090152,0.088602,0.087068,0.085549,0.084047,0.082560,0.081090,0.079636,0.078198,0.076778,0.075374,0.073988,0.072619,0.071266,0.069932,0.068614,0.067314,0.066031,0.064766,0.063518,0.062288,0.061075,0.059879,0.058701,0.057540,0.056396,0.055270,0.054161,0.053069,0.051993,0.050935,0.049894,0.048869,0.047861,0.046869,0.045894,0.044934,0.043991,0.043064,0.042153,0.041258,0.040378,0.039513,0.038664,0.037829,0.037010,0.036205,0.035415,0.034640,0.033878,0.033131,0.032398,0.031678,0.030972,0.030280,0.029601,0.028934,0.028281,0.027640,0.027012,0.026396,0.025793,0.025201,0.024621,0.024053,0.023496,0.022951,0.022417,0.021893,0.021381,0.020879,0.020387,0.019906,0.019435,0.018974,0.018522,0.018080,0.017648,0.017225,0.016810,0.016405,0.016009,0.015621,0.015242,0.014871,0.014508,0.014153,0.013806,0.013467,0.013135,0.012811,0.012494,0.012184,0.011882,0.011586,0.011297,0.011014,0.010738,0.010468,0.010205,0.009948,0.009696,0.009451,0.009211,0.008977,0.008748,0.008525,0.008307,0.008094,0.007886,0.007684,0.007486,0.007292,0.007104,0.006920,0.006740,0.006565,0.006394,0.006227,0.006064,0.005906,0.005751,0.005600,0.005452,0.005309],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"α=2, β=2","x":[0.010000,0.050100,0.090201,0.130301,0.170401,0.210502,0.250602,0.290702,0.330803,0.370903,0.411003,0.451104,0.491204,0.531304,0.571405,0.611505,0.651605,0.691706,0.731806,0.771906,0.812007,0.852107,0.892207,0.932308,0.972408,1.012508,1.052609,1.092709,1.132809,1.172910,1.213010,1.253110,1.293211,1.333311,1.373411,1.413512,1.453612,1.493712,1.533813,1.573913,1.614013,1.654114,1.694214,1.734314,1.774415,1.814515,1.854615,1.894716,1.934816,1.974916,2.015017,2.055117,2.095217,2.135318,2.175418,2.215518,2.255619,2.295719,2.335819,2.375920,2.416020,2.456120,2.496221,2.536321,2.576421,2.616522,2.656622,2.696722,2.736823,2.776923,2.817023,2.857124,2.897224,2.937324,2.977425,3.017525,3.057625,3.097726,3.137826,3.177926,3.218027,3.258127,3.298227,3.338328,3.378428,3.418528,3.458629,3.498729,3.538829,3.578930,3.619030,3.659130,3.699231,3.739331,3.779431,3.819532,3.859632,3.899732,3.939833,3.979933,4.020033,4.060134,4.100234,4.140334,4.180435,4.220535,4.260635,4.300736,4.340836,4.380936,4.421037,4.461137,4.501237,4.541338,4.581438,4.621538,4.661639,4.701739,4.741839,4.781940,4.822040,4.862140,4.902241,4.942341,4.982441,5.022542,5.062642,5.102742,5.142843,5.182943,5.223043,5.263144,5.303244,5.343344,5.383445,5.423545,5.463645,5.503746,5.543846,5.583946,5.624047,5.664147,5.704247,5.744348,5.784448,5.824548,5.864649,5.904749,5.944849,5.984950,6.025050,6.065151,6.105251,6.145351,6.185452,6.225552,6.265652,6.305753,6.345853,6.385953,6.426054,6.466154,6.506254,6.546355,6.586455,6.626555,6.666656,6.706756,6.746856,6.786957,6.827057,6.867157,6.907258,6.947358,6.987458,7.027559,7.067659,7.107759,7.147860,7.187960,7.228060,7.268161,7.308261,7.348361,7.388462,7.428562,7.468662,7.508763,7.548863,7.588963,7.629064,7.669164,7.709264,7.749365,7.789465,7.829565,7.869666,7.909766,7.949866,7.989967,8.030067,8.070167,8.110268,8.150368,8.190468,8.230569,8.270669,8.310769,8.350870,8.390970,8.431070,8.471171,8.511271,8.551371,8.591472,8.631572,8.671672,8.711773,8.751873,8.791973,8.832074,8.872174,8.912274,8.952375,8.992475,9.032575,9.072676,9.112776,9.152876,9.192977,9.233077,9.273177,9.313278,9.353378,9.393478,9.433579,9.473679,9.513779,9.553880,9.593980,9.634080,9.674181,9.714281,9.754381,9.794482,9.834582,9.874682,9.914783,9.954883,9.994983,10.035084,10.075184,10.115284,10.155385,10.195485,10.235585,10.275686,10.315786,10.355886,10.395987,10.436087,10.476187,10.516288,10.556388,10.596488,10.636589,10.676689,10.716789,10.756890,10.796990,10.837090,10.877191,10.917291,10.957391,10.997492,11.037592,11.077692,11.117793,11.157893,11.197993,11.238094,11.278194,11.318294,11.358395,11.398495,11.438595,11.478696,11.518796,11.558896,11.598997,11.639097,11.679197,11.719298,11.759398,11.799498,11.839599,11.879699,11.919799,11.959900,12.000000],"y":[0.039208,0.181294,0.301247,0.401633,0.484757,0.552683,0.607260,0.650141,0.682806,0.706575,0.722624,0.732003,0.735644,0.734376,0.728934,0.719969,0.708056,0.693703,0.677357,0.659410,0.640206,0.620045,0.599190,0.577866,0.556270,0.534571,0.512912,0.491416,0.470188,0.449312,0.428862,0.408895,0.389458,0.370589,0.352315,0.334656,0.317627,0.301235,0.285483,0.270369,0.255890,0.242036,0.228798,0.216163,0.204116,0.192643,0.181725,0.171346,0.161488,0.152131,0.143257,0.134848,0.126884,0.119346,0.112217,0.105478,0.099111,0.093098,0.087424,0.082072,0.077025,0.072269,0.067788,0.063569,0.059597,0.055860,0.052345,0.049040,0.045934,0.043015,0.040273,0.037698,0.035281,0.033013,0.030885,0.028888,0.027016,0.025261,0.023616,0.022075,0.020630,0.019278,0.018011,0.016825,0.015715,0.014676,0.013704,0.012794,0.011943,0.011148,0.010404,0.009709,0.009059,0.008451,0.007883,0.007353,0.006858,0.006395,0.005963,0.005559,0.005182,0.004831,0.004502,0.004196,0.003910,0.003643,0.003395,0.003163,0.002946,0.002744,0.002556,0.002380,0.002216,0.002064,0.001922,0.001789,0.001666,0.001550,0.001443,0.001343,0.001250,0.001163,0.001082,0.001007,0.000937,0.000872,0.000811,0.000755,0.000702,0.000653,0.000607,0.000565,0.000525,0.000488,0.000454,0.000422,0.000393,0.000365,0.000339,0.000315,0.000293,0.000273,0.000253,0.000235,0.000219,0.000203,0.000189,0.000176,0.000163,0.000152,0.000141,0.000131,0.000122,0.000113,0.000105,0.000097,0.000091,0.000084,0.000078,0.000073,0.000067,0.000063,0.000058,0.000054,0.000050,0.000047,0.000043,0.000040,0.000037,0.000035,0.000032,0.000030,0.000028,0.000026,0.000024,0.000022,0.000021,0.000019,0.000018,0.000016,0.000015,0.000014,0.000013,0.000012,0.000011,0.000010,0.000010,0.000009,0.000008,0.000008,0.000007,0.000007,0.000006,0.000006,0.000005,0.000005,0.000005,0.000004,0.000004,0.000004,0.000003,0.000003,0.000003,0.000003,0.000003,0.000002,0.000002,0.000002,0.000002,0.000002,0.000002,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000001,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000],"line":{"width":2.5}}],{"title":{"text":"Gamma Distribution — PDF","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"x","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"f(x)","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white"},{responsive:true})});
+</script>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Gamma</span><span class="p">;</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Gamma</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">2.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w">  </span><span class="c1">// Gamma(α=2, β=1)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">g</span><span class="p">.</span><span class="n">pdf</span><span class="p">(</span><span class="mf">1.0</span><span class="p">);</span><span class="w">   </span><span class="c1">// 1·e⁻¹ ≈ 0.3679</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">g</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">2.0</span><span class="p">);</span><span class="w">   </span><span class="c1">// uses regularized incomplete gamma P(2, 2)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">g</span><span class="p">.</span><span class="n">mean</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">2.0</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">);</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">g</span><span class="p">.</span><span class="n">variance</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">2.0</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="beta">Beta<a class="headerlink" href="#beta" title="Permanent link">&para;</a></h3>
+<p><code>Beta&lt;T&gt; { alpha: T, beta: T }</code> — shape parameters α, β. Support: [0, 1].</p>
+<div id="plot-beta-pdf" style="width:100%;height:400px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-beta-pdf',[{"type":"scatter","mode":"lines","name":"α=0.5, β=0.5","x":[0.005000,0.008311,0.011622,0.014933,0.018244,0.021555,0.024866,0.028177,0.031488,0.034799,0.038110,0.041421,0.044732,0.048043,0.051355,0.054666,0.057977,0.061288,0.064599,0.067910,0.071221,0.074532,0.077843,0.081154,0.084465,0.087776,0.091087,0.094398,0.097709,0.101020,0.104331,0.107642,0.110953,0.114264,0.117575,0.120886,0.124197,0.127508,0.130819,0.134130,0.137441,0.140753,0.144064,0.147375,0.150686,0.153997,0.157308,0.160619,0.163930,0.167241,0.170552,0.173863,0.177174,0.180485,0.183796,0.187107,0.190418,0.193729,0.197040,0.200351,0.203662,0.206973,0.210284,0.213595,0.216906,0.220217,0.223528,0.226839,0.230151,0.233462,0.236773,0.240084,0.243395,0.246706,0.250017,0.253328,0.256639,0.259950,0.263261,0.266572,0.269883,0.273194,0.276505,0.279816,0.283127,0.286438,0.289749,0.293060,0.296371,0.299682,0.302993,0.306304,0.309615,0.312926,0.316237,0.319548,0.322860,0.326171,0.329482,0.332793,0.336104,0.339415,0.342726,0.346037,0.349348,0.352659,0.355970,0.359281,0.362592,0.365903,0.369214,0.372525,0.375836,0.379147,0.382458,0.385769,0.389080,0.392391,0.395702,0.399013,0.402324,0.405635,0.408946,0.412258,0.415569,0.418880,0.422191,0.425502,0.428813,0.432124,0.435435,0.438746,0.442057,0.445368,0.448679,0.451990,0.455301,0.458612,0.461923,0.465234,0.468545,0.471856,0.475167,0.478478,0.481789,0.485100,0.488411,0.491722,0.495033,0.498344,0.501656,0.504967,0.508278,0.511589,0.514900,0.518211,0.521522,0.524833,0.528144,0.531455,0.534766,0.538077,0.541388,0.544699,0.548010,0.551321,0.554632,0.557943,0.561254,0.564565,0.567876,0.571187,0.574498,0.577809,0.581120,0.584431,0.587742,0.591054,0.594365,0.597676,0.600987,0.604298,0.607609,0.610920,0.614231,0.617542,0.620853,0.624164,0.627475,0.630786,0.634097,0.637408,0.640719,0.644030,0.647341,0.650652,0.653963,0.657274,0.660585,0.663896,0.667207,0.670518,0.673829,0.677140,0.680452,0.683763,0.687074,0.690385,0.693696,0.697007,0.700318,0.703629,0.706940,0.710251,0.713562,0.716873,0.720184,0.723495,0.726806,0.730117,0.733428,0.736739,0.740050,0.743361,0.746672,0.749983,0.753294,0.756605,0.759916,0.763227,0.766538,0.769849,0.773161,0.776472,0.779783,0.783094,0.786405,0.789716,0.793027,0.796338,0.799649,0.802960,0.806271,0.809582,0.812893,0.816204,0.819515,0.822826,0.826137,0.829448,0.832759,0.836070,0.839381,0.842692,0.846003,0.849314,0.852625,0.855936,0.859247,0.862559,0.865870,0.869181,0.872492,0.875803,0.879114,0.882425,0.885736,0.889047,0.892358,0.895669,0.898980,0.902291,0.905602,0.908913,0.912224,0.915535,0.918846,0.922157,0.925468,0.928779,0.932090,0.935401,0.938712,0.942023,0.945334,0.948645,0.951957,0.955268,0.958579,0.961890,0.965201,0.968512,0.971823,0.975134,0.978445,0.981756,0.985067,0.988378,0.991689,0.995000],"y":[4.512878,3.506185,2.969934,2.624473,2.378409,2.191826,2.044152,1.923567,1.822733,1.736824,1.662516,1.597437,1.539843,1.488416,1.442145,1.400234,1.362050,1.327081,1.294909,1.265188,1.237629,1.211989,1.188060,1.165666,1.144655,1.124894,1.106269,1.088680,1.072036,1.056261,1.041285,1.027045,1.013486,1.000559,0.988219,0.976425,0.965141,0.954333,0.943972,0.934029,0.924479,0.915299,0.906468,0.897966,0.889775,0.881878,0.874260,0.866907,0.859805,0.852942,0.846306,0.839887,0.833674,0.827658,0.821831,0.816185,0.810710,0.805401,0.800250,0.795252,0.790399,0.785686,0.781108,0.776660,0.772338,0.768135,0.764049,0.760074,0.756208,0.752446,0.748786,0.745223,0.741754,0.738377,0.735089,0.731886,0.728768,0.725729,0.722770,0.719887,0.717078,0.714341,0.711674,0.709075,0.706543,0.704075,0.701670,0.699327,0.697044,0.694820,0.692652,0.690540,0.688483,0.686479,0.684527,0.682627,0.680776,0.678973,0.677219,0.675512,0.673850,0.672234,0.670662,0.669133,0.667647,0.666202,0.664799,0.663436,0.662113,0.660829,0.659584,0.658376,0.657206,0.656073,0.654975,0.653914,0.652888,0.651896,0.650939,0.650016,0.649126,0.648270,0.647446,0.646654,0.645895,0.645167,0.644471,0.643806,0.643172,0.642568,0.641995,0.641452,0.640938,0.640454,0.640000,0.639575,0.639179,0.638812,0.638474,0.638164,0.637883,0.637631,0.637406,0.637210,0.637042,0.636903,0.636791,0.636707,0.636651,0.636623,0.636623,0.636651,0.636707,0.636791,0.636903,0.637042,0.637210,0.637406,0.637631,0.637883,0.638164,0.638474,0.638812,0.639179,0.639575,0.640000,0.640454,0.640938,0.641452,0.641995,0.642568,0.643172,0.643806,0.644471,0.645167,0.645895,0.646654,0.647446,0.648270,0.649126,0.650016,0.650939,0.651896,0.652888,0.653914,0.654975,0.656073,0.657206,0.658376,0.659584,0.660829,0.662113,0.663436,0.664799,0.666202,0.667647,0.669133,0.670662,0.672234,0.673850,0.675512,0.677219,0.678973,0.680776,0.682627,0.684527,0.686479,0.688483,0.690540,0.692652,0.694820,0.697044,0.699327,0.701670,0.704075,0.706543,0.709075,0.711674,0.714341,0.717078,0.719887,0.722770,0.725729,0.728768,0.731886,0.735089,0.738377,0.741754,0.745223,0.748786,0.752446,0.756208,0.760074,0.764049,0.768135,0.772338,0.776660,0.781108,0.785686,0.790399,0.795252,0.800250,0.805401,0.810710,0.816185,0.821831,0.827658,0.833674,0.839887,0.846306,0.852942,0.859805,0.866907,0.874260,0.881878,0.889775,0.897966,0.906468,0.915299,0.924479,0.934029,0.943972,0.954333,0.965141,0.976425,0.988219,1.000559,1.013486,1.027045,1.041285,1.056261,1.072036,1.088680,1.106269,1.124894,1.144655,1.165666,1.188060,1.211989,1.237629,1.265188,1.294909,1.327081,1.362050,1.400234,1.442145,1.488416,1.539843,1.597437,1.662516,1.736824,1.822733,1.923567,2.044152,2.191826,2.378409,2.624473,2.969934,3.506185,4.512878],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"α=2, β=2","x":[0.005000,0.008311,0.011622,0.014933,0.018244,0.021555,0.024866,0.028177,0.031488,0.034799,0.038110,0.041421,0.044732,0.048043,0.051355,0.054666,0.057977,0.061288,0.064599,0.067910,0.071221,0.074532,0.077843,0.081154,0.084465,0.087776,0.091087,0.094398,0.097709,0.101020,0.104331,0.107642,0.110953,0.114264,0.117575,0.120886,0.124197,0.127508,0.130819,0.134130,0.137441,0.140753,0.144064,0.147375,0.150686,0.153997,0.157308,0.160619,0.163930,0.167241,0.170552,0.173863,0.177174,0.180485,0.183796,0.187107,0.190418,0.193729,0.197040,0.200351,0.203662,0.206973,0.210284,0.213595,0.216906,0.220217,0.223528,0.226839,0.230151,0.233462,0.236773,0.240084,0.243395,0.246706,0.250017,0.253328,0.256639,0.259950,0.263261,0.266572,0.269883,0.273194,0.276505,0.279816,0.283127,0.286438,0.289749,0.293060,0.296371,0.299682,0.302993,0.306304,0.309615,0.312926,0.316237,0.319548,0.322860,0.326171,0.329482,0.332793,0.336104,0.339415,0.342726,0.346037,0.349348,0.352659,0.355970,0.359281,0.362592,0.365903,0.369214,0.372525,0.375836,0.379147,0.382458,0.385769,0.389080,0.392391,0.395702,0.399013,0.402324,0.405635,0.408946,0.412258,0.415569,0.418880,0.422191,0.425502,0.428813,0.432124,0.435435,0.438746,0.442057,0.445368,0.448679,0.451990,0.455301,0.458612,0.461923,0.465234,0.468545,0.471856,0.475167,0.478478,0.481789,0.485100,0.488411,0.491722,0.495033,0.498344,0.501656,0.504967,0.508278,0.511589,0.514900,0.518211,0.521522,0.524833,0.528144,0.531455,0.534766,0.538077,0.541388,0.544699,0.548010,0.551321,0.554632,0.557943,0.561254,0.564565,0.567876,0.571187,0.574498,0.577809,0.581120,0.584431,0.587742,0.591054,0.594365,0.597676,0.600987,0.604298,0.607609,0.610920,0.614231,0.617542,0.620853,0.624164,0.627475,0.630786,0.634097,0.637408,0.640719,0.644030,0.647341,0.650652,0.653963,0.657274,0.660585,0.663896,0.667207,0.670518,0.673829,0.677140,0.680452,0.683763,0.687074,0.690385,0.693696,0.697007,0.700318,0.703629,0.706940,0.710251,0.713562,0.716873,0.720184,0.723495,0.726806,0.730117,0.733428,0.736739,0.740050,0.743361,0.746672,0.749983,0.753294,0.756605,0.759916,0.763227,0.766538,0.769849,0.773161,0.776472,0.779783,0.783094,0.786405,0.789716,0.793027,0.796338,0.799649,0.802960,0.806271,0.809582,0.812893,0.816204,0.819515,0.822826,0.826137,0.829448,0.832759,0.836070,0.839381,0.842692,0.846003,0.849314,0.852625,0.855936,0.859247,0.862559,0.865870,0.869181,0.872492,0.875803,0.879114,0.882425,0.885736,0.889047,0.892358,0.895669,0.898980,0.902291,0.905602,0.908913,0.912224,0.915535,0.918846,0.922157,0.925468,0.928779,0.932090,0.935401,0.938712,0.942023,0.945334,0.948645,0.951957,0.955268,0.958579,0.961890,0.965201,0.968512,0.971823,0.975134,0.978445,0.981756,0.985067,0.988378,0.991689,0.995000],"y":[0.029850,0.049452,0.068922,0.088261,0.107468,0.126543,0.145487,0.164300,0.182981,0.201530,0.219948,0.238234,0.256389,0.274412,0.292303,0.310063,0.327692,0.345189,0.362554,0.379788,0.396890,0.413861,0.430700,0.447407,0.463983,0.480428,0.496741,0.512922,0.528972,0.544890,0.560677,0.576332,0.591855,0.607247,0.622508,0.637637,0.652634,0.667500,0.682234,0.696837,0.711308,0.725647,0.739855,0.753932,0.767877,0.781690,0.795372,0.808922,0.822341,0.835628,0.848783,0.861807,0.874700,0.887461,0.900090,0.912588,0.924954,0.937189,0.949292,0.961263,0.973103,0.984812,0.996389,1.007834,1.019148,1.030330,1.041381,1.052300,1.063087,1.073743,1.084268,1.094661,1.104922,1.115052,1.125050,1.134917,1.144652,1.154256,1.163728,1.173068,1.182277,1.191354,1.200300,1.209114,1.217797,1.226348,1.234768,1.243056,1.251212,1.259237,1.267130,1.274892,1.282522,1.290021,1.297388,1.304624,1.311728,1.318700,1.325541,1.332250,1.338828,1.345274,1.351589,1.357772,1.363824,1.369744,1.375532,1.381189,1.386714,1.392108,1.397370,1.402501,1.407500,1.412368,1.417104,1.421708,1.426181,1.430522,1.434732,1.438810,1.442757,1.446572,1.450256,1.453808,1.457228,1.460517,1.463674,1.466700,1.469594,1.472357,1.474988,1.477488,1.479856,1.482092,1.484197,1.486170,1.488012,1.489722,1.491301,1.492748,1.494064,1.495248,1.496300,1.497221,1.498010,1.498668,1.499194,1.499589,1.499852,1.499984,1.499984,1.499852,1.499589,1.499194,1.498668,1.498010,1.497221,1.496300,1.495248,1.494064,1.492748,1.491301,1.489722,1.488012,1.486170,1.484197,1.482092,1.479856,1.477488,1.474988,1.472357,1.469594,1.466700,1.463674,1.460517,1.457228,1.453808,1.450256,1.446572,1.442757,1.438810,1.434732,1.430522,1.426181,1.421708,1.417104,1.412368,1.407500,1.402501,1.397370,1.392108,1.386714,1.381189,1.375532,1.369744,1.363824,1.357772,1.351589,1.345274,1.338828,1.332250,1.325541,1.318700,1.311728,1.304624,1.297388,1.290021,1.282522,1.274892,1.267130,1.259237,1.251212,1.243056,1.234768,1.226348,1.217797,1.209114,1.200300,1.191354,1.182277,1.173068,1.163728,1.154256,1.144652,1.134917,1.125050,1.115052,1.104922,1.094661,1.084268,1.073743,1.063087,1.052300,1.041381,1.030330,1.019148,1.007834,0.996389,0.984812,0.973103,0.961263,0.949292,0.937189,0.924954,0.912588,0.900090,0.887461,0.874700,0.861807,0.848783,0.835628,0.822341,0.808922,0.795372,0.781690,0.767877,0.753932,0.739855,0.725647,0.711308,0.696837,0.682234,0.667500,0.652634,0.637637,0.622508,0.607247,0.591855,0.576332,0.560677,0.544890,0.528972,0.512922,0.496741,0.480428,0.463983,0.447407,0.430700,0.413861,0.396890,0.379788,0.362554,0.345189,0.327692,0.310063,0.292303,0.274412,0.256389,0.238234,0.219948,0.201530,0.182981,0.164300,0.145487,0.126543,0.107468,0.088261,0.068922,0.049452,0.029850],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"α=2, β=5","x":[0.005000,0.008311,0.011622,0.014933,0.018244,0.021555,0.024866,0.028177,0.031488,0.034799,0.038110,0.041421,0.044732,0.048043,0.051355,0.054666,0.057977,0.061288,0.064599,0.067910,0.071221,0.074532,0.077843,0.081154,0.084465,0.087776,0.091087,0.094398,0.097709,0.101020,0.104331,0.107642,0.110953,0.114264,0.117575,0.120886,0.124197,0.127508,0.130819,0.134130,0.137441,0.140753,0.144064,0.147375,0.150686,0.153997,0.157308,0.160619,0.163930,0.167241,0.170552,0.173863,0.177174,0.180485,0.183796,0.187107,0.190418,0.193729,0.197040,0.200351,0.203662,0.206973,0.210284,0.213595,0.216906,0.220217,0.223528,0.226839,0.230151,0.233462,0.236773,0.240084,0.243395,0.246706,0.250017,0.253328,0.256639,0.259950,0.263261,0.266572,0.269883,0.273194,0.276505,0.279816,0.283127,0.286438,0.289749,0.293060,0.296371,0.299682,0.302993,0.306304,0.309615,0.312926,0.316237,0.319548,0.322860,0.326171,0.329482,0.332793,0.336104,0.339415,0.342726,0.346037,0.349348,0.352659,0.355970,0.359281,0.362592,0.365903,0.369214,0.372525,0.375836,0.379147,0.382458,0.385769,0.389080,0.392391,0.395702,0.399013,0.402324,0.405635,0.408946,0.412258,0.415569,0.418880,0.422191,0.425502,0.428813,0.432124,0.435435,0.438746,0.442057,0.445368,0.448679,0.451990,0.455301,0.458612,0.461923,0.465234,0.468545,0.471856,0.475167,0.478478,0.481789,0.485100,0.488411,0.491722,0.495033,0.498344,0.501656,0.504967,0.508278,0.511589,0.514900,0.518211,0.521522,0.524833,0.528144,0.531455,0.534766,0.538077,0.541388,0.544699,0.548010,0.551321,0.554632,0.557943,0.561254,0.564565,0.567876,0.571187,0.574498,0.577809,0.581120,0.584431,0.587742,0.591054,0.594365,0.597676,0.600987,0.604298,0.607609,0.610920,0.614231,0.617542,0.620853,0.624164,0.627475,0.630786,0.634097,0.637408,0.640719,0.644030,0.647341,0.650652,0.653963,0.657274,0.660585,0.663896,0.667207,0.670518,0.673829,0.677140,0.680452,0.683763,0.687074,0.690385,0.693696,0.697007,0.700318,0.703629,0.706940,0.710251,0.713562,0.716873,0.720184,0.723495,0.726806,0.730117,0.733428,0.736739,0.740050,0.743361,0.746672,0.749983,0.753294,0.756605,0.759916,0.763227,0.766538,0.769849,0.773161,0.776472,0.779783,0.783094,0.786405,0.789716,0.793027,0.796338,0.799649,0.802960,0.806271,0.809582,0.812893,0.816204,0.819515,0.822826,0.826137,0.829448,0.832759,0.836070,0.839381,0.842692,0.846003,0.849314,0.852625,0.855936,0.859247,0.862559,0.865870,0.869181,0.872492,0.875803,0.879114,0.882425,0.885736,0.889047,0.892358,0.895669,0.898980,0.902291,0.905602,0.908913,0.912224,0.915535,0.918846,0.922157,0.925468,0.928779,0.932090,0.935401,0.938712,0.942023,0.945334,0.948645,0.951957,0.955268,0.958579,0.961890,0.965201,0.968512,0.971823,0.975134,0.978445,0.981756,0.985067,0.988378,0.991689,0.995000],"y":[0.147022,0.241145,0.332734,0.421827,0.508462,0.592677,0.674509,0.753995,0.831170,0.906072,0.978736,1.049197,1.117491,1.183652,1.247716,1.309715,1.369685,1.427658,1.483668,1.537747,1.589929,1.640245,1.688728,1.735408,1.780318,1.823487,1.864948,1.904730,1.942864,1.979379,2.014304,2.047669,2.079503,2.109834,2.138690,2.166100,2.192091,2.216690,2.239925,2.261822,2.282408,2.301709,2.319751,2.336560,2.352161,2.366578,2.379838,2.391963,2.402980,2.412911,2.421780,2.429611,2.436426,2.442249,2.447103,2.451009,2.453989,2.456066,2.457261,2.457595,2.457090,2.455765,2.453642,2.450741,2.447081,2.442683,2.437565,2.431748,2.425250,2.418090,2.410286,2.401856,2.392819,2.383193,2.372994,2.362240,2.350949,2.339136,2.326819,2.314013,2.300735,2.287001,2.272827,2.258227,2.243217,2.227812,2.212027,2.195876,2.179373,2.162533,2.145369,2.127896,2.110125,2.092071,2.073747,2.055165,2.036338,2.017279,1.997999,1.978510,1.958825,1.938954,1.918909,1.898702,1.878343,1.857842,1.837212,1.816461,1.795600,1.774639,1.753588,1.732456,1.711253,1.689989,1.668671,1.647309,1.625912,1.604488,1.583046,1.561593,1.540138,1.518689,1.497252,1.475836,1.454448,1.433095,1.411784,1.390521,1.369314,1.348169,1.327091,1.306088,1.285166,1.264329,1.243584,1.222937,1.202392,1.181955,1.161631,1.141426,1.121342,1.101386,1.081562,1.061874,1.042327,1.022924,1.003669,0.984567,0.965620,0.946833,0.928208,0.909750,0.891461,0.873344,0.855402,0.837638,0.820054,0.802654,0.785438,0.768411,0.751573,0.734927,0.718475,0.702218,0.686159,0.670299,0.654639,0.639181,0.623926,0.608875,0.594029,0.579389,0.564957,0.550732,0.536716,0.522908,0.509311,0.495923,0.482745,0.469778,0.457021,0.444474,0.432138,0.420013,0.408097,0.396391,0.384894,0.373606,0.362526,0.351654,0.340989,0.330530,0.320277,0.310228,0.300382,0.290738,0.281296,0.272054,0.263010,0.254164,0.245514,0.237059,0.228797,0.220726,0.212846,0.205154,0.197648,0.190328,0.183190,0.176234,0.169457,0.162858,0.156434,0.150183,0.144104,0.138194,0.132451,0.126873,0.121457,0.116203,0.111106,0.106165,0.101377,0.096741,0.092253,0.087912,0.083715,0.079659,0.075742,0.071962,0.068315,0.064800,0.061414,0.058154,0.055018,0.052002,0.049106,0.046325,0.043658,0.041102,0.038653,0.036311,0.034071,0.031931,0.029889,0.027942,0.026088,0.024324,0.022646,0.021054,0.019544,0.018113,0.016760,0.015481,0.014274,0.013136,0.012066,0.011061,0.010117,0.009234,0.008408,0.007637,0.006919,0.006251,0.005632,0.005059,0.004530,0.004042,0.003594,0.003184,0.002809,0.002467,0.002157,0.001877,0.001625,0.001398,0.001196,0.001016,0.000857,0.000717,0.000595,0.000489,0.000397,0.000319,0.000253,0.000198,0.000152,0.000115,0.000085,0.000061,0.000042,0.000029,0.000018,0.000011,0.000006,0.000003,0.000001,0.000001,0.000000,0.000000],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"α=5, β=2","x":[0.005000,0.008311,0.011622,0.014933,0.018244,0.021555,0.024866,0.028177,0.031488,0.034799,0.038110,0.041421,0.044732,0.048043,0.051355,0.054666,0.057977,0.061288,0.064599,0.067910,0.071221,0.074532,0.077843,0.081154,0.084465,0.087776,0.091087,0.094398,0.097709,0.101020,0.104331,0.107642,0.110953,0.114264,0.117575,0.120886,0.124197,0.127508,0.130819,0.134130,0.137441,0.140753,0.144064,0.147375,0.150686,0.153997,0.157308,0.160619,0.163930,0.167241,0.170552,0.173863,0.177174,0.180485,0.183796,0.187107,0.190418,0.193729,0.197040,0.200351,0.203662,0.206973,0.210284,0.213595,0.216906,0.220217,0.223528,0.226839,0.230151,0.233462,0.236773,0.240084,0.243395,0.246706,0.250017,0.253328,0.256639,0.259950,0.263261,0.266572,0.269883,0.273194,0.276505,0.279816,0.283127,0.286438,0.289749,0.293060,0.296371,0.299682,0.302993,0.306304,0.309615,0.312926,0.316237,0.319548,0.322860,0.326171,0.329482,0.332793,0.336104,0.339415,0.342726,0.346037,0.349348,0.352659,0.355970,0.359281,0.362592,0.365903,0.369214,0.372525,0.375836,0.379147,0.382458,0.385769,0.389080,0.392391,0.395702,0.399013,0.402324,0.405635,0.408946,0.412258,0.415569,0.418880,0.422191,0.425502,0.428813,0.432124,0.435435,0.438746,0.442057,0.445368,0.448679,0.451990,0.455301,0.458612,0.461923,0.465234,0.468545,0.471856,0.475167,0.478478,0.481789,0.485100,0.488411,0.491722,0.495033,0.498344,0.501656,0.504967,0.508278,0.511589,0.514900,0.518211,0.521522,0.524833,0.528144,0.531455,0.534766,0.538077,0.541388,0.544699,0.548010,0.551321,0.554632,0.557943,0.561254,0.564565,0.567876,0.571187,0.574498,0.577809,0.581120,0.584431,0.587742,0.591054,0.594365,0.597676,0.600987,0.604298,0.607609,0.610920,0.614231,0.617542,0.620853,0.624164,0.627475,0.630786,0.634097,0.637408,0.640719,0.644030,0.647341,0.650652,0.653963,0.657274,0.660585,0.663896,0.667207,0.670518,0.673829,0.677140,0.680452,0.683763,0.687074,0.690385,0.693696,0.697007,0.700318,0.703629,0.706940,0.710251,0.713562,0.716873,0.720184,0.723495,0.726806,0.730117,0.733428,0.736739,0.740050,0.743361,0.746672,0.749983,0.753294,0.756605,0.759916,0.763227,0.766538,0.769849,0.773161,0.776472,0.779783,0.783094,0.786405,0.789716,0.793027,0.796338,0.799649,0.802960,0.806271,0.809582,0.812893,0.816204,0.819515,0.822826,0.826137,0.829448,0.832759,0.836070,0.839381,0.842692,0.846003,0.849314,0.852625,0.855936,0.859247,0.862559,0.865870,0.869181,0.872492,0.875803,0.879114,0.882425,0.885736,0.889047,0.892358,0.895669,0.898980,0.902291,0.905602,0.908913,0.912224,0.915535,0.918846,0.922157,0.925468,0.928779,0.932090,0.935401,0.938712,0.942023,0.945334,0.948645,0.951957,0.955268,0.958579,0.961890,0.965201,0.968512,0.971823,0.975134,0.978445,0.981756,0.985067,0.988378,0.991689,0.995000],"y":[0.000000,0.000000,0.000001,0.000001,0.000003,0.000006,0.000011,0.000018,0.000029,0.000042,0.000061,0.000085,0.000115,0.000152,0.000198,0.000253,0.000319,0.000397,0.000489,0.000595,0.000717,0.000857,0.001016,0.001196,0.001398,0.001625,0.001877,0.002157,0.002467,0.002809,0.003184,0.003594,0.004042,0.004530,0.005059,0.005632,0.006251,0.006919,0.007637,0.008408,0.009234,0.010117,0.011061,0.012066,0.013136,0.014274,0.015481,0.016760,0.018113,0.019544,0.021054,0.022646,0.024324,0.026088,0.027942,0.029889,0.031931,0.034071,0.036311,0.038653,0.041102,0.043658,0.046325,0.049106,0.052002,0.055018,0.058154,0.061414,0.064800,0.068315,0.071962,0.075742,0.079659,0.083715,0.087912,0.092253,0.096741,0.101377,0.106165,0.111106,0.116203,0.121457,0.126873,0.132451,0.138194,0.144104,0.150183,0.156434,0.162858,0.169457,0.176234,0.183190,0.190328,0.197648,0.205154,0.212846,0.220726,0.228797,0.237059,0.245514,0.254164,0.263010,0.272054,0.281296,0.290738,0.300382,0.310228,0.320277,0.330530,0.340989,0.351654,0.362526,0.373606,0.384894,0.396391,0.408097,0.420013,0.432138,0.444474,0.457021,0.469778,0.482745,0.495923,0.509311,0.522908,0.536716,0.550732,0.564957,0.579389,0.594029,0.608875,0.623926,0.639181,0.654639,0.670299,0.686159,0.702218,0.718475,0.734927,0.751573,0.768411,0.785438,0.802654,0.820054,0.837638,0.855402,0.873344,0.891461,0.909750,0.928208,0.946833,0.965620,0.984567,1.003669,1.022924,1.042327,1.061874,1.081562,1.101386,1.121342,1.141426,1.161631,1.181955,1.202392,1.222937,1.243584,1.264329,1.285166,1.306088,1.327091,1.348169,1.369314,1.390521,1.411784,1.433095,1.454448,1.475836,1.497252,1.518689,1.540138,1.561593,1.583046,1.604488,1.625912,1.647309,1.668671,1.689989,1.711253,1.732456,1.753588,1.774639,1.795600,1.816461,1.837212,1.857842,1.878343,1.898702,1.918909,1.938954,1.958825,1.978510,1.997999,2.017279,2.036338,2.055165,2.073747,2.092071,2.110125,2.127896,2.145369,2.162533,2.179373,2.195876,2.212027,2.227812,2.243217,2.258227,2.272827,2.287001,2.300735,2.314013,2.326819,2.339136,2.350949,2.362240,2.372994,2.383193,2.392819,2.401856,2.410286,2.418090,2.425250,2.431748,2.437565,2.442683,2.447081,2.450741,2.453642,2.455765,2.457090,2.457595,2.457261,2.456066,2.453989,2.451009,2.447103,2.442249,2.436426,2.429611,2.421780,2.412911,2.402980,2.391963,2.379838,2.366578,2.352161,2.336560,2.319751,2.301709,2.282408,2.261822,2.239925,2.216690,2.192091,2.166100,2.138690,2.109834,2.079503,2.047669,2.014304,1.979379,1.942864,1.904730,1.864948,1.823487,1.780318,1.735408,1.688728,1.640245,1.589929,1.537747,1.483668,1.427658,1.369685,1.309715,1.247716,1.183652,1.117491,1.049197,0.978736,0.906072,0.831170,0.753995,0.674509,0.592677,0.508462,0.421827,0.332734,0.241145,0.147022],"line":{"width":2.5}}],{"title":{"text":"Beta Distribution — PDF","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"x","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"f(x)","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot","range":[0,4.5]},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white"},{responsive:true})});
+</script>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Beta</span><span class="p">;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Beta</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">2.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">5.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">pdf</span><span class="p">(</span><span class="mf">0.3</span><span class="p">);</span><span class="w">    </span><span class="c1">// uses regularized incomplete beta</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">0.5</span><span class="p">);</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">b</span><span class="p">.</span><span class="n">mean</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">2.0</span><span class="o">/</span><span class="mf">7.0</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="chi-squared">Chi-Squared<a class="headerlink" href="#chi-squared" title="Permanent link">&para;</a></h3>
+<p><code>ChiSquared&lt;T&gt; { k: T }</code> — k degrees of freedom. Special case of Gamma(k/2, 1/2).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">ChiSquared</span><span class="p">;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">chi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ChiSquared</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">3.0_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w">  </span><span class="c1">// χ²(3)</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p_val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">chi</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">7.815</span><span class="p">);</span><span class="w">    </span><span class="c1">// p-value for χ²=7.815 with 3 df ≈ 0.05</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">chi</span><span class="p">.</span><span class="n">mean</span><span class="p">(),</span><span class="w"> </span><span class="mf">3.0</span><span class="p">);</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">chi</span><span class="p">.</span><span class="n">variance</span><span class="p">(),</span><span class="w"> </span><span class="mf">6.0</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="students-t">Student's t<a class="headerlink" href="#students-t" title="Permanent link">&para;</a></h3>
+<p><code>StudentT&lt;T&gt; { nu: T }</code> — ν degrees of freedom.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">StudentT</span><span class="p">;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">StudentT</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">10.0_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w">  </span><span class="c1">// t(10)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mf">2.228</span><span class="p">);</span><span class="w">   </span><span class="c1">// ≈ 0.975 (95% two-sided CI critical value)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">pdf</span><span class="p">(</span><span class="mf">0.0</span><span class="p">);</span><span class="w">     </span><span class="c1">// peak of distribution</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">t</span><span class="p">.</span><span class="n">mean</span><span class="p">(),</span><span class="w"> </span><span class="mf">0.0</span><span class="p">);</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">t</span><span class="p">.</span><span class="n">variance</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">10.0</span><span class="o">/</span><span class="mf">8.0</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">);</span><span class="w">  </span><span class="c1">// ν/(ν-2)</span>
+</code></pre></div>
+<h3 id="cdf-comparison">CDF Comparison<a class="headerlink" href="#cdf-comparison" title="Permanent link">&para;</a></h3>
+<div id="plot-continuous-cdf" style="width:100%;height:400px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-continuous-cdf',[{"type":"scatter","mode":"lines","name":"Normal(0, 1)","x":[-4.000000,-3.973244,-3.946488,-3.919732,-3.892977,-3.866221,-3.839465,-3.812709,-3.785953,-3.759197,-3.732441,-3.705686,-3.678930,-3.652174,-3.625418,-3.598662,-3.571906,-3.545151,-3.518395,-3.491639,-3.464883,-3.438127,-3.411371,-3.384615,-3.357860,-3.331104,-3.304348,-3.277592,-3.250836,-3.224080,-3.197324,-3.170569,-3.143813,-3.117057,-3.090301,-3.063545,-3.036789,-3.010033,-2.983278,-2.956522,-2.929766,-2.903010,-2.876254,-2.849498,-2.822742,-2.795987,-2.769231,-2.742475,-2.715719,-2.688963,-2.662207,-2.635452,-2.608696,-2.581940,-2.555184,-2.528428,-2.501672,-2.474916,-2.448161,-2.421405,-2.394649,-2.367893,-2.341137,-2.314381,-2.287625,-2.260870,-2.234114,-2.207358,-2.180602,-2.153846,-2.127090,-2.100334,-2.073579,-2.046823,-2.020067,-1.993311,-1.966555,-1.939799,-1.913043,-1.886288,-1.859532,-1.832776,-1.806020,-1.779264,-1.752508,-1.725753,-1.698997,-1.672241,-1.645485,-1.618729,-1.591973,-1.565217,-1.538462,-1.511706,-1.484950,-1.458194,-1.431438,-1.404682,-1.377926,-1.351171,-1.324415,-1.297659,-1.270903,-1.244147,-1.217391,-1.190635,-1.163880,-1.137124,-1.110368,-1.083612,-1.056856,-1.030100,-1.003344,-0.976589,-0.949833,-0.923077,-0.896321,-0.869565,-0.842809,-0.816054,-0.789298,-0.762542,-0.735786,-0.709030,-0.682274,-0.655518,-0.628763,-0.602007,-0.575251,-0.548495,-0.521739,-0.494983,-0.468227,-0.441472,-0.414716,-0.387960,-0.361204,-0.334448,-0.307692,-0.280936,-0.254181,-0.227425,-0.200669,-0.173913,-0.147157,-0.120401,-0.093645,-0.066890,-0.040134,-0.013378,0.013378,0.040134,0.066890,0.093645,0.120401,0.147157,0.173913,0.200669,0.227425,0.254181,0.280936,0.307692,0.334448,0.361204,0.387960,0.414716,0.441472,0.468227,0.494983,0.521739,0.548495,0.575251,0.602007,0.628763,0.655518,0.682274,0.709030,0.735786,0.762542,0.789298,0.816054,0.842809,0.869565,0.896321,0.923077,0.949833,0.976589,1.003344,1.030100,1.056856,1.083612,1.110368,1.137124,1.163880,1.190635,1.217391,1.244147,1.270903,1.297659,1.324415,1.351171,1.377926,1.404682,1.431438,1.458194,1.484950,1.511706,1.538462,1.565217,1.591973,1.618729,1.645485,1.672241,1.698997,1.725753,1.752508,1.779264,1.806020,1.832776,1.859532,1.886288,1.913043,1.939799,1.966555,1.993311,2.020067,2.046823,2.073579,2.100334,2.127090,2.153846,2.180602,2.207358,2.234114,2.260870,2.287625,2.314381,2.341137,2.367893,2.394649,2.421405,2.448161,2.474916,2.501672,2.528428,2.555184,2.581940,2.608696,2.635452,2.662207,2.688963,2.715719,2.742475,2.769231,2.795987,2.822742,2.849498,2.876254,2.903010,2.929766,2.956522,2.983278,3.010033,3.036789,3.063545,3.090301,3.117057,3.143813,3.170569,3.197324,3.224080,3.250836,3.277592,3.304348,3.331104,3.357860,3.384615,3.411371,3.438127,3.464883,3.491639,3.518395,3.545151,3.571906,3.598662,3.625418,3.652174,3.678930,3.705686,3.732441,3.759197,3.785953,3.812709,3.839465,3.866221,3.892977,3.919732,3.946488,3.973244,4.000000],"y":[0.000032,0.000035,0.000040,0.000044,0.000050,0.000055,0.000062,0.000069,0.000077,0.000085,0.000095,0.000105,0.000117,0.000130,0.000144,0.000160,0.000177,0.000196,0.000217,0.000240,0.000265,0.000293,0.000323,0.000356,0.000393,0.000433,0.000476,0.000523,0.000575,0.000632,0.000694,0.000761,0.000834,0.000913,0.001000,0.001094,0.001196,0.001306,0.001426,0.001556,0.001696,0.001848,0.002012,0.002189,0.002381,0.002587,0.002809,0.003049,0.003307,0.003584,0.003882,0.004201,0.004544,0.004912,0.005307,0.005729,0.006180,0.006663,0.007179,0.007730,0.008318,0.008945,0.009613,0.010323,0.011080,0.011884,0.012738,0.013645,0.014606,0.015626,0.016706,0.017850,0.019059,0.020338,0.021688,0.023114,0.024617,0.026202,0.027871,0.029628,0.031476,0.033418,0.035458,0.037598,0.039843,0.042196,0.044660,0.047238,0.049935,0.052753,0.055695,0.058766,0.061968,0.065304,0.068779,0.072394,0.076152,0.080058,0.084113,0.088320,0.092683,0.097202,0.101882,0.106723,0.111728,0.116898,0.122236,0.127743,0.133420,0.139268,0.145289,0.151481,0.157847,0.164386,0.171099,0.177984,0.185041,0.192269,0.199668,0.207235,0.214969,0.222868,0.230930,0.239153,0.247533,0.256067,0.264752,0.273585,0.282561,0.291676,0.300926,0.310306,0.319811,0.329436,0.339175,0.349023,0.358973,0.369021,0.379158,0.389380,0.399678,0.410047,0.420479,0.430967,0.441504,0.452083,0.462695,0.473335,0.483993,0.494663,0.505337,0.516007,0.526665,0.537305,0.547917,0.558496,0.569033,0.579521,0.589953,0.600322,0.610620,0.620842,0.630979,0.641027,0.650977,0.660825,0.670564,0.680189,0.689694,0.699074,0.708324,0.717439,0.726415,0.735248,0.743933,0.752467,0.760847,0.769070,0.777132,0.785031,0.792765,0.800332,0.807731,0.814959,0.822016,0.828901,0.835614,0.842153,0.848519,0.854711,0.860732,0.866580,0.872257,0.877764,0.883102,0.888272,0.893277,0.898118,0.902798,0.907317,0.911680,0.915887,0.919942,0.923848,0.927606,0.931221,0.934696,0.938032,0.941234,0.944305,0.947247,0.950065,0.952762,0.955340,0.957804,0.960157,0.962402,0.964542,0.966582,0.968524,0.970372,0.972129,0.973798,0.975383,0.976886,0.978312,0.979662,0.980941,0.982150,0.983294,0.984374,0.985394,0.986355,0.987262,0.988116,0.988920,0.989677,0.990387,0.991055,0.991682,0.992270,0.992821,0.993337,0.993820,0.994271,0.994693,0.995088,0.995456,0.995799,0.996118,0.996416,0.996693,0.996951,0.997191,0.997413,0.997619,0.997811,0.997988,0.998152,0.998304,0.998444,0.998574,0.998694,0.998804,0.998906,0.999000,0.999087,0.999166,0.999239,0.999306,0.999368,0.999425,0.999477,0.999524,0.999567,0.999607,0.999644,0.999677,0.999707,0.999735,0.999760,0.999783,0.999804,0.999823,0.999840,0.999856,0.999870,0.999883,0.999895,0.999905,0.999915,0.999923,0.999931,0.999938,0.999945,0.999950,0.999956,0.999960,0.999965,0.999968],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"Gamma(3, 1)","x":[0.010000,0.043445,0.076890,0.110334,0.143779,0.177224,0.210669,0.244114,0.277559,0.311003,0.344448,0.377893,0.411338,0.444783,0.478227,0.511672,0.545117,0.578562,0.612007,0.645452,0.678896,0.712341,0.745786,0.779231,0.812676,0.846120,0.879565,0.913010,0.946455,0.979900,1.013344,1.046789,1.080234,1.113679,1.147124,1.180569,1.214013,1.247458,1.280903,1.314348,1.347793,1.381237,1.414682,1.448127,1.481572,1.515017,1.548462,1.581906,1.615351,1.648796,1.682241,1.715686,1.749130,1.782575,1.816020,1.849465,1.882910,1.916355,1.949799,1.983244,2.016689,2.050134,2.083579,2.117023,2.150468,2.183913,2.217358,2.250803,2.284247,2.317692,2.351137,2.384582,2.418027,2.451472,2.484916,2.518361,2.551806,2.585251,2.618696,2.652140,2.685585,2.719030,2.752475,2.785920,2.819365,2.852809,2.886254,2.919699,2.953144,2.986589,3.020033,3.053478,3.086923,3.120368,3.153813,3.187258,3.220702,3.254147,3.287592,3.321037,3.354482,3.387926,3.421371,3.454816,3.488261,3.521706,3.555151,3.588595,3.622040,3.655485,3.688930,3.722375,3.755819,3.789264,3.822709,3.856154,3.889599,3.923043,3.956488,3.989933,4.023378,4.056823,4.090268,4.123712,4.157157,4.190602,4.224047,4.257492,4.290936,4.324381,4.357826,4.391271,4.424716,4.458161,4.491605,4.525050,4.558495,4.591940,4.625385,4.658829,4.692274,4.725719,4.759164,4.792609,4.826054,4.859498,4.892943,4.926388,4.959833,4.993278,5.026722,5.060167,5.093612,5.127057,5.160502,5.193946,5.227391,5.260836,5.294281,5.327726,5.361171,5.394615,5.428060,5.461505,5.494950,5.528395,5.561839,5.595284,5.628729,5.662174,5.695619,5.729064,5.762508,5.795953,5.829398,5.862843,5.896288,5.929732,5.963177,5.996622,6.030067,6.063512,6.096957,6.130401,6.163846,6.197291,6.230736,6.264181,6.297625,6.331070,6.364515,6.397960,6.431405,6.464849,6.498294,6.531739,6.565184,6.598629,6.632074,6.665518,6.698963,6.732408,6.765853,6.799298,6.832742,6.866187,6.899632,6.933077,6.966522,6.999967,7.033411,7.066856,7.100301,7.133746,7.167191,7.200635,7.234080,7.267525,7.300970,7.334415,7.367860,7.401304,7.434749,7.468194,7.501639,7.535084,7.568528,7.601973,7.635418,7.668863,7.702308,7.735753,7.769197,7.802642,7.836087,7.869532,7.902977,7.936421,7.969866,8.003311,8.036756,8.070201,8.103645,8.137090,8.170535,8.203980,8.237425,8.270870,8.304314,8.337759,8.371204,8.404649,8.438094,8.471538,8.504983,8.538428,8.571873,8.605318,8.638763,8.672207,8.705652,8.739097,8.772542,8.805987,8.839431,8.872876,8.906321,8.939766,8.973211,9.006656,9.040100,9.073545,9.106990,9.140435,9.173880,9.207324,9.240769,9.274214,9.307659,9.341104,9.374548,9.407993,9.441438,9.474883,9.508328,9.541773,9.575217,9.608662,9.642107,9.675552,9.708997,9.742441,9.775886,9.809331,9.842776,9.876221,9.909666,9.943110,9.976555,10.010000],"y":[0.000000,0.000013,0.000072,0.000206,0.000445,0.000813,0.001332,0.002021,0.002898,0.003978,0.005272,0.006793,0.008548,0.010546,0.012791,0.015288,0.018041,0.021050,0.024318,0.027843,0.031624,0.035660,0.039948,0.044483,0.049262,0.054281,0.059534,0.065016,0.070721,0.076642,0.082772,0.089106,0.095636,0.102354,0.109253,0.116327,0.123566,0.130964,0.138513,0.146204,0.154032,0.161986,0.170062,0.178249,0.186542,0.194932,0.203413,0.211976,0.220616,0.229325,0.238096,0.246923,0.255799,0.264718,0.273673,0.282658,0.291668,0.300697,0.309739,0.318788,0.327841,0.336891,0.345933,0.354963,0.363977,0.372970,0.381937,0.390875,0.399780,0.408647,0.417475,0.426258,0.434994,0.443680,0.452312,0.460888,0.469405,0.477861,0.486254,0.494580,0.502838,0.511026,0.519141,0.527183,0.535150,0.543039,0.550850,0.558581,0.566231,0.573799,0.581283,0.588684,0.596000,0.603230,0.610374,0.617431,0.624400,0.631282,0.638076,0.644781,0.651397,0.657925,0.664364,0.670715,0.676976,0.683149,0.689233,0.695229,0.701136,0.706956,0.712689,0.718334,0.723893,0.729365,0.734752,0.740053,0.745270,0.750402,0.755452,0.760418,0.765302,0.770105,0.774827,0.779469,0.784032,0.788516,0.792922,0.797252,0.801506,0.805684,0.809788,0.813818,0.817775,0.821661,0.825476,0.829220,0.832895,0.836502,0.840042,0.843515,0.846922,0.850264,0.853543,0.856759,0.859912,0.863005,0.866037,0.869010,0.871924,0.874781,0.877581,0.880325,0.883014,0.885649,0.888231,0.890761,0.893239,0.895667,0.898044,0.900373,0.902654,0.904887,0.907074,0.909215,0.911311,0.913363,0.915372,0.917338,0.919262,0.921145,0.922988,0.924792,0.926556,0.928283,0.929972,0.931624,0.933241,0.934822,0.936368,0.937880,0.939359,0.940806,0.942220,0.943603,0.944955,0.946277,0.947569,0.948832,0.950067,0.951274,0.952453,0.953606,0.954733,0.955834,0.956910,0.957961,0.958988,0.959992,0.960972,0.961930,0.962866,0.963779,0.964672,0.965544,0.966396,0.967227,0.968039,0.968832,0.969607,0.970363,0.971101,0.971822,0.972526,0.973213,0.973884,0.974539,0.975178,0.975802,0.976411,0.977005,0.977585,0.978151,0.978704,0.979243,0.979769,0.980282,0.980783,0.981272,0.981748,0.982214,0.982667,0.983110,0.983542,0.983963,0.984374,0.984775,0.985166,0.985547,0.985919,0.986282,0.986635,0.986980,0.987316,0.987644,0.987964,0.988276,0.988580,0.988876,0.989166,0.989447,0.989722,0.989990,0.990251,0.990505,0.990753,0.990995,0.991231,0.991460,0.991684,0.991903,0.992115,0.992322,0.992524,0.992721,0.992913,0.993100,0.993282,0.993460,0.993633,0.993801,0.993965,0.994125,0.994281,0.994433,0.994581,0.994725,0.994865,0.995002,0.995135,0.995265,0.995391,0.995514,0.995634,0.995751,0.995864,0.995975,0.996083,0.996188,0.996290,0.996390,0.996487,0.996582,0.996674,0.996763,0.996850,0.996935,0.997018,0.997098,0.997177,0.997253],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"Beta(2, 5)","x":[0.005000,0.008311,0.011622,0.014933,0.018244,0.021555,0.024866,0.028177,0.031488,0.034799,0.038110,0.041421,0.044732,0.048043,0.051355,0.054666,0.057977,0.061288,0.064599,0.067910,0.071221,0.074532,0.077843,0.081154,0.084465,0.087776,0.091087,0.094398,0.097709,0.101020,0.104331,0.107642,0.110953,0.114264,0.117575,0.120886,0.124197,0.127508,0.130819,0.134130,0.137441,0.140753,0.144064,0.147375,0.150686,0.153997,0.157308,0.160619,0.163930,0.167241,0.170552,0.173863,0.177174,0.180485,0.183796,0.187107,0.190418,0.193729,0.197040,0.200351,0.203662,0.206973,0.210284,0.213595,0.216906,0.220217,0.223528,0.226839,0.230151,0.233462,0.236773,0.240084,0.243395,0.246706,0.250017,0.253328,0.256639,0.259950,0.263261,0.266572,0.269883,0.273194,0.276505,0.279816,0.283127,0.286438,0.289749,0.293060,0.296371,0.299682,0.302993,0.306304,0.309615,0.312926,0.316237,0.319548,0.322860,0.326171,0.329482,0.332793,0.336104,0.339415,0.342726,0.346037,0.349348,0.352659,0.355970,0.359281,0.362592,0.365903,0.369214,0.372525,0.375836,0.379147,0.382458,0.385769,0.389080,0.392391,0.395702,0.399013,0.402324,0.405635,0.408946,0.412258,0.415569,0.418880,0.422191,0.425502,0.428813,0.432124,0.435435,0.438746,0.442057,0.445368,0.448679,0.451990,0.455301,0.458612,0.461923,0.465234,0.468545,0.471856,0.475167,0.478478,0.481789,0.485100,0.488411,0.491722,0.495033,0.498344,0.501656,0.504967,0.508278,0.511589,0.514900,0.518211,0.521522,0.524833,0.528144,0.531455,0.534766,0.538077,0.541388,0.544699,0.548010,0.551321,0.554632,0.557943,0.561254,0.564565,0.567876,0.571187,0.574498,0.577809,0.581120,0.584431,0.587742,0.591054,0.594365,0.597676,0.600987,0.604298,0.607609,0.610920,0.614231,0.617542,0.620853,0.624164,0.627475,0.630786,0.634097,0.637408,0.640719,0.644030,0.647341,0.650652,0.653963,0.657274,0.660585,0.663896,0.667207,0.670518,0.673829,0.677140,0.680452,0.683763,0.687074,0.690385,0.693696,0.697007,0.700318,0.703629,0.706940,0.710251,0.713562,0.716873,0.720184,0.723495,0.726806,0.730117,0.733428,0.736739,0.740050,0.743361,0.746672,0.749983,0.753294,0.756605,0.759916,0.763227,0.766538,0.769849,0.773161,0.776472,0.779783,0.783094,0.786405,0.789716,0.793027,0.796338,0.799649,0.802960,0.806271,0.809582,0.812893,0.816204,0.819515,0.822826,0.826137,0.829448,0.832759,0.836070,0.839381,0.842692,0.846003,0.849314,0.852625,0.855936,0.859247,0.862559,0.865870,0.869181,0.872492,0.875803,0.879114,0.882425,0.885736,0.889047,0.892358,0.895669,0.898980,0.902291,0.905602,0.908913,0.912224,0.915535,0.918846,0.922157,0.925468,0.928779,0.932090,0.935401,0.938712,0.942023,0.945334,0.948645,0.951957,0.955268,0.958579,0.961890,0.965201,0.968512,0.971823,0.975134,0.978445,0.981756,0.985067,0.988378,0.991689,0.995000],"y":[0.000370,0.001013,0.001964,0.003214,0.004755,0.006578,0.008677,0.011042,0.013667,0.016544,0.019665,0.023023,0.026610,0.030421,0.034446,0.038681,0.043117,0.047749,0.052569,0.057572,0.062750,0.068098,0.073610,0.079279,0.085100,0.091066,0.097173,0.103414,0.109785,0.116278,0.122891,0.129616,0.136449,0.143385,0.150418,0.157546,0.164761,0.172060,0.179439,0.186892,0.194415,0.202005,0.209656,0.217365,0.225127,0.232940,0.240798,0.248698,0.256636,0.264609,0.272614,0.280645,0.288701,0.296778,0.304873,0.312982,0.321103,0.329232,0.337366,0.345503,0.353640,0.361773,0.369901,0.378020,0.386129,0.394224,0.402304,0.410365,0.418406,0.426425,0.434418,0.442385,0.450323,0.458230,0.466104,0.473944,0.481746,0.489511,0.497236,0.504919,0.512559,0.520154,0.527703,0.535204,0.542657,0.550059,0.557409,0.564707,0.571950,0.579138,0.586270,0.593345,0.600361,0.607318,0.614214,0.621050,0.627824,0.634534,0.641182,0.647765,0.654284,0.660736,0.667123,0.673443,0.679696,0.685882,0.691999,0.698048,0.704028,0.709938,0.715779,0.721551,0.727252,0.732883,0.738443,0.743933,0.749351,0.754699,0.759976,0.765182,0.770317,0.775381,0.780374,0.785296,0.790147,0.794928,0.799638,0.804277,0.808846,0.813345,0.817773,0.822133,0.826423,0.830643,0.834795,0.838879,0.842894,0.846841,0.850721,0.854533,0.858280,0.861959,0.865573,0.869122,0.872605,0.876024,0.879379,0.882671,0.885899,0.889065,0.892169,0.895212,0.898194,0.901116,0.903978,0.906780,0.909525,0.912211,0.914840,0.917412,0.919929,0.922390,0.924796,0.927148,0.929446,0.931692,0.933885,0.936027,0.938118,0.940159,0.942150,0.944093,0.945987,0.947834,0.949634,0.951389,0.953097,0.954761,0.956382,0.957958,0.959493,0.960985,0.962436,0.963847,0.965218,0.966550,0.967843,0.969099,0.970317,0.971500,0.972646,0.973758,0.974835,0.975879,0.976890,0.977868,0.978815,0.979731,0.980617,0.981473,0.982300,0.983099,0.983871,0.984615,0.985332,0.986024,0.986691,0.987333,0.987952,0.988547,0.989119,0.989669,0.990198,0.990705,0.991192,0.991660,0.992108,0.992537,0.992948,0.993341,0.993718,0.994077,0.994421,0.994749,0.995062,0.995360,0.995644,0.995914,0.996172,0.996416,0.996648,0.996869,0.997078,0.997275,0.997463,0.997640,0.997807,0.997965,0.998114,0.998254,0.998386,0.998511,0.998627,0.998736,0.998839,0.998934,0.999024,0.999107,0.999185,0.999257,0.999324,0.999387,0.999444,0.999498,0.999547,0.999592,0.999634,0.999672,0.999707,0.999739,0.999769,0.999795,0.999819,0.999841,0.999861,0.999878,0.999894,0.999908,0.999921,0.999932,0.999942,0.999951,0.999959,0.999965,0.999971,0.999976,0.999980,0.999984,0.999987,0.999990,0.999992,0.999994,0.999995,0.999996,0.999997,0.999998,0.999999,0.999999,0.999999,1.000000,1.000000,1.000000,1.000000,1.000000,1.000000,1.000000,1.000000,1.000000,1.000000,1.000000],"line":{"width":2.5}}],{"title":{"text":"Continuous Distributions — CDF","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"x","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"F(x)","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white"},{responsive:true})});
+</script>
+
+<h2 id="discrete-distributions">Discrete Distributions<a class="headerlink" href="#discrete-distributions" title="Permanent link">&para;</a></h2>
+<h3 id="bernoulli">Bernoulli<a class="headerlink" href="#bernoulli" title="Permanent link">&para;</a></h3>
+<p><code>Bernoulli&lt;T&gt; { p: T }</code> — single trial with success probability p.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Bernoulli</span><span class="p">;</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bernoulli</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">0.3_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">b</span><span class="p">.</span><span class="n">pmf</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">0.3</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-12</span><span class="p">);</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">b</span><span class="p">.</span><span class="n">pmf</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">0.7</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-12</span><span class="p">);</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">b</span><span class="p">.</span><span class="n">mean</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">0.3</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-12</span><span class="p">);</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">b</span><span class="p">.</span><span class="n">variance</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">0.21</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-12</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="binomial">Binomial<a class="headerlink" href="#binomial" title="Permanent link">&para;</a></h3>
+<p><code>Binomial&lt;T&gt; { n: u64, p: T }</code> — n independent Bernoulli trials.</p>
+<div id="plot-binomial-pmf" style="width:100%;height:400px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-binomial-pmf',[{"type":"bar","name":"n=10, p=0.3","x":[0.000000,1.000000,2.000000,3.000000,4.000000,5.000000,6.000000,7.000000,8.000000,9.000000,10.000000,11.000000,12.000000,13.000000,14.000000,15.000000,16.000000,17.000000,18.000000,19.000000,20.000000,21.000000],"y":[0.028248,0.121061,0.233474,0.266828,0.200121,0.102919,0.036757,0.009002,0.001447,0.000138,0.000006,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000],"opacity":0.7},{"type":"bar","name":"n=10, p=0.5","x":[0.000000,1.000000,2.000000,3.000000,4.000000,5.000000,6.000000,7.000000,8.000000,9.000000,10.000000,11.000000,12.000000,13.000000,14.000000,15.000000,16.000000,17.000000,18.000000,19.000000,20.000000,21.000000],"y":[0.000977,0.009766,0.043945,0.117187,0.205078,0.246094,0.205078,0.117187,0.043945,0.009766,0.000977,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000],"opacity":0.7},{"type":"bar","name":"n=20, p=0.7","x":[0.000000,1.000000,2.000000,3.000000,4.000000,5.000000,6.000000,7.000000,8.000000,9.000000,10.000000,11.000000,12.000000,13.000000,14.000000,15.000000,16.000000,17.000000,18.000000,19.000000,20.000000,21.000000],"y":[0.000000,0.000000,0.000000,0.000001,0.000005,0.000037,0.000218,0.001018,0.003859,0.012007,0.030817,0.065370,0.114397,0.164262,0.191639,0.178863,0.130421,0.071604,0.027846,0.006839,0.000798,0.000000],"opacity":0.7}],{"title":{"text":"Binomial Distribution — PMF","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"k","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"P(X = k)","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white","barmode":"group"},{responsive:true})});
+</script>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Binomial</span><span class="p">;</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Binomial</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mf">0.5_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w">    </span><span class="c1">// B(10, 0.5)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p5</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">pmf</span><span class="p">(</span><span class="mi">5</span><span class="p">);</span><span class="w">    </span><span class="c1">// P(X=5) ≈ 0.2461</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">c7</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mi">7</span><span class="p">);</span><span class="w">   </span><span class="c1">// P(X≤7) ≈ 0.9453</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">b</span><span class="p">.</span><span class="n">mean</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">5.0</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">);</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">b</span><span class="p">.</span><span class="n">variance</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">2.5</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="poisson">Poisson<a class="headerlink" href="#poisson" title="Permanent link">&para;</a></h3>
+<p><code>Poisson&lt;T&gt; { lambda: T }</code> — number of events in a fixed interval.</p>
+<div id="plot-poisson-pmf" style="width:100%;height:400px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-poisson-pmf',[{"type":"bar","name":"λ = 1","x":[0.000000,1.000000,2.000000,3.000000,4.000000,5.000000,6.000000,7.000000,8.000000,9.000000,10.000000,11.000000,12.000000,13.000000,14.000000,15.000000,16.000000,17.000000,18.000000,19.000000,20.000000],"y":[0.367879,0.367879,0.183940,0.061313,0.015328,0.003066,0.000511,0.000073,0.000009,0.000001,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000],"opacity":0.7},{"type":"bar","name":"λ = 4","x":[0.000000,1.000000,2.000000,3.000000,4.000000,5.000000,6.000000,7.000000,8.000000,9.000000,10.000000,11.000000,12.000000,13.000000,14.000000,15.000000,16.000000,17.000000,18.000000,19.000000,20.000000],"y":[0.018316,0.073263,0.146525,0.195367,0.195367,0.156293,0.104196,0.059540,0.029770,0.013231,0.005292,0.001925,0.000642,0.000197,0.000056,0.000015,0.000004,0.000001,0.000000,0.000000,0.000000],"opacity":0.7},{"type":"bar","name":"λ = 10","x":[0.000000,1.000000,2.000000,3.000000,4.000000,5.000000,6.000000,7.000000,8.000000,9.000000,10.000000,11.000000,12.000000,13.000000,14.000000,15.000000,16.000000,17.000000,18.000000,19.000000,20.000000],"y":[0.000045,0.000454,0.002270,0.007567,0.018917,0.037833,0.063055,0.090079,0.112599,0.125110,0.125110,0.113736,0.094780,0.072908,0.052077,0.034718,0.021699,0.012764,0.007091,0.003732,0.001866],"opacity":0.7}],{"title":{"text":"Poisson Distribution — PMF","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"k","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"P(X = k)","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white","barmode":"group"},{responsive:true})});
+</script>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Poisson</span><span class="p">;</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">pois</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Poisson</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">3.0_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span><span class="w">  </span><span class="c1">// Poisson(λ=3)</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">p3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pois</span><span class="p">.</span><span class="n">pmf</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span><span class="w">    </span><span class="c1">// P(X=3) = e⁻³·3³/3! ≈ 0.2240</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">c5</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pois</span><span class="p">.</span><span class="n">cdf</span><span class="p">(</span><span class="mi">5</span><span class="p">);</span><span class="w">    </span><span class="c1">// P(X≤5) ≈ 0.9161</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">pois</span><span class="p">.</span><span class="n">mean</span><span class="p">(),</span><span class="w"> </span><span class="mf">3.0</span><span class="p">);</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">pois</span><span class="p">.</span><span class="n">variance</span><span class="p">(),</span><span class="w"> </span><span class="mf">3.0</span><span class="p">);</span>
+</code></pre></div>
+<h2 id="distribution-summary-table">Distribution Summary Table<a class="headerlink" href="#distribution-summary-table" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Distribution</th>
+<th>Type</th>
+<th>Parameters</th>
+<th>Mean</th>
+<th>Variance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Normal</code></td>
+<td>Continuous</td>
+<td>μ, σ</td>
+<td>μ</td>
+<td>σ²</td>
+</tr>
+<tr>
+<td><code>Uniform</code></td>
+<td>Continuous</td>
+<td>a, b</td>
+<td>(a+b)/2</td>
+<td>(b-a)²/12</td>
+</tr>
+<tr>
+<td><code>Exponential</code></td>
+<td>Continuous</td>
+<td>λ</td>
+<td>1/λ</td>
+<td>1/λ²</td>
+</tr>
+<tr>
+<td><code>Gamma</code></td>
+<td>Continuous</td>
+<td>α, β</td>
+<td>α/β</td>
+<td>α/β²</td>
+</tr>
+<tr>
+<td><code>Beta</code></td>
+<td>Continuous</td>
+<td>α, β</td>
+<td>α/(α+β)</td>
+<td>αβ/((α+β)²(α+β+1))</td>
+</tr>
+<tr>
+<td><code>ChiSquared</code></td>
+<td>Continuous</td>
+<td>k</td>
+<td>k</td>
+<td>2k</td>
+</tr>
+<tr>
+<td><code>StudentT</code></td>
+<td>Continuous</td>
+<td>ν</td>
+<td>0 (ν&gt;1)</td>
+<td>ν/(ν-2) (ν&gt;2)</td>
+</tr>
+<tr>
+<td><code>Bernoulli</code></td>
+<td>Discrete</td>
+<td>p</td>
+<td>p</td>
+<td>p(1-p)</td>
+</tr>
+<tr>
+<td><code>Binomial</code></td>
+<td>Discrete</td>
+<td>n, p</td>
+<td>np</td>
+<td>np(1-p)</td>
+</tr>
+<tr>
+<td><code>Poisson</code></td>
+<td>Discrete</td>
+<td>λ</td>
+<td>λ</td>
+<td>λ</td>
+</tr>
+</tbody>
+</table>
+<h2 id="random-sampling">Random Sampling<a class="headerlink" href="#random-sampling" title="Permanent link">&para;</a></h2>
+<p>Every distribution provides <code>sample()</code> and <code>sample_array()</code> methods using the built-in [<code>Rng</code>] (xoshiro256++ PRNG). No external crate dependency.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::{</span><span class="n">Rng</span><span class="p">,</span><span class="w"> </span><span class="n">Normal</span><span class="p">,</span><span class="w"> </span><span class="n">Uniform</span><span class="p">,</span><span class="w"> </span><span class="n">Poisson</span><span class="p">};</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::{</span><span class="n">ContinuousDistribution</span><span class="p">,</span><span class="w"> </span><span class="n">DiscreteDistribution</span><span class="p">};</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Rng</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">42</span><span class="p">);</span><span class="w">  </span><span class="c1">// seed with any u64</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1">// Sample from a normal distribution</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="kd">let</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Normal</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">sample</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">rng</span><span class="p">);</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="c1">// Fill an array with 100 samples</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="kd">let</span><span class="w"> </span><span class="n">samples</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="kt">f64</span><span class="p">;</span><span class="w"> </span><span class="mi">100</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">sample_array</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">rng</span><span class="p">);</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="c1">// Works with all distributions</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="kd">let</span><span class="w"> </span><span class="n">u</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Uniform</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">10.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">sample</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">rng</span><span class="p">);</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="kd">let</span><span class="w"> </span><span class="n">pois</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Poisson</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">3.0_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="kd">let</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pois</span><span class="p">.</span><span class="n">sample</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">rng</span><span class="p">);</span><span class="w">  </span><span class="c1">// returns T (float), cast to integer if needed</span>
+</code></pre></div>
+<p>The <code>Rng</code> struct is deterministic — same seed produces the same sequence, useful for reproducible simulations.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">Rng</span><span class="p">;</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">rng1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Rng</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">123</span><span class="p">);</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">rng2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Rng</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">123</span><span class="p">);</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">rng1</span><span class="p">.</span><span class="n">next_u64</span><span class="p">(),</span><span class="w"> </span><span class="n">rng2</span><span class="p">.</span><span class="n">next_u64</span><span class="p">());</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">rng1</span><span class="p">.</span><span class="n">next_f64</span><span class="p">(),</span><span class="w"> </span><span class="n">rng2</span><span class="p">.</span><span class="n">next_f64</span><span class="p">());</span>
+</code></pre></div>
+<h3 id="rng-methods">Rng Methods<a class="headerlink" href="#rng-methods" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>next_u64()</code></td>
+<td>Uniform <code>u64</code></td>
+</tr>
+<tr>
+<td><code>next_f64()</code></td>
+<td>Uniform <code>f64</code> in [0, 1)</td>
+</tr>
+<tr>
+<td><code>next_f32()</code></td>
+<td>Uniform <code>f32</code> in [0, 1)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sampling-algorithms">Sampling Algorithms<a class="headerlink" href="#sampling-algorithms" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Distribution</th>
+<th>Algorithm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Normal</td>
+<td>Box-Muller transform</td>
+</tr>
+<tr>
+<td>Uniform</td>
+<td>Inverse CDF (affine transform)</td>
+</tr>
+<tr>
+<td>Exponential</td>
+<td>Inverse CDF (−ln(U)/λ)</td>
+</tr>
+<tr>
+<td>Gamma</td>
+<td>Marsaglia &amp; Tsang's method</td>
+</tr>
+<tr>
+<td>Beta</td>
+<td>Ratio of two Gamma variates</td>
+</tr>
+<tr>
+<td>Chi-Squared</td>
+<td>Gamma(k/2, 1/2)</td>
+</tr>
+<tr>
+<td>Student's t</td>
+<td>Normal / √(χ²/ν)</td>
+</tr>
+<tr>
+<td>Bernoulli</td>
+<td>Threshold on uniform</td>
+</tr>
+<tr>
+<td>Binomial</td>
+<td>Sum of Bernoulli (small n) or normal approximation (large n)</td>
+</tr>
+<tr>
+<td>Poisson</td>
+<td>Knuth's method (small λ) or normal approximation (large λ)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="quantile-inverse-cdf">Quantile (Inverse CDF)<a class="headerlink" href="#quantile-inverse-cdf" title="Permanent link">&para;</a></h2>
+<p>All distributions implement <code>quantile()</code> for computing percentiles:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::{</span><span class="n">Normal</span><span class="p">,</span><span class="w"> </span><span class="n">ContinuousDistribution</span><span class="p">};</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Normal</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">z_95</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">quantile</span><span class="p">(</span><span class="mf">0.95</span><span class="p">);</span><span class="w">  </span><span class="c1">// ≈ 1.645</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">z_99</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">quantile</span><span class="p">(</span><span class="mf">0.99</span><span class="p">);</span><span class="w">  </span><span class="c1">// ≈ 2.326</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::{</span><span class="n">Binomial</span><span class="p">,</span><span class="w"> </span><span class="n">DiscreteDistribution</span><span class="p">};</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Binomial</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="mf">0.5_</span><span class="k">f64</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">quantile</span><span class="p">(</span><span class="mf">0.95</span><span class="p">);</span><span class="w">  </span><span class="c1">// smallest k with P(X ≤ k) ≥ 0.95</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="mi">14</span><span class="p">);</span>
+</code></pre></div>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">stats</span><span class="p">::</span><span class="n">StatsError</span><span class="p">;</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="k">match</span><span class="w"> </span><span class="n">Normal</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mf">0.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">1.0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// std_dev must be &gt; 0</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">StatsError</span><span class="p">::</span><span class="n">InvalidParameter</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* bad parameter */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* use n */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="p">}</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      MIT License
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "content.code.copy", "content.code.annotate", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+      
+    
+  </body>
+</html>
