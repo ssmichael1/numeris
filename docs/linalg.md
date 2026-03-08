@@ -129,8 +129,70 @@ let cond = svd.condition_number();   // σ_max / σ_min
 let sigma_only = a.singular_values_only().unwrap();
 ```
 
+### SVD Solve (Least-Squares)
+
+SVD-based solve computes the minimum-norm least-squares solution `x = V Σ⁺ Uᴴ b`, automatically handling rank-deficient systems:
+
+```rust
+use numeris::{Matrix, Vector};
+
+// Overdetermined system (3 equations, 2 unknowns)
+let a = Matrix::new([
+    [1.0_f64, 0.0],
+    [0.0,     1.0],
+    [1.0,     1.0],
+]);
+let b = Vector::from_array([1.0_f64, 2.0, 3.0]);
+
+// Via SVD decomposition
+let svd = a.svd().unwrap();
+let x = svd.solve(&b);
+
+// Or directly on the matrix
+let x2 = a.solve_svd(&b).unwrap();
+```
+
+### Pseudo-Inverse
+
+The Moore-Penrose pseudo-inverse `A⁺ = V Σ⁺ Uᴴ`, where singular values below `ε · σ_max · max(M, N)` are treated as zero:
+
+```rust
+use numeris::Matrix;
+
+let a = Matrix::new([
+    [1.0_f64, 0.0],
+    [0.0,     2.0],
+    [0.0,     0.0],
+]);
+
+let a_pinv = a.pinv().unwrap();  // 2×3 pseudo-inverse
+```
+
 !!! info "M < N matrices"
     `DynSvd` handles `M < N` by transposing internally. The fixed `SvdDecomposition` requires `M ≥ N` at compile time.
+
+## Matrix Exponential
+
+Computes `e^A` for square matrices using [13,13] Padé approximation with scaling and squaring (Higham 2005).
+
+```rust
+use numeris::Matrix;
+
+// Rotation matrix via expm of an antisymmetric matrix
+let theta = std::f64::consts::FRAC_PI_4;
+let a = Matrix::new([
+    [0.0, -theta],
+    [theta, 0.0],
+]);
+let r = a.expm().unwrap();  // 45° rotation matrix
+
+// Diagonal: expm(diag(a,b)) = diag(e^a, e^b)
+let d = Matrix::new([[2.0_f64, 0.0], [0.0, 3.0]]);
+let ed = d.expm().unwrap();
+assert!((ed[(0,0)] - 2.0_f64.exp()).abs() < 1e-12);
+```
+
+Also available as a free function: `numeris::linalg::expm(&a)`.
 
 ## Symmetric Eigendecomposition
 
@@ -208,7 +270,7 @@ let inv = a.inverse().unwrap();
 Enable the `complex` feature to use decompositions with complex elements:
 
 ```toml
-numeris = { version = "0.2", features = ["complex"] }
+numeris = { version = "0.3", features = ["complex"] }
 ```
 
 ```rust

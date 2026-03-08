@@ -203,6 +203,23 @@ let det = a.det();
 
 See [Linear Algebra](linalg.md) for full decomposition details.
 
+## Kronecker Product
+
+The Kronecker product `A ⊗ B` of an `m×n` matrix `A` and a `p×q` matrix `B` is an `(m·p)×(n·q)` block matrix:
+
+```rust
+use numeris::DynMatrix;
+
+let a = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+let b = DynMatrix::<f64>::eye(2);
+
+let c = a.kronecker(&b);  // 4×4
+// c = [[1,0,2,0], [0,1,0,2], [3,0,4,0], [0,3,0,4]]
+```
+
+!!! note
+    Kronecker product is only available on `DynMatrix` because the result dimensions (`M*P × N*Q`) cannot be expressed with Rust's current const generics.
+
 ## Type Aliases
 
 | Alias | Type |

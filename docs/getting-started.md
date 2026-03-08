@@ -6,17 +6,17 @@ Add numeris to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-numeris = "0.2"
+numeris = "0.3"
 ```
 
 The default features include `std` and `ode`. To enable additional modules, list them explicitly:
 
 ```toml
 [dependencies]
-numeris = { version = "0.2", features = ["optim", "control", "estimate", "interp", "special", "stats", "complex"] }
+numeris = { version = "0.3", features = ["optim", "control", "estimate", "interp", "special", "stats", "complex"] }
 
 # Or enable everything at once:
-numeris = { version = "0.2", features = ["all"] }
+numeris = { version = "0.3", features = ["all"] }
 ```
 
 ## Cargo Features
@@ -31,7 +31,8 @@ numeris = { version = "0.2", features = ["all"] }
 | `estimate` | no | State estimation — EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ. Implies `alloc`. |
 | `interp` | no | Interpolation — linear, Hermite, Lagrange, cubic spline, bilinear. |
 | `special` | no | Special functions — gamma, lgamma, digamma, beta, betainc, erf. |
-| `stats` | no | Statistical distributions (10 families). Implies `special`. |
+| `quad` | no | Numerical quadrature — Gauss-Legendre, adaptive Simpson, composite rules. |
+| `stats` | no | Statistical distributions (10 families) with sampling. Implies `special`. |
 | `complex` | no | `Complex<f32>` / `Complex<f64>` support for all decompositions. |
 | `libm` | baseline | Pure-Rust software float math. Always on as fallback. |
 | `all` | no | All of the above. |
@@ -74,6 +75,39 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 # Or explicitly
 RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
 ```
+
+## Prelude
+
+The `prelude` module re-exports common types and traits so you can get started quickly:
+
+```rust
+use numeris::prelude::*;
+use numeris::{matrix, vector};
+
+let m = matrix![1.0, 2.0; 3.0, 4.0];
+let v = vector![1.0_f64, 2.0];
+let r = m.vecmul(&v);
+```
+
+The prelude includes `Matrix`, `Vector`, `ColumnVector`, all size aliases (`Matrix1`–`Matrix6`, `Vector1`–`Vector6`), scalar traits (`Scalar`, `FloatScalar`, `LinalgScalar`), `LinalgError`, and `Quaternion`.
+
+## Macros
+
+Two convenience macros for constructing matrices and vectors:
+
+```rust
+use numeris::{matrix, vector};
+
+// matrix! uses MATLAB-like syntax: semicolons separate rows
+let m = matrix![1.0, 2.0, 3.0; 4.0, 5.0, 6.0];  // 2×3
+let s = matrix![42.0];                              // 1×1
+
+// vector! creates a row vector (1×N)
+let v = vector![1.0_f64, 2.0, 3.0];
+```
+
+!!! note
+    `matrix!` and `vector!` are `#[macro_export]` macros at the crate root. Import them with `use numeris::{matrix, vector};` — they are **not** included in the prelude.
 
 ## First Examples
 

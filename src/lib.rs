@@ -140,6 +140,10 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[macro_use]
+mod macros;
+pub mod prelude;
+
 #[cfg(feature = "alloc")]
 pub mod dynmatrix;
 pub mod linalg;
