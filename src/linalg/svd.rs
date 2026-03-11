@@ -225,7 +225,11 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
         return Ok(());
     }
 
-    let eps = T::lepsilon();
+    // Use 5× machine epsilon for deflation threshold — matches nalgebra/LAPACK
+    // convention and improves convergence on ill-conditioned bidiagonals.
+    let five = <T::Real as One>::one() + <T::Real as One>::one()
+        + <T::Real as One>::one() + <T::Real as One>::one() + <T::Real as One>::one();
+    let eps = T::lepsilon() * five;
     let mut iter = 0usize;
     let mut hi = n - 1;
 
@@ -504,6 +508,28 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
         }
 
         let mut work = *a;
+
+        // Pre-scale by max absolute element to prevent overflow/underflow
+        // during bidiagonalization and QR iteration (matches nalgebra/LAPACK).
+        let mut amax = <T::Real as Zero>::zero();
+        for col in 0..N {
+            for row in 0..M {
+                let v = work[(row, col)].modulus();
+                if v > amax {
+                    amax = v;
+                }
+            }
+        }
+        let has_scale = amax > <T::Real as Zero>::zero();
+        if has_scale {
+            let inv_amax = T::from_real(<T::Real as One>::one() / amax);
+            for col in 0..N {
+                for row in 0..M {
+                    work[(row, col)] = work[(row, col)] * inv_amax;
+                }
+            }
+        }
+
         let mut u = Matrix::<T, M, M>::zeros();
         let mut v = Matrix::<T, N, N>::zeros();
         let mut diag = [<T::Real as Zero>::zero(); N];
@@ -519,6 +545,13 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
             true,
             30 * M.max(N),
         )?;
+
+        // Rescale singular values
+        if has_scale {
+            for s in diag.iter_mut() {
+                *s = *s * amax;
+            }
+        }
 
         // V^T = V^H (conjugate transpose)
         let mut vt = Matrix::<T, N, N>::zeros();
@@ -544,6 +577,27 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
         }
 
         let mut work = *a;
+
+        // Pre-scale (same as full SVD)
+        let mut amax = <T::Real as Zero>::zero();
+        for col in 0..N {
+            for row in 0..M {
+                let v = work[(row, col)].modulus();
+                if v > amax {
+                    amax = v;
+                }
+            }
+        }
+        let has_scale = amax > <T::Real as Zero>::zero();
+        if has_scale {
+            let inv_amax = T::from_real(<T::Real as One>::one() / amax);
+            for col in 0..N {
+                for row in 0..M {
+                    work[(row, col)] = work[(row, col)] * inv_amax;
+                }
+            }
+        }
+
         let mut u = Matrix::<T, M, M>::zeros();
         let mut v = Matrix::<T, N, N>::zeros();
         let mut diag = [<T::Real as Zero>::zero(); N];
@@ -559,6 +613,13 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
             false,
             30 * M.max(N),
         )?;
+
+        // Rescale singular values
+        if has_scale {
+            for s in diag.iter_mut() {
+                *s = *s * amax;
+            }
+        }
 
         Ok(diag)
     }

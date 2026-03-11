@@ -111,6 +111,54 @@ impl<T: Scalar> Vector3<T> {
     }
 }
 
+// ── Named component accessors (row vectors) ────────────────────────
+
+impl<T: Copy, const N: usize> Vector<T, N> {
+    /// First component.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([1.0, 2.0, 3.0]);
+    /// assert_eq!(v.x(), 1.0);
+    /// ```
+    #[inline]
+    pub fn x(&self) -> T { self[0] }
+
+    /// Set first component.
+    #[inline]
+    pub fn set_x(&mut self, val: T) { self[0] = val; }
+
+    /// Second component.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v = Vector::from_array([1.0, 2.0, 3.0]);
+    /// assert_eq!(v.y(), 2.0);
+    /// ```
+    #[inline]
+    pub fn y(&self) -> T { self[1] }
+
+    /// Set second component.
+    #[inline]
+    pub fn set_y(&mut self, val: T) { self[1] = val; }
+}
+
+impl<T: Copy> Vector3<T> {
+    /// Third component.
+    ///
+    /// ```
+    /// use numeris::Vector3;
+    /// let v = Vector3::from_array([1.0, 2.0, 3.0]);
+    /// assert_eq!(v.z(), 3.0);
+    /// ```
+    #[inline]
+    pub fn z(&self) -> T { self[2] }
+
+    /// Set third component.
+    #[inline]
+    pub fn set_z(&mut self, val: T) { self[2] = val; }
+}
+
 // Single-index access: v[i] instead of v[(0, i)]
 impl<T, const N: usize> Index<usize> for Vector<T, N> {
     type Output = T;

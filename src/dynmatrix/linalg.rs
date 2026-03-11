@@ -586,6 +586,27 @@ impl<T: LinalgScalar> DynSvd<T> {
         let (rows, cols) = (work_matrix.nrows(), work_matrix.ncols());
 
         let mut work = work_matrix;
+
+        // Pre-scale by max absolute element to prevent overflow/underflow
+        let mut amax = <T::Real as num_traits::Zero>::zero();
+        for col in 0..work.ncols() {
+            for row in 0..work.nrows() {
+                let v = work[(row, col)].modulus();
+                if v > amax {
+                    amax = v;
+                }
+            }
+        }
+        let has_scale = amax > <T::Real as num_traits::Zero>::zero();
+        if has_scale {
+            let inv_amax = T::from_real(<T::Real as num_traits::One>::one() / amax);
+            for col in 0..work.ncols() {
+                for row in 0..work.nrows() {
+                    work[(row, col)] = work[(row, col)] * inv_amax;
+                }
+            }
+        }
+
         let mut u_mat = DynMatrix::zeros(rows, rows, T::zero());
         let mut v_mat = DynMatrix::zeros(cols, cols, T::zero());
         let mut diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
@@ -601,6 +622,13 @@ impl<T: LinalgScalar> DynSvd<T> {
             true,
             30 * rows.max(cols),
         )?;
+
+        // Rescale singular values
+        if has_scale {
+            for s in diag.iter_mut() {
+                *s = *s * amax;
+            }
+        }
 
         // Extract thin factors.
         // Full SVD of work matrix (rows×cols, rows≥cols):
@@ -669,6 +697,27 @@ impl<T: LinalgScalar> DynSvd<T> {
         let (rows, cols) = (work_matrix.nrows(), work_matrix.ncols());
 
         let mut work = work_matrix;
+
+        // Pre-scale by max absolute element
+        let mut amax = <T::Real as num_traits::Zero>::zero();
+        for col in 0..work.ncols() {
+            for row in 0..work.nrows() {
+                let v = work[(row, col)].modulus();
+                if v > amax {
+                    amax = v;
+                }
+            }
+        }
+        let has_scale = amax > <T::Real as num_traits::Zero>::zero();
+        if has_scale {
+            let inv_amax = T::from_real(<T::Real as num_traits::One>::one() / amax);
+            for col in 0..work.ncols() {
+                for row in 0..work.nrows() {
+                    work[(row, col)] = work[(row, col)] * inv_amax;
+                }
+            }
+        }
+
         let mut u_mat = DynMatrix::zeros(rows, rows, T::zero());
         let mut v_mat = DynMatrix::zeros(cols, cols, T::zero());
         let mut diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
@@ -686,6 +735,13 @@ impl<T: LinalgScalar> DynSvd<T> {
             false,
             30 * rows.max(cols),
         )?;
+
+        // Rescale singular values
+        if has_scale {
+            for s in diag.iter_mut() {
+                *s = *s * amax;
+            }
+        }
 
         Ok(diag)
     }
