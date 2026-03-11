@@ -4,6 +4,8 @@
 //! (NEON, SSE2, AVX, AVX-512) while also supporting no-std for embedded and WASM
 //! targets. Similar in scope to SciPy.
 //!
+//! **Documentation & examples:** <https://numeris-rs.dev/>
+//!
 //! ## Quick start
 //!
 //! ```

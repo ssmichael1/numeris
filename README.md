@@ -1,8 +1,16 @@
 # numeris
 
+[![Crates.io](https://img.shields.io/crates/v/numeris)](https://crates.io/crates/numeris)
+[![docs.rs](https://img.shields.io/docsrs/numeris)](https://docs.rs/numeris)
+[![License: MIT](https://img.shields.io/crates/l/numeris)](https://opensource.org/licenses/MIT)
+[![MSRV](https://img.shields.io/badge/MSRV-1.70-blue)](https://www.rust-lang.org)
+
 Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to SciPy, suitable for embedded targets (no heap allocation, no FPU assumptions) while being highly performant on desktop/server hardware via SIMD intrinsics.
 
-**Alpha software** — APIs are unstable and may change without notice.
+**[Documentation & examples](https://numeris-rs.dev/)**
+
+> [!NOTE]
+> **Alpha software** — APIs are unstable and may change without notice.
 
 ## Features
 
@@ -25,7 +33,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 
 ```toml
 [dependencies]
-numeris = "0.2"
+numeris = "0.3"
 ```
 
 ```rust
@@ -72,6 +80,35 @@ let q = Quaternion::from_axis_angle(
 );
 let v = Vector::from_array([1.0, 0.0, 0.0]);
 let rotated = q * v; // [0, 1, 0]
+```
+
+### No-std / embedded
+
+numeris works on bare-metal targets with no allocator:
+
+```toml
+[dependencies]
+numeris = { version = "0.3", default-features = false, features = ["libm"] }
+```
+
+```rust
+#![no_std]
+use numeris::{Matrix, Vector};
+
+// All fixed-size operations work without std or alloc
+let a = Matrix::new([[2.0_f32, 1.0], [5.0, 3.0]]);
+let b = Vector::from_array([4.0_f32, 7.0]);
+let x = a.solve(&b).unwrap();
+
+// Eigendecomposition on a microcontroller
+let sym = Matrix::new([[3.0_f32, 1.0], [1.0, 2.0]]);
+let eig = sym.eig_symmetric().unwrap();
+```
+
+Add `alloc` for `DynMatrix` on targets with a heap but no OS:
+
+```toml
+numeris = { version = "0.3", default-features = false, features = ["libm", "alloc"] }
 ```
 
 ## Dynamic matrices
@@ -162,7 +199,7 @@ Root finding, unconstrained minimization, and nonlinear least squares (requires 
 
 ```toml
 [dependencies]
-numeris = { version = "0.2", features = ["optim"] }
+numeris = { version = "0.3", features = ["optim"] }
 ```
 
 ```rust
@@ -222,7 +259,7 @@ Biquad cascade IIR filters with Butterworth and Chebyshev Type I design (require
 
 ```toml
 [dependencies]
-numeris = { version = "0.2", features = ["control"] }
+numeris = { version = "0.3", features = ["control"] }
 ```
 
 ```rust
@@ -277,7 +314,7 @@ Six estimators for nonlinear state estimation and offline batch processing (requ
 
 ```toml
 [dependencies]
-numeris = { version = "0.2", features = ["estimate"] }
+numeris = { version = "0.3", features = ["estimate"] }
 ```
 
 ```rust
@@ -353,7 +390,7 @@ Enable the `complex` feature to use decompositions with complex elements:
 
 ```toml
 [dependencies]
-numeris = { version = "0.2", features = ["complex"] }
+numeris = { version = "0.3", features = ["complex"] }
 ```
 
 ```rust
@@ -412,9 +449,32 @@ cargo build --no-default-features --features "libm,alloc"
 cargo build --features "optim,complex"
 ```
 
+## Benchmarks
+
+Measured on Apple Silicon (aarch64, NEON) with Criterion. Compared against [nalgebra](https://crates.io/crates/nalgebra) and [faer](https://crates.io/crates/faer). Run with `cd bench && cargo bench`.
+
+| Benchmark | numeris | nalgebra | faer |
+|---|---|---|---|
+| matmul 4x4 | **4.9 ns** | 4.9 ns | 58 ns |
+| matmul 6x6 | **13.4 ns** | 20.0 ns | 87 ns |
+| matmul 50x50 (dyn) | **5.76 us** | 6.63 us | 6.3 us |
+| matmul 200x200 (dyn) | 369 us | 361 us | **193 us** |
+| dot 100 (dyn) | **11.6 ns** | 14.5 ns | — |
+| LU 4x4 | 33.2 ns | **28.2 ns** | 203 ns |
+| LU 6x6 | 84.7 ns | **82.1 ns** | 292 ns |
+| QR 4x4 | **46.4 ns** | 90.6 ns | 303 ns |
+| QR 6x6 | **85.5 ns** | 207.9 ns | 445 ns |
+| SVD 4x4 | **299 ns** | 461 ns | 1278 ns |
+| Cholesky 4x4 | 25.2 ns | **11.8 ns** | 139 ns |
+| Eigen sym 4x4 | **165 ns** | 201 ns | 578 ns |
+| Eigen sym 6x6 | **287 ns** | 528 ns | 1088 ns |
+
+numeris is competitive with nalgebra at small fixed sizes and significantly faster for QR, SVD, and eigendecomposition. faer excels at large dynamic matrices (200x200+) due to cache-aware A+B panel packing.
+
 ## Module overview
 
-### `matrix` — Fixed-size matrix
+<details>
+<summary><b><code>matrix</code></b> — Fixed-size matrix</summary>
 
 `Matrix<T, M, N>` with `[[T; M]; N]` column-major storage. `Matrix::new()` accepts row-major input and transposes internally.
 
@@ -446,7 +506,10 @@ let points: Matrix4x3<f64> = Matrix4x3::zeros(); // 4 rows, 3 cols
 let v: Vector3<f64> = Vector3::from_array([1.0, 2.0, 3.0]);
 ```
 
-### `dynmatrix` — Dynamic matrix (requires `alloc`)
+</details>
+
+<details>
+<summary><b><code>dynmatrix</code></b> — Dynamic matrix (requires <code>alloc</code>)</summary>
 
 `DynMatrix<T>` with `Vec<T>` column-major storage and runtime dimensions. `from_rows()` accepts row-major data (transposes internally); `from_slice()` accepts column-major data directly.
 
@@ -458,7 +521,10 @@ let v: Vector3<f64> = Vector3::from_array([1.0, 2.0, 3.0]);
 
 Type aliases: `DynMatrixf64`, `DynMatrixf32`, `DynVectorf64`, `DynVectorf32`, `DynMatrixi32`, `DynMatrixi64`, `DynMatrixu32`, `DynMatrixu64`, `DynMatrixz64`, `DynMatrixz32` (complex).
 
-### `linalg` — Decompositions
+</details>
+
+<details>
+<summary><b><code>linalg</code></b> — Decompositions</summary>
 
 All decompositions provide both free functions (operating on `&mut impl MatrixMut<T>`) and wrapper structs with `solve()`, `inverse()`, `det()`.
 
@@ -475,11 +541,17 @@ Convenience methods on `Matrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.svd()`, 
 
 Same convenience methods on `DynMatrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.svd()`, `a.solve(&b)`, `a.inverse()`, `a.det()`, `a.eig_symmetric()`, `a.eigenvalues_symmetric()`, `a.schur()`, `a.eigenvalues()`.
 
-### `ode` — ODE integration
+</details>
+
+<details>
+<summary><b><code>ode</code></b> — ODE integration</summary>
 
 Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdaptive` trait. PI step-size controller (Söderlind & Wang 2006). Dense output / interpolation available for most solvers (gated behind `std`). For stiff systems, `RODAS4` provides an L-stable Rosenbrock method via the `Rosenbrock` trait — accepts user-supplied or automatic finite-difference Jacobians.
 
-### `optim` — Optimization (requires `optim` feature)
+</details>
+
+<details>
+<summary><b><code>optim</code></b> — Optimization (requires <code>optim</code> feature)</summary>
 
 - **Root finding**: `brent` (bracketed, superlinear convergence), `newton_1d` (with derivative)
 - **Minimization**: `minimize_bfgs` (BFGS quasi-Newton with Armijo line search)
@@ -487,7 +559,10 @@ Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdap
 - **Finite differences**: `finite_difference_gradient`, `finite_difference_jacobian` for numerical derivatives
 - All algorithms use `FloatScalar` bound (real-valued), configurable via settings structs with `Default` impls for `f32` and `f64`
 
-### `estimate` — State estimation (requires `estimate` feature)
+</details>
+
+<details>
+<summary><b><code>estimate</code></b> — State estimation (requires <code>estimate</code> feature)</summary>
 
 Six estimators with const-generic state (`N`) and measurement (`M`) dimensions. Closure-based dynamics and measurement models.
 
@@ -500,7 +575,10 @@ Six estimators with const-generic state (`N`) and measurement (`M`) dimensions. 
 - Process noise `Q` is optional in predict step (`Some(&q)` or `None`)
 - `FloatScalar` bound (real-valued), works with `f32` and `f64`
 
-### `control` — Digital filters and controllers (requires `control` feature)
+</details>
+
+<details>
+<summary><b><code>control</code></b> — Digital filters and controllers (requires <code>control</code> feature)</summary>
 
 Biquad cascade filters designed via the bilinear transform, PID controller, lead/lag compensator design, and PID tuning rules. No `complex` feature dependency.
 
@@ -514,7 +592,10 @@ Biquad cascade filters designed via the bilinear transform, PID controller, lead
 - `FopdtModel` — FOPDT process model with `ziegler_nichols`, `cohen_coon`, `simc` tuning methods
 - `ziegler_nichols_ultimate` — closed-loop ultimate gain PID tuning
 
-### `interp` — Interpolation (requires `interp` feature)
+</details>
+
+<details>
+<summary><b><code>interp</code></b> — Interpolation (requires <code>interp</code> feature)</summary>
 
 Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires `alloc`). Out-of-bounds evaluations extrapolate.
 
@@ -526,7 +607,10 @@ Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requ
 | Cubic spline | `CubicSpline<T, N>` | `DynCubicSpline<T>` | Natural BCs, Thomas algorithm |
 | Bilinear | `BilinearInterp<T, NX, NY>` | `DynBilinearInterp<T>` | 2D rectangular grid |
 
-### `special` — Special functions (requires `special` feature)
+</details>
+
+<details>
+<summary><b><code>special</code></b> — Special functions (requires <code>special</code> feature)</summary>
 
 Fully no-std, generic over `FloatScalar` (f32/f64).
 
@@ -540,7 +624,10 @@ Fully no-std, generic over `FloatScalar` (f32/f64).
 | `betainc(a,b,x)` | Regularized incomplete beta I_x(a,b) |
 | `erf(x)`, `erfc(x)` | Error function and complementary error function |
 
-### `stats` — Statistical distributions (requires `stats` feature)
+</details>
+
+<details>
+<summary><b><code>stats</code></b> — Statistical distributions (requires <code>stats</code> feature)</summary>
 
 Continuous distributions implement `ContinuousDistribution` (pdf, cdf, quantile, mean, variance). Discrete distributions implement `DiscreteDistribution` (pmf, cdf, quantile, mean, variance). Implies `special` feature.
 
@@ -557,7 +644,10 @@ Continuous distributions implement `ContinuousDistribution` (pdf, cdf, quantile,
 | Binomial | `Binomial<T>` | trials n, probability p |
 | Poisson | `Poisson<T>` | rate λ |
 
-### `quaternion` — Unit quaternion rotations
+</details>
+
+<details>
+<summary><b><code>quaternion</code></b> — Unit quaternion rotations</summary>
 
 `Quaternion<T>` with scalar-first convention `[w, x, y, z]`.
 
@@ -565,7 +655,10 @@ Continuous distributions implement `ContinuousDistribution` (pdf, cdf, quantile,
 - Operations: `*` (Hamilton product), `* Vector3` (rotation), `conjugate`, `inverse`, `normalize`, `slerp`
 - Conversion: `to_rotation_matrix`, `to_axis_angle`, `to_euler`
 
-### `traits` — Element traits
+</details>
+
+<details>
+<summary><b><code>traits</code></b> — Element traits</summary>
 
 | Trait | Bounds | Used by |
 |---|---|---|
@@ -574,6 +667,8 @@ Continuous distributions implement `ContinuousDistribution` (pdf, cdf, quantile,
 | `LinalgScalar` | `Scalar` + `modulus`, `conj`, `re`, `lsqrt`, `lln`, `from_real` | Decompositions, norms |
 | `MatrixRef<T>` | Read-only `get(row, col)` | Generic algorithms |
 | `MatrixMut<T>` | Adds `get_mut(row, col)` | In-place decompositions |
+
+</details>
 
 ## Module plan
 

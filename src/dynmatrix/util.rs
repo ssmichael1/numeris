@@ -28,6 +28,33 @@ impl<T: Scalar> DynMatrix<T> {
 // ── Map ─────────────────────────────────────────────────────────────
 
 impl<T> DynMatrix<T> {
+    /// Cast every element to a different numeric type.
+    ///
+    /// Uses `NumCast` from `num-traits` for safe numeric conversion.
+    /// Panics if any element cannot be represented in the target type.
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let m = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+    /// let m32: DynMatrix<f32> = m.cast();
+    /// assert_eq!(m32[(0, 0)], 1.0_f32);
+    /// ```
+    pub fn cast<U: num_traits::NumCast>(&self) -> DynMatrix<U>
+    where
+        T: Copy + num_traits::ToPrimitive,
+    {
+        let data: Vec<U> = self
+            .data
+            .iter()
+            .map(|&x| U::from(x).expect("numeric cast failed"))
+            .collect();
+        DynMatrix {
+            data,
+            nrows: self.nrows,
+            ncols: self.ncols,
+        }
+    }
+
     /// Apply a function to every element, producing a new matrix.
     ///
     /// ```

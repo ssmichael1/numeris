@@ -29,6 +29,34 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
         Self { data }
     }
 
+    /// Cast every element to a different numeric type.
+    ///
+    /// Uses `NumCast` from `num-traits` for safe numeric conversion.
+    /// Panics if any element cannot be represented in the target type.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    /// let m = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0]]);
+    /// let m32: Matrix<f32, 2, 2> = m.cast();
+    /// assert_eq!(m32[(0, 0)], 1.0_f32);
+    ///
+    /// let mi = Matrix::new([[1_i32, 2], [3, 4]]);
+    /// let mf: Matrix<f64, 2, 2> = mi.cast();
+    /// assert_eq!(mf[(1, 1)], 4.0);
+    /// ```
+    pub fn cast<U: Copy + Default + num_traits::NumCast>(&self) -> Matrix<U, M, N>
+    where
+        T: Copy + num_traits::ToPrimitive,
+    {
+        let mut data = [[U::default(); M]; N];
+        for j in 0..N {
+            for i in 0..M {
+                data[j][i] = U::from(self[(i, j)]).expect("numeric cast failed");
+            }
+        }
+        Matrix { data }
+    }
+
     /// Apply a function to every element, producing a new matrix.
     ///
     /// ```

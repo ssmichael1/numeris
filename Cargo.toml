@@ -3,7 +3,7 @@ members = [".", "bench"]
 
 [package]
 name = "numeris"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.70"
 description = "Pure-Rust numerical algorithms library — high performance with SIMD support while also supporting no-std for embedded and WASM targets."
@@ -13,6 +13,7 @@ readme = "README.md"
 keywords = ["math", "matrix", "linear-algebra", "ode", "quaternion"]
 categories = ["mathematics", "no-std", "science"]
 documentation = "https://docs.rs/numeris"
+homepage = "https://numeris-rs.dev/"
 
 [package.metadata.docs.rs]
 all-features = true

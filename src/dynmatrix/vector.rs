@@ -100,6 +100,23 @@ impl<T: Scalar> DynVector<T> {
         crate::simd::dot_dispatch(self.as_slice(), rhs.as_slice())
     }
 
+    /// Cast every element to a different numeric type.
+    ///
+    /// ```
+    /// use numeris::DynVector;
+    /// let v = DynVector::from_slice(&[1.0_f64, 2.0, 3.0]);
+    /// let v32: DynVector<f32> = v.cast();
+    /// assert_eq!(v32[0], 1.0_f32);
+    /// ```
+    pub fn cast<U: Scalar + num_traits::NumCast>(&self) -> DynVector<U>
+    where
+        T: num_traits::ToPrimitive,
+    {
+        DynVector {
+            inner: self.inner.cast(),
+        }
+    }
+
     /// View the vector data as a slice.
     #[inline]
     pub fn as_slice(&self) -> &[T] {
