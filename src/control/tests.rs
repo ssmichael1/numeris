@@ -766,3 +766,38 @@ fn pid_tuning_f32() {
     let g2 = ziegler_nichols_ultimate(10.0_f32, 0.5).unwrap();
     assert!((g2.kp - 6.0_f32).abs() < 1e-5, "ZN-ult f32 kp");
 }
+
+// ======================== Biquad try_new ========================
+
+#[test]
+fn biquad_try_new_valid() {
+    let bq = Biquad::try_new([1.0_f64, 2.0, 1.0], [1.0, -0.5, 0.1]);
+    assert!(bq.is_ok());
+    let (b, a) = bq.unwrap().coefficients();
+    assert_eq!(a[0], 1.0);
+    assert_near(b[0], 1.0, 1e-14, "b0");
+}
+
+#[test]
+fn biquad_try_new_zero_denominator() {
+    let result = Biquad::try_new([1.0_f64, 0.0, 0.0], [0.0, 0.0, 0.0]);
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), ControlError::NearZeroDenominator);
+}
+
+#[test]
+fn biquad_try_new_near_zero_denominator() {
+    let tiny = f64::EPSILON * 0.5;
+    let result = Biquad::try_new([1.0_f64, 0.0, 0.0], [tiny, 0.0, 0.0]);
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), ControlError::NearZeroDenominator);
+}
+
+#[test]
+fn biquad_try_new_f32() {
+    let bq = Biquad::try_new([1.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    assert!(bq.is_ok());
+
+    let result = Biquad::try_new([1.0_f32, 0.0, 0.0], [0.0, 0.0, 0.0]);
+    assert!(result.is_err());
+}

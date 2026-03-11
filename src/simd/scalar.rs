@@ -6,12 +6,20 @@
 use crate::traits::Scalar;
 
 /// Dot product of two slices (scalar fallback).
+///
+/// Uses Kahan compensated summation for improved numerical accuracy
+/// when accumulating many floating-point products.
 #[inline]
 pub fn dot<T: Scalar>(a: &[T], b: &[T]) -> T {
     debug_assert_eq!(a.len(), b.len());
     let mut sum = T::zero();
+    let mut comp = T::zero(); // Kahan compensation
     for i in 0..a.len() {
-        sum = sum + a[i] * b[i];
+        let prod = a[i] * b[i];
+        let y = prod - comp;
+        let t = sum + y;
+        comp = (t - sum) - y;
+        sum = t;
     }
     sum
 }

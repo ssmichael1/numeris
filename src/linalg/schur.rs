@@ -186,7 +186,7 @@ pub fn francis_qr<T: FloatScalar>(
 /// 3-element Householder: returns (v0, v1, v2, tau) with v0 = 1.
 #[inline]
 fn householder3<T: Float + Zero + One>(x: T, y: T, z: T) -> (T, T, T, T) {
-    let norm = (x * x + y * y + z * z).sqrt();
+    let norm = x.hypot(y).hypot(z);
     if norm <= T::epsilon() {
         return (T::one(), T::zero(), T::zero(), T::zero());
     }
@@ -201,7 +201,7 @@ fn householder3<T: Float + Zero + One>(x: T, y: T, z: T) -> (T, T, T, T) {
 /// 2-element Householder: returns (v0, v1, tau) with v0 = 1.
 #[inline]
 fn householder2<T: Float + Zero + One>(x: T, y: T) -> (T, T, T) {
-    let norm = (x * x + y * y).sqrt();
+    let norm = x.hypot(y);
     if norm <= T::epsilon() {
         return (T::one(), T::zero(), T::zero());
     }
@@ -246,6 +246,9 @@ pub struct SchurDecomposition<T: FloatScalar, const N: usize> {
 
 impl<T: FloatScalar, const N: usize> SchurDecomposition<T, N> {
     /// Compute the real Schur decomposition of a square matrix.
+    ///
+    /// Uses a closed-form solution for 2×2 matrices, falling back to
+    /// Hessenberg reduction + Francis QR for larger sizes.
     pub fn new(a: &Matrix<T, N, N>) -> Result<Self, LinalgError> {
         let mut s = *a;
         let mut q = Matrix::<T, N, N>::zeros();
@@ -254,6 +257,65 @@ impl<T: FloatScalar, const N: usize> SchurDecomposition<T, N> {
             for i in 0..N {
                 q[(i, i)] = T::one();
             }
+            return Ok(Self { s, q });
+        }
+
+        // Fast path for 2×2: closed-form Schur decomposition.
+        // If eigenvalues are real, compute Givens rotation to triangularize.
+        // If complex conjugate pair, the 2×2 block is already Schur form, Q = I.
+        if N == 2 {
+            let aa = s[(0, 0)];
+            let bb = s[(0, 1)];
+            let cc = s[(1, 0)];
+            let dd = s[(1, 1)];
+
+            let half = T::one() / (T::one() + T::one());
+            let tr = (aa + dd) * half;
+            let det = aa * dd - bb * cc;
+            let disc = tr * tr - det;
+
+            if disc >= T::zero() - T::epsilon() {
+                // Real eigenvalues: find Givens rotation to triangularize.
+                // Use column of (A - lambda2*I) as Schur vector for lambda1.
+                // This works for both distinct and repeated (defective) eigenvalues.
+                let sqrt_disc = if disc > T::zero() { disc.sqrt() } else { T::zero() };
+                let lambda2 = tr - sqrt_disc;
+                let x = aa - lambda2;
+                let y = cc;
+
+                let scale = T::one() + aa.abs() + dd.abs();
+                if y.abs() > T::epsilon() * scale {
+                    let r = x.hypot(y);
+                    let c_rot = x / r;
+                    let s_rot = y / r;
+                    // Q = [[c, -s], [s, c]], S = Q^T A Q
+                    q[(0, 0)] = c_rot;
+                    q[(1, 0)] = s_rot;
+                    q[(0, 1)] = T::zero() - s_rot;
+                    q[(1, 1)] = c_rot;
+                    let qt_a00 = c_rot * aa + s_rot * cc;
+                    let qt_a01 = c_rot * bb + s_rot * dd;
+                    let qt_a10 = (T::zero() - s_rot) * aa + c_rot * cc;
+                    let qt_a11 = (T::zero() - s_rot) * bb + c_rot * dd;
+                    s[(0, 0)] = qt_a00 * c_rot + qt_a01 * s_rot;
+                    s[(0, 1)] = (T::zero() - qt_a00) * s_rot + qt_a01 * c_rot;
+                    s[(1, 0)] = T::zero(); // zero by construction
+                    s[(1, 1)] = (T::zero() - qt_a10) * s_rot + qt_a11 * c_rot;
+                } else if x.abs() > T::epsilon() * scale {
+                    // cc ~ 0 but x nonzero: already upper triangular
+                    q[(0, 0)] = T::one();
+                    q[(1, 1)] = T::one();
+                } else {
+                    // Both x and y near zero: repeated eigenvalue, already diagonal
+                    q[(0, 0)] = T::one();
+                    q[(1, 1)] = T::one();
+                }
+            } else {
+                // Complex conjugate pair: 2×2 block is already Schur form.
+                q[(0, 0)] = T::one();
+                q[(1, 1)] = T::one();
+            }
+
             return Ok(Self { s, q });
         }
 

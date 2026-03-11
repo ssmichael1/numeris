@@ -33,7 +33,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 
 ```toml
 [dependencies]
-numeris = "0.3"
+numeris = "0.4"
 ```
 
 ```rust
@@ -88,7 +88,7 @@ numeris works on bare-metal targets with no allocator:
 
 ```toml
 [dependencies]
-numeris = { version = "0.3", default-features = false, features = ["libm"] }
+numeris = { version = "0.4", default-features = false, features = ["libm"] }
 ```
 
 ```rust
@@ -108,7 +108,7 @@ let eig = sym.eig_symmetric().unwrap();
 Add `alloc` for `DynMatrix` on targets with a heap but no OS:
 
 ```toml
-numeris = { version = "0.3", default-features = false, features = ["libm", "alloc"] }
+numeris = { version = "0.4", default-features = false, features = ["libm", "alloc"] }
 ```
 
 ## Dynamic matrices
@@ -199,7 +199,7 @@ Root finding, unconstrained minimization, and nonlinear least squares (requires 
 
 ```toml
 [dependencies]
-numeris = { version = "0.3", features = ["optim"] }
+numeris = { version = "0.4", features = ["optim"] }
 ```
 
 ```rust
@@ -259,7 +259,7 @@ Biquad cascade IIR filters with Butterworth and Chebyshev Type I design (require
 
 ```toml
 [dependencies]
-numeris = { version = "0.3", features = ["control"] }
+numeris = { version = "0.4", features = ["control"] }
 ```
 
 ```rust
@@ -314,7 +314,7 @@ Six estimators for nonlinear state estimation and offline batch processing (requ
 
 ```toml
 [dependencies]
-numeris = { version = "0.3", features = ["estimate"] }
+numeris = { version = "0.4", features = ["estimate"] }
 ```
 
 ```rust
@@ -390,7 +390,7 @@ Enable the `complex` feature to use decompositions with complex elements:
 
 ```toml
 [dependencies]
-numeris = { version = "0.3", features = ["complex"] }
+numeris = { version = "0.4", features = ["complex"] }
 ```
 
 ```rust
@@ -455,21 +455,22 @@ Measured on Apple Silicon (aarch64, NEON) with Criterion. Compared against [nalg
 
 | Benchmark | numeris | nalgebra | faer |
 |---|---|---|---|
-| matmul 4x4 | **4.9 ns** | 4.9 ns | 58 ns |
-| matmul 6x6 | **13.4 ns** | 20.0 ns | 87 ns |
-| matmul 50x50 (dyn) | **5.76 us** | 6.63 us | 6.3 us |
-| matmul 200x200 (dyn) | 369 us | 361 us | **193 us** |
-| dot 100 (dyn) | **11.6 ns** | 14.5 ns | — |
-| LU 4x4 | 33.2 ns | **28.2 ns** | 203 ns |
-| LU 6x6 | 84.7 ns | **82.1 ns** | 292 ns |
-| QR 4x4 | **46.4 ns** | 90.6 ns | 303 ns |
-| QR 6x6 | **85.5 ns** | 207.9 ns | 445 ns |
-| SVD 4x4 | **299 ns** | 461 ns | 1278 ns |
-| Cholesky 4x4 | 25.2 ns | **11.8 ns** | 139 ns |
-| Eigen sym 4x4 | **165 ns** | 201 ns | 578 ns |
-| Eigen sym 6x6 | **287 ns** | 528 ns | 1088 ns |
+| matmul 4x4 | 6.7 ns | **4.9 ns** | 56 ns |
+| matmul 6x6 | 20.5 ns | **19.8 ns** | 86 ns |
+| matmul 50x50 (dyn) | **5.69 us** | 6.64 us | 6.10 us |
+| matmul 200x200 (dyn) | 306 us | 293 us | **179 us** |
+| dot 100 (dyn) | **11.8 ns** | 12.3 ns | — |
+| LU 4x4 | 32.7 ns | **28.2 ns** | 206 ns |
+| LU 6x6 | 83.6 ns | **82.0 ns** | 303 ns |
+| QR 4x4 | **46.0 ns** | 90.6 ns | 299 ns |
+| QR 6x6 | **83.4 ns** | 208 ns | 439 ns |
+| SVD 4x4 | **449 ns** | 459 ns | 1.26 us |
+| SVD 6x6 | **607 ns** | 915 ns | 1.85 us |
+| Cholesky 4x4 | 25.1 ns | **11.5 ns** | 130 ns |
+| Eigen sym 4x4 | **178 ns** | 202 ns | 607 ns |
+| Eigen sym 6x6 | **303 ns** | 535 ns | 1.08 us |
 
-numeris is competitive with nalgebra at small fixed sizes and significantly faster for QR, SVD, and eigendecomposition. faer excels at large dynamic matrices (200x200+) due to cache-aware A+B panel packing.
+numeris is competitive with nalgebra at small fixed sizes and significantly faster for QR (2x), SVD (1.5x), and eigendecomposition (1.8x). faer excels at large dynamic matrices (200x200+) due to cache-aware A+B panel packing.
 
 ## Module overview
 

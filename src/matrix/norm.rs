@@ -33,8 +33,14 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     /// ```
     pub fn norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
+        let mut comp = <T::Real as Zero>::zero();
         for i in 0..N {
-            sum = sum + self[i].modulus() * self[i].modulus();
+            let m = self[i].modulus();
+            let prod = m * m;
+            let y = prod - comp;
+            let t = sum + y;
+            comp = (t - sum) - y;
+            sum = t;
         }
         sum.sqrt()
     }
@@ -48,8 +54,13 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     /// ```
     pub fn norm_l1(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
+        let mut comp = <T::Real as Zero>::zero();
         for i in 0..N {
-            sum = sum + self[i].modulus();
+            let val = self[i].modulus();
+            let y = val - comp;
+            let t = sum + y;
+            comp = (t - sum) - y;
+            sum = t;
         }
         sum
     }
@@ -113,10 +124,15 @@ impl<T: LinalgScalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// ```
     pub fn frobenius_norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
+        let mut comp = <T::Real as Zero>::zero();
         for i in 0..M {
             for j in 0..N {
                 let m = self[(i, j)].modulus();
-                sum = sum + m * m;
+                let prod = m * m;
+                let y = prod - comp;
+                let t = sum + y;
+                comp = (t - sum) - y;
+                sum = t;
             }
         }
         sum.sqrt()

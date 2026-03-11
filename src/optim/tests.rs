@@ -401,6 +401,32 @@ fn lm_linear_exact() {
     assert_near(r.x[1], 3.0 / 2.0, 1e-6, "lm linear c1");
 }
 
+#[test]
+fn lm_damping_bounds_ill_conditioned() {
+    // Ill-conditioned problem: residuals nearly independent of x[1], so J^T J is
+    // near-singular. Without damping bounds, mu could overflow on repeated rejection
+    // or underflow after a lucky step. This test verifies convergence with mu clamping
+    // and the predicted≈0 guard.
+    //
+    // r(x) = [x0 - 1, 1e-8 * x1 - 1e-8], so true solution is x = [1, 1].
+    // The huge condition number (≈1e16) stresses the damping logic.
+    let r = least_squares_lm(
+        |x: &Vector<f64, 2>| Vector::from_array([x[0] - 1.0, 1e-8 * x[1] - 1e-8]),
+        |_x: &Vector<f64, 2>| Matrix::new([[1.0, 0.0], [0.0, 1e-8]]),
+        &Vector::from_array([10.0, 10.0]),
+        &LmSettings {
+            mu_min: 1e-10,
+            mu_max: 1e10,
+            ..LmSettings::default()
+        },
+    )
+    .unwrap();
+
+    assert_near(r.x[0], 1.0, 1e-4, "lm ill-cond x0");
+    // x[1] may not converge to full precision due to conditioning, but cost should be small
+    assert!(r.cost < 1e-6, "lm ill-cond cost = {}", r.cost);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Error type tests
 // ═══════════════════════════════════════════════════════════════════

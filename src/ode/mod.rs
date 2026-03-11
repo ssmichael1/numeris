@@ -96,6 +96,8 @@ pub enum OdeError {
     InterpNotImplemented,
     /// Jacobian matrix is singular (Rosenbrock solvers only).
     SingularJacobian,
+    /// Too many consecutive step rejections (adaptive only).
+    TooManyRejections,
 }
 
 impl fmt::Display for OdeError {
@@ -107,6 +109,7 @@ impl fmt::Display for OdeError {
             Self::InterpOutOfBounds => write!(f, "interpolation point out of bounds"),
             Self::InterpNotImplemented => write!(f, "interpolation not implemented for this solver"),
             Self::SingularJacobian => write!(f, "Jacobian matrix is singular"),
+            Self::TooManyRejections => write!(f, "too many consecutive step rejections"),
         }
     }
 }

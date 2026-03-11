@@ -62,6 +62,8 @@ pub enum ControlError {
     InvalidFrequency,
     /// Passband ripple is not positive (Chebyshev).
     InvalidRipple,
+    /// Denominator leading coefficient `a[0]` is near zero.
+    NearZeroDenominator,
 }
 
 impl core::fmt::Display for ControlError {
@@ -72,6 +74,9 @@ impl core::fmt::Display for ControlError {
                 write!(f, "cutoff frequency must be in (0, sample_rate/2)")
             }
             ControlError::InvalidRipple => write!(f, "passband ripple must be positive"),
+            ControlError::NearZeroDenominator => {
+                write!(f, "denominator leading coefficient a[0] is near zero")
+            }
         }
     }
 }

@@ -1,3 +1,5 @@
+use num_traits::Float;
+
 use crate::linalg::{split_two_col_slices, LinalgError};
 use crate::matrix::vector::Vector;
 use crate::traits::{LinalgScalar, MatrixMut, MatrixRef};
@@ -260,6 +262,77 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
         Vector::from_array(x_flat)
     }
 
+    /// Solve `Ax = b` with iterative refinement (up to 3 iterations).
+    ///
+    /// Takes the original matrix `a` used to create this decomposition.
+    /// Computes an initial solve, then iteratively refines by solving for
+    /// the residual correction. Stops early when the correction norm falls
+    /// below `epsilon * ||x||` or when the correction norm stops decreasing.
+    /// This can recover additional digits of accuracy for ill-conditioned
+    /// systems.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{Matrix, Vector};
+    ///
+    /// // Ill-conditioned 3x3 system (condition number ~3200)
+    /// let a = Matrix::new([
+    ///     [1.0_f64,    1.0,      1.0     ],
+    ///     [1.0,        1.0001,   1.0001  ],
+    ///     [1.0,        1.0001,   1.00020001],
+    /// ]);
+    /// let x_true = Vector::from_array([1.0, 2.0, 3.0]);
+    /// let b = a.vecmul(&x_true);
+    ///
+    /// let lu = a.lu().unwrap();
+    /// let x_plain = lu.solve(&b);
+    /// let x_refined = lu.solve_refined(&a, &b);
+    ///
+    /// // Refined solution should be at least as accurate as plain solve
+    /// let err_plain: f64 = (0..3).map(|i| (x_plain[i] - x_true[i]).abs()).fold(0.0, f64::max);
+    /// let err_refined: f64 = (0..3).map(|i| (x_refined[i] - x_true[i]).abs()).fold(0.0, f64::max);
+    /// assert!(err_refined <= err_plain + 1e-15);
+    /// ```
+    pub fn solve_refined(&self, a: &Matrix<T, N, N>, b: &Vector<T, N>) -> Vector<T, N> {
+        let mut x = self.solve(b);
+        let tol = T::lepsilon();
+        let mut prev_dx_norm = <T::Real as Float>::infinity();
+
+        for _ in 0..3 {
+            // Compute residual r = b - A*x
+            let ax = a.vecmul(&x);
+            let mut r = *b;
+            for i in 0..N {
+                r[i] = r[i] - ax[i];
+            }
+            // Solve for correction
+            let dx = self.solve(&r);
+
+            // Check convergence: ||dx|| < eps * ||x||
+            let dx_norm = dx.norm();
+            let x_norm = x.norm();
+            if dx_norm <= tol * x_norm {
+                // Correction is negligible — apply and stop
+                for i in 0..N {
+                    x[i] = x[i] + dx[i];
+                }
+                break;
+            }
+            // Check stalling: correction norm not decreasing
+            if dx_norm >= prev_dx_norm {
+                break;
+            }
+            prev_dx_norm = dx_norm;
+
+            // Apply correction
+            for i in 0..N {
+                x[i] = x[i] + dx[i];
+            }
+        }
+        x
+    }
+
     /// Compute the matrix inverse.
     pub fn inverse(&self) -> Matrix<T, N, N> {
         let mut inv = Matrix::<T, N, N>::zeros();
@@ -438,6 +511,34 @@ impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
         Ok(self.lu()?.solve(b))
     }
 
+    /// Solve `Ax = b` with iterative refinement (up to 3 iterations).
+    ///
+    /// Computes the LU decomposition, solves the system, then iteratively
+    /// refines by solving for the residual correction. Returns a more accurate
+    /// solution than [`solve`](Matrix::solve) for ill-conditioned matrices.
+    ///
+    /// ```
+    /// use numeris::{Matrix, Vector};
+    ///
+    /// // Ill-conditioned 3x3 system
+    /// let a = Matrix::new([
+    ///     [1.0_f64,    1.0,      1.0     ],
+    ///     [1.0,        1.0001,   1.0001  ],
+    ///     [1.0,        1.0001,   1.00020001],
+    /// ]);
+    /// let x_true = Vector::from_array([1.0, 2.0, 3.0]);
+    /// let b = a.vecmul(&x_true);
+    ///
+    /// let x = a.solve_refined(&b).unwrap();
+    /// for i in 0..3 {
+    ///     assert!((x[i] - x_true[i]).abs() < 1e-6);
+    /// }
+    /// ```
+    pub fn solve_refined(&self, b: &Vector<T, N>) -> Result<Vector<T, N>, LinalgError> {
+        let lu = self.lu()?;
+        Ok(lu.solve_refined(self, b))
+    }
+
     /// Compute the matrix inverse via direct formulas (N<=4) or LU decomposition.
     ///
     /// ```
@@ -585,5 +686,74 @@ mod tests {
                 row_sum - b[i]
             );
         }
+    }
+
+    #[test]
+    fn solve_refined_improves_accuracy() {
+        // Ill-conditioned 3x3 system (condition number ~3200)
+        let a = Matrix::new([
+            [1.0_f64,    1.0,      1.0     ],
+            [1.0,        1.0001,   1.0001  ],
+            [1.0,        1.0001,   1.00020001],
+        ]);
+        let x_true = Vector::from_array([1.0, 2.0, 3.0]);
+        let b = a.vecmul(&x_true);
+
+        let lu = a.lu().unwrap();
+        let x_plain = lu.solve(&b);
+        let x_refined = lu.solve_refined(&a, &b);
+
+        let err_plain: f64 = (0..3).map(|i| (x_plain[i] - x_true[i]).abs()).fold(0.0, f64::max);
+        let err_refined: f64 = (0..3).map(|i| (x_refined[i] - x_true[i]).abs()).fold(0.0, f64::max);
+
+        // Refined should be at least as good
+        assert!(err_refined <= err_plain + 1e-15,
+            "refined err {} should be <= plain err {}", err_refined, err_plain);
+        // Both should be reasonably accurate
+        assert!(err_refined < 1e-6, "refined err {} too large", err_refined);
+    }
+
+    #[test]
+    fn solve_refined_convenience() {
+        let a = Matrix::new([
+            [1.0_f64,    1.0,      1.0     ],
+            [1.0,        1.0001,   1.0001  ],
+            [1.0,        1.0001,   1.00020001],
+        ]);
+        let x_true = Vector::from_array([1.0, 2.0, 3.0]);
+        let b = a.vecmul(&x_true);
+
+        let x = a.solve_refined(&b).unwrap();
+        for i in 0..3 {
+            assert!((x[i] - x_true[i]).abs() < 1e-6,
+                "x[{}] = {}, expected {}", i, x[i], x_true[i]);
+        }
+    }
+
+    #[test]
+    fn solve_refined_multi_iteration_ill_conditioned() {
+        // 8x8 Hilbert matrix — condition number ~1.5e10, large enough that
+        // plain solve loses several digits and refinement recovers them.
+        let a = Matrix::<f64, 8, 8>::from_fn(|i, j| {
+            1.0 / ((i + j + 1) as f64)
+        });
+        let x_true = Vector::<f64, 8>::from_fn(|i, _| {
+            (i as f64 + 1.0) * if i % 2 == 0 { 1.0 } else { -1.0 }
+        });
+        let b = a.vecmul(&x_true);
+
+        let lu = a.lu().unwrap();
+        let x_plain = lu.solve(&b);
+        let x_refined = lu.solve_refined(&a, &b);
+
+        let err_plain: f64 = (0..8).map(|i| (x_plain[i] - x_true[i]).abs()).fold(0.0, f64::max);
+        let err_refined: f64 = (0..8).map(|i| (x_refined[i] - x_true[i]).abs()).fold(0.0, f64::max);
+
+        // Refined should be strictly better for this ill-conditioned system
+        assert!(err_refined < err_plain,
+            "refined err {} should be < plain err {}", err_refined, err_plain);
+        // Refined should still achieve reasonable accuracy
+        assert!(err_refined < 1e-4,
+            "refined err {} too large for Hilbert system", err_refined);
     }
 }

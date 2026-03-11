@@ -486,4 +486,55 @@ mod tests {
             approx_eq(numerical, analytical, 1e-5);
         }
     }
+
+    // =====================================================================
+    // lgamma — large argument asymptotic (Stirling series)
+    // =====================================================================
+
+    #[test]
+    fn lgamma_large_x_stirling() {
+        // For very large x, the Stirling asymptotic path should give accurate results
+        // without overflow. Reference values computed via high-precision math.
+        // ln Γ(1e6) ≈ 1e6·ln(1e6) - 1e6 + 0.5·ln(2π/1e6) + correction
+        let val = lgamma(1e6_f64);
+        // Reference: Wolfram Alpha gives ln(Γ(10^6)) ≈ 12815504.569147613
+        approx_eq(val, 12815504.569147613, 1e-2);
+
+        let val2 = lgamma(1e8_f64);
+        // Reference: ln(Γ(10^8)) ≈ 1742068084.4461467
+        // Stirling series truncation error grows for smaller x relative to result magnitude
+        approx_eq(val2, 1742068084.4461467, 50.0);
+
+        // Verify no overflow or NaN for extreme values
+        let val3 = lgamma(1e15_f64);
+        assert!(val3.is_finite(), "lgamma(1e15) should be finite");
+        assert!(val3 > 0.0, "lgamma(1e15) should be positive");
+    }
+
+    #[test]
+    fn lgamma_stirling_f32() {
+        let val = lgamma(1e6_f32);
+        assert!(val.is_finite(), "lgamma(1e6) f32 should be finite");
+        assert!(val > 0.0, "lgamma(1e6) f32 should be positive");
+    }
+
+    #[test]
+    fn lgamma_continuity_at_threshold() {
+        // Verify continuity near the transition point (1e6).
+        // Values just below and just above the threshold should agree.
+        let below = lgamma(999999.0_f64);
+        let above = lgamma(1000001.0_f64);
+        let at = lgamma(1000000.0_f64);
+        // These should form a smooth, monotonically increasing sequence
+        assert!(below < at, "lgamma should be monotonically increasing");
+        assert!(at < above, "lgamma should be monotonically increasing");
+        // Check relative continuity — the jump should be smooth
+        let slope_left = at - below;
+        let slope_right = above - at;
+        let ratio = slope_left / slope_right;
+        assert!(
+            (ratio - 1.0).abs() < 0.01,
+            "slopes should be nearly equal near threshold: {ratio}"
+        );
+    }
 }

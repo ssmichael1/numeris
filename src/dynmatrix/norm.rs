@@ -30,8 +30,14 @@ impl<T: LinalgScalar> DynVector<T> {
     /// ```
     pub fn norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
+        let mut comp = <T::Real as Zero>::zero();
         for i in 0..self.len() {
-            sum = sum + self[i].modulus() * self[i].modulus();
+            let m = self[i].modulus();
+            let prod = m * m;
+            let y = prod - comp;
+            let t = sum + y;
+            comp = (t - sum) - y;
+            sum = t;
         }
         sum.lsqrt()
     }
@@ -45,8 +51,13 @@ impl<T: LinalgScalar> DynVector<T> {
     /// ```
     pub fn norm_l1(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
+        let mut comp = <T::Real as Zero>::zero();
         for i in 0..self.len() {
-            sum = sum + self[i].modulus();
+            let val = self[i].modulus();
+            let y = val - comp;
+            let t = sum + y;
+            comp = (t - sum) - y;
+            sum = t;
         }
         sum
     }
@@ -103,9 +114,14 @@ impl<T: LinalgScalar> DynMatrix<T> {
     /// ```
     pub fn frobenius_norm(&self) -> T::Real {
         let mut sum = <T::Real as Zero>::zero();
+        let mut comp = <T::Real as Zero>::zero();
         for &x in &self.data {
             let m = x.modulus();
-            sum = sum + m * m;
+            let prod = m * m;
+            let y = prod - comp;
+            let t = sum + y;
+            comp = (t - sum) - y;
+            sum = t;
         }
         sum.lsqrt()
     }

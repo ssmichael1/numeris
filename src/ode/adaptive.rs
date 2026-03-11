@@ -22,6 +22,13 @@ pub struct AdaptiveSettings<T> {
     /// Whether to store dense output for interpolation (default: false).
     /// Only meaningful with the `std` feature.
     pub dense_output: bool,
+    /// Optional minimum allowed step size for rejection logic (default: `None`).
+    ///
+    /// When set, if the proposed step size after rejection drops below `h_min`,
+    /// the step size is clamped to `h_min` and the step is accepted with reduced
+    /// accuracy rather than rejecting forever. This prevents infinite loops on
+    /// stiff-ish systems that the solver cannot resolve.
+    pub h_min: Option<T>,
 }
 
 impl Default for AdaptiveSettings<f64> {
@@ -35,6 +42,7 @@ impl Default for AdaptiveSettings<f64> {
             min_step: 1e-6,
             max_steps: 100_000,
             dense_output: false,
+            h_min: None,
         }
     }
 }
@@ -50,6 +58,7 @@ impl Default for AdaptiveSettings<f32> {
             min_step: 1e-4,
             max_steps: 100_000,
             dense_output: false,
+            h_min: None,
         }
     }
 }
@@ -141,6 +150,9 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
 
         // For FSAL methods, cache the last k evaluation
         let mut k_last: Option<Vector<T, S>> = None;
+
+        // Consecutive rejection counter for robustness
+        let mut consecutive_rejects: usize = 0;
 
         #[cfg(feature = "std")]
         let mut dense_store = if settings.dense_output {
@@ -237,7 +249,14 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                 if raw < lo { lo } else if raw > hi { hi } else { raw }
             };
 
-            if enorm < one || h.abs() <= settings.min_step {
+            // Check if h_min forces acceptance
+            let h_min_accept = if let Some(hm) = settings.h_min {
+                h.abs() <= hm
+            } else {
+                false
+            };
+
+            if enorm < one || h.abs() <= settings.min_step || h_min_accept {
                 // Accept step
                 #[cfg(feature = "std")]
                 if let Some(ref mut ds) = dense_store {
@@ -259,6 +278,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                 h = h / q;
 
                 naccept += 1;
+                consecutive_rejects = 0;
                 if (tdir > zero && t >= tf) || (tdir < zero && t <= tf) {
                     break;
                 }
@@ -268,10 +288,21 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                     k_last = None;
                 }
                 nreject += 1;
+                consecutive_rejects += 1;
+                if consecutive_rejects > 10 {
+                    return Err(OdeError::TooManyRejections);
+                }
                 let hi = one / settings.min_factor;
                 let reject_q = enorm.powf(beta1) / settings.safety;
                 let denom = if reject_q < hi { reject_q } else { hi };
                 h = h / denom;
+
+                // Enforce h_min floor on rejected step size
+                if let Some(hm) = settings.h_min {
+                    if h.abs() < hm {
+                        h = hm * tdir;
+                    }
+                }
             }
 
             if naccept + nreject >= settings.max_steps {

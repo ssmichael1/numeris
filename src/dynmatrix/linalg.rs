@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 
 use crate::linalg::LinalgError;
 use crate::linalg::lu::{lu_in_place, lu_solve};
-use crate::linalg::cholesky::{cholesky_in_place, forward_substitute, back_substitute_lt};
-use crate::linalg::qr::qr_in_place;
+use crate::linalg::cholesky::{cholesky_in_place, cholesky_rank1_update, cholesky_rank1_downdate, forward_substitute, back_substitute_lt};
+use crate::linalg::qr::{qr_in_place, qr_col_pivot_in_place};
 use crate::linalg::symmetric_eigen::{tridiagonalize, tridiagonal_qr_with_vecs, tridiagonal_qr_no_vecs};
 use crate::linalg::hessenberg::hessenberg;
 use crate::linalg::schur::francis_qr;
@@ -83,6 +83,93 @@ impl<T: LinalgScalar> DynLu<T> {
         }
 
         inv
+    }
+
+    /// Solve `Ax = b` with iterative refinement (up to 3 iterations).
+    ///
+    /// Takes the original matrix `a` used to create this decomposition.
+    /// Computes an initial solve, then iteratively refines by solving for
+    /// the residual correction. Stops early when the correction norm falls
+    /// below `epsilon * ||x||` or when the correction norm stops decreasing.
+    /// This can recover additional digits of accuracy for ill-conditioned
+    /// systems.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{DynMatrix, DynVector};
+    ///
+    /// // Ill-conditioned 3x3 system (condition number ~3200)
+    /// let a = DynMatrix::from_rows(3, 3, &[
+    ///     1.0_f64,    1.0,      1.0,
+    ///     1.0,        1.0001,   1.0001,
+    ///     1.0,        1.0001,   1.00020001,
+    /// ]);
+    /// let x_true = DynVector::from_slice(&[1.0, 2.0, 3.0]);
+    ///
+    /// // Compute b = A * x_true manually
+    /// let n = 3;
+    /// let mut b_data = vec![0.0_f64; n];
+    /// for i in 0..n {
+    ///     for j in 0..n {
+    ///         b_data[i] = b_data[i] + a[(i, j)] * x_true[j];
+    ///     }
+    /// }
+    /// let b = DynVector::from_vec(b_data);
+    ///
+    /// let lu = a.lu().unwrap();
+    /// let x_refined = lu.solve_refined(&a, &b);
+    ///
+    /// for i in 0..n {
+    ///     assert!((x_refined[i] - x_true[i]).abs() < 1e-6);
+    /// }
+    /// ```
+    pub fn solve_refined(&self, a: &DynMatrix<T>, b: &DynVector<T>) -> DynVector<T> {
+        let n = self.lu.nrows();
+        assert_eq!(a.nrows(), n, "matrix size mismatch");
+        assert_eq!(a.ncols(), n, "matrix size mismatch");
+        assert_eq!(b.len(), n, "rhs length mismatch");
+
+        let mut x = self.solve(b);
+        let tol = T::lepsilon();
+        let mut prev_dx_norm = <T::Real as Float>::infinity();
+
+        for _ in 0..3 {
+            // Compute residual r = b - A*x
+            let mut r_data = vec![T::zero(); n];
+            for i in 0..n {
+                let mut sum = b[i];
+                for j in 0..n {
+                    sum = sum - a[(i, j)] * x[j];
+                }
+                r_data[i] = sum;
+            }
+            let r = DynVector::from_vec(r_data);
+
+            // Solve for correction
+            let dx = self.solve(&r);
+
+            // Check convergence: ||dx|| < eps * ||x||
+            let dx_norm = dx.norm();
+            let x_norm = x.norm();
+            if dx_norm <= tol * x_norm {
+                for i in 0..n {
+                    x[i] = x[i] + dx[i];
+                }
+                break;
+            }
+            // Check stalling: correction norm not decreasing
+            if dx_norm >= prev_dx_norm {
+                break;
+            }
+            prev_dx_norm = dx_norm;
+
+            // Apply correction
+            for i in 0..n {
+                x[i] = x[i] + dx[i];
+            }
+        }
+        x
     }
 
     /// Compute the determinant.
@@ -212,6 +299,65 @@ impl<T: LinalgScalar> DynCholesky<T> {
     }
 }
 
+impl<T: FloatScalar> DynCholesky<T> {
+    /// Apply a rank-1 update in place: `A + v·vᵀ`.
+    ///
+    /// After the update, `self` holds the Cholesky factor of the updated matrix.
+    /// The vector `v` is used as workspace and modified.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{DynMatrix, DynVector};
+    ///
+    /// let a = DynMatrix::from_rows(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
+    /// let mut chol = a.cholesky().unwrap();
+    /// let mut v = DynVector::from_slice(&[1.0, 0.5_f64]);
+    ///
+    /// chol.rank1_update(&mut v).unwrap();
+    ///
+    /// let l = chol.l_full();
+    /// let result = &l * &l.transpose();
+    /// assert!((result[(0, 0)] - 5.0).abs() < 1e-12);
+    /// ```
+    pub fn rank1_update(&mut self, v: &mut DynVector<T>) -> Result<(), LinalgError> {
+        assert_eq!(v.len(), self.l.nrows(), "vector length must match matrix dimension");
+        cholesky_rank1_update(&mut self.l, v.as_mut_slice())
+    }
+
+    /// Apply a rank-1 downdate in place: `A - v·vᵀ`.
+    ///
+    /// After the downdate, `self` holds the Cholesky factor of the downdated
+    /// matrix. Returns an error if the result would not be positive definite.
+    /// The vector `v` is used as workspace and modified.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{DynMatrix, DynVector};
+    ///
+    /// let a = DynMatrix::from_rows(2, 2, &[4.0_f64, 2.0, 2.0, 3.0]);
+    /// let v_col = DynMatrix::from_rows(2, 1, &[0.5, 0.3_f64]);
+    /// let a_aug = &a + &(&v_col * &v_col.transpose());
+    /// let mut chol = a_aug.cholesky().unwrap();
+    /// let mut v = DynVector::from_slice(&[0.5, 0.3_f64]);
+    ///
+    /// chol.rank1_downdate(&mut v).unwrap();
+    ///
+    /// let l = chol.l_full();
+    /// let recovered = &l * &l.transpose();
+    /// for i in 0..2 {
+    ///     for j in 0..2 {
+    ///         assert!((recovered[(i, j)] - a[(i, j)]).abs() < 1e-10);
+    ///     }
+    /// }
+    /// ```
+    pub fn rank1_downdate(&mut self, v: &mut DynVector<T>) -> Result<(), LinalgError> {
+        assert_eq!(v.len(), self.l.nrows(), "vector length must match matrix dimension");
+        cholesky_rank1_downdate(&mut self.l, v.as_mut_slice())
+    }
+}
+
 // ── DynQr ───────────────────────────────────────────────────────────
 
 /// QR decomposition of a dynamically-sized matrix (M >= N).
@@ -338,6 +484,107 @@ impl<T: LinalgScalar> DynQr<T> {
             d = d * self.qr[(i, i)];
         }
         d
+    }
+}
+
+// ── DynQrPivot ────────────────────────────────────────────────────
+
+/// Rank-revealing QR decomposition with column pivoting for dynamically-sized matrices.
+///
+/// Factorises `A * P = Q * R` where P is a permutation, Q is orthogonal,
+/// and R is upper-triangular with decreasing diagonal magnitudes.
+///
+/// # Example
+///
+/// ```
+/// use numeris::DynMatrix;
+///
+/// // Rank-1 matrix
+/// let a = DynMatrix::from_rows(3, 3, &[
+///     1.0_f64, 2.0, 3.0,
+///     2.0, 4.0, 6.0,
+///     3.0, 6.0, 9.0,
+/// ]);
+/// let qrp = a.qr_col_pivot();
+/// assert_eq!(qrp.rank(1e-10), 1);
+/// ```
+#[derive(Debug)]
+pub struct DynQrPivot<T> {
+    qr: DynMatrix<T>,
+    tau: Vec<T>,
+    perm: Vec<usize>,
+}
+
+impl<T: LinalgScalar> DynQrPivot<T> {
+    /// Decompose a matrix with column pivoting.
+    pub fn new(a: &DynMatrix<T>) -> Self {
+        let m = a.nrows();
+        let n = a.ncols();
+        assert!(m >= n, "QR decomposition requires M >= N");
+        let k = m.min(n);
+        let mut qr = a.clone();
+        let mut tau = vec![T::zero(); k];
+        let mut perm = vec![0usize; n];
+        qr_col_pivot_in_place(&mut qr, &mut tau, &mut perm);
+        Self { qr, tau, perm }
+    }
+
+    /// Extract the upper-triangular R factor (N x N).
+    pub fn r(&self) -> DynMatrix<T> {
+        let n = self.qr.ncols();
+        let mut r = DynMatrix::zeros(n, n, T::zero());
+        for i in 0..n {
+            for j in i..n {
+                r[(i, j)] = self.qr[(i, j)];
+            }
+        }
+        r
+    }
+
+    /// Compute the thin Q factor (M x N).
+    pub fn q(&self) -> DynMatrix<T> {
+        let m = self.qr.nrows();
+        let n = self.qr.ncols();
+
+        let mut q = DynMatrix::zeros(m, n, T::zero());
+        for i in 0..n {
+            q[(i, i)] = T::one();
+        }
+
+        for col in (0..n).rev() {
+            let tau_val = self.tau[col];
+            if tau_val == T::zero() {
+                continue;
+            }
+
+            for j in col..n {
+                let mut dot = q[(col, j)];
+                for i in (col + 1)..m {
+                    dot = dot + self.qr[(i, col)].conj() * q[(i, j)];
+                }
+                dot = dot * tau_val;
+
+                q[(col, j)] = q[(col, j)] - dot;
+                for i in (col + 1)..m {
+                    q[(i, j)] = q[(i, j)] - dot * self.qr[(i, col)];
+                }
+            }
+        }
+
+        q
+    }
+
+    /// Column permutation vector.
+    pub fn permutation(&self) -> &[usize] {
+        &self.perm
+    }
+
+    /// Numerical rank: number of R diagonal entries with magnitude above `tol`.
+    pub fn rank(&self, tol: T::Real) -> usize {
+        let n = self.qr.ncols();
+        (0..n)
+            .take_while(|&i| self.qr[(i, i)].modulus() > tol)
+            .count()
     }
 }
 
@@ -806,6 +1053,11 @@ impl<T: LinalgScalar> DynMatrix<T> {
         DynQr::new(self)
     }
 
+    /// Rank-revealing QR decomposition with column pivoting.
+    pub fn qr_col_pivot(&self) -> DynQrPivot<T> {
+        DynQrPivot::new(self)
+    }
+
     /// Solve `Ax = b` for `x` via LU decomposition.
     ///
     /// ```
@@ -818,6 +1070,30 @@ impl<T: LinalgScalar> DynMatrix<T> {
     /// ```
     pub fn solve(&self, b: &DynVector<T>) -> Result<DynVector<T>, LinalgError> {
         Ok(self.lu()?.solve(b))
+    }
+
+    /// Solve `Ax = b` with iterative refinement (up to 3 iterations).
+    ///
+    /// Computes the LU decomposition, solves the system, then iteratively
+    /// refines by solving for the residual correction.
+    ///
+    /// ```
+    /// use numeris::{DynMatrix, DynVector};
+    ///
+    /// let a = DynMatrix::from_rows(3, 3, &[
+    ///     1.0_f64,    1.0,      1.0,
+    ///     1.0,        1.0001,   1.0001,
+    ///     1.0,        1.0001,   1.00020001,
+    /// ]);
+    /// let b = DynVector::from_slice(&[6.0, 6.0005, 6.00080003]);
+    /// let x = a.solve_refined(&b).unwrap();
+    /// assert!((x[0] - 1.0).abs() < 1e-6);
+    /// assert!((x[1] - 2.0).abs() < 1e-6);
+    /// assert!((x[2] - 3.0).abs() < 1e-6);
+    /// ```
+    pub fn solve_refined(&self, b: &DynVector<T>) -> Result<DynVector<T>, LinalgError> {
+        let lu = self.lu()?;
+        Ok(lu.solve_refined(self, b))
     }
 
     /// Matrix inverse via LU decomposition.

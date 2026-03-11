@@ -179,6 +179,9 @@ where
     let mut enorm_prev = T::from(1.0e-4).unwrap();
     let mut enorm_prev2 = T::from(1.0e-4).unwrap();
 
+    // Consecutive rejection counter for robustness
+    let mut consecutive_rejects: usize = 0;
+
     // Initial step-size guess (same heuristic as adaptive.rs)
     let mut h = {
         let sci = y0.abs() * settings.rel_tol + settings.abs_tol;
@@ -357,7 +360,14 @@ where
             if raw < lo { lo } else if raw > hi { hi } else { raw }
         };
 
-        if enorm < one || h.abs() <= settings.min_step {
+        // Check if h_min forces acceptance
+        let h_min_accept = if let Some(hm) = settings.h_min {
+            h.abs() <= hm
+        } else {
+            false
+        };
+
+        if enorm < one || h.abs() <= settings.min_step || h_min_accept {
             // Accept step
             #[cfg(feature = "std")]
             if let Some(ref mut ds) = dense_store {
@@ -375,16 +385,28 @@ where
             h = h / q;
 
             naccept += 1;
+            consecutive_rejects = 0;
             if (tdir > zero && t >= tf) || (tdir < zero && t <= tf) {
                 break;
             }
         } else {
             // Reject step
             nreject += 1;
+            consecutive_rejects += 1;
+            if consecutive_rejects > 10 {
+                return Err(OdeError::TooManyRejections);
+            }
             let hi = one / settings.min_factor;
             let reject_q = enorm.powf(beta1) / settings.safety;
             let denom = if reject_q < hi { reject_q } else { hi };
             h = h / denom;
+
+            // Enforce h_min floor on rejected step size
+            if let Some(hm) = settings.h_min {
+                if h.abs() < hm {
+                    h = hm * tdir;
+                }
+            }
         }
 
         if naccept + nreject >= settings.max_steps {

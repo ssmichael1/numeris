@@ -432,6 +432,74 @@ mod adaptive_tests {
     }
 
     #[test]
+    fn too_many_rejections_explicit() {
+        // Absurdly tight tolerance on a simple problem should trigger
+        // consecutive rejection limit before max_steps is reached.
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-100,
+            rel_tol: 1e-100,
+            min_step: 0.0, // disable min_step acceptance
+            max_steps: 1_000_000,
+            ..AdaptiveSettings::default()
+        };
+        let result = RKTS54::integrate(0.0, TAU, &y0, ydot, &settings);
+        assert!(matches!(result, Err(OdeError::TooManyRejections)));
+    }
+
+    #[test]
+    fn too_many_rejections_rosenbrock() {
+        // Same test for Rosenbrock solver.
+        let y0 = Vector::from_array([1.0_f64]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-100,
+            rel_tol: 1e-100,
+            min_step: 0.0,
+            max_steps: 1_000_000,
+            ..AdaptiveSettings::default()
+        };
+        let result = RODAS4::integrate(
+            0.0, 0.01, &y0,
+            |_t, y| Vector::from_array([-1000.0 * y[0]]),
+            |_t, _y| crate::Matrix::new([[-1000.0]]),
+            &settings,
+        );
+        assert!(matches!(result, Err(OdeError::TooManyRejections)));
+    }
+
+    #[test]
+    fn h_min_prevents_rejection_loop() {
+        // Verify that h_min prevents TooManyRejections by forcing acceptance
+        // at the minimum step size. Use tight tolerance that would normally
+        // cause rejections, but h_min should force acceptance once h shrinks.
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+
+        // Without h_min: tight tolerance + min_step=0 triggers TooManyRejections
+        let settings_no_hmin = AdaptiveSettings {
+            abs_tol: 1e-100,
+            rel_tol: 1e-100,
+            min_step: 0.0,
+            max_steps: 1_000_000,
+            ..AdaptiveSettings::default()
+        };
+        let result_no_hmin = RKTS54::integrate(0.0, TAU, &y0, ydot, &settings_no_hmin);
+        assert!(matches!(result_no_hmin, Err(OdeError::TooManyRejections)));
+
+        // With h_min: same tight tolerance, but h_min forces acceptance
+        let settings_hmin = AdaptiveSettings {
+            abs_tol: 1e-100,
+            rel_tol: 1e-100,
+            min_step: 0.0,
+            max_steps: 1_000_000,
+            h_min: Some(0.5),
+            ..AdaptiveSettings::default()
+        };
+        let result_hmin = RKTS54::integrate(0.0, TAU, &y0, ydot, &settings_hmin);
+        // Should NOT be TooManyRejections — h_min forces acceptance
+        assert!(!matches!(result_hmin, Err(OdeError::TooManyRejections)));
+    }
+
+    #[test]
     fn rodas4_singular_w_matrix() {
         // Provide a Jacobian that makes W = I/(hγ) - J singular.
         // W is singular when J has eigenvalue 1/(hγ). With γ=0.25 and the

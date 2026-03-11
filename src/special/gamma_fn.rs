@@ -134,6 +134,23 @@ pub fn lgamma<T: FloatScalar>(x: T) -> T {
         return pi.ln() - sin_pi_x.ln() - lgamma(one - x);
     }
 
+    // Stirling asymptotic expansion for very large x — avoids intermediate
+    // overflow in the Lanczos path where t^(z+0.5) can exceed f64::MAX.
+    // lgamma(x) ≈ (x - 0.5)·ln(x) - x + 0.5·ln(2π) + 1/(12x) - 1/(360x³) + 1/(1260x⁵) - 1/(1680x⁷)
+    let large_threshold = T::from(1e6).unwrap();
+    if x > large_threshold {
+        let ln_sqrt_2pi = T::from(0.5 * core::f64::consts::TAU.ln()).unwrap();
+        let inv_x = one / x;
+        let inv_x2 = inv_x * inv_x;
+        // Stirling series coefficients: 1/12, -1/360, 1/1260, -1/1680
+        let c1 = T::from(1.0 / 12.0).unwrap();
+        let c2 = T::from(1.0 / 360.0).unwrap();
+        let c3 = T::from(1.0 / 1260.0).unwrap();
+        let c4 = T::from(1.0 / 1680.0).unwrap();
+        let series = inv_x * (c1 + inv_x2 * (T::zero() - c2 + inv_x2 * (c3 - c4 * inv_x2)));
+        return (x - half) * x.ln() - x + ln_sqrt_2pi + series;
+    }
+
     // Lanczos in log space for x >= 0.5
     let z = x - one;
     let g = T::from(LANCZOS_G).unwrap();

@@ -837,4 +837,55 @@ mod dyn_tests {
             );
         }
     }
+
+    // ======================== Lagrange near-node guard ========================
+
+    #[test]
+    fn lagrange_near_node_no_nan() {
+        // Evaluate at a point extremely close to a knot — should return knot value,
+        // not NaN/Inf from division by near-zero.
+        let interp = LagrangeInterp::new(
+            [0.0_f64, 1.0, 2.0, 3.0],
+            [5.0, 3.0, 7.0, 1.0],
+        )
+        .unwrap();
+
+        let tiny = 1e-300;
+        for (i, &y_expected) in [5.0, 3.0, 7.0, 1.0].iter().enumerate() {
+            let x_near = i as f64 + tiny;
+            let val = interp.eval(x_near);
+            assert!(
+                val.is_finite(),
+                "near-node eval at knot {i} returned non-finite: {val}"
+            );
+            assert!(
+                (val - y_expected).abs() < 1e-10,
+                "near-node eval at knot {i}: {val} vs {y_expected}"
+            );
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn dyn_lagrange_near_node_no_nan() {
+        let interp = DynLagrangeInterp::new(
+            alloc::vec![0.0_f64, 1.0, 2.0, 3.0],
+            alloc::vec![5.0, 3.0, 7.0, 1.0],
+        )
+        .unwrap();
+
+        let tiny = 1e-300;
+        for (i, &y_expected) in [5.0, 3.0, 7.0, 1.0].iter().enumerate() {
+            let x_near = i as f64 + tiny;
+            let val = interp.eval(x_near);
+            assert!(
+                val.is_finite(),
+                "dyn near-node eval at knot {i} returned non-finite: {val}"
+            );
+            assert!(
+                (val - y_expected).abs() < 1e-10,
+                "dyn near-node eval at knot {i}: {val} vs {y_expected}"
+            );
+        }
+    }
 }

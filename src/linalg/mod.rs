@@ -8,9 +8,11 @@ pub(crate) mod svd;
 pub(crate) mod symmetric_eigen;
 
 pub use cholesky::CholeskyDecomposition;
+pub use cholesky::{cholesky_rank1_update, cholesky_rank1_downdate};
 pub use expm::expm;
 pub use lu::LuDecomposition;
 pub use qr::QrDecomposition;
+pub use qr::QrPivotDecomposition;
 pub use schur::SchurDecomposition;
 pub use svd::SvdDecomposition;
 pub use symmetric_eigen::SymmetricEigen;

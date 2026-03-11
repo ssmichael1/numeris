@@ -230,13 +230,25 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
     let five = <T::Real as One>::one() + <T::Real as One>::one()
         + <T::Real as One>::one() + <T::Real as One>::one() + <T::Real as One>::one();
     let eps = T::lepsilon() * five;
+    // Compute global σ_max from bidiagonal diagonal for deflation threshold.
+    // Using a global threshold (eps * σ_max) instead of local relative thresholds
+    // matches LAPACK's DGESVD approach and handles ill-conditioned matrices where
+    // smaller singular values would otherwise use a vanishingly small threshold.
+    let mut sigma_max = <T::Real as Zero>::zero();
+    for i in 0..n {
+        let v = diag[i].abs();
+        if v > sigma_max {
+            sigma_max = v;
+        }
+    }
+    let threshold = eps * sigma_max;
+
     let mut iter = 0usize;
     let mut hi = n - 1;
 
     while hi > 0 {
         // Deflation: check if trailing off_diag is negligible
         {
-            let threshold = eps * (diag[hi - 1].abs() + diag[hi].abs());
             if off_diag[hi - 1].abs() <= threshold {
                 off_diag[hi - 1] = <T::Real as Zero>::zero();
                 hi -= 1;
@@ -247,7 +259,6 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
         // Find lo: start of unreduced block
         let mut lo = hi - 1;
         while lo > 0 {
-            let threshold = eps * (diag[lo - 1].abs() + diag[lo].abs());
             if off_diag[lo - 1].abs() <= threshold {
                 off_diag[lo - 1] = <T::Real as Zero>::zero();
                 break;
@@ -276,7 +287,7 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
                     let mut z = off_diag[idx];
                     off_diag[idx] = zero;
                     for j in (idx + 1)..=hi {
-                        let (c, s) = givens(diag[j], z);
+                        let (c, s, _r) = givens(diag[j], z);
                         diag[j] = c * diag[j] + s * z;
                         if j < hi {
                             z = zero - s * off_diag[j];
@@ -324,7 +335,7 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
         } else {
             <T::Real as Zero>::zero() - <T::Real as One>::one()
         };
-        let mu = t22 - t12 * t12 / (d + sign_d * (d * d + t12 * t12).sqrt());
+        let mu = t22 - t12 * t12 / (d + sign_d * d.hypot(t12));
 
         // Implicit QR chase
         let mut x = diag[lo] * diag[lo] - mu;
@@ -332,7 +343,7 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
 
         for k in lo..hi {
             // Right Givens rotation: zero z
-            let (c, s) = givens(x, z);
+            let (c, s, _r) = givens(x, z);
 
             if k > lo {
                 off_diag[k - 1] = c * x + s * z;
@@ -363,7 +374,7 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
             }
 
             // Left Givens rotation: zero the bulge at B[k+1, k]
-            let (c2, s2) = givens(diag[k], bulge);
+            let (c2, s2, _r) = givens(diag[k], bulge);
 
             // Left rotation on rows k, k+1:
             // B[k, k] = c2*d[k] + s2*bulge

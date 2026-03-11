@@ -1,4 +1,5 @@
 use crate::traits::FloatScalar;
+use super::ControlError;
 
 /// A single second-order section (biquad) filter using Direct Form II Transposed.
 ///
@@ -36,6 +37,25 @@ impl<T: FloatScalar> Biquad<T> {
             a: [T::one(), a[1] / a0, a[2] / a0],
             z: [T::zero(); 2],
         }
+    }
+
+    /// Fallible constructor: returns `Err(ControlError::NearZeroDenominator)` if
+    /// `a[0].abs() < 2 * T::epsilon()`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::control::Biquad;
+    ///
+    /// let bq = Biquad::try_new([1.0_f64, 2.0, 1.0], [1.0, -0.5, 0.1]).unwrap();
+    /// assert!(Biquad::try_new([1.0_f64, 0.0, 0.0], [0.0, 0.0, 0.0]).is_err());
+    /// ```
+    pub fn try_new(b: [T; 3], a: [T; 3]) -> Result<Self, ControlError> {
+        let two_eps = T::epsilon() * (T::one() + T::one());
+        if a[0].abs() < two_eps {
+            return Err(ControlError::NearZeroDenominator);
+        }
+        Ok(Self::new(b, a))
     }
 
     /// Identity (passthrough) filter: output equals input.

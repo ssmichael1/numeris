@@ -23,6 +23,10 @@ pub struct LmSettings<T> {
     pub mu_increase: T,
     /// Factor to decrease damping on accepted step.
     pub mu_decrease: T,
+    /// Minimum allowed damping parameter (prevents underflow).
+    pub mu_min: T,
+    /// Maximum allowed damping parameter (prevents overflow).
+    pub mu_max: T,
 }
 
 impl Default for LmSettings<f64> {
@@ -35,6 +39,8 @@ impl Default for LmSettings<f64> {
             mu_init: 1e-3,
             mu_increase: 10.0,
             mu_decrease: 0.1,
+            mu_min: 1e-10,
+            mu_max: 1e10,
         }
     }
 }
@@ -49,6 +55,8 @@ impl Default for LmSettings<f32> {
             mu_init: 1e-3,
             mu_increase: 10.0,
             mu_decrease: 0.1,
+            mu_min: 1e-10,
+            mu_max: 1e10,
         }
     }
 }
@@ -153,8 +161,9 @@ pub fn least_squares_lm<T: FloatScalar, const M: usize, const N: usize>(
 
         // Predicted reduction: delta^T (mu * delta - g)
         let predicted = delta.dot(&(delta * mu - g));
+        let eps = T::epsilon();
 
-        if predicted > T::zero() {
+        if predicted > T::zero() && predicted.abs() >= eps * cost.abs() {
             let actual = cost - cost_new;
             let gain_ratio = actual / predicted;
 
@@ -163,7 +172,7 @@ pub fn least_squares_lm<T: FloatScalar, const M: usize, const N: usize>(
                 x = x_new;
                 r = r_new;
                 cost = cost_new;
-                mu = mu * settings.mu_decrease;
+                mu = (mu * settings.mu_decrease).max(settings.mu_min);
 
                 // Relative step size convergence
                 if delta.norm() < settings.x_tol * (T::one() + x.norm()) {
@@ -190,11 +199,11 @@ pub fn least_squares_lm<T: FloatScalar, const M: usize, const N: usize>(
                 }
             } else {
                 // Reject step, increase damping
-                mu = mu * settings.mu_increase;
+                mu = (mu * settings.mu_increase).min(settings.mu_max);
             }
         } else {
-            // Reject step, increase damping
-            mu = mu * settings.mu_increase;
+            // Reject step (predicted ≤ 0 or near-zero), increase damping
+            mu = (mu * settings.mu_increase).min(settings.mu_max);
         }
     }
 

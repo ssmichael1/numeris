@@ -226,7 +226,7 @@ pub fn tridiagonal_qr_with_vecs<T: LinalgScalar>(
         let two = <T::Real as One>::one() + <T::Real as One>::one();
         let d = (diag[hi - 1] - diag[hi]) / two;
         let e = off_diag[hi - 1];
-        let r = (d * d + e * e).sqrt();
+        let r = d.hypot(e);
         let shift = diag[hi]
             - e * e
                 / (d + if d >= <T::Real as Zero>::zero() {
@@ -241,7 +241,7 @@ pub fn tridiagonal_qr_with_vecs<T: LinalgScalar>(
         for k in lo..hi {
             // Givens rotation: G * [x; z] = [r; 0]
             // where G = [[c, s], [-s, c]].
-            let (c, s) = givens(x, z);
+            let (c, s, _r) = givens(x, z);
 
             if k > lo {
                 off_diag[k - 1] = c * x + s * z;
@@ -323,7 +323,7 @@ pub fn tridiagonal_qr_no_vecs<T: LinalgScalar>(
         let two = <T::Real as One>::one() + <T::Real as One>::one();
         let d = (diag[hi - 1] - diag[hi]) / two;
         let e = off_diag[hi - 1];
-        let r = (d * d + e * e).sqrt();
+        let r = d.hypot(e);
         let shift = diag[hi]
             - e * e
                 / (d + if d >= <T::Real as Zero>::zero() {
@@ -336,7 +336,7 @@ pub fn tridiagonal_qr_no_vecs<T: LinalgScalar>(
         let mut z = off_diag[lo];
 
         for k in lo..hi {
-            let (c, s) = givens(x, z);
+            let (c, s, _r) = givens(x, z);
 
             if k > lo {
                 off_diag[k - 1] = c * x + s * z;
@@ -365,19 +365,19 @@ pub fn tridiagonal_qr_no_vecs<T: LinalgScalar>(
     Ok(())
 }
 
-/// Givens rotation: compute (c, s) such that [c, s; -s, c] * [a; b] = [r; 0].
+/// Givens rotation: compute (c, s, r) such that [c, s; -s, c] * [a; b] = [r; 0].
+///
+/// Uses `hypot` for overflow-safe norm computation (LAPACK DLARTG pattern).
 #[inline]
-pub(crate) fn givens<R: Float + Zero>(a: R, b: R) -> (R, R) {
+pub(crate) fn givens<R: Float + Zero>(a: R, b: R) -> (R, R, R) {
     if b == R::zero() {
-        (R::one(), R::zero())
-    } else if b.abs() > a.abs() {
-        let t = a / b;
-        let s = R::one() / (R::one() + t * t).sqrt();
-        (s * t, s)
+        (R::one(), R::zero(), a)
+    } else if a == R::zero() {
+        let s = if b >= R::zero() { R::one() } else { R::zero() - R::one() };
+        (R::zero(), s, b.abs())
     } else {
-        let t = b / a;
-        let c = R::one() / (R::one() + t * t).sqrt();
-        (c, c * t)
+        let r = a.hypot(b);
+        (a / r, b / r, r)
     }
 }
 
@@ -420,6 +420,22 @@ fn sort_eigenvalues<R: Float>(diag: &mut [R]) {
             diag.swap(i, min_idx);
         }
     }
+}
+
+/// Cross product of two 3-element arrays (helper for 3×3 eigenvector computation).
+#[inline]
+fn cross3<R: Float>(a: [R; 3], b: [R; 3]) -> [R; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+/// Squared norm of a 3-element array (helper for 3×3 eigenvector computation).
+#[inline]
+fn norm_sq3<R: Float>(v: [R; 3]) -> R {
+    v[0] * v[0] + v[1] * v[1] + v[2] * v[2]
 }
 
 // Workspace allocation helpers
@@ -485,12 +501,234 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
     /// Decompose a symmetric (Hermitian) matrix.
     ///
     /// Returns `Err(ConvergenceFailure)` if QR iteration does not converge.
+    ///
+    /// Uses closed-form solutions for 2×2 and 3×3 real symmetric matrices,
+    /// falling back to tridiagonalization + QR iteration for larger sizes
+    /// and complex Hermitian matrices.
     pub fn new(a: &Matrix<T, N, N>) -> Result<Self, LinalgError> {
         let mut diag = [<T::Real as Zero>::zero(); N];
         let mut off_diag = [<T::Real as Zero>::zero(); N];
         let mut q = Matrix::<T, N, N>::zeros();
 
         if N == 0 {
+            return Ok(Self {
+                eigenvalues: diag,
+                eigenvectors: q,
+            });
+        }
+
+        // Fast path for 1×1
+        if N == 1 {
+            diag[0] = a[(0, 0)].re();
+            q[(0, 0)] = T::one();
+            return Ok(Self {
+                eigenvalues: diag,
+                eigenvectors: q,
+            });
+        }
+
+        // Fast path for 2×2 real symmetric matrices.
+        // For complex Hermitian, fall through to the general path.
+        if N == 2 && core::any::TypeId::of::<T>() == core::any::TypeId::of::<T::Real>() {
+            let aa = a[(0, 0)].re();
+            let bb = a[(0, 1)].re(); // off-diagonal (symmetric: a01 == a10)
+            let dd = a[(1, 1)].re();
+
+            let half = <T::Real as One>::one()
+                / (<T::Real as One>::one() + <T::Real as One>::one());
+            let p = (aa + dd) * half;
+            let diff_half = (aa - dd) * half;
+            let disc = diff_half.hypot(bb);
+
+            // Eigenvalues sorted ascending
+            diag[0] = p - disc;
+            diag[1] = p + disc;
+
+            // Eigenvectors via atan2-based Jacobi rotation.
+            // Q = [[c, -s], [s, c]] diagonalizes A: Q^T A Q = diag(mu0, mu1)
+            // where mu0 = c^2*a + 2cs*b + s^2*d.
+            // We must match columns to sorted eigenvalues.
+            let two = <T::Real as One>::one() + <T::Real as One>::one();
+            let theta = (two * bb).atan2(aa - dd) * half;
+            let c = theta.cos();
+            let s = theta.sin();
+
+            // Eigenvalue associated with column 0: [c, s]
+            let mu0 = c * c * aa + two * c * s * bb + s * s * dd;
+
+            if (mu0 - diag[0]).abs() <= (mu0 - diag[1]).abs() {
+                // Column 0 of Q corresponds to diag[0] (smaller eigenvalue)
+                q[(0, 0)] = T::from_real(c);
+                q[(1, 0)] = T::from_real(s);
+                q[(0, 1)] = T::from_real(<T::Real as Zero>::zero() - s);
+                q[(1, 1)] = T::from_real(c);
+            } else {
+                // Column 0 of Q corresponds to diag[1] (larger eigenvalue) — swap
+                q[(0, 0)] = T::from_real(<T::Real as Zero>::zero() - s);
+                q[(1, 0)] = T::from_real(c);
+                q[(0, 1)] = T::from_real(c);
+                q[(1, 1)] = T::from_real(s);
+            }
+
+            return Ok(Self {
+                eigenvalues: diag,
+                eigenvectors: q,
+            });
+        }
+
+        // Fast path for 3×3 real symmetric matrices (Cardano / trigonometric method).
+        if N == 3 && core::any::TypeId::of::<T>() == core::any::TypeId::of::<T::Real>() {
+            let one = <T::Real as One>::one();
+            let two = one + one;
+            let three = two + one;
+            let six = three + three;
+
+            // Read symmetric matrix elements
+            let a00 = a[(0, 0)].re();
+            let a01 = a[(0, 1)].re();
+            let a02 = a[(0, 2)].re();
+            let a11 = a[(1, 1)].re();
+            let a12 = a[(1, 2)].re();
+            let a22 = a[(2, 2)].re();
+
+            let trace = a00 + a11 + a22;
+            let qq = trace / three;
+
+            // B = A - q*I, compute Frobenius norm squared of B
+            let b00 = a00 - qq;
+            let b11 = a11 - qq;
+            let b22 = a22 - qq;
+            let frob_sq = b00 * b00 + b11 * b11 + b22 * b22
+                + two * (a01 * a01 + a02 * a02 + a12 * a12);
+
+            let p = (frob_sq / six).sqrt();
+
+            if p <= T::lepsilon() * trace.abs() + T::lepsilon() {
+                // All eigenvalues are equal
+                diag[0] = qq;
+                diag[1] = qq;
+                diag[2] = qq;
+                // Q = I
+                for i in 0..3 {
+                    q[(i, i)] = T::one();
+                }
+                return Ok(Self {
+                    eigenvalues: diag,
+                    eigenvectors: q,
+                });
+            }
+
+            // det(B) for symmetric 3×3
+            let det_b = b00 * (b11 * b22 - a12 * a12)
+                - a01 * (a01 * b22 - a12 * a02)
+                + a02 * (a01 * a12 - b11 * a02);
+
+            let r = det_b / (two * p * p * p);
+            // Clamp to [-1, 1] for numerical safety
+            let r_clamped = if r > one {
+                one
+            } else if r < <T::Real as Zero>::zero() - one {
+                <T::Real as Zero>::zero() - one
+            } else {
+                r
+            };
+
+            let phi = r_clamped.acos() / three;
+            let pi = <T::Real as Float>::acos(<T::Real as Zero>::zero() - one);
+            let two_pi_over_3 = two * pi / three;
+
+            // Eigenvalues: lambda_2 = q + 2p*cos(phi) is the largest,
+            // lambda_0 = q + 2p*cos(phi + 4pi/3) is the smallest,
+            // lambda_1 = trace - lambda_0 - lambda_2 (most accurate).
+            let eig2 = qq + two * p * phi.cos();
+            let eig0 = qq + two * p * (phi + two_pi_over_3).cos();
+            let eig1 = trace - eig0 - eig2;
+
+            // Sort ascending
+            let (mut e0, mut e1, mut e2) = (eig0, eig1, eig2);
+            if e0 > e1 {
+                core::mem::swap(&mut e0, &mut e1);
+            }
+            if e1 > e2 {
+                core::mem::swap(&mut e1, &mut e2);
+            }
+            if e0 > e1 {
+                core::mem::swap(&mut e0, &mut e1);
+            }
+
+            diag[0] = e0;
+            diag[1] = e1;
+            diag[2] = e2;
+
+            // Compute eigenvectors via null space of (A - lambda*I).
+            // For each eigenvalue, form rows of (A - lambda*I) and use cross products
+            // to find the null-space vector. Pick the cross product with largest norm.
+            for col in 0..3 {
+                let lambda = diag[col];
+                let r0 = [a00 - lambda, a01, a02];
+                let r1 = [a01, a11 - lambda, a12];
+                let r2 = [a02, a12, a22 - lambda];
+
+                // Cross products of pairs of rows
+                let c01 = cross3(r0, r1);
+                let c02 = cross3(r0, r2);
+                let c12 = cross3(r1, r2);
+
+                let n01 = norm_sq3(c01);
+                let n02 = norm_sq3(c02);
+                let n12 = norm_sq3(c12);
+
+                let (vx, vy, vz, nn) = if n01 >= n02 && n01 >= n12 {
+                    (c01[0], c01[1], c01[2], n01)
+                } else if n02 >= n12 {
+                    (c02[0], c02[1], c02[2], n02)
+                } else {
+                    (c12[0], c12[1], c12[2], n12)
+                };
+
+                if nn <= T::lepsilon() * T::lepsilon() {
+                    // Degenerate: eigenvalue has multiplicity > 1, use canonical basis
+                    q[(col, col)] = T::one();
+                } else {
+                    let inv_n = one / nn.sqrt();
+                    q[(0, col)] = T::from_real(vx * inv_n);
+                    q[(1, col)] = T::from_real(vy * inv_n);
+                    q[(2, col)] = T::from_real(vz * inv_n);
+                }
+            }
+
+            // Gram-Schmidt orthogonalization to fix up near-degenerate cases.
+            // Column 0 is already normalized.
+            // Orthogonalize column 1 against column 0.
+            {
+                let dot01 = q[(0, 0)].re() * q[(0, 1)].re()
+                    + q[(1, 0)].re() * q[(1, 1)].re()
+                    + q[(2, 0)].re() * q[(2, 1)].re();
+                for i in 0..3 {
+                    let v = q[(i, 1)].re() - dot01 * q[(i, 0)].re();
+                    q[(i, 1)] = T::from_real(v);
+                }
+                let n1 = (q[(0, 1)].re() * q[(0, 1)].re()
+                    + q[(1, 1)].re() * q[(1, 1)].re()
+                    + q[(2, 1)].re() * q[(2, 1)].re())
+                .sqrt();
+                if n1 > T::lepsilon() {
+                    for i in 0..3 {
+                        q[(i, 1)] = T::from_real(q[(i, 1)].re() / n1);
+                    }
+                }
+            }
+
+            // Column 2 = cross(col0, col1) for guaranteed orthonormality.
+            {
+                let v0 = [q[(0, 0)].re(), q[(1, 0)].re(), q[(2, 0)].re()];
+                let v1 = [q[(0, 1)].re(), q[(1, 1)].re(), q[(2, 1)].re()];
+                let c = cross3(v0, v1);
+                q[(0, 2)] = T::from_real(c[0]);
+                q[(1, 2)] = T::from_real(c[1]);
+                q[(2, 2)] = T::from_real(c[2]);
+            }
+
             return Ok(Self {
                 eigenvalues: diag,
                 eigenvectors: q,
@@ -512,15 +750,111 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
     }
 
     /// Compute eigenvalues only (faster, no eigenvector accumulation).
+    ///
+    /// Uses closed-form solutions for 2×2 and 3×3 real symmetric matrices.
     pub fn eigenvalues_only(a: &Matrix<T, N, N>) -> Result<[T::Real; N], LinalgError> {
         let mut diag = [<T::Real as Zero>::zero(); N];
-        let mut off_diag = [<T::Real as Zero>::zero(); N];
-        let mut q = Matrix::<T, N, N>::zeros();
 
         if N == 0 {
             return Ok(diag);
         }
 
+        // Fast path for 1×1
+        if N == 1 {
+            diag[0] = a[(0, 0)].re();
+            return Ok(diag);
+        }
+
+        // Fast path for 2×2 real symmetric
+        if N == 2 && core::any::TypeId::of::<T>() == core::any::TypeId::of::<T::Real>() {
+            let aa = a[(0, 0)].re();
+            let bb = a[(0, 1)].re();
+            let dd = a[(1, 1)].re();
+
+            let half = <T::Real as One>::one()
+                / (<T::Real as One>::one() + <T::Real as One>::one());
+            let p = (aa + dd) * half;
+            let diff_half = (aa - dd) * half;
+            let disc = diff_half.hypot(bb);
+
+            diag[0] = p - disc;
+            diag[1] = p + disc;
+            return Ok(diag);
+        }
+
+        // Fast path for 3×3 real symmetric (Cardano / trigonometric method)
+        if N == 3 && core::any::TypeId::of::<T>() == core::any::TypeId::of::<T::Real>() {
+            let one = <T::Real as One>::one();
+            let two = one + one;
+            let three = two + one;
+            let six = three + three;
+
+            let a00 = a[(0, 0)].re();
+            let a01 = a[(0, 1)].re();
+            let a02 = a[(0, 2)].re();
+            let a11 = a[(1, 1)].re();
+            let a12 = a[(1, 2)].re();
+            let a22 = a[(2, 2)].re();
+
+            let trace = a00 + a11 + a22;
+            let qq = trace / three;
+
+            let b00 = a00 - qq;
+            let b11 = a11 - qq;
+            let b22 = a22 - qq;
+            let frob_sq = b00 * b00 + b11 * b11 + b22 * b22
+                + two * (a01 * a01 + a02 * a02 + a12 * a12);
+
+            let p = (frob_sq / six).sqrt();
+
+            if p <= T::lepsilon() * trace.abs() + T::lepsilon() {
+                diag[0] = qq;
+                diag[1] = qq;
+                diag[2] = qq;
+                return Ok(diag);
+            }
+
+            let det_b = b00 * (b11 * b22 - a12 * a12)
+                - a01 * (a01 * b22 - a12 * a02)
+                + a02 * (a01 * a12 - b11 * a02);
+
+            let r = det_b / (two * p * p * p);
+            let r_clamped = if r > one {
+                one
+            } else if r < <T::Real as Zero>::zero() - one {
+                <T::Real as Zero>::zero() - one
+            } else {
+                r
+            };
+
+            let phi = r_clamped.acos() / three;
+            let pi = <T::Real as Float>::acos(<T::Real as Zero>::zero() - one);
+            let two_pi_over_3 = two * pi / three;
+
+            let eig2 = qq + two * p * phi.cos();
+            let eig0 = qq + two * p * (phi + two_pi_over_3).cos();
+            let eig1 = trace - eig0 - eig2;
+
+            let (mut e0, mut e1, mut e2) = (eig0, eig1, eig2);
+            if e0 > e1 {
+                core::mem::swap(&mut e0, &mut e1);
+            }
+            if e1 > e2 {
+                core::mem::swap(&mut e1, &mut e2);
+            }
+            if e0 > e1 {
+                core::mem::swap(&mut e0, &mut e1);
+            }
+
+            diag[0] = e0;
+            diag[1] = e1;
+            diag[2] = e2;
+            return Ok(diag);
+        }
+
+        // General path: tridiagonalization + QR iteration
+        let mut off_diag = [<T::Real as Zero>::zero(); N];
+        let mut q = Matrix::<T, N, N>::zeros();
         tridiagonalize(a, &mut diag, &mut off_diag, &mut q);
         tridiagonal_qr_no_vecs::<T>(&mut diag, &mut off_diag[..N.saturating_sub(1)], 30 * N)?;
 

@@ -10,7 +10,7 @@ impl<T: Scalar, const M: usize, const N: usize> Add for Matrix<T, M, N> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        if M * N <= 36 {
+        if M * N <= 16 {
             let mut out = self;
             for j in 0..N {
                 for i in 0..M {
@@ -28,7 +28,7 @@ impl<T: Scalar, const M: usize, const N: usize> Add for Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> AddAssign for Matrix<T, M, N> {
     fn add_assign(&mut self, rhs: Self) {
-        if M * N <= 36 {
+        if M * N <= 16 {
             for j in 0..N {
                 for i in 0..M {
                     self.data[j][i] = self.data[j][i] + rhs.data[j][i];
@@ -46,7 +46,7 @@ impl<T: Scalar, const M: usize, const N: usize> Sub for Matrix<T, M, N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        if M * N <= 36 {
+        if M * N <= 16 {
             let mut out = self;
             for j in 0..N {
                 for i in 0..M {
@@ -64,7 +64,7 @@ impl<T: Scalar, const M: usize, const N: usize> Sub for Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> SubAssign for Matrix<T, M, N> {
     fn sub_assign(&mut self, rhs: Self) {
-        if M * N <= 36 {
+        if M * N <= 16 {
             for j in 0..N {
                 for i in 0..M {
                     self.data[j][i] = self.data[j][i] - rhs.data[j][i];
@@ -261,7 +261,7 @@ impl<T: Scalar, const M: usize, const N: usize> Mul<T> for Matrix<T, M, N> {
     type Output = Self;
 
     fn mul(self, rhs: T) -> Self {
-        if M * N <= 36 {
+        if M * N <= 16 {
             let mut out = self;
             for j in 0..N {
                 for i in 0..M {
@@ -279,7 +279,7 @@ impl<T: Scalar, const M: usize, const N: usize> Mul<T> for Matrix<T, M, N> {
 
 impl<T: Scalar, const M: usize, const N: usize> MulAssign<T> for Matrix<T, M, N> {
     fn mul_assign(&mut self, rhs: T) {
-        if M * N <= 36 {
+        if M * N <= 16 {
             for j in 0..N {
                 for i in 0..M {
                     self.data[j][i] = self.data[j][i] * rhs;
@@ -776,6 +776,31 @@ mod tests {
         assert_eq!(&a - 1.0, a - 1.0);
         assert_eq!(10.0 + &a, 10.0 + a);
         assert_eq!(10.0 - &a, 10.0 - a);
+    }
+
+    #[test]
+    fn simd_dispatch_5x5_add_sub_mul() {
+        // 5×5 = 25 elements, above the threshold of 16 — exercises the SIMD path
+        let a = Matrix::<f64, 5, 5>::from_fn(|i, j| (i * 5 + j) as f64);
+        let b = Matrix::<f64, 5, 5>::from_fn(|i, j| (i + j * 5) as f64);
+        let c = a + b;
+        for i in 0..5 {
+            for j in 0..5 {
+                assert_eq!(c[(i, j)], a[(i, j)] + b[(i, j)]);
+            }
+        }
+        let d = a - b;
+        for i in 0..5 {
+            for j in 0..5 {
+                assert_eq!(d[(i, j)], a[(i, j)] - b[(i, j)]);
+            }
+        }
+        let e = a * 3.0;
+        for i in 0..5 {
+            for j in 0..5 {
+                assert_eq!(e[(i, j)], a[(i, j)] * 3.0);
+            }
+        }
     }
 
     #[test]

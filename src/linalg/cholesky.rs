@@ -1,6 +1,6 @@
 use crate::linalg::LinalgError;
 use crate::matrix::vector::Vector;
-use crate::traits::{LinalgScalar, MatrixMut, MatrixRef};
+use crate::traits::{FloatScalar, LinalgScalar, MatrixMut, MatrixRef};
 use crate::Matrix;
 
 // ---------------------------------------------------------------------------
@@ -78,6 +78,142 @@ pub fn back_substitute_lt<T: LinalgScalar>(
         }
         x[i] = sum / (*l.get(i, i)).conj();
     }
+}
+
+// ---------------------------------------------------------------------------
+// Rank-1 update / downdate
+// ---------------------------------------------------------------------------
+
+/// Rank-1 update: given lower-triangular `L` where `A = L·Lᵀ`, compute
+/// `L'` in-place such that `A + v·vᵀ = L'·L'ᵀ`.
+///
+/// `v` is used as workspace and modified in place.
+///
+/// Works with both fixed-size [`Matrix`] and [`DynMatrix`](crate::DynMatrix)
+/// via the [`MatrixMut`] trait.
+///
+/// # Errors
+///
+/// Returns [`LinalgError::NotPositiveDefinite`] if a diagonal element of `L`
+/// is zero (matrix is singular).
+///
+/// # Example
+///
+/// ```
+/// use numeris::Matrix;
+/// use numeris::linalg::cholesky_rank1_update;
+///
+/// let a = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+/// let mut l = a.cholesky().unwrap().l_full();
+/// let v_orig = [1.0_f64, 0.5];
+/// let mut v = v_orig;
+///
+/// cholesky_rank1_update(&mut l, &mut v).unwrap();
+///
+/// // L'·L'ᵀ should equal A + v·vᵀ
+/// let result = l * l.transpose();
+/// assert!((result[(0, 0)] - 5.0).abs() < 1e-12);  // 4 + 1*1
+/// assert!((result[(1, 1)] - 3.25).abs() < 1e-12);  // 3 + 0.5*0.5
+/// ```
+pub fn cholesky_rank1_update<T: FloatScalar>(
+    l: &mut impl MatrixMut<T>,
+    v: &mut [T],
+) -> Result<(), LinalgError> {
+    cholesky_rank1_impl(l, v, T::one())
+}
+
+/// Rank-1 downdate: given lower-triangular `L` where `A = L·Lᵀ`, compute
+/// `L'` in-place such that `A - v·vᵀ = L'·L'ᵀ`.
+///
+/// `v` is used as workspace and modified in place.
+///
+/// Works with both fixed-size [`Matrix`] and [`DynMatrix`](crate::DynMatrix)
+/// via the [`MatrixMut`] trait.
+///
+/// # Errors
+///
+/// Returns [`LinalgError::NotPositiveDefinite`] if the result would not be
+/// positive definite.
+///
+/// # Example
+///
+/// ```
+/// use numeris::Matrix;
+/// use numeris::linalg::cholesky_rank1_downdate;
+///
+/// // Start with A + v·vᵀ, downdate by v to recover A
+/// let a = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+/// let v_col = Matrix::new([[0.5], [0.3_f64]]);
+/// let a_aug = a + v_col * v_col.transpose();
+///
+/// let mut l = a_aug.cholesky().unwrap().l_full();
+/// let mut v = [0.5, 0.3_f64];
+///
+/// cholesky_rank1_downdate(&mut l, &mut v).unwrap();
+///
+/// let recovered = l * l.transpose();
+/// for i in 0..2 {
+///     for j in 0..2 {
+///         assert!((recovered[(i, j)] - a[(i, j)]).abs() < 1e-10);
+///     }
+/// }
+/// ```
+pub fn cholesky_rank1_downdate<T: FloatScalar>(
+    l: &mut impl MatrixMut<T>,
+    v: &mut [T],
+) -> Result<(), LinalgError> {
+    cholesky_rank1_impl(l, v, T::one().neg())
+}
+
+/// Internal implementation for rank-1 update (`sign = +1`) or downdate (`sign = -1`).
+///
+/// Algorithm (direct formulation, cf. LINPACK `dchud`/`dchdd`):
+///
+/// For j = 0..N:
+///   1. `r = hypot(L[j,j], v[j])` (update) or `sqrt(L[j,j]² - v[j]²)` (downdate)
+///   2. `c = r / L[j,j]`, `s = v[j] / L[j,j]`
+///   3. `L[j,j] = r`
+///   4. For i = j+1..N:
+///        `L[i,j] = (L[i,j] + sign·s·v[i]) / c`
+///        `v[i]   = c·v[i] - s·L[i,j]_new`
+fn cholesky_rank1_impl<T: FloatScalar>(
+    l: &mut impl MatrixMut<T>,
+    v: &mut [T],
+    sign: T,
+) -> Result<(), LinalgError> {
+    let n = l.nrows();
+    debug_assert_eq!(n, l.ncols());
+    debug_assert_eq!(v.len(), n);
+
+    for j in 0..n {
+        let ljj = *l.get(j, j);
+        let vj = v[j];
+
+        let r = if sign > T::zero() {
+            // Update: use hypot for numerical stability
+            ljj.hypot(vj)
+        } else {
+            // Downdate: need sqrt(ljj² - vj²)
+            let arg = ljj * ljj + sign * vj * vj;
+            if arg <= T::zero() {
+                return Err(LinalgError::NotPositiveDefinite);
+            }
+            arg.sqrt()
+        };
+
+        let c = r / ljj;
+        let s = vj / ljj;
+        *l.get_mut(j, j) = r;
+
+        for i in (j + 1)..n {
+            let lij = *l.get(i, j);
+            let new_lij = (lij + sign * s * v[i]) / c;
+            *l.get_mut(i, j) = new_lij;
+            v[i] = c * v[i] - s * new_lij;
+        }
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +342,67 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
             sum = sum + self.l[(i, i)].lln();
         }
         sum * two
+    }
+
+    /// Apply a rank-1 update in place: `A + v·vᵀ`.
+    ///
+    /// After the update, `self` holds the Cholesky factor of the updated matrix.
+    /// The vector `v` is used as workspace and modified.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{Matrix, Vector};
+    ///
+    /// let a = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+    /// let mut chol = a.cholesky().unwrap();
+    /// let mut v = Vector::from_array([1.0, 0.5_f64]);
+    ///
+    /// chol.rank1_update(&mut v).unwrap();
+    ///
+    /// let l = chol.l_full();
+    /// let result = l * l.transpose();
+    /// assert!((result[(0, 0)] - 5.0).abs() < 1e-12);
+    /// ```
+    pub fn rank1_update(&mut self, v: &mut Vector<T, N>) -> Result<(), LinalgError>
+    where
+        T: FloatScalar,
+    {
+        cholesky_rank1_update(&mut self.l, v.as_mut_slice())
+    }
+
+    /// Apply a rank-1 downdate in place: `A - v·vᵀ`.
+    ///
+    /// After the downdate, `self` holds the Cholesky factor of the downdated
+    /// matrix. Returns an error if the result would not be positive definite.
+    /// The vector `v` is used as workspace and modified.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use numeris::{Matrix, Vector};
+    ///
+    /// let a = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+    /// let v_col = Matrix::new([[0.5], [0.3_f64]]);
+    /// let a_aug = a + v_col * v_col.transpose();
+    /// let mut chol = a_aug.cholesky().unwrap();
+    /// let mut v = Vector::from_array([0.5, 0.3_f64]);
+    ///
+    /// chol.rank1_downdate(&mut v).unwrap();
+    ///
+    /// let l = chol.l_full();
+    /// let recovered = l * l.transpose();
+    /// for i in 0..2 {
+    ///     for j in 0..2 {
+    ///         assert!((recovered[(i, j)] - a[(i, j)]).abs() < 1e-10);
+    ///     }
+    /// }
+    /// ```
+    pub fn rank1_downdate(&mut self, v: &mut Vector<T, N>) -> Result<(), LinalgError>
+    where
+        T: FloatScalar,
+    {
+        cholesky_rank1_downdate(&mut self.l, v.as_mut_slice())
     }
 
     /// Compute the matrix inverse using the Cholesky factorization.
@@ -399,5 +596,113 @@ mod tests {
         let chol = id.cholesky().unwrap();
         let l = chol.l_full();
         assert_eq!(l, id);
+    }
+
+    // ── rank-1 update/downdate tests ─────────────────────────────────
+
+    #[test]
+    fn rank1_update_2x2() {
+        let a = spd_2x2();
+        let mut l = a.cholesky().unwrap().l_full();
+        let v_orig = [1.0_f64, 0.5];
+        let mut v = v_orig;
+
+        cholesky_rank1_update(&mut l, &mut v).unwrap();
+
+        let p_new = l * l.transpose();
+        // Expected: A + v*v^T
+        assert!((p_new[(0, 0)] - 5.0).abs() < 1e-12);   // 4 + 1
+        assert!((p_new[(0, 1)] - 2.5).abs() < 1e-12);   // 2 + 0.5
+        assert!((p_new[(1, 0)] - 2.5).abs() < 1e-12);
+        assert!((p_new[(1, 1)] - 3.25).abs() < 1e-12);  // 3 + 0.25
+    }
+
+    #[test]
+    fn rank1_downdate_roundtrip() {
+        let a = spd_2x2();
+        let v_orig = [0.5_f64, 0.3];
+        // Build A + v*v^T
+        let v_col = Matrix::new([[0.5], [0.3_f64]]);
+        let a_aug = a + v_col * v_col.transpose();
+
+        let mut l = a_aug.cholesky().unwrap().l_full();
+        let mut v = v_orig;
+
+        cholesky_rank1_downdate(&mut l, &mut v).unwrap();
+
+        let recovered = l * l.transpose();
+        for i in 0..2 {
+            for j in 0..2 {
+                assert!(
+                    (recovered[(i, j)] - a[(i, j)]).abs() < 1e-10,
+                    "mismatch at ({},{}): {} vs {}",
+                    i, j, recovered[(i, j)], a[(i, j)]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rank1_downdate_fails_non_pd() {
+        let mut l = Matrix::<f64, 2, 2>::eye();
+        let mut v = [1.5_f64, 0.0];
+
+        let result = cholesky_rank1_downdate(&mut l, &mut v);
+        assert_eq!(result.unwrap_err(), LinalgError::NotPositiveDefinite);
+    }
+
+    #[test]
+    fn rank1_update_3x3() {
+        let a = spd_3x3();
+        let mut l = a.cholesky().unwrap().l_full();
+        let v_orig = [0.3_f64, 0.7, 0.1];
+        let mut v = v_orig;
+
+        cholesky_rank1_update(&mut l, &mut v).unwrap();
+
+        let p_new = l * l.transpose();
+        let v_col = Matrix::new([[0.3], [0.7], [0.1_f64]]);
+        let p_expected = a + v_col * v_col.transpose();
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!(
+                    (p_new[(i, j)] - p_expected[(i, j)]).abs() < 1e-10,
+                    "mismatch at ({},{})",
+                    i, j
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rank1_update_via_decomposition() {
+        let a = spd_2x2();
+        let mut chol = a.cholesky().unwrap();
+        let mut v = Vector::from_array([1.0_f64, 0.5]);
+
+        chol.rank1_update(&mut v).unwrap();
+
+        let l = chol.l_full();
+        let result = l * l.transpose();
+        assert!((result[(0, 0)] - 5.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn rank1_downdate_via_decomposition() {
+        let a = spd_2x2();
+        let v_col = Matrix::new([[0.5], [0.3_f64]]);
+        let a_aug = a + v_col * v_col.transpose();
+        let mut chol = a_aug.cholesky().unwrap();
+        let mut v = Vector::from_array([0.5_f64, 0.3]);
+
+        chol.rank1_downdate(&mut v).unwrap();
+
+        let l = chol.l_full();
+        let recovered = l * l.transpose();
+        for i in 0..2 {
+            for j in 0..2 {
+                assert!((recovered[(i, j)] - a[(i, j)]).abs() < 1e-10);
+            }
+        }
     }
 }
