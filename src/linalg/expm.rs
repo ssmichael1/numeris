@@ -42,15 +42,24 @@ pub fn expm<T: FloatScalar, const N: usize>(
     if norm > theta {
         // s = ceil(log2(norm / theta))
         let ratio = norm / theta;
-        // Use log2 to find s
-        s = ratio.log2().ceil().to_u32().unwrap_or(0);
+        let s_real = ratio.log2().ceil();
+        // Clamp to prevent overflow in 1u64 << s (max 63) and extreme squaring
+        s = if s_real > T::from(63).unwrap() {
+            63
+        } else {
+            s_real.to_u32().unwrap_or(1)
+        };
         if s == 0 && ratio > T::one() {
             s = 1;
         }
     }
 
     // Scale: A_scaled = A / 2^s
-    let scale = T::from(1u64 << s).unwrap();
+    let scale = if s < 63 {
+        T::from(1u64 << s).unwrap()
+    } else {
+        T::from(2.0).unwrap().powi(s as i32)
+    };
     let a_scaled = *a * (T::one() / scale);
 
     // Compute powers: A^2, A^4, A^6

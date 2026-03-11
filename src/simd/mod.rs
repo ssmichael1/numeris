@@ -434,6 +434,22 @@ pub(crate) fn scale_slices_dispatch<T: Scalar>(a: &[T], scalar: T, out: &mut [T]
     scalar::scale_slices(a, scalar, out);
 }
 
+/// Dispatch in-place scalar multiplication to SIMD or scalar fallback.
+///
+/// Multiplies each element of `a` by `scalar` in place.
+/// Reuses `scale_slices` kernels since element-wise multiply has no
+/// cross-element dependencies (safe to alias input and output).
+#[inline]
+pub(crate) fn scale_in_place_dispatch<T: Scalar>(a: &mut [T], scalar: T) {
+    // Safety: scale_slices performs element-wise a[i] * scalar → out[i]
+    // with no read-ahead, so aliasing input = output is safe.
+    let ptr = a.as_mut_ptr();
+    let len = a.len();
+    let a_ref = unsafe { core::slice::from_raw_parts(ptr, len) };
+    let out_ref = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
+    scale_slices_dispatch(a_ref, scalar, out_ref);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

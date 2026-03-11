@@ -38,9 +38,7 @@ pub fn cholesky_in_place<T: LinalgScalar>(a: &mut impl MatrixMut<T>) -> Result<(
 
         let inv_ljj = T::one() / ljj_t;
         let col = a.col_as_mut_slice(j, j + 1);
-        for x in col.iter_mut() {
-            *x = *x * inv_ljj;
-        }
+        crate::simd::scale_in_place_dispatch(col, inv_ljj);
     }
 
     Ok(())

@@ -54,6 +54,8 @@ pub enum InterpError {
     NotSorted,
     /// `xs` and `ys` have different lengths (dynamic variants only).
     LengthMismatch,
+    /// The system is too ill-conditioned to solve (e.g., near-coincident knots).
+    IllConditioned,
 }
 
 impl core::fmt::Display for InterpError {
@@ -62,15 +64,33 @@ impl core::fmt::Display for InterpError {
             InterpError::TooFewPoints => write!(f, "not enough data points for interpolation"),
             InterpError::NotSorted => write!(f, "x values must be strictly increasing"),
             InterpError::LengthMismatch => write!(f, "xs and ys must have the same length"),
+            InterpError::IllConditioned => write!(f, "system is too ill-conditioned to solve"),
         }
     }
 }
 
-/// Validate that a slice is strictly increasing.
+/// Validate that a slice is strictly increasing with adequate spacing.
+///
+/// Rejects knots that are equal or decreasing (`NotSorted`), and knots
+/// that are so close together that interpolation coefficients would overflow
+/// (`IllConditioned`).
 fn validate_sorted<T: FloatScalar>(xs: &[T]) -> Result<(), InterpError> {
+    // Compute scale for relative spacing check
+    let scale = if xs.is_empty() {
+        T::one()
+    } else {
+        let first = xs[0].abs();
+        let last = xs[xs.len() - 1].abs();
+        if first > last { first } else { last }.max(T::one())
+    };
+    let min_spacing = T::epsilon().sqrt() * scale;
+
     for i in 1..xs.len() {
         if xs[i] <= xs[i - 1] {
             return Err(InterpError::NotSorted);
+        }
+        if xs[i] - xs[i - 1] < min_spacing {
+            return Err(InterpError::IllConditioned);
         }
     }
     Ok(())

@@ -76,6 +76,9 @@ impl<T: FloatScalar, const N: usize> CubicSpline<T, N> {
 
             // Row i=1 (first interior point)
             let diag = two * (h[0] + h[1]);
+            if diag.abs() < T::epsilon() {
+                return Err(InterpError::IllConditioned);
+            }
             let rhs = six * (delta[1] - delta[0]);
             cp[1] = h[1] / diag;
             dp[1] = rhs / diag;
@@ -83,6 +86,9 @@ impl<T: FloatScalar, const N: usize> CubicSpline<T, N> {
             // Forward sweep i=2..n-2
             for i in 2..n - 1 {
                 let diag_i = two * (h[i - 1] + h[i]) - h[i - 1] * cp[i - 1];
+                if diag_i.abs() < T::epsilon() {
+                    return Err(InterpError::IllConditioned);
+                }
                 let rhs_i = six * (delta[i] - delta[i - 1]) - h[i - 1] * dp[i - 1];
                 if i < n - 1 {
                     cp[i] = h[i] / diag_i;
@@ -98,6 +104,9 @@ impl<T: FloatScalar, const N: usize> CubicSpline<T, N> {
         } else {
             // n == 3: single interior point, direct solve
             let diag = two * (h[0] + h[1]);
+            if diag.abs() < T::epsilon() {
+                return Err(InterpError::IllConditioned);
+            }
             m[1] = six * (delta[1] - delta[0]) / diag;
         }
 
@@ -200,12 +209,18 @@ impl<T: FloatScalar> DynCubicSpline<T> {
             let mut dp = alloc::vec![T::zero(); n];
 
             let diag = two * (h[0] + h[1]);
+            if diag.abs() < T::epsilon() {
+                return Err(InterpError::IllConditioned);
+            }
             let rhs = six * (delta[1] - delta[0]);
             cp[1] = h[1] / diag;
             dp[1] = rhs / diag;
 
             for i in 2..n - 1 {
                 let diag_i = two * (h[i - 1] + h[i]) - h[i - 1] * cp[i - 1];
+                if diag_i.abs() < T::epsilon() {
+                    return Err(InterpError::IllConditioned);
+                }
                 let rhs_i = six * (delta[i] - delta[i - 1]) - h[i - 1] * dp[i - 1];
                 if i < n - 1 {
                     cp[i] = h[i] / diag_i;
@@ -219,6 +234,9 @@ impl<T: FloatScalar> DynCubicSpline<T> {
             }
         } else {
             let diag = two * (h[0] + h[1]);
+            if diag.abs() < T::epsilon() {
+                return Err(InterpError::IllConditioned);
+            }
             m[1] = six * (delta[1] - delta[0]) / diag;
         }
 
