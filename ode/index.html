@@ -1,0 +1,1616 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Pure-Rust numerical algorithms library — no-std compatible, SciPy-inspired scope">
+      
+      
+      
+        <link rel="canonical" href="https://ssmichael1.github.io/numeris/ode/">
+      
+      
+        <link rel="prev" href="../linalg/">
+      
+      
+        <link rel="next" href="../optim/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>ODE Integration - numeris</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="blue-grey">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ode-integration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="numeris" class="md-header__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            numeris
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ODE Integration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="blue-grey"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="blue-grey"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../matrix/" class="md-tabs__link">
+          
+  
+  
+  Modules
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../performance/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Performance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../no-std/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  No-std / Embedded
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../design/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Design
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://docs.rs/numeris" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference ↗
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="numeris" class="md-nav__button md-logo" aria-label="numeris" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    numeris
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ssmichael1/numeris" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ssmichael1/numeris
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modules
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynmatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DynMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linalg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ODE Integration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ODE Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fixed-step-rk4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed-Step RK4
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adaptive-solvers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adaptive Solvers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adaptive Solvers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#solver-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver Table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adaptivesettings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdaptiveSettings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#solution-struct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solution struct
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-output-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense Output (Interpolation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stiff-solver-rodas4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stiff Solver: RODAS4
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stiff Solver: RODAS4">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#van-der-pol-oscillator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Van der Pol oscillator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rodas4-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RODAS4 Properties
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../optim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../control/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Digital Control
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpolation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quad/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quadrature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../special/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Special Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quaternion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quaternion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../no-std/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    No-std / Embedded
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.rs/numeris" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference ↗
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fixed-step-rk4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed-Step RK4
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adaptive-solvers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adaptive Solvers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adaptive Solvers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#solver-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver Table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adaptivesettings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdaptiveSettings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#solution-struct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solution struct
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-output-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense Output (Interpolation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stiff-solver-rodas4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stiff Solver: RODAS4
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stiff Solver: RODAS4">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#van-der-pol-oscillator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Van der Pol oscillator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rodas4-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RODAS4 Properties
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="ode-integration">ODE Integration<a class="headerlink" href="#ode-integration" title="Permanent link">&para;</a></h1>
+<p>numeris provides fixed-step and adaptive ODE integrators for non-stiff and stiff systems. All explicit solvers work on <code>Matrix&lt;T, M, N&gt;</code> states (including <code>Vector&lt;T, N&gt;</code> = <code>Matrix&lt;T, N, 1&gt;</code>) with closure-based dynamics functions — enabling both vector ODE and matrix ODE integration (e.g., state transition matrices, matrix Riccati equations). Rosenbrock (stiff) solvers operate on vector states only.</p>
+<p>Requires the <code>ode</code> feature (default).</p>
+<h2 id="fixed-step-rk4">Fixed-Step RK4<a class="headerlink" href="#fixed-step-rk4" title="Permanent link">&para;</a></h2>
+<p>Classic 4th-order Runge-Kutta — no error estimation, fixed step size.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">rk4</span><span class="p">,</span><span class="w"> </span><span class="n">rk4_step</span><span class="p">};</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">Vector</span><span class="p">;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">|</span><span class="n">_t</span><span class="p">:</span><span class="w"> </span><span class="kt">f64</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Vector</span><span class="o">&lt;</span><span class="kt">f64</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="o">&gt;|</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span><span class="w">  </span><span class="c1">// harmonic oscillator</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">};</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="kd">let</span><span class="w"> </span><span class="n">dt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.01</span><span class="p">;</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="kd">let</span><span class="w"> </span><span class="n">t_end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="kt">f64</span><span class="p">::</span><span class="n">consts</span><span class="p">::</span><span class="n">PI</span><span class="p">;</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1">// Integrate from t=0 to t=t_end</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rk4</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="n">t_end</span><span class="p">,</span><span class="w"> </span><span class="n">dt</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">);</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1">// Or take a single step</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="kd">let</span><span class="w"> </span><span class="n">y1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rk4_step</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">dt</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">);</span>
+</code></pre></div>
+<p>RK4 is fully no-std and no-alloc — suitable for embedded real-time control loops.</p>
+<h2 id="adaptive-solvers">Adaptive Solvers<a class="headerlink" href="#adaptive-solvers" title="Permanent link">&para;</a></h2>
+<p>Seven adaptive Runge-Kutta solvers via the <code>RKAdaptive</code> trait. All use embedded error estimation and a PI step-size controller (Söderlind &amp; Wang 2006) for automatic step adjustment.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">RKAdaptive</span><span class="p">,</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">Vector</span><span class="p">;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">tau</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="kt">f64</span><span class="p">::</span><span class="n">consts</span><span class="p">::</span><span class="n">PI</span><span class="p">;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="n">tau</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;y(2π) = {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">y</span><span class="p">);</span><span class="w">       </span><span class="c1">// final state</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;steps taken = {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">steps</span><span class="p">);</span><span class="w"> </span><span class="c1">// number of accepted steps</span>
+</code></pre></div>
+<h3 id="solver-table">Solver Table<a class="headerlink" href="#solver-table" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Solver</th>
+<th>Stages</th>
+<th>Order</th>
+<th>FSAL</th>
+<th>Interpolant</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RKF45</code></td>
+<td>6</td>
+<td>5(4)</td>
+<td>no</td>
+<td>—</td>
+<td>Classic baseline</td>
+</tr>
+<tr>
+<td><code>RKTS54</code></td>
+<td>7</td>
+<td>5(4)</td>
+<td>yes</td>
+<td>4th degree</td>
+<td>General purpose</td>
+</tr>
+<tr>
+<td><code>RKV65</code></td>
+<td>10</td>
+<td>6(5)</td>
+<td>no</td>
+<td>6th degree</td>
+<td>Moderate accuracy</td>
+</tr>
+<tr>
+<td><code>RKV87</code></td>
+<td>17</td>
+<td>8(7)</td>
+<td>no</td>
+<td>7th degree</td>
+<td>High accuracy</td>
+</tr>
+<tr>
+<td><code>RKV98</code></td>
+<td>21</td>
+<td>9(8)</td>
+<td>no</td>
+<td>8th degree</td>
+<td>Very high accuracy</td>
+</tr>
+<tr>
+<td><code>RKV98NoInterp</code></td>
+<td>16</td>
+<td>9(8)</td>
+<td>no</td>
+<td>—</td>
+<td>Very high acc., no dense output</td>
+</tr>
+<tr>
+<td><code>RKV98Efficient</code></td>
+<td>26</td>
+<td>9(8)</td>
+<td>no</td>
+<td>9th degree</td>
+<td>Max accuracy + dense output</td>
+</tr>
+</tbody>
+</table>
+<p><strong>FSAL</strong> (First Same As Last): the last function evaluation of one step is reused as the first of the next, saving one function evaluation per step.</p>
+<div id="plot-ode" style="width:100%;height:420px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-ode',[{"type":"scatter","mode":"lines","name":"position x(t)","x":[0.000000,0.042028,0.084056,0.126084,0.168112,0.210140,0.252168,0.294196,0.336224,0.378252,0.420280,0.462308,0.504336,0.546364,0.588392,0.630420,0.672448,0.714476,0.756504,0.798532,0.840560,0.882588,0.924616,0.966644,1.008672,1.050700,1.092728,1.134756,1.176784,1.218812,1.260840,1.302868,1.344896,1.386924,1.428952,1.470980,1.513008,1.555036,1.597064,1.639092,1.681120,1.723148,1.765176,1.807204,1.849232,1.891260,1.933288,1.975316,2.017344,2.059372,2.101400,2.143428,2.185456,2.227484,2.269512,2.311540,2.353568,2.395596,2.437624,2.479652,2.521680,2.563708,2.605736,2.647764,2.689792,2.731820,2.773848,2.815876,2.857904,2.899932,2.941960,2.983988,3.026016,3.068044,3.110072,3.152100,3.194128,3.236156,3.278184,3.320212,3.362240,3.404268,3.446296,3.488324,3.530352,3.572380,3.614408,3.656436,3.698464,3.740492,3.782520,3.824548,3.866576,3.908604,3.950632,3.992660,4.034688,4.076716,4.118744,4.160772,4.202800,4.244828,4.286856,4.328884,4.370912,4.412940,4.454968,4.496996,4.539023,4.581051,4.623079,4.665107,4.707135,4.749163,4.791191,4.833219,4.875247,4.917275,4.959303,5.001331,5.043359,5.085387,5.127415,5.169443,5.211471,5.253499,5.295527,5.337555,5.379583,5.421611,5.463639,5.505667,5.547695,5.589723,5.631751,5.673779,5.715807,5.757835,5.799863,5.841891,5.883919,5.925947,5.967975,6.010003,6.052031,6.094059,6.136087,6.178115,6.220143,6.262171,6.304199,6.346227,6.388255,6.430283,6.472311,6.514339,6.556367,6.598395,6.640423,6.682451,6.724479,6.766507,6.808535,6.850563,6.892591,6.934619,6.976647,7.018675,7.060703,7.102731,7.144759,7.186787,7.228815,7.270843,7.312871,7.354899,7.396927,7.438955,7.480983,7.523011,7.565039,7.607067,7.649095,7.691123,7.733151,7.775179,7.817207,7.859235,7.901263,7.943291,7.985319,8.027347,8.069375,8.111403,8.153431,8.195459,8.237487,8.279515,8.321543,8.363571,8.405599,8.447627,8.489655,8.531683,8.573711,8.615739,8.657767,8.699795,8.741823,8.783851,8.825879,8.867907,8.909935,8.951963,8.993991,9.036019,9.078047,9.120075,9.162103,9.204131,9.246159,9.288187,9.330215,9.372243,9.414271,9.456299,9.498327,9.540355,9.582383,9.624411,9.666439,9.708467,9.750495,9.792523,9.834551,9.876579,9.918607,9.960635,10.002663,10.044691,10.086719,10.128747,10.170775,10.212803,10.254831,10.296859,10.338887,10.380915,10.422943,10.464971,10.506999,10.549027,10.591055,10.633083,10.675111,10.717139,10.759167,10.801195,10.843223,10.885251,10.927279,10.969307,11.011335,11.053363,11.095391,11.137419,11.179447,11.221475,11.263503,11.305531,11.347559,11.389587,11.431615,11.473643,11.515671,11.557699,11.599727,11.641755,11.683783,11.725811,11.767839,11.809867,11.851895,11.893923,11.935951,11.977979,12.020007,12.062035,12.104063,12.146091,12.188119,12.230147,12.272175,12.314203,12.356231,12.398259,12.440287,12.482315,12.524343,12.566371],"y":[1.000000,0.999117,0.996469,0.992062,0.985902,0.978002,0.968374,0.957036,0.944007,0.929312,0.912975,0.895026,0.875496,0.854419,0.831834,0.807780,0.782299,0.755437,0.727240,0.697759,0.667046,0.635154,0.602141,0.568065,0.532985,0.496964,0.460065,0.422354,0.383897,0.344761,0.305017,0.264734,0.223984,0.182838,0.141369,0.099651,0.057756,0.015760,-0.026264,-0.068242,-0.110100,-0.151763,-0.193158,-0.234212,-0.274852,-0.315006,-0.354605,-0.393577,-0.431854,-0.469368,-0.506054,-0.541846,-0.576680,-0.610497,-0.643235,-0.674837,-0.705247,-0.734412,-0.762279,-0.788801,-0.813929,-0.837620,-0.859831,-0.880524,-0.899662,-0.917211,-0.933140,-0.947422,-0.960029,-0.970942,-0.980139,-0.987606,-0.993328,-0.997296,-0.999503,-0.999945,-0.998620,-0.995532,-0.990686,-0.984090,-0.975756,-0.965699,-0.953936,-0.940489,-0.925380,-0.908637,-0.890290,-0.870370,-0.848913,-0.825957,-0.801542,-0.775711,-0.748511,-0.719988,-0.690194,-0.659181,-0.627004,-0.593720,-0.559386,-0.524065,-0.487819,-0.450711,-0.412807,-0.374174,-0.334880,-0.294994,-0.254588,-0.213732,-0.172498,-0.130960,-0.089191,-0.047264,-0.005253,0.036766,0.078721,0.120537,0.162140,0.203456,0.244413,0.284939,0.324961,0.364409,0.403214,0.441307,0.478620,0.515088,0.550646,0.585232,0.618784,0.651244,0.682553,0.712657,0.741502,0.769038,0.795215,0.819988,0.843313,0.865148,0.885456,0.904200,0.921347,0.936866,0.950731,0.962917,0.973403,0.982169,0.989201,0.994485,0.998014,0.999779,0.999779,0.998014,0.994485,0.989201,0.982169,0.973403,0.962917,0.950731,0.936866,0.921347,0.904200,0.885456,0.865148,0.843313,0.819988,0.795215,0.769038,0.741502,0.712657,0.682553,0.651244,0.618784,0.585232,0.550646,0.515088,0.478620,0.441307,0.403214,0.364409,0.324961,0.284939,0.244413,0.203456,0.162140,0.120537,0.078721,0.036766,-0.005253,-0.047264,-0.089191,-0.130960,-0.172498,-0.213732,-0.254588,-0.294994,-0.334880,-0.374174,-0.412807,-0.450711,-0.487819,-0.524065,-0.559386,-0.593720,-0.627004,-0.659181,-0.690194,-0.719988,-0.748511,-0.775711,-0.801542,-0.825957,-0.848913,-0.870370,-0.890290,-0.908637,-0.925380,-0.940489,-0.953936,-0.965699,-0.975756,-0.984090,-0.990686,-0.995532,-0.998620,-0.999945,-0.999503,-0.997296,-0.993328,-0.987606,-0.980139,-0.970942,-0.960029,-0.947422,-0.933140,-0.917211,-0.899662,-0.880524,-0.859831,-0.837620,-0.813929,-0.788801,-0.762279,-0.734412,-0.705247,-0.674837,-0.643235,-0.610497,-0.576680,-0.541846,-0.506054,-0.469368,-0.431854,-0.393577,-0.354605,-0.315006,-0.274852,-0.234212,-0.193158,-0.151763,-0.110100,-0.068242,-0.026264,0.015760,0.057756,0.099651,0.141369,0.182838,0.223984,0.264734,0.305017,0.344761,0.383897,0.422354,0.460065,0.496964,0.532985,0.568065,0.602141,0.635154,0.667046,0.697759,0.727240,0.755437,0.782299,0.807780,0.831834,0.854419,0.875496,0.895025,0.912975,0.929312,0.944007,0.957036,0.968374,0.978002,0.985902,0.992062,0.996469,0.999117,1.000000],"line":{"width":2.5}},{"type":"scatter","mode":"lines","name":"velocity v(t)","x":[0.000000,0.042028,0.084056,0.126084,0.168112,0.210140,0.252168,0.294196,0.336224,0.378252,0.420280,0.462308,0.504336,0.546364,0.588392,0.630420,0.672448,0.714476,0.756504,0.798532,0.840560,0.882588,0.924616,0.966644,1.008672,1.050700,1.092728,1.134756,1.176784,1.218812,1.260840,1.302868,1.344896,1.386924,1.428952,1.470980,1.513008,1.555036,1.597064,1.639092,1.681120,1.723148,1.765176,1.807204,1.849232,1.891260,1.933288,1.975316,2.017344,2.059372,2.101400,2.143428,2.185456,2.227484,2.269512,2.311540,2.353568,2.395596,2.437624,2.479652,2.521680,2.563708,2.605736,2.647764,2.689792,2.731820,2.773848,2.815876,2.857904,2.899932,2.941960,2.983988,3.026016,3.068044,3.110072,3.152100,3.194128,3.236156,3.278184,3.320212,3.362240,3.404268,3.446296,3.488324,3.530352,3.572380,3.614408,3.656436,3.698464,3.740492,3.782520,3.824548,3.866576,3.908604,3.950632,3.992660,4.034688,4.076716,4.118744,4.160772,4.202800,4.244828,4.286856,4.328884,4.370912,4.412940,4.454968,4.496996,4.539023,4.581051,4.623079,4.665107,4.707135,4.749163,4.791191,4.833219,4.875247,4.917275,4.959303,5.001331,5.043359,5.085387,5.127415,5.169443,5.211471,5.253499,5.295527,5.337555,5.379583,5.421611,5.463639,5.505667,5.547695,5.589723,5.631751,5.673779,5.715807,5.757835,5.799863,5.841891,5.883919,5.925947,5.967975,6.010003,6.052031,6.094059,6.136087,6.178115,6.220143,6.262171,6.304199,6.346227,6.388255,6.430283,6.472311,6.514339,6.556367,6.598395,6.640423,6.682451,6.724479,6.766507,6.808535,6.850563,6.892591,6.934619,6.976647,7.018675,7.060703,7.102731,7.144759,7.186787,7.228815,7.270843,7.312871,7.354899,7.396927,7.438955,7.480983,7.523011,7.565039,7.607067,7.649095,7.691123,7.733151,7.775179,7.817207,7.859235,7.901263,7.943291,7.985319,8.027347,8.069375,8.111403,8.153431,8.195459,8.237487,8.279515,8.321543,8.363571,8.405599,8.447627,8.489655,8.531683,8.573711,8.615739,8.657767,8.699795,8.741823,8.783851,8.825879,8.867907,8.909935,8.951963,8.993991,9.036019,9.078047,9.120075,9.162103,9.204131,9.246159,9.288187,9.330215,9.372243,9.414271,9.456299,9.498327,9.540355,9.582383,9.624411,9.666439,9.708467,9.750495,9.792523,9.834551,9.876579,9.918607,9.960635,10.002663,10.044691,10.086719,10.128747,10.170775,10.212803,10.254831,10.296859,10.338887,10.380915,10.422943,10.464971,10.506999,10.549027,10.591055,10.633083,10.675111,10.717139,10.759167,10.801195,10.843223,10.885251,10.927279,10.969307,11.011335,11.053363,11.095391,11.137419,11.179447,11.221475,11.263503,11.305531,11.347559,11.389587,11.431615,11.473643,11.515671,11.557699,11.599727,11.641755,11.683783,11.725811,11.767839,11.809867,11.851895,11.893923,11.935951,11.977979,12.020007,12.062035,12.104063,12.146091,12.188119,12.230147,12.272175,12.314203,12.356231,12.398259,12.440287,12.482315,12.524343,12.566371],"y":[0.000000,-0.042016,-0.083957,-0.125750,-0.167321,-0.208597,-0.249504,-0.289970,-0.329925,-0.369297,-0.408016,-0.446015,-0.483226,-0.519584,-0.555024,-0.589484,-0.622903,-0.655222,-0.686383,-0.716332,-0.745017,-0.772385,-0.798390,-0.822984,-0.846125,-0.867771,-0.887885,-0.906431,-0.923376,-0.938690,-0.952347,-0.964321,-0.974593,-0.983143,-0.989957,-0.995022,-0.998331,-0.999876,-0.999655,-0.997669,-0.993921,-0.988417,-0.981168,-0.972186,-0.961487,-0.949090,-0.935016,-0.919292,-0.901943,-0.883002,-0.862502,-0.840478,-0.816970,-0.792019,-0.765669,-0.737967,-0.708962,-0.678704,-0.647248,-0.614649,-0.580964,-0.546254,-0.510578,-0.474001,-0.436586,-0.398401,-0.359512,-0.319988,-0.279899,-0.239316,-0.198310,-0.156953,-0.115320,-0.073483,-0.031516,0.010507,0.052511,0.094422,0.136167,0.177671,0.218861,0.259665,0.300010,0.339825,0.379040,0.417586,0.455394,0.492398,0.528532,0.563733,0.597939,0.631088,0.663123,0.693986,0.723624,0.751984,0.779016,0.804672,0.828907,0.851678,0.872945,0.892670,0.910819,0.927359,0.942261,0.955499,0.967050,0.976892,0.985010,0.991388,0.996015,0.998882,0.999986,0.999324,0.996897,0.992709,0.986768,0.979084,0.969671,0.958546,0.945727,0.931239,0.915106,0.897356,0.878022,0.857137,0.834739,0.810866,0.785561,0.758868,0.730836,0.701513,0.670951,0.639203,0.606327,0.572380,0.537423,0.501516,0.464723,0.427110,0.388742,0.349688,0.310016,0.269797,0.229101,0.188001,0.146568,0.104877,0.063000,0.021012,-0.021012,-0.063000,-0.104877,-0.146568,-0.188001,-0.229101,-0.269797,-0.310016,-0.349688,-0.388742,-0.427110,-0.464723,-0.501516,-0.537423,-0.572380,-0.606327,-0.639203,-0.670951,-0.701513,-0.730836,-0.758868,-0.785561,-0.810866,-0.834739,-0.857137,-0.878022,-0.897356,-0.915106,-0.931239,-0.945727,-0.958546,-0.969671,-0.979084,-0.986768,-0.992709,-0.996897,-0.999324,-0.999986,-0.998882,-0.996015,-0.991388,-0.985010,-0.976892,-0.967050,-0.955499,-0.942261,-0.927359,-0.910819,-0.892670,-0.872945,-0.851678,-0.828907,-0.804672,-0.779016,-0.751984,-0.723624,-0.693986,-0.663123,-0.631088,-0.597939,-0.563733,-0.528532,-0.492398,-0.455394,-0.417586,-0.379040,-0.339825,-0.300010,-0.259665,-0.218861,-0.177671,-0.136167,-0.094422,-0.052511,-0.010507,0.031516,0.073483,0.115320,0.156953,0.198310,0.239316,0.279899,0.319988,0.359512,0.398401,0.436586,0.474001,0.510578,0.546254,0.580964,0.614649,0.647248,0.678704,0.708962,0.737967,0.765669,0.792019,0.816970,0.840478,0.862502,0.883002,0.901943,0.919292,0.935016,0.949090,0.961487,0.972186,0.981168,0.988417,0.993921,0.997669,0.999655,0.999876,0.998331,0.995022,0.989957,0.983143,0.974593,0.964321,0.952347,0.938690,0.923376,0.906431,0.887885,0.867771,0.846125,0.822984,0.798390,0.772385,0.745017,0.716332,0.686383,0.655222,0.622903,0.589484,0.555024,0.519584,0.483226,0.446015,0.408016,0.369297,0.329925,0.289970,0.249504,0.208597,0.167321,0.125750,0.083957,0.042016,-0.000000],"line":{"width":2.5,"dash":"dash"}}],{"title":{"text":"Harmonic Oscillator — RKTS54 Dense Output","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"t","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"Value","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white"},{responsive:true})});
+</script>
+
+<h3 id="adaptivesettings">AdaptiveSettings<a class="headerlink" href="#adaptivesettings" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::</span><span class="n">AdaptiveSettings</span><span class="p">;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">settings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="n">rtol</span><span class="p">:</span><span class="w"> </span><span class="mf">1e-8</span><span class="p">,</span><span class="w">       </span><span class="c1">// relative tolerance (default 1e-6)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="n">atol</span><span class="p">:</span><span class="w"> </span><span class="mf">1e-10</span><span class="p">,</span><span class="w">      </span><span class="c1">// absolute tolerance (default 1e-9)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="n">h0</span><span class="p">:</span><span class="w">   </span><span class="nb">Some</span><span class="p">(</span><span class="mf">0.01</span><span class="p">),</span><span class="w"> </span><span class="c1">// initial step size (auto if None)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="n">hmax</span><span class="p">:</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span><span class="w">  </span><span class="c1">// maximum step size (unlimited if None)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="n">max_steps</span><span class="p">:</span><span class="w"> </span><span class="mi">100_000</span><span class="p">,</span><span class="w"> </span><span class="c1">// step limit</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="o">..</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">()</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">};</span>
+</code></pre></div>
+<h3 id="solution-struct">Solution struct<a class="headerlink" href="#solution-struct" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">settings</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kd">let</span><span class="w"> </span><span class="n">y_final</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">sol</span><span class="p">.</span><span class="n">y</span><span class="p">;</span><span class="w">       </span><span class="c1">// final state Vector&lt;T, N&gt;</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">t_final</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="n">sol</span><span class="p">.</span><span class="n">t</span><span class="p">;</span><span class="w">       </span><span class="c1">// final time (= t_end if successful)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">n_steps</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">steps</span><span class="p">;</span><span class="w">   </span><span class="c1">// number of accepted steps</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="kd">let</span><span class="w"> </span><span class="n">n_reject</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">rejected</span><span class="p">;</span><span class="w"> </span><span class="c1">// number of rejected steps</span>
+</code></pre></div>
+<h2 id="dense-output-interpolation">Dense Output (Interpolation)<a class="headerlink" href="#dense-output-interpolation" title="Permanent link">&para;</a></h2>
+<p>Solvers with an interpolant can return intermediate values at arbitrary times without re-integrating. Requires <code>std</code> feature (uses <code>Vec</code> internally).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">RKAdaptive</span><span class="p">,</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">Vector</span><span class="p">;</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate_dense</span><span class="p">(</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">6.28</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c1">// Interpolate at arbitrary time point</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="kd">let</span><span class="w"> </span><span class="n">y_at_pi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sol</span><span class="p">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">std</span><span class="p">::</span><span class="kt">f64</span><span class="p">::</span><span class="n">consts</span><span class="p">::</span><span class="n">PI</span><span class="p">);</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="c1">// y[0] ≈ -1.0 (cosine at π)</span>
+</code></pre></div>
+<h2 id="stiff-solver-rodas4">Stiff Solver: RODAS4<a class="headerlink" href="#stiff-solver-rodas4" title="Permanent link">&para;</a></h2>
+<p>For stiff ODEs (chemical kinetics, circuit simulation, orbital mechanics with drag), use <code>RODAS4</code> — an L-stable linearly-implicit Rosenbrock method. It solves linear systems involving the Jacobian instead of nonlinear Newton iterations, making it suitable for very stiff problems without tuning.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">Rosenbrock</span><span class="p">,</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::{</span><span class="n">Vector</span><span class="p">,</span><span class="w"> </span><span class="n">Matrix</span><span class="p">};</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1">// Stiff decay: y&#39; = -1000y,  y(0) = 1</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">1.0_</span><span class="k">f64</span><span class="p">]);</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1">// With user-supplied Jacobian</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.01</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="o">-</span><span class="mf">1000.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">_y</span><span class="o">|</span><span class="w"> </span><span class="n">Matrix</span><span class="p">::</span><span class="n">new</span><span class="p">([[</span><span class="o">-</span><span class="mf">1000.0_</span><span class="k">f64</span><span class="p">]]),</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="fm">assert!</span><span class="p">((</span><span class="n">sol</span><span class="p">.</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="o">-</span><span class="mf">10.0_</span><span class="k">f64</span><span class="p">).</span><span class="n">exp</span><span class="p">()).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-8</span><span class="p">);</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="c1">// With automatic finite-difference Jacobian (no need to supply ∂f/∂y)</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">::</span><span class="n">integrate_auto</span><span class="p">(</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.01</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="o">-</span><span class="mf">1000.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+</code></pre></div>
+<h3 id="van-der-pol-oscillator">Van der Pol oscillator<a class="headerlink" href="#van-der-pol-oscillator" title="Permanent link">&para;</a></h3>
+<div id="plot-vanderpol" style="width:100%;height:420px;"></div>
+<script>
+window.addEventListener('load',function(){Plotly.newPlot('plot-vanderpol',[{"type":"scatter","mode":"lines","name":"y₁(t)","x":[0.000000,0.060030,0.120060,0.180090,0.240120,0.300150,0.360180,0.420210,0.480240,0.540270,0.600300,0.660330,0.720360,0.780390,0.840420,0.900450,0.960480,1.020510,1.080540,1.140570,1.200600,1.260630,1.320660,1.380690,1.440720,1.500750,1.560780,1.620810,1.680840,1.740870,1.800900,1.860930,1.920960,1.980990,2.041021,2.101051,2.161081,2.221111,2.281141,2.341171,2.401201,2.461231,2.521261,2.581291,2.641321,2.701351,2.761381,2.821411,2.881441,2.941471,3.001501,3.061531,3.121561,3.181591,3.241621,3.301651,3.361681,3.421711,3.481741,3.541771,3.601801,3.661831,3.721861,3.781891,3.841921,3.901951,3.961981,4.022011,4.082041,4.142071,4.202101,4.262131,4.322161,4.382191,4.442221,4.502251,4.562281,4.622311,4.682341,4.742371,4.802401,4.862431,4.922461,4.982491,5.042521,5.102551,5.162581,5.222611,5.282641,5.342671,5.402701,5.462731,5.522761,5.582791,5.642821,5.702851,5.762881,5.822911,5.882941,5.942971,6.003002,6.063032,6.123062,6.183092,6.243122,6.303152,6.363182,6.423212,6.483242,6.543272,6.603302,6.663332,6.723362,6.783392,6.843422,6.903452,6.963482,7.023512,7.083542,7.143572,7.203602,7.263632,7.323662,7.383692,7.443722,7.503752,7.563782,7.623812,7.683842,7.743872,7.803902,7.863932,7.923962,7.983992,8.044022,8.104052,8.164082,8.224112,8.284142,8.344172,8.404202,8.464232,8.524262,8.584292,8.644322,8.704352,8.764382,8.824412,8.884442,8.944472,9.004502,9.064532,9.124562,9.184592,9.244622,9.304652,9.364682,9.424712,9.484742,9.544772,9.604802,9.664832,9.724862,9.784892,9.844922,9.904952,9.964982,10.025013,10.085043,10.145073,10.205103,10.265133,10.325163,10.385193,10.445223,10.505253,10.565283,10.625313,10.685343,10.745373,10.805403,10.865433,10.925463,10.985493,11.045523,11.105553,11.165583,11.225613,11.285643,11.345673,11.405703,11.465733,11.525763,11.585793,11.645823,11.705853,11.765883,11.825913,11.885943,11.945973,12.006003,12.066033,12.126063,12.186093,12.246123,12.306153,12.366183,12.426213,12.486243,12.546273,12.606303,12.666333,12.726363,12.786393,12.846423,12.906453,12.966483,13.026513,13.086543,13.146573,13.206603,13.266633,13.326663,13.386693,13.446723,13.506753,13.566783,13.626813,13.686843,13.746873,13.806903,13.866933,13.926963,13.986993,14.047024,14.107054,14.167084,14.227114,14.287144,14.347174,14.407204,14.467234,14.527264,14.587294,14.647324,14.707354,14.767384,14.827414,14.887444,14.947474,15.007504,15.067534,15.127564,15.187594,15.247624,15.307654,15.367684,15.427714,15.487744,15.547774,15.607804,15.667834,15.727864,15.787894,15.847924,15.907954,15.967984,16.028014,16.088044,16.148074,16.208104,16.268134,16.328164,16.388194,16.448224,16.508254,16.568284,16.628314,16.688344,16.748374,16.808404,16.868434,16.928464,16.988494,17.048524,17.108554,17.168584,17.228614,17.288644,17.348674,17.408704,17.468734,17.528764,17.588794,17.648824,17.708854,17.768884,17.828914,17.888944,17.948974,18.009005,18.069035,18.129065,18.189095,18.249125,18.309155,18.369185,18.429215,18.489245,18.549275,18.609305,18.669335,18.729365,18.789395,18.849425,18.909455,18.969485,19.029515,19.089545,19.149575,19.209605,19.269635,19.329665,19.389695,19.449725,19.509755,19.569785,19.629815,19.689845,19.749875,19.809905,19.869935,19.929965,19.989995,20.050025,20.110055,20.170085,20.230115,20.290145,20.350175,20.410205,20.470235,20.530265,20.590295,20.650325,20.710355,20.770385,20.830415,20.890445,20.950475,21.010505,21.070535,21.130565,21.190595,21.250625,21.310655,21.370685,21.430715,21.490745,21.550775,21.610805,21.670835,21.730865,21.790895,21.850925,21.910955,21.970985,22.031016,22.091046,22.151076,22.211106,22.271136,22.331166,22.391196,22.451226,22.511256,22.571286,22.631316,22.691346,22.751376,22.811406,22.871436,22.931466,22.991496,23.051526,23.111556,23.171586,23.231616,23.291646,23.351676,23.411706,23.471736,23.531766,23.591796,23.651826,23.711856,23.771886,23.831916,23.891946,23.951976,24.012006,24.072036,24.132066,24.192096,24.252126,24.312156,24.372186,24.432216,24.492246,24.552276,24.612306,24.672336,24.732366,24.792396,24.852426,24.912456,24.972486,25.032516,25.092546,25.152576,25.212606,25.272636,25.332666,25.392696,25.452726,25.512756,25.572786,25.632816,25.692846,25.752876,25.812906,25.872936,25.932966,25.992996,26.053027,26.113057,26.173087,26.233117,26.293147,26.353177,26.413207,26.473237,26.533267,26.593297,26.653327,26.713357,26.773387,26.833417,26.893447,26.953477,27.013507,27.073537,27.133567,27.193597,27.253627,27.313657,27.373687,27.433717,27.493747,27.553777,27.613807,27.673837,27.733867,27.793897,27.853927,27.913957,27.973987,28.034017,28.094047,28.154077,28.214107,28.274137,28.334167,28.394197,28.454227,28.514257,28.574287,28.634317,28.694347,28.754377,28.814407,28.874437,28.934467,28.994497,29.054527,29.114557,29.174587,29.234617,29.294647,29.354677,29.414707,29.474737,29.534767,29.594797,29.654827,29.714857,29.774887,29.834917,29.894947,29.954977,30.015008,30.075038,30.135068,30.195098,30.255128,30.315158,30.375188,30.435218,30.495248,30.555278,30.615308,30.675338,30.735368,30.795398,30.855428,30.915458,30.975488,31.035518,31.095548,31.155578,31.215608,31.275638,31.335668,31.395698,31.455728,31.515758,31.575788,31.635818,31.695848,31.755878,31.815908,31.875938,31.935968,31.995998,32.056028,32.116058,32.176088,32.236118,32.296148,32.356178,32.416208,32.476238,32.536268,32.596298,32.656328,32.716358,32.776388,32.836418,32.896448,32.956478,33.016508,33.076538,33.136568,33.196598,33.256628,33.316658,33.376688,33.436718,33.496748,33.556778,33.616808,33.676838,33.736868,33.796898,33.856928,33.916958,33.976988,34.037019,34.097049,34.157079,34.217109,34.277139,34.337169,34.397199,34.457229,34.517259,34.577289,34.637319,34.697349,34.757379,34.817409,34.877439,34.937469,34.997499,35.057529,35.117559,35.177589,35.237619,35.297649,35.357679,35.417709,35.477739,35.537769,35.597799,35.657829,35.717859,35.777889,35.837919,35.897949,35.957979,36.018009,36.078039,36.138069,36.198099,36.258129,36.318159,36.378189,36.438219,36.498249,36.558279,36.618309,36.678339,36.738369,36.798399,36.858429,36.918459,36.978489,37.038519,37.098549,37.158579,37.218609,37.278639,37.338669,37.398699,37.458729,37.518759,37.578789,37.638819,37.698849,37.758879,37.818909,37.878939,37.938969,37.998999,38.059030,38.119060,38.179090,38.239120,38.299150,38.359180,38.419210,38.479240,38.539270,38.599300,38.659330,38.719360,38.779390,38.839420,38.899450,38.959480,39.019510,39.079540,39.139570,39.199600,39.259630,39.319660,39.379690,39.439720,39.499750,39.559780,39.619810,39.679840,39.739870,39.799900,39.859930,39.919960,39.979990,40.040020,40.100050,40.160080,40.220110,40.280140,40.340170,40.400200,40.460230,40.520260,40.580290,40.640320,40.700350,40.760380,40.820410,40.880440,40.940470,41.000500,41.060530,41.120560,41.180590,41.240620,41.300650,41.360680,41.420710,41.480740,41.540770,41.600800,41.660830,41.720860,41.780890,41.840920,41.900950,41.960980,42.021011,42.081041,42.141071,42.201101,42.261131,42.321161,42.381191,42.441221,42.501251,42.561281,42.621311,42.681341,42.741371,42.801401,42.861431,42.921461,42.981491,43.041521,43.101551,43.161581,43.221611,43.281641,43.341671,43.401701,43.461731,43.521761,43.581791,43.641821,43.701851,43.761881,43.821911,43.881941,43.941971,44.002001,44.062031,44.122061,44.182091,44.242121,44.302151,44.362181,44.422211,44.482241,44.542271,44.602301,44.662331,44.722361,44.782391,44.842421,44.902451,44.962481,45.022511,45.082541,45.142571,45.202601,45.262631,45.322661,45.382691,45.442721,45.502751,45.562781,45.622811,45.682841,45.742871,45.802901,45.862931,45.922961,45.982991,46.043022,46.103052,46.163082,46.223112,46.283142,46.343172,46.403202,46.463232,46.523262,46.583292,46.643322,46.703352,46.763382,46.823412,46.883442,46.943472,47.003502,47.063532,47.123562,47.183592,47.243622,47.303652,47.363682,47.423712,47.483742,47.543772,47.603802,47.663832,47.723862,47.783892,47.843922,47.903952,47.963982,48.024012,48.084042,48.144072,48.204102,48.264132,48.324162,48.384192,48.444222,48.504252,48.564282,48.624312,48.684342,48.744372,48.804402,48.864432,48.924462,48.984492,49.044522,49.104552,49.164582,49.224612,49.284642,49.344672,49.404702,49.464732,49.524762,49.584792,49.644822,49.704852,49.764882,49.824912,49.884942,49.944972,50.005003,50.065033,50.125063,50.185093,50.245123,50.305153,50.365183,50.425213,50.485243,50.545273,50.605303,50.665333,50.725363,50.785393,50.845423,50.905453,50.965483,51.025513,51.085543,51.145573,51.205603,51.265633,51.325663,51.385693,51.445723,51.505753,51.565783,51.625813,51.685843,51.745873,51.805903,51.865933,51.925963,51.985993,52.046023,52.106053,52.166083,52.226113,52.286143,52.346173,52.406203,52.466233,52.526263,52.586293,52.646323,52.706353,52.766383,52.826413,52.886443,52.946473,53.006503,53.066533,53.126563,53.186593,53.246623,53.306653,53.366683,53.426713,53.486743,53.546773,53.606803,53.666833,53.726863,53.786893,53.846923,53.906953,53.966983,54.027014,54.087044,54.147074,54.207104,54.267134,54.327164,54.387194,54.447224,54.507254,54.567284,54.627314,54.687344,54.747374,54.807404,54.867434,54.927464,54.987494,55.047524,55.107554,55.167584,55.227614,55.287644,55.347674,55.407704,55.467734,55.527764,55.587794,55.647824,55.707854,55.767884,55.827914,55.887944,55.947974,56.008004,56.068034,56.128064,56.188094,56.248124,56.308154,56.368184,56.428214,56.488244,56.548274,56.608304,56.668334,56.728364,56.788394,56.848424,56.908454,56.968484,57.028514,57.088544,57.148574,57.208604,57.268634,57.328664,57.388694,57.448724,57.508754,57.568784,57.628814,57.688844,57.748874,57.808904,57.868934,57.928964,57.988994,58.049025,58.109055,58.169085,58.229115,58.289145,58.349175,58.409205,58.469235,58.529265,58.589295,58.649325,58.709355,58.769385,58.829415,58.889445,58.949475,59.009505,59.069535,59.129565,59.189595,59.249625,59.309655,59.369685,59.429715,59.489745,59.549775,59.609805,59.669835,59.729865,59.789895,59.849925,59.909955,59.969985,60.030015,60.090045,60.150075,60.210105,60.270135,60.330165,60.390195,60.450225,60.510255,60.570285,60.630315,60.690345,60.750375,60.810405,60.870435,60.930465,60.990495,61.050525,61.110555,61.170585,61.230615,61.290645,61.350675,61.410705,61.470735,61.530765,61.590795,61.650825,61.710855,61.770885,61.830915,61.890945,61.950975,62.011006,62.071036,62.131066,62.191096,62.251126,62.311156,62.371186,62.431216,62.491246,62.551276,62.611306,62.671336,62.731366,62.791396,62.851426,62.911456,62.971486,63.031516,63.091546,63.151576,63.211606,63.271636,63.331666,63.391696,63.451726,63.511756,63.571786,63.631816,63.691846,63.751876,63.811906,63.871936,63.931966,63.991996,64.052026,64.112056,64.172086,64.232116,64.292146,64.352176,64.412206,64.472236,64.532266,64.592296,64.652326,64.712356,64.772386,64.832416,64.892446,64.952476,65.012506,65.072536,65.132566,65.192596,65.252626,65.312656,65.372686,65.432716,65.492746,65.552776,65.612806,65.672836,65.732866,65.792896,65.852926,65.912956,65.972986,66.033017,66.093047,66.153077,66.213107,66.273137,66.333167,66.393197,66.453227,66.513257,66.573287,66.633317,66.693347,66.753377,66.813407,66.873437,66.933467,66.993497,67.053527,67.113557,67.173587,67.233617,67.293647,67.353677,67.413707,67.473737,67.533767,67.593797,67.653827,67.713857,67.773887,67.833917,67.893947,67.953977,68.014007,68.074037,68.134067,68.194097,68.254127,68.314157,68.374187,68.434217,68.494247,68.554277,68.614307,68.674337,68.734367,68.794397,68.854427,68.914457,68.974487,69.034517,69.094547,69.154577,69.214607,69.274637,69.334667,69.394697,69.454727,69.514757,69.574787,69.634817,69.694847,69.754877,69.814907,69.874937,69.934967,69.994997,70.055028,70.115058,70.175088,70.235118,70.295148,70.355178,70.415208,70.475238,70.535268,70.595298,70.655328,70.715358,70.775388,70.835418,70.895448,70.955478,71.015508,71.075538,71.135568,71.195598,71.255628,71.315658,71.375688,71.435718,71.495748,71.555778,71.615808,71.675838,71.735868,71.795898,71.855928,71.915958,71.975988,72.036018,72.096048,72.156078,72.216108,72.276138,72.336168,72.396198,72.456228,72.516258,72.576288,72.636318,72.696348,72.756378,72.816408,72.876438,72.936468,72.996498,73.056528,73.116558,73.176588,73.236618,73.296648,73.356678,73.416708,73.476738,73.536768,73.596798,73.656828,73.716858,73.776888,73.836918,73.896948,73.956978,74.017009,74.077039,74.137069,74.197099,74.257129,74.317159,74.377189,74.437219,74.497249,74.557279,74.617309,74.677339,74.737369,74.797399,74.857429,74.917459,74.977489,75.037519,75.097549,75.157579,75.217609,75.277639,75.337669,75.397699,75.457729,75.517759,75.577789,75.637819,75.697849,75.757879,75.817909,75.877939,75.937969,75.997999,76.058029,76.118059,76.178089,76.238119,76.298149,76.358179,76.418209,76.478239,76.538269,76.598299,76.658329,76.718359,76.778389,76.838419,76.898449,76.958479,77.018509,77.078539,77.138569,77.198599,77.258629,77.318659,77.378689,77.438719,77.498749,77.558779,77.618809,77.678839,77.738869,77.798899,77.858929,77.918959,77.978989,78.039020,78.099050,78.159080,78.219110,78.279140,78.339170,78.399200,78.459230,78.519260,78.579290,78.639320,78.699350,78.759380,78.819410,78.879440,78.939470,78.999500,79.059530,79.119560,79.179590,79.239620,79.299650,79.359680,79.419710,79.479740,79.539770,79.599800,79.659830,79.719860,79.779890,79.839920,79.899950,79.959980,80.020010,80.080040,80.140070,80.200100,80.260130,80.320160,80.380190,80.440220,80.500250,80.560280,80.620310,80.680340,80.740370,80.800400,80.860430,80.920460,80.980490,81.040520,81.100550,81.160580,81.220610,81.280640,81.340670,81.400700,81.460730,81.520760,81.580790,81.640820,81.700850,81.760880,81.820910,81.880940,81.940970,82.001001,82.061031,82.121061,82.181091,82.241121,82.301151,82.361181,82.421211,82.481241,82.541271,82.601301,82.661331,82.721361,82.781391,82.841421,82.901451,82.961481,83.021511,83.081541,83.141571,83.201601,83.261631,83.321661,83.381691,83.441721,83.501751,83.561781,83.621811,83.681841,83.741871,83.801901,83.861931,83.921961,83.981991,84.042021,84.102051,84.162081,84.222111,84.282141,84.342171,84.402201,84.462231,84.522261,84.582291,84.642321,84.702351,84.762381,84.822411,84.882441,84.942471,85.002501,85.062531,85.122561,85.182591,85.242621,85.302651,85.362681,85.422711,85.482741,85.542771,85.602801,85.662831,85.722861,85.782891,85.842921,85.902951,85.962981,86.023012,86.083042,86.143072,86.203102,86.263132,86.323162,86.383192,86.443222,86.503252,86.563282,86.623312,86.683342,86.743372,86.803402,86.863432,86.923462,86.983492,87.043522,87.103552,87.163582,87.223612,87.283642,87.343672,87.403702,87.463732,87.523762,87.583792,87.643822,87.703852,87.763882,87.823912,87.883942,87.943972,88.004002,88.064032,88.124062,88.184092,88.244122,88.304152,88.364182,88.424212,88.484242,88.544272,88.604302,88.664332,88.724362,88.784392,88.844422,88.904452,88.964482,89.024512,89.084542,89.144572,89.204602,89.264632,89.324662,89.384692,89.444722,89.504752,89.564782,89.624812,89.684842,89.744872,89.804902,89.864932,89.924962,89.984992,90.045023,90.105053,90.165083,90.225113,90.285143,90.345173,90.405203,90.465233,90.525263,90.585293,90.645323,90.705353,90.765383,90.825413,90.885443,90.945473,91.005503,91.065533,91.125563,91.185593,91.245623,91.305653,91.365683,91.425713,91.485743,91.545773,91.605803,91.665833,91.725863,91.785893,91.845923,91.905953,91.965983,92.026013,92.086043,92.146073,92.206103,92.266133,92.326163,92.386193,92.446223,92.506253,92.566283,92.626313,92.686343,92.746373,92.806403,92.866433,92.926463,92.986493,93.046523,93.106553,93.166583,93.226613,93.286643,93.346673,93.406703,93.466733,93.526763,93.586793,93.646823,93.706853,93.766883,93.826913,93.886943,93.946973,94.007004,94.067034,94.127064,94.187094,94.247124,94.307154,94.367184,94.427214,94.487244,94.547274,94.607304,94.667334,94.727364,94.787394,94.847424,94.907454,94.967484,95.027514,95.087544,95.147574,95.207604,95.267634,95.327664,95.387694,95.447724,95.507754,95.567784,95.627814,95.687844,95.747874,95.807904,95.867934,95.927964,95.987994,96.048024,96.108054,96.168084,96.228114,96.288144,96.348174,96.408204,96.468234,96.528264,96.588294,96.648324,96.708354,96.768384,96.828414,96.888444,96.948474,97.008504,97.068534,97.128564,97.188594,97.248624,97.308654,97.368684,97.428714,97.488744,97.548774,97.608804,97.668834,97.728864,97.788894,97.848924,97.908954,97.968984,98.029015,98.089045,98.149075,98.209105,98.269135,98.329165,98.389195,98.449225,98.509255,98.569285,98.629315,98.689345,98.749375,98.809405,98.869435,98.929465,98.989495,99.049525,99.109555,99.169585,99.229615,99.289645,99.349675,99.409705,99.469735,99.529765,99.589795,99.649825,99.709855,99.769885,99.829915,99.889945,99.949975,100.010005,100.070035,100.130065,100.190095,100.250125,100.310155,100.370185,100.430215,100.490245,100.550275,100.610305,100.670335,100.730365,100.790395,100.850425,100.910455,100.970485,101.030515,101.090545,101.150575,101.210605,101.270635,101.330665,101.390695,101.450725,101.510755,101.570785,101.630815,101.690845,101.750875,101.810905,101.870935,101.930965,101.990995,102.051026,102.111056,102.171086,102.231116,102.291146,102.351176,102.411206,102.471236,102.531266,102.591296,102.651326,102.711356,102.771386,102.831416,102.891446,102.951476,103.011506,103.071536,103.131566,103.191596,103.251626,103.311656,103.371686,103.431716,103.491746,103.551776,103.611806,103.671836,103.731866,103.791896,103.851926,103.911956,103.971986,104.032016,104.092046,104.152076,104.212106,104.272136,104.332166,104.392196,104.452226,104.512256,104.572286,104.632316,104.692346,104.752376,104.812406,104.872436,104.932466,104.992496,105.052526,105.112556,105.172586,105.232616,105.292646,105.352676,105.412706,105.472736,105.532766,105.592796,105.652826,105.712856,105.772886,105.832916,105.892946,105.952976,106.013007,106.073037,106.133067,106.193097,106.253127,106.313157,106.373187,106.433217,106.493247,106.553277,106.613307,106.673337,106.733367,106.793397,106.853427,106.913457,106.973487,107.033517,107.093547,107.153577,107.213607,107.273637,107.333667,107.393697,107.453727,107.513757,107.573787,107.633817,107.693847,107.753877,107.813907,107.873937,107.933967,107.993997,108.054027,108.114057,108.174087,108.234117,108.294147,108.354177,108.414207,108.474237,108.534267,108.594297,108.654327,108.714357,108.774387,108.834417,108.894447,108.954477,109.014507,109.074537,109.134567,109.194597,109.254627,109.314657,109.374687,109.434717,109.494747,109.554777,109.614807,109.674837,109.734867,109.794897,109.854927,109.914957,109.974987,110.035018,110.095048,110.155078,110.215108,110.275138,110.335168,110.395198,110.455228,110.515258,110.575288,110.635318,110.695348,110.755378,110.815408,110.875438,110.935468,110.995498,111.055528,111.115558,111.175588,111.235618,111.295648,111.355678,111.415708,111.475738,111.535768,111.595798,111.655828,111.715858,111.775888,111.835918,111.895948,111.955978,112.016008,112.076038,112.136068,112.196098,112.256128,112.316158,112.376188,112.436218,112.496248,112.556278,112.616308,112.676338,112.736368,112.796398,112.856428,112.916458,112.976488,113.036518,113.096548,113.156578,113.216608,113.276638,113.336668,113.396698,113.456728,113.516758,113.576788,113.636818,113.696848,113.756878,113.816908,113.876938,113.936968,113.996998,114.057029,114.117059,114.177089,114.237119,114.297149,114.357179,114.417209,114.477239,114.537269,114.597299,114.657329,114.717359,114.777389,114.837419,114.897449,114.957479,115.017509,115.077539,115.137569,115.197599,115.257629,115.317659,115.377689,115.437719,115.497749,115.557779,115.617809,115.677839,115.737869,115.797899,115.857929,115.917959,115.977989,116.038019,116.098049,116.158079,116.218109,116.278139,116.338169,116.398199,116.458229,116.518259,116.578289,116.638319,116.698349,116.758379,116.818409,116.878439,116.938469,116.998499,117.058529,117.118559,117.178589,117.238619,117.298649,117.358679,117.418709,117.478739,117.538769,117.598799,117.658829,117.718859,117.778889,117.838919,117.898949,117.958979,118.019010,118.079040,118.139070,118.199100,118.259130,118.319160,118.379190,118.439220,118.499250,118.559280,118.619310,118.679340,118.739370,118.799400,118.859430,118.919460,118.979490,119.039520,119.099550,119.159580,119.219610,119.279640,119.339670,119.399700,119.459730,119.519760,119.579790,119.639820,119.699850,119.759880,119.819910,119.879940,119.939970,120.000000],"y":[2.000000,1.998569,1.996654,1.994924,1.993313,1.991345,1.991345,1.988414,1.986451,1.983527,1.980554,1.980554,1.977197,1.977197,1.973640,1.973640,1.969858,1.969858,1.965904,1.965904,1.961799,1.961799,1.957569,1.957569,1.953238,1.953238,1.948826,1.948826,1.944351,1.944351,1.939828,1.939828,1.935271,1.935271,1.930691,1.930691,1.930691,1.926098,1.926098,1.921500,1.921500,1.916904,1.916904,1.912316,1.912316,1.907740,1.907740,1.903181,1.903181,1.898642,1.898642,1.894124,1.894124,1.889631,1.889631,1.885163,1.885163,1.880721,1.880721,1.876307,1.876307,1.871921,1.871921,1.867563,1.867563,1.863234,1.863234,1.858932,1.858932,1.854659,1.854659,1.850414,1.850414,1.846197,1.846197,1.842007,1.837843,1.837843,1.833706,1.833706,1.829594,1.829594,1.825508,1.821447,1.821447,1.817410,1.817410,1.813397,1.809407,1.809407,1.805440,1.805440,1.801495,1.797571,1.797571,1.793669,1.793669,1.789788,1.785927,1.785927,1.782085,1.778263,1.778263,1.774460,1.770675,1.770675,1.766908,1.763159,1.763159,1.759427,1.755712,1.755712,1.752013,1.748330,1.748330,1.744663,1.741011,1.737375,1.737375,1.733753,1.730145,1.730145,1.726552,1.722972,1.719405,1.719405,1.715852,1.712311,1.708783,1.708783,1.705268,1.701764,1.698272,1.698272,1.694792,1.691322,1.687864,1.684417,1.684417,1.680980,1.677553,1.674136,1.670729,1.670729,1.667332,1.663944,1.660566,1.657196,1.653835,1.650482,1.650482,1.647138,1.643802,1.640474,1.637154,1.633841,1.630536,1.627238,1.627238,1.623947,1.620663,1.617385,1.614114,1.610849,1.607591,1.604338,1.601091,1.597850,1.594614,1.591384,1.588158,1.584938,1.581722,1.578511,1.575305,1.572103,1.568905,1.565711,1.562521,1.559334,1.556151,1.552971,1.549795,1.546622,1.543451,1.540283,1.537118,1.533955,1.530794,1.527635,1.524479,1.521323,1.515018,1.511867,1.508717,1.505568,1.502419,1.499271,1.496124,1.492976,1.486680,1.483532,1.480383,1.477233,1.474082,1.467776,1.464620,1.461463,1.458303,1.455141,1.448808,1.445637,1.442462,1.439284,1.432914,1.429722,1.426526,1.420116,1.416902,1.413681,1.410454,1.403977,1.400726,1.397467,1.390919,1.387631,1.381019,1.377695,1.374357,1.367640,1.364258,1.360860,1.354008,1.350552,1.343573,1.340047,1.336494,1.329299,1.325651,1.318240,1.314468,1.306771,1.302832,1.298822,1.290542,1.286241,1.281801,1.277185,1.267131,1.261348,1.254997,1.249227,1.243371,1.238005,1.227903,1.223206,1.214438,1.206290,1.198616,1.191310,1.184297,1.174214,1.164546,1.155208,1.146140,1.137296,1.125791,1.114554,1.103533,1.089993,1.076647,1.060798,1.045039,1.026647,1.005452,0.981143,0.953216,0.917840,0.869512,0.802591,0.693481,0.473054,-0.092477,-1.504340,-1.991446,-2.007790,-2.006317,-2.004344,-2.002484,-2.000634,-1.999613,-1.997950,-1.996069,-1.993763,-1.991122,-1.991122,-1.988148,-1.984888,-1.984888,-1.981371,-1.981371,-1.977632,-1.977632,-1.973701,-1.973701,-1.969608,-1.969608,-1.965380,-1.965380,-1.961041,-1.961041,-1.956613,-1.956613,-1.952113,-1.952113,-1.947560,-1.947560,-1.942967,-1.942967,-1.942967,-1.938346,-1.938346,-1.933709,-1.933709,-1.929063,-1.929063,-1.924418,-1.924418,-1.919778,-1.919778,-1.919778,-1.915150,-1.915150,-1.910538,-1.910538,-1.905944,-1.905944,-1.901372,-1.901372,-1.896825,-1.896825,-1.892303,-1.892303,-1.887808,-1.887808,-1.883341,-1.883341,-1.878903,-1.878903,-1.874494,-1.874494,-1.870114,-1.870114,-1.865764,-1.865764,-1.861442,-1.861442,-1.857150,-1.857150,-1.852886,-1.852886,-1.848651,-1.844443,-1.844443,-1.840262,-1.840262,-1.836109,-1.836109,-1.831982,-1.827880,-1.827880,-1.823804,-1.823804,-1.819753,-1.819753,-1.815725,-1.811722,-1.811722,-1.807741,-1.807741,-1.803783,-1.799847,-1.799847,-1.795932,-1.795932,-1.792039,-1.788166,-1.788166,-1.784313,-1.780480,-1.780480,-1.776665,-1.772870,-1.772870,-1.769093,-1.765333,-1.765333,-1.761591,-1.757866,-1.757866,-1.754158,-1.750466,-1.750466,-1.746790,-1.743129,-1.743129,-1.739484,-1.735853,-1.732237,-1.732237,-1.728636,-1.725048,-1.721474,-1.721474,-1.717913,-1.714365,-1.710830,-1.710830,-1.707307,-1.703796,-1.700297,-1.700297,-1.696810,-1.693335,-1.689870,-1.689870,-1.686416,-1.682973,-1.679541,-1.676118,-1.672706,-1.672706,-1.669303,-1.665910,-1.662526,-1.659151,-1.655785,-1.655785,-1.652427,-1.649078,-1.645738,-1.642405,-1.639080,-1.635763,-1.635763,-1.632454,-1.629152,-1.625856,-1.622568,-1.619287,-1.616012,-1.612744,-1.609481,-1.606225,-1.602975,-1.599731,-1.596492,-1.596492,-1.593258,-1.590030,-1.586807,-1.583588,-1.580375,-1.577166,-1.573961,-1.570761,-1.567564,-1.564372,-1.561183,-1.557998,-1.554817,-1.551638,-1.545291,-1.542122,-1.538955,-1.535790,-1.532628,-1.529469,-1.526311,-1.523155,-1.520000,-1.516847,-1.513696,-1.510545,-1.504247,-1.501098,-1.497951,-1.494803,-1.491655,-1.488508,-1.482211,-1.479062,-1.475911,-1.472760,-1.469607,-1.463296,-1.460137,-1.456976,-1.453813,-1.450647,-1.444305,-1.441129,-1.437949,-1.434764,-1.428382,-1.425183,-1.421978,-1.415551,-1.412328,-1.409098,-1.402614,-1.399360,-1.396096,-1.389541,-1.386247,-1.382942,-1.376296,-1.372953,-1.369596,-1.362835,-1.359429,-1.352560,-1.349096,-1.345608,-1.338560,-1.334995,-1.327773,-1.324109,-1.320408,-1.312872,-1.309028,-1.301158,-1.297115,-1.292985,-1.284397,-1.279889,-1.275182,-1.270201,-1.264797,-1.258661,-1.246758,-1.241155,-1.235823,-1.230766,-1.221363,-1.212734,-1.204693,-1.197100,-1.189859,-1.182899,-1.172879,-1.163260,-1.153962,-1.144927,-1.136109,-1.124635,-1.113423,-1.102421,-1.088899,-1.075566,-1.059726,-1.043970,-1.025574,-1.004364,-0.980027,-0.949185,-0.910431,-0.861209,-0.788438,-0.673788,-0.430446,0.220779,1.651925,1.998082,2.007724,2.006077,2.004249,2.002286,2.000243,1.999041,1.996870,1.994881,1.992250,1.992250,1.989404,1.986208,1.986208,1.982766,1.982766,1.979084,1.979084,1.975205,1.975205,1.971154,1.971154,1.966961,1.966961,1.962649,1.962649,1.958242,1.958242,1.953759,1.953759,1.949218,1.949218,1.949218,1.944632,1.944632,1.940016,1.940016,1.935379,1.935379,1.930733,1.930733,1.926084,1.926084,1.926084,1.921440,1.921440,1.916805,1.916805,1.912185,1.912185,1.907583,1.907583,1.903002,1.903002,1.898445,1.898445,1.893913,1.893913,1.889408,1.889408,1.884931,1.884931,1.880482,1.880482,1.876062,1.876062,1.871672,1.871672,1.867310,1.867310,1.862978,1.862978,1.858676,1.858676,1.854401,1.854401,1.850156,1.850156,1.845938,1.841748,1.841748,1.837585,1.837585,1.833448,1.833448,1.829338,1.825252,1.825252,1.821192,1.821192,1.817156,1.817156,1.813144,1.809155,1.809155,1.805189,1.805189,1.801246,1.797323,1.797323,1.793422,1.789542,1.789542,1.785682,1.785682,1.781842,1.778021,1.778021,1.774219,1.770435,1.770435,1.766669,1.762921,1.762921,1.759190,1.755476,1.755476,1.751778,1.748097,1.744431,1.744431,1.740780,1.737144,1.737144,1.733523,1.729916,1.726324,1.726324,1.722745,1.719179,1.719179,1.715626,1.712087,1.708560,1.708560,1.705045,1.701542,1.698050,1.694571,1.694571,1.691102,1.687645,1.684198,1.680762,1.680762,1.677336,1.673919,1.670513,1.667117,1.667117,1.663729,1.660351,1.656982,1.653622,1.650270,1.646926,1.646926,1.643591,1.640263,1.636943,1.633631,1.630326,1.627029,1.623738,1.620454,1.620454,1.617177,1.613906,1.610642,1.607384,1.604132,1.600885,1.597644,1.594409,1.591179,1.587954,1.584733,1.581518,1.578308,1.575101,1.571899,1.568702,1.565508,1.562318,1.559132,1.555949,1.552769,1.549593,1.546420,1.543249,1.540082,1.536917,1.533754,1.530593,1.527435,1.521123,1.517969,1.514817,1.511666,1.508517,1.505367,1.502219,1.499071,1.492776,1.489628,1.486480,1.483332,1.480183,1.477033,1.470729,1.467575,1.464420,1.461262,1.458102,1.451774,1.448606,1.445435,1.442260,1.435899,1.432711,1.429519,1.423120,1.419912,1.416697,1.413476,1.407014,1.403771,1.400519,1.393990,1.390711,1.387421,1.380808,1.377483,1.370793,1.367426,1.364043,1.357226,1.353789,1.346853,1.343350,1.339822,1.332684,1.329068,1.321730,1.318001,1.314227,1.306522,1.302579,1.294467,1.290273,1.285964,1.276884,1.272013,1.266785,1.260951,1.254633,1.248856,1.243032,1.232476,1.227607,1.218472,1.214180,1.206048,1.198386,1.191090,1.180675,1.170751,1.164352,1.155020,1.142987,1.134213,1.122785,1.111611,1.100639,1.087146,1.073832,1.058006,1.039629,1.021211,0.999936,0.975477,0.944411,0.905271,0.855402,0.777011,0.651197,0.387995,-0.376746,-1.761897,-2.002232,-2.007609,-2.005897,-2.003841,-2.001950,-2.000569,-1.999520,-1.995849,-1.995849,-1.993471,-1.990790,-1.987769,-1.987769,-1.984472,-1.984472,-1.980921,-1.980921,-1.977152,-1.977152,-1.973196,-1.973196,-1.969082,-1.969082,-1.964837,-1.964837,-1.960484,-1.960484,-1.956043,-1.956043,-1.951535,-1.951535,-1.946975,-1.946975,-1.946975,-1.942376,-1.942376,-1.937752,-1.937752,-1.933113,-1.933113,-1.928466,-1.928466,-1.923821,-1.923821,-1.919182,-1.919182,-1.919182,-1.914555,-1.914555,-1.909945,-1.909945,-1.905354,-1.905354,-1.900785,-1.900785,-1.896240,-1.896240,-1.891722,-1.891722,-1.887230,-1.887230,-1.882767,-1.882767,-1.878333,-1.878333,-1.873928,-1.873928,-1.869551,-1.869551,-1.865205,-1.865205,-1.860887,-1.860887,-1.856598,-1.856598,-1.852338,-1.848106,-1.848106,-1.843902,-1.843902,-1.839725,-1.839725,-1.835575,-1.835575,-1.831451,-1.827353,-1.827353,-1.823280,-1.823280,-1.819231,-1.819231,-1.815207,-1.811206,-1.811206,-1.807229,-1.807229,-1.803274,-1.799340,-1.799340,-1.795429,-1.791538,-1.791538,-1.787667,-1.787667,-1.783817,-1.779986,-1.779986,-1.776174,-1.772381,-1.772381,-1.768606,-1.764849,-1.764849,-1.761109,-1.757387,-1.757387,-1.753680,-1.749990,-1.749990,-1.746316,-1.742658,-1.739014,-1.739014,-1.735386,-1.731772,-1.731772,-1.728172,-1.724586,-1.721013,-1.721013,-1.717454,-1.713908,-1.710374,-1.710374,-1.706853,-1.703344,-1.699847,-1.699847,-1.696361,-1.692887,-1.689424,-1.685971,-1.685971,-1.682530,-1.679098,-1.675677,-1.672266,-1.672266,-1.668864,-1.665472,-1.662090,-1.658716,-1.655351,-1.655351,-1.651995,-1.648647,-1.645307,-1.641976,-1.638652,-1.635336,-1.632027,-1.632027,-1.628726,-1.625432,-1.622144,-1.618864,-1.615590,-1.612322,-1.609061,-1.605806,-1.602556,-1.599312,-1.596074,-1.592841,-1.589614,-1.586391,-1.586391,-1.583173,-1.579960,-1.576752,-1.573548,-1.570348,-1.567152,-1.563960,-1.560772,-1.554406,-1.551228,-1.548054,-1.544882,-1.541713,-1.538546,-1.535382,-1.532220,-1.529061,-1.525903,-1.522747,-1.519593,-1.516440,-1.510138,-1.506989,-1.503840,-1.500692,-1.497544,-1.494397,-1.491249,-1.484953,-1.481804,-1.478655,-1.475504,-1.472353,-1.469200,-1.462888,-1.459729,-1.456568,-1.453405,-1.447068,-1.443895,-1.440719,-1.437538,-1.431164,-1.427969,-1.424770,-1.418353,-1.415136,-1.411912,-1.408680,-1.402195,-1.398939,-1.395675,-1.389116,-1.385821,-1.379197,-1.375865,-1.372521,-1.365787,-1.362396,-1.358988,-1.352114,-1.348647,-1.341642,-1.338102,-1.334533,-1.327302,-1.323634,-1.316176,-1.312379,-1.308528,-1.300641,-1.296588,-1.288198,-1.283825,-1.279293,-1.274557,-1.264055,-1.257813,-1.251882,-1.245980,-1.240454,-1.235132,-1.225334,-1.220775,-1.212189,-1.204180,-1.196613,-1.189392,-1.179065,-1.172448,-1.162845,-1.153560,-1.144535,-1.132833,-1.121438,-1.110290,-1.099340,-1.085867,-1.069922,-1.056750,-1.038375,-1.019948,-0.998654,-0.971389,-0.940111,-0.900610,-0.846538,-0.765996,-0.627996,-0.328422,0.548940,1.844000,2.004708,2.007408,2.005598,2.003715,2.001688,2.000136,1.998875,1.996874,1.994843,1.992272,1.992272,1.989441,1.986274,1.986274,1.982852,1.982852,1.979190,1.975327,1.975327,1.971291,1.971291,1.967110,1.967110,1.967110,1.962809,1.962809,1.958410,1.958410,1.953935,1.953935,1.949399,1.949399,1.944818,1.944818,1.940205,1.940205,1.940205,1.935572,1.935572,1.930927,1.930927,1.926280,1.926280,1.921637,1.921637,1.917003,1.917003,1.912383,1.912383,1.912383,1.907781,1.907781,1.903200,1.903200,1.898642,1.898642,1.894109,1.894109,1.889603,1.889603,1.885125,1.885125,1.880675,1.880675,1.876254,1.876254,1.871863,1.871863,1.867500,1.867500,1.863167,1.863167,1.858863,1.858863,1.854588,1.850341,1.850341,1.846122,1.846122,1.841931,1.841931,1.837767,1.837767,1.833629,1.829517,1.829517,1.825431,1.825431,1.821370,1.821370,1.817333,1.813320,1.813320,1.809330,1.809330,1.805363,1.801418,1.801418,1.797495,1.793593,1.793593,1.789712,1.789712,1.785851,1.782010,1.782010,1.778188,1.774385,1.774385,1.770601,1.766834,1.766834,1.763085,1.759354,1.759354,1.755639,1.751940,1.751940,1.748258,1.744591,1.744591,1.740940,1.737303,1.733682,1.733682,1.730074,1.726481,1.726481,1.722901,1.719335,1.715782,1.715782,1.712242,1.708714,1.705198,1.705198,1.701695,1.698203,1.694723,1.691254,1.691254,1.687796,1.684349,1.680912,1.677486,1.677486,1.674069,1.670662,1.667265,1.663878,1.660499,1.660499,1.657130,1.653769,1.650416,1.647072,1.643737,1.640409,1.640409,1.637089,1.633776,1.630471,1.627173,1.623882,1.620598,1.617321,1.614050,1.610785,1.610785,1.607527,1.604274,1.601027,1.597786,1.594551,1.591320,1.588095,1.584875,1.581659,1.578448,1.575242,1.572040,1.568842,1.565648,1.562458,1.559271,1.556088,1.552909,1.549732,1.546559,1.543388,1.540221,1.533892,1.530732,1.527573,1.524416,1.521261,1.518108,1.514956,1.511805,1.508655,1.505506,1.499209,1.496061,1.492914,1.489766,1.486618,1.483470,1.477171,1.474020,1.470868,1.467714,1.464558,1.458241,1.455078,1.451913,1.448745,1.442399,1.439221,1.436038,1.432851,1.426463,1.423260,1.420052,1.413618,1.410390,1.407156,1.403913,1.397402,1.394133,1.390855,1.384265,1.380953,1.374292,1.370940,1.367574,1.360793,1.357376,1.350484,1.347006,1.343504,1.336424,1.332841,1.325579,1.321893,1.318166,1.310572,1.306694,1.298742,1.294648,1.290459,1.281712,1.277092,1.272233,1.267024,1.261225,1.254884,1.249112,1.237902,1.232688,1.227811,1.218658,1.210222,1.202329,1.194852,1.187703,1.177460,1.170888,1.161340,1.152100,1.143112,1.131451,1.120089,1.108967,1.098037,1.084584,1.068655,1.052863,1.037115,1.016034,0.994672,0.967271,0.935770,0.895893,0.837457,0.754612,0.602721,0.270700,-0.739622,-1.900801,-2.006191,-2.007240,-2.005395,-2.003572,-2.001376,-1.999584,-1.997888,-1.996005,-1.993678,-1.993678,-1.991025,-1.988038,-1.988038,-1.984768,-1.981241,-1.981241,-1.977493,-1.977493,-1.973555,-1.973555,-1.969456,-1.969456,-1.965223,-1.965223,-1.960880,-1.960880,-1.960880,-1.956448,-1.956448,-1.951946,-1.951946,-1.947391,-1.947391,-1.942796,-1.942796,-1.938174,-1.938174,-1.933536,-1.933536,-1.933536,-1.928891,-1.928891,-1.924245,-1.924245,-1.919606,-1.919606,-1.914978,-1.914978,-1.910366,-1.910366,-1.905774,-1.905774,-1.905774,-1.901203,-1.901203,-1.896656,-1.896656,-1.892135,-1.892135,-1.887641,-1.887641,-1.883176,-1.883176,-1.878739,-1.878739,-1.874331,-1.874331,-1.869952,-1.869952,-1.865602,-1.861282,-1.861282,-1.856991,-1.856991,-1.852728,-1.852728,-1.848493,-1.848493,-1.844287,-1.844287,-1.840107,-1.840107,-1.835955,-1.831828,-1.831828,-1.827728,-1.827728,-1.823653,-1.819602,-1.819602,-1.815576,-1.815576,-1.811573,-1.811573,-1.807593,-1.803636,-1.803636,-1.799701,-1.795787,-1.795787,-1.791894,-1.791894,-1.788022,-1.784170,-1.784170,-1.780337,-1.776523,-1.776523,-1.772729,-1.768952,-1.768952,-1.765193,-1.761452,-1.761452,-1.757728,-1.754020,-1.754020,-1.750329,-1.746653,-1.746653,-1.742993,-1.739348,-1.735718,-1.735718,-1.732103,-1.728502,-1.728502,-1.724914,-1.721341,-1.717780,-1.717780,-1.714233,-1.710698,-1.707176,-1.707176,-1.703666,-1.700167,-1.696681,-1.696681,-1.693205,-1.689741,-1.686288,-1.682845,-1.682845,-1.679413,-1.675991,-1.672579,-1.669176,-1.665783,-1.665783,-1.662400,-1.659025,-1.655659,-1.652302,-1.648954,-1.648954,-1.645613,-1.642281,-1.638957,-1.635640,-1.632331,-1.629029,-1.625734,-1.622446,-1.622446,-1.619165,-1.615890,-1.612622,-1.609360,-1.606104,-1.602854,-1.599610,-1.596371,-1.593138,-1.589910,-1.586687,-1.583468,-1.580255,-1.577046,-1.573842,-1.570641,-1.567445,-1.564253,-1.561064,-1.557880,-1.554698,-1.551520,-1.548345,-1.545173,-1.542003,-1.538837,-1.535673,-1.532511,-1.529351,-1.526193,-1.519883,-1.516730,-1.513578,-1.510428,-1.507278,-1.504129,-1.500981,-1.497833,-1.491538,-1.488390,-1.485242,-1.482094,-1.478944,-1.475794,-1.469489,-1.466335,-1.463178,-1.460019,-1.453695,-1.450529,-1.447360,-1.444187,-1.437830,-1.434646,-1.431457,-1.428263,-1.421859,-1.418648,-1.415431,-1.408977,-1.405739,-1.402493,-1.395975,-1.392702,-1.389418,-1.382819,-1.379502,-1.376172,-1.369470,-1.366097,-1.362708,-1.355876,-1.352432,-1.345478,-1.341966,-1.338428,-1.331266,-1.327637,-1.320269,-1.316523,-1.308884,-1.304980,-1.301009,-1.292830,-1.288593,-1.284232,-1.275002,-1.270009,-1.264584,-1.258416,-1.252413,-1.246534,-1.240954,-1.230582,-1.225776,-1.216802,-1.208498,-1.200704,-1.193304,-1.186216,-1.179381,-1.169511,-1.160011,-1.150810,-1.141854,-1.130228,-1.118894,-1.107795,-1.094180,-1.080780,-1.067530,-1.051745,-1.033369,-1.014905,-0.990820,-0.963279,-0.931553,-0.888048,-0.828357,-0.738238,-0.575220,-0.192630,0.923862,1.938741,2.007039,2.007045,2.005182,2.003104,2.001071,2.000213,1.998995,1.996890,1.994889,1.992284,1.989447,1.989447,1.986264,1.986264,1.982832,1.979160,1.979160,1.975288,1.975288,1.971244,1.971244,1.967056,1.967056,1.962750,1.962750,1.958347,1.958347,1.958347,1.953867,1.953867,1.949328,1.949328,1.944745,1.944745,1.940130,1.940130,1.935495,1.935495,1.935495,1.930849,1.930849,1.926201,1.926201,1.921557,1.921557,1.916922,1.916922,1.912302,1.912302,1.907700,1.907700,1.907700,1.903119,1.903119,1.898561,1.898561,1.894029,1.894029,1.889523,1.889523,1.885045,1.885045,1.880596,1.880596,1.876175,1.876175,1.871784,1.871784,1.867422,1.867422,1.863089,1.858786,1.858786,1.854511,1.854511,1.850265,1.850265,1.846046,1.846046,1.841855,1.841855,1.837692,1.833554,1.833554,1.829443,1.829443,1.825357,1.825357,1.821296,1.817260,1.817260,1.813247,1.813247,1.809258,1.805291,1.805291,1.801347,1.801347,1.797424,1.793523,1.793523,1.789642,1.785781,1.785781,1.781941,1.781941,1.778119,1.774317,1.774317,1.770532,1.766766,1.766766,1.763018,1.759286,1.759286,1.755572,1.751873,1.751873,1.748191,1.744525,1.740874,1.740874,1.737238,1.733616,1.733616,1.730009,1.726416,1.722837,1.722837,1.719271,1.715718,1.712178,1.712178,1.708650,1.705135,1.701632,1.701632,1.698140,1.694660,1.691191,1.687734,1.687734,1.684287,1.680850,1.677424,1.674007,1.674007,1.670601,1.667204,1.663816,1.660438,1.657069,1.657069,1.653708,1.650356,1.647012,1.643676,1.640349,1.637029,1.633716,1.633716,1.630411,1.627114,1.623823,1.620539,1.617261,1.613991,1.610726,1.607468,1.604215,1.600969,1.597728,1.597728,1.594492,1.591262,1.588037,1.584816,1.581601,1.578390,1.575184,1.571982,1.568784,1.565590,1.562400,1.559214,1.556031,1.552851,1.546502,1.543331,1.540163,1.536998,1.533835,1.530675,1.527516,1.524359,1.521204,1.518051,1.514899,1.511748,1.505449,1.502300,1.499152,1.496005,1.492857,1.489709,1.486561,1.480264,1.477114,1.473963,1.470810,1.467657,1.461343,1.458183,1.455021,1.451856,1.445517,1.442342,1.439163,1.435981,1.429602,1.426405,1.423202,1.416780,1.413560,1.410332,1.407097,1.400603,1.397343,1.394074,1.387506,1.384206,1.377569,1.374231,1.370879,1.364130,1.360731,1.357314,1.350421,1.346942,1.339914,1.336360,1.329161,1.325512,1.321826,1.314325,1.310502,1.302682,1.298668,1.294573,1.286076,1.281630,1.277006,1.272142,1.266926,1.261112,1.249006,1.243169,1.237808,1.232600,1.223039,1.218581,1.210151,1.202262,1.194788,1.184171,1.177401,1.167611,1.158175,1.149026,1.140114,1.128535],"line":{"width":2}}],{"title":{"text":"Van der Pol Oscillator (μ = 20) — RODAS4","font":{"family":"Georgia, 'Times New Roman', serif","size":18}},"font":{"family":"Georgia, 'Times New Roman', serif","size":15},"xaxis":{"title":{"text":"t","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"yaxis":{"title":{"text":"y₁","font":{"size":16}},"showline":true,"linewidth":1,"linecolor":"black","mirror":true,"ticks":"outside","ticklen":5,"tickwidth":1,"tickcolor":"black","showgrid":true,"gridwidth":1,"gridcolor":"rgba(180,180,180,0.35)","griddash":"dot"},"legend":{"orientation":"h","y":-0.22,"font":{"size":14}},"margin":{"t":55,"b":70,"l":70,"r":30},"plot_bgcolor":"white","paper_bgcolor":"white"},{responsive:true})});
+</script>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::{</span><span class="n">Rosenbrock</span><span class="p">,</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">,</span><span class="w"> </span><span class="n">AdaptiveSettings</span><span class="p">};</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::{</span><span class="n">Vector</span><span class="p">,</span><span class="w"> </span><span class="n">Matrix</span><span class="p">};</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kd">let</span><span class="w"> </span><span class="n">mu</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">20.0_</span><span class="k">f64</span><span class="p">;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="kd">let</span><span class="w"> </span><span class="n">y0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span><span class="mf">2.0_</span><span class="k">f64</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">]);</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="kd">let</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RODAS4</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">120.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Vector</span><span class="p">::</span><span class="n">from_array</span><span class="p">([</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">        </span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">        </span><span class="n">mu</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="mf">1.0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span><span class="p">]),</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span><span class="o">|</span><span class="n">_t</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="o">|</span><span class="w"> </span><span class="n">Matrix</span><span class="p">::</span><span class="n">new</span><span class="p">([</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">        </span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="w">                                    </span><span class="mf">1.0</span><span class="p">],</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">        </span><span class="p">[</span><span class="o">-</span><span class="mf">2.0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mu</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="n">mu</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="mf">1.0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">])],</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span><span class="p">]),</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span><span class="o">&amp;</span><span class="n">AdaptiveSettings</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+</code></pre></div>
+<h3 id="rodas4-properties">RODAS4 Properties<a class="headerlink" href="#rodas4-properties" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stages</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Order</td>
+<td>4(3) embedded pair</td>
+</tr>
+<tr>
+<td>L-stable</td>
+<td>Yes (no oscillation for arbitrarily large step sizes)</td>
+</tr>
+<tr>
+<td>Stiffly accurate</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Jacobian</td>
+<td>User-supplied or auto finite-difference</td>
+</tr>
+</tbody>
+</table>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">use</span><span class="w"> </span><span class="n">numeris</span><span class="p">::</span><span class="n">ode</span><span class="p">::</span><span class="n">OdeError</span><span class="p">;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">match</span><span class="w"> </span><span class="n">RKTS54</span><span class="p">::</span><span class="n">integrate</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">y0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">settings</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">sol</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* success */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">OdeError</span><span class="p">::</span><span class="n">MaxStepsExceeded</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* increase max_steps or rtol/atol */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">OdeError</span><span class="p">::</span><span class="n">StepSizeTooSmall</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* likely a stiff problem — use RODAS4 */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">OdeError</span><span class="p">::</span><span class="n">SingularJacobian</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* RODAS4 specific */</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">}</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      MIT License
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "content.code.copy", "content.code.annotate", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+      
+    
+  </body>
+</html>
