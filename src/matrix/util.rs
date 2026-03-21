@@ -248,26 +248,58 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T: fmt::Display, const M: usize, const N: usize> fmt::Display for Matrix<T, M, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Find max width per column for alignment
+        let prec = f.precision();
+
+        // Format each element once (respecting precision), find max width per column
+        // Use a flat array to avoid allocation (M*N elements).
+        // For very large matrices this is stack-heavy, but Matrix is const-generic
+        // and typically small (≤ 6×6).
         let mut widths = [0usize; N];
         for j in 0..N {
             for i in 0..M {
-                let w = WriteCounting::count(|wc| write!(wc, "{}", self[(i, j)]));
+                let w = WriteCounting::count(|wc| {
+                    if let Some(p) = prec {
+                        write!(wc, "{:.prec$}", self[(i, j)], prec = p)
+                    } else {
+                        write!(wc, "{}", self[(i, j)])
+                    }
+                });
                 if w > widths[j] {
                     widths[j] = w;
                 }
             }
         }
 
+        // Special case: column vector (N×1) — compact bracket format
+        if N == 1 {
+            write!(f, "[")?;
+            for i in 0..M {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                if let Some(p) = prec {
+                    write!(f, "{:.prec$}", self[(i, 0)], prec = p)?;
+                } else {
+                    write!(f, "{}", self[(i, 0)])?;
+                }
+            }
+            write!(f, "]")?;
+            return Ok(());
+        }
+
         for i in 0..M {
-            write!(f, "│")?;
+            write!(f, "│ ")?;
             for j in 0..N {
                 if j > 0 {
                     write!(f, "  ")?;
                 }
-                write!(f, "{:>width$}", self[(i, j)], width = widths[j])?;
+                if let Some(p) = prec {
+                    write!(f, "{:>width$.prec$}", self[(i, j)], width = widths[j], prec = p)?;
+                } else {
+                    write!(f, "{:>width$}", self[(i, j)], width = widths[j])?;
+                }
             }
-            write!(f, "│")?;
+            write!(f, " │")?;
             if i < M - 1 {
                 writeln!(f)?;
             }
@@ -371,8 +403,23 @@ mod tests {
     fn display_vector() {
         let v = Vector::from_array([1.0, 2.0, 3.0]);
         let s = format!("{}", v);
-        // Vector is N×1, so each element is on its own line
-        assert_eq!(s.lines().count(), 3);
+        // Vector uses compact bracket format on one line
+        assert_eq!(s, "[1, 2, 3]");
+    }
+
+    #[test]
+    fn display_precision() {
+        let m = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0]]);
+        let s = format!("{:.2}", m);
+        assert!(s.contains("1.00"));
+        assert!(s.contains("4.00"));
+    }
+
+    #[test]
+    fn display_vector_precision() {
+        let v = Vector::from_array([1.0_f64, 2.5]);
+        let s = format!("{:.3}", v);
+        assert_eq!(s, "[1.000, 2.500]");
     }
 
     #[test]
