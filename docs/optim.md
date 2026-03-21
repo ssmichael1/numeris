@@ -5,7 +5,7 @@ Root finding, unconstrained minimization, and nonlinear least squares.
 Requires the `optim` Cargo feature:
 
 ```toml
-numeris = { version = "0.2", features = ["optim"] }
+numeris = { version = "0.5", features = ["optim"] }
 ```
 
 ## Algorithm Summary

@@ -34,7 +34,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 
 ```toml
 [dependencies]
-numeris = "0.4"
+numeris = "0.5"
 ```
 
 ```rust
@@ -89,7 +89,7 @@ numeris works on bare-metal targets with no allocator:
 
 ```toml
 [dependencies]
-numeris = { version = "0.4", default-features = false, features = ["libm"] }
+numeris = { version = "0.5", default-features = false, features = ["libm"] }
 ```
 
 ```rust
@@ -109,7 +109,7 @@ let eig = sym.eig_symmetric().unwrap();
 Add `alloc` for `DynMatrix` on targets with a heap but no OS:
 
 ```toml
-numeris = { version = "0.4", default-features = false, features = ["libm", "alloc"] }
+numeris = { version = "0.5", default-features = false, features = ["libm", "alloc"] }
 ```
 
 ## Dynamic matrices
@@ -200,7 +200,7 @@ Root finding, unconstrained minimization, and nonlinear least squares (requires 
 
 ```toml
 [dependencies]
-numeris = { version = "0.4", features = ["optim"] }
+numeris = { version = "0.5", features = ["optim"] }
 ```
 
 ```rust
@@ -260,7 +260,7 @@ Biquad cascade IIR filters with Butterworth and Chebyshev Type I design (require
 
 ```toml
 [dependencies]
-numeris = { version = "0.4", features = ["control"] }
+numeris = { version = "0.5", features = ["control"] }
 ```
 
 ```rust
@@ -315,7 +315,7 @@ Six estimators for nonlinear state estimation and offline batch processing (requ
 
 ```toml
 [dependencies]
-numeris = { version = "0.4", features = ["estimate"] }
+numeris = { version = "0.5", features = ["estimate"] }
 ```
 
 ```rust
@@ -391,7 +391,7 @@ Enable the `complex` feature to use decompositions with complex elements:
 
 ```toml
 [dependencies]
-numeris = { version = "0.4", features = ["complex"] }
+numeris = { version = "0.5", features = ["complex"] }
 ```
 
 ```rust

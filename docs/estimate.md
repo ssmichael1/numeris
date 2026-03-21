@@ -5,7 +5,7 @@ Six estimators for nonlinear state estimation and offline batch processing. All 
 Requires the `estimate` Cargo feature (implies `alloc`):
 
 ```toml
-numeris = { version = "0.2", features = ["estimate"] }
+numeris = { version = "0.5", features = ["estimate"] }
 ```
 
 ## Filter Comparison

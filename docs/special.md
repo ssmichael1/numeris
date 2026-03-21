@@ -5,7 +5,7 @@ Mathematical special functions used throughout probability and statistics.
 Requires the `special` Cargo feature:
 
 ```toml
-numeris = { version = "0.2", features = ["special"] }
+numeris = { version = "0.5", features = ["special"] }
 ```
 
 All functions work with both `f32` and `f64`, are no-std compatible, and have no heap allocation.

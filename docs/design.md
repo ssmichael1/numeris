@@ -116,7 +116,7 @@ The `Scalar` trait has a `'static` bound (required by `TypeId`). This is backwar
 
 ## Avoiding Unstable Features
 
-numeris uses only stable Rust (MSRV 1.70). Constraints:
+numeris uses only stable Rust (MSRV 1.77). Constraints:
 
 - `generic_const_exprs` is unstable → no `[T; M*N]` flat storage
 - `min_const_generics` (stable since 1.51) → `[[T; M]; N]` two-level storage works

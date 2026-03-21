@@ -5,7 +5,7 @@ Biquad-cascade IIR filters, PID controller, lead/lag compensator design, and PID
 Requires the `control` Cargo feature:
 
 ```toml
-numeris = { version = "0.2", features = ["control"] }
+numeris = { version = "0.5", features = ["control"] }
 ```
 
 ## IIR Filter Design

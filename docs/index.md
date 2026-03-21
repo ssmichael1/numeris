@@ -31,7 +31,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-numeris = "0.2"
+numeris = "0.5"
 ```
 
 ```rust

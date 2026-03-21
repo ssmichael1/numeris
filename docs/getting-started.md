@@ -6,17 +6,17 @@ Add numeris to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-numeris = "0.3"
+numeris = "0.5"
 ```
 
 The default features include `std` and `ode`. To enable additional modules, list them explicitly:
 
 ```toml
 [dependencies]
-numeris = { version = "0.3", features = ["optim", "control", "estimate", "interp", "special", "stats", "complex"] }
+numeris = { version = "0.5", features = ["optim", "control", "estimate", "interp", "special", "stats", "complex"] }
 
 # Or enable everything at once:
-numeris = { version = "0.3", features = ["all"] }
+numeris = { version = "0.5", features = ["all"] }
 ```
 
 ## Cargo Features

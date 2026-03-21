@@ -5,7 +5,7 @@ Ten probability distributions, each implementing `ContinuousDistribution<T>` or 
 Requires the `stats` Cargo feature (implies `special`):
 
 ```toml
-numeris = { version = "0.2", features = ["stats"] }
+numeris = { version = "0.5", features = ["stats"] }
 ```
 
 All distributions work with `f32` and `f64`, are no-std compatible, and have no heap allocation.

@@ -7,7 +7,7 @@ numeris is designed to run on embedded microprocessor targets with no operating 
 ```toml
 # Cargo.toml
 [dependencies]
-numeris = { version = "0.2", default-features = false, features = ["libm"] }
+numeris = { version = "0.5", default-features = false, features = ["libm"] }
 ```
 
 This gives you:
