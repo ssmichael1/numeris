@@ -46,8 +46,8 @@ let sol = RKTS54::integrate(
     &AdaptiveSettings::default(),
 ).unwrap();
 
-println!("y(2π) = {:?}", sol.y);       // final state
-println!("steps taken = {}", sol.steps); // number of accepted steps
+println!("y(2π) = {:?}", sol.y);          // final state
+println!("steps taken = {}", sol.accepted); // number of accepted steps
 ```
 
 ### Solver Table
@@ -72,11 +72,12 @@ println!("steps taken = {}", sol.steps); // number of accepted steps
 use numeris::ode::AdaptiveSettings;
 
 let settings = AdaptiveSettings {
-    rtol: 1e-8,       // relative tolerance (default 1e-6)
-    atol: 1e-10,      // absolute tolerance (default 1e-9)
-    h0:   Some(0.01), // initial step size (auto if None)
-    hmax: Some(1.0),  // maximum step size (unlimited if None)
-    max_steps: 100_000, // step limit
+    rel_tol: 1e-8,       // relative tolerance (default 1e-8)
+    abs_tol: 1e-10,      // absolute tolerance (default 1e-8)
+    min_step: 1e-10,     // minimum step size (default 1e-6)
+    max_steps: 100_000,  // step limit (default 100_000)
+    dense_output: false, // store dense output for interpolation
+    h_min: None,         // force acceptance below this step size
     ..AdaptiveSettings::default()
 };
 ```
@@ -86,10 +87,11 @@ let settings = AdaptiveSettings {
 ```rust
 let sol = RKTS54::integrate(0.0, 1.0, &y0, f, &settings).unwrap();
 
-let y_final = &sol.y;       // final state Vector<T, N>
-let t_final =  sol.t;       // final time (= t_end if successful)
-let n_steps  = sol.steps;   // number of accepted steps
-let n_reject = sol.rejected; // number of rejected steps
+let y_final  = &sol.y;       // final state Matrix<T, M, N>
+let t_final  =  sol.t;       // final time (= t_end if successful)
+let n_evals  =  sol.evals;   // total derivative evaluations
+let n_accept =  sol.accepted; // number of accepted steps
+let n_reject =  sol.rejected; // number of rejected steps
 ```
 
 ## Dense Output (Interpolation)
@@ -102,14 +104,18 @@ use numeris::Vector;
 
 let y0 = Vector::from_array([1.0_f64, 0.0]);
 
-let mut sol = RKTS54::integrate_dense(
+let settings = AdaptiveSettings {
+    dense_output: true,
+    ..AdaptiveSettings::default()
+};
+let sol = RKTS54::integrate(
     0.0, 6.28, &y0,
     |_t, y| Vector::from_array([y[1], -y[0]]),
-    &AdaptiveSettings::default(),
+    &settings,
 ).unwrap();
 
 // Interpolate at arbitrary time point
-let y_at_pi = sol.interpolate(std::f64::consts::PI);
+let y_at_pi = RKTS54::interpolate(std::f64::consts::PI, &sol).unwrap();
 // y[0] ≈ -1.0 (cosine at π)
 ```
 
@@ -183,8 +189,10 @@ use numeris::ode::OdeError;
 
 match RKTS54::integrate(0.0, 1.0, &y0, f, &settings) {
     Ok(sol) => { /* success */ }
-    Err(OdeError::MaxStepsExceeded) => { /* increase max_steps or rtol/atol */ }
-    Err(OdeError::StepSizeTooSmall) => { /* likely a stiff problem — use RODAS4 */ }
-    Err(OdeError::SingularJacobian) => { /* RODAS4 specific */ }
+    Err(OdeError::MaxStepsExceeded) => { /* increase max_steps or rel_tol/abs_tol */ }
+    Err(OdeError::StepNotFinite) => { /* NaN/Inf in state — check dynamics */ }
+    Err(OdeError::TooManyRejections) => { /* likely stiff — use RODAS4 or set h_min */ }
+    Err(OdeError::SingularJacobian) => { /* RODAS4: Jacobian is singular */ }
+    _ => {}
 }
 ```
