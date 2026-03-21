@@ -74,4 +74,7 @@ markdown_extensions:
 plugins:
   - search
 
+extra_css:
+  - stylesheets/extra.css
+
 extra_javascript: []

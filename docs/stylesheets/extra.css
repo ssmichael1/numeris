@@ -1,0 +1,8 @@
+/* Scale plot SVGs to fill the content width */
+img[src$=".svg"] {
+    width: 100%;
+    max-width: 750px;
+    height: auto;
+    display: block;
+    margin: 1.5em auto;
+}
