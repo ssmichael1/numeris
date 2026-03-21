@@ -64,7 +64,7 @@ println!("steps taken = {}", sol.accepted); // number of accepted steps
 
 **FSAL** (First Same As Last): the last function evaluation of one step is reused as the first of the next, saving one function evaluation per step.
 
---8<-- "includes/plot_ode.html"
+![Harmonic Oscillator plot](includes/plot_ode.svg)
 
 ### AdaptiveSettings
 
@@ -149,7 +149,7 @@ let sol2 = RODAS4::integrate_auto(
 
 ### Van der Pol oscillator
 
---8<-- "includes/plot_vanderpol.html"
+![Van der Pol Oscillator plot](includes/plot_vanderpol.svg)
 
 ```rust
 use numeris::ode::{Rosenbrock, RODAS4, AdaptiveSettings};

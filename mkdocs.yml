@@ -74,5 +74,4 @@ markdown_extensions:
 plugins:
   - search
 
-extra_javascript:
-  - https://cdn.plot.ly/plotly-2.35.0.min.js
+extra_javascript: []

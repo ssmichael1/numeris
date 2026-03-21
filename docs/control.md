@@ -95,7 +95,7 @@ fn chebyshev1_highpass<T, const N: usize>(
 
 ### Frequency Response
 
---8<-- "includes/plot_control.html"
+![Butterworth frequency response plot](includes/plot_control.svg)
 
 ### Comparison
 
@@ -219,7 +219,7 @@ let y = comp.tick(1.0);
 
 ### Bode Plots
 
---8<-- "includes/plot_lead_lag.html"
+![Lead/Lag compensator Bode plots](includes/plot_lead_lag.svg)
 
 ## PID Tuning
 

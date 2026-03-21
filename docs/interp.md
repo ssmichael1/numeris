@@ -171,7 +171,7 @@ match CubicSpline::new(xs, ys) {
 
 ## Method Comparison
 
---8<-- "includes/plot_interp.html"
+![Interpolation comparison plot](includes/plot_interp.svg)
 
 ```rust
 use numeris::interp::{LinearInterp, HermiteInterp, LagrangeInterp, CubicSpline};

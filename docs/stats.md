@@ -38,7 +38,7 @@ pub trait DiscreteDistribution<T> {
 
 `Normal<T> { mean: T, std_dev: T }`
 
---8<-- "includes/plot_normal_pdf.html"
+![Normal distribution PDF plot](includes/plot_normal_pdf.svg)
 
 ```rust
 use numeris::stats::Normal;
@@ -84,7 +84,7 @@ assert!((e.mean() - 0.5).abs() < 1e-12);
 
 The chi-squared and exponential distributions are special cases.
 
---8<-- "includes/plot_gamma_pdf.html"
+![Gamma distribution PDF plot](includes/plot_gamma_pdf.svg)
 
 ```rust
 use numeris::stats::Gamma;
@@ -100,7 +100,7 @@ assert!((g.variance() - 2.0).abs() < 1e-10);
 
 `Beta<T> { alpha: T, beta: T }` — shape parameters α, β. Support: [0, 1].
 
---8<-- "includes/plot_beta_pdf.html"
+![Beta distribution PDF plot](includes/plot_beta_pdf.svg)
 
 ```rust
 use numeris::stats::Beta;
@@ -140,7 +140,7 @@ assert!((t.variance() - 10.0/8.0).abs() < 1e-10);  // ν/(ν-2)
 
 ### CDF Comparison
 
---8<-- "includes/plot_continuous_cdf.html"
+![Continuous CDF comparison plot](includes/plot_continuous_cdf.svg)
 
 ## Discrete Distributions
 
@@ -162,7 +162,7 @@ assert!((b.variance() - 0.21).abs() < 1e-12);
 
 `Binomial<T> { n: u64, p: T }` — n independent Bernoulli trials.
 
---8<-- "includes/plot_binomial_pmf.html"
+![Binomial distribution PMF plot](includes/plot_binomial_pmf.svg)
 
 ```rust
 use numeris::stats::Binomial;
@@ -178,7 +178,7 @@ assert!((b.variance() - 2.5).abs() < 1e-10);
 
 `Poisson<T> { lambda: T }` — number of events in a fixed interval.
 
---8<-- "includes/plot_poisson_pmf.html"
+![Poisson distribution PMF plot](includes/plot_poisson_pmf.svg)
 
 ```rust
 use numeris::stats::Poisson;
