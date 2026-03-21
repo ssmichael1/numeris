@@ -101,11 +101,18 @@ impl<T: FloatScalar> Quaternion<T> {
     pub fn from_axis_angle(axis: Vector3<T>, angle: T) -> Self {
         let half = angle / (T::one() + T::one());
         let (s, c) = half.sin_cos();
+        let n = axis.norm();
+        let (ax0, ax1, ax2) = if n > T::epsilon() {
+            let inv = T::one() / n;
+            (axis[0] * inv, axis[1] * inv, axis[2] * inv)
+        } else {
+            (axis[0], axis[1], axis[2])
+        };
         Self {
             w: c,
-            x: axis[0] * s,
-            y: axis[1] * s,
-            z: axis[2] * s,
+            x: ax0 * s,
+            y: ax1 * s,
+            z: ax2 * s,
         }
     }
 

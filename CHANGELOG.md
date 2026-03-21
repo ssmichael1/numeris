@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.4
+
+- **`From<[T; N]>` for `Vector`** — `let v: Vector<f64, 3> = [1.0, 2.0, 3.0].into()`.
+- **`Eq` and `Hash` for `Matrix`** — enables integer matrices as HashMap keys.
+- **`Default` for `Matrix`** — returns the zero matrix.
+- **`AsRef<[T]>` / `AsMut<[T]>` for `Matrix`** — view as flat column-major slice.
+- **`solve_matrix` on `CholeskyDecomposition` and `QrDecomposition`** — multi-RHS solve.
+- **`Quaternion::from_axis_angle` normalizes axis** — no longer requires pre-normalized input.
+
 ## 0.5.3
 
 - **`Solution` and `DenseOutput` derive `Debug`**.

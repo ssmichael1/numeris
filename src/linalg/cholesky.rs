@@ -309,6 +309,36 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
         out
     }
 
+    /// Solve `AX = B` for X where B has multiple columns.
+    ///
+    /// Each column of B is solved independently via forward/back substitution.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    ///
+    /// let a = Matrix::new([[4.0_f64, 2.0], [2.0, 3.0]]);
+    /// let b = Matrix::new([[6.0, 4.0], [5.0, 3.0]]);
+    /// let chol = a.cholesky().unwrap();
+    /// let x = chol.solve_matrix(&b);
+    /// // Verify: A * X ≈ B
+    /// let ax = a * x;
+    /// assert!((ax[(0,0)] - b[(0,0)]).abs() < 1e-12);
+    /// ```
+    pub fn solve_matrix<const P: usize>(&self, b: &Matrix<T, N, P>) -> Matrix<T, N, P> {
+        let mut x = Matrix::<T, N, P>::zeros();
+        for col in 0..P {
+            let b_flat: [T; N] = core::array::from_fn(|i| b[(i, col)]);
+            let mut y = [T::zero(); N];
+            let mut x_col = [T::zero(); N];
+            forward_substitute(&self.l, &b_flat, &mut y);
+            back_substitute_lt(&self.l, &y, &mut x_col);
+            for i in 0..N {
+                x[(i, col)] = x_col[i];
+            }
+        }
+        x
+    }
+
     /// Solve A*x = b for x, where A = L·L^H.
     pub fn solve(&self, b: &Vector<T, N>) -> Vector<T, N> {
         let b_flat: [T; N] = core::array::from_fn(|i| b[i]);

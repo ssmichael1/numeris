@@ -175,6 +175,22 @@ impl<T, const N: usize> IndexMut<usize> for Vector<T, N> {
     }
 }
 
+// ── From<[T; N]> ────────────────────────────────────────────────────
+
+impl<T: Scalar, const N: usize> From<[T; N]> for Vector<T, N> {
+    /// Create a vector from an array.
+    ///
+    /// ```
+    /// use numeris::Vector;
+    /// let v: Vector<f64, 3> = [1.0, 2.0, 3.0].into();
+    /// assert_eq!(v[0], 1.0);
+    /// ```
+    #[inline]
+    fn from(data: [T; N]) -> Self {
+        Self::from_array(data)
+    }
+}
+
 // ── Ordering (lexicographic) ────────────────────────────────────────
 
 impl<T: PartialOrd, const N: usize> PartialOrd for Vector<T, N> {
@@ -200,8 +216,6 @@ impl<T: Ord, const N: usize> Ord for Vector<T, N> {
         core::cmp::Ordering::Equal
     }
 }
-
-impl<T: Eq, const N: usize> Eq for Vector<T, N> {}
 
 #[cfg(test)]
 mod tests {

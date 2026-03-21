@@ -205,6 +205,32 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
         q
     }
 
+    /// Solve `AX = B` for X where B has multiple columns (least-squares).
+    ///
+    /// Each column of B is solved independently.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    ///
+    /// let a = Matrix::new([[1.0_f64, 0.0], [0.0, 1.0], [1.0, 1.0]]);
+    /// let b = Matrix::new([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]);
+    /// let qr = a.qr().unwrap();
+    /// let x = qr.solve_matrix(&b);
+    /// assert_eq!(x.nrows(), 2);
+    /// assert_eq!(x.ncols(), 2);
+    /// ```
+    pub fn solve_matrix<const P: usize>(&self, b: &Matrix<T, M, P>) -> Matrix<T, N, P> {
+        let mut result = Matrix::<T, N, P>::zeros();
+        for col in 0..P {
+            let b_col = Vector::from_array(core::array::from_fn(|i| b[(i, col)]));
+            let x_col = self.solve(&b_col);
+            for i in 0..N {
+                result[(i, col)] = x_col[i];
+            }
+        }
+        result
+    }
+
     /// Solve the least-squares problem min ||Ax - b|| for x.
     ///
     /// Computes x = R^{-1} Q^H b via Householder application + back substitution.

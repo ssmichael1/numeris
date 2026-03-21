@@ -30,9 +30,33 @@ use crate::traits::{MatrixMut, MatrixRef, Scalar};
 /// assert_eq!(b[(0, 0)], 1.0);
 /// assert_eq!(b[(0, 1)], 0.0);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Matrix<T, const M: usize, const N: usize> {
     pub(crate) data: [[T; M]; N],
+}
+
+impl<T: Scalar, const M: usize, const N: usize> Default for Matrix<T, M, N> {
+    /// Returns the zero matrix.
+    #[inline]
+    fn default() -> Self {
+        Self::zeros()
+    }
+}
+
+impl<T, const M: usize, const N: usize> AsRef<[T]> for Matrix<T, M, N> {
+    /// View as a flat column-major slice.
+    #[inline]
+    fn as_ref(&self) -> &[T] {
+        self.data.as_flattened()
+    }
+}
+
+impl<T, const M: usize, const N: usize> AsMut<[T]> for Matrix<T, M, N> {
+    /// View as a mutable flat column-major slice.
+    #[inline]
+    fn as_mut(&mut self) -> &mut [T] {
+        self.data.as_flattened_mut()
+    }
 }
 
 impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
