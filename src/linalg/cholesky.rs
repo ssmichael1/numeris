@@ -224,6 +224,137 @@ fn cholesky_rank1_impl<T: FloatScalar>(
 fn cholesky_direct<T: LinalgScalar, const N: usize>(
     l: &mut Matrix<T, N, N>,
 ) -> Result<(), LinalgError> {
+    // Dispatch to hand-unrolled formulas for small sizes.
+    // These avoid all loop overhead and let the compiler fully optimize.
+    // Storage: l.data[col][row], so L[i,j] = l.data[j][i].
+    match N {
+        0 | 1 => {
+            if N == 1 {
+                let d = l.data[0][0];
+                if d.re() <= <T::Real as num_traits::Zero>::zero() {
+                    return Err(LinalgError::NotPositiveDefinite);
+                }
+                l.data[0][0] = T::from_real(d.re().lsqrt());
+            }
+            Ok(())
+        }
+        2 => cholesky_2(l),
+        3 => cholesky_3(l),
+        4 => cholesky_4(l),
+        _ => cholesky_direct_loop(l),
+    }
+}
+
+/// 2×2 Cholesky: 1 sqrt, 1 div, 1 mul, 1 sqrt.
+#[inline(always)]
+fn cholesky_2<T: LinalgScalar, const N: usize>(
+    l: &mut Matrix<T, N, N>,
+) -> Result<(), LinalgError> {
+    let zero_r = <T::Real as num_traits::Zero>::zero();
+    // L[0,0] = sqrt(A[0,0])
+    let a00 = l.data[0][0];
+    if a00.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    let l00 = T::from_real(a00.re().lsqrt());
+    l.data[0][0] = l00;
+
+    // L[1,0] = A[1,0] / L[0,0]
+    let l10 = l.data[0][1] / l00;
+    l.data[0][1] = l10;
+
+    // L[1,1] = sqrt(A[1,1] - L[1,0]²)
+    let d11 = l.data[1][1] - l10 * l10.conj();
+    if d11.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    l.data[1][1] = T::from_real(d11.re().lsqrt());
+
+    Ok(())
+}
+
+/// 3×3 Cholesky: 3 sqrt, 3 div, ~9 mul/sub.
+#[inline(always)]
+fn cholesky_3<T: LinalgScalar, const N: usize>(
+    l: &mut Matrix<T, N, N>,
+) -> Result<(), LinalgError> {
+    let zero_r = <T::Real as num_traits::Zero>::zero();
+
+    let a00 = l.data[0][0];
+    if a00.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    let l00 = T::from_real(a00.re().lsqrt());
+    let inv00 = T::one() / l00;
+    l.data[0][0] = l00;
+
+    let l10 = l.data[0][1] * inv00;
+    let l20 = l.data[0][2] * inv00;
+    l.data[0][1] = l10;
+    l.data[0][2] = l20;
+
+    let d11 = l.data[1][1] - l10 * l10.conj();
+    if d11.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    let l11 = T::from_real(d11.re().lsqrt());
+    let inv11 = T::one() / l11;
+    l.data[1][1] = l11;
+
+    let l21 = (l.data[1][2] - l20 * l10.conj()) * inv11;
+    l.data[1][2] = l21;
+
+    let d22 = l.data[2][2] - l20 * l20.conj() - l21 * l21.conj();
+    if d22.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    l.data[2][2] = T::from_real(d22.re().lsqrt());
+
+    Ok(())
+}
+
+/// 4×4 Cholesky: 4 sqrt, 4 div, ~20 mul/sub.
+#[inline(always)]
+fn cholesky_4<T: LinalgScalar, const N: usize>(
+    l: &mut Matrix<T, N, N>,
+) -> Result<(), LinalgError> {
+    let zero_r = <T::Real as num_traits::Zero>::zero();
+
+    // Column 0
+    let a00 = l.data[0][0];
+    if a00.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    let l00 = T::from_real(a00.re().lsqrt());
+    let inv00 = T::one() / l00;
+    l.data[0][0] = l00;
+    let l10 = l.data[0][1] * inv00;
+    let l20 = l.data[0][2] * inv00;
+    let l30 = l.data[0][3] * inv00;
+    l.data[0][1] = l10;
+    l.data[0][2] = l20;
+    l.data[0][3] = l30;
+
+    // Column 1
+    let d11 = l.data[1][1] - l10 * l10.conj();
+    if d11.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    let l11 = T::from_real(d11.re().lsqrt());
+    let inv11 = T::one() / l11;
+    l.data[1][1] = l11;
+    let l21 = (l.data[1][2] - l20 * l10.conj()) * inv11;
+    let l31 = (l.data[1][3] - l30 * l10.conj()) * inv11;
+    l.data[1][2] = l21;
+    l.data[1][3] = l31;
+
+    // Column 2
+    let d22 = l.data[2][2] - l20 * l20.conj() - l21 * l21.conj();
+    if d22.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    let l22 = T::from_real(d22.re().lsqrt());
+    let inv22 = T::one() / l22;
+    l.data[2][2] = l22;
+    let l32 = (l.data[2][3] - l30 * l20.conj() - l31 * l21.conj()) * inv22;
+    l.data[2][3] = l32;
+
+    // Column 3
+    let d33 = l.data[3][3] - l30 * l30.conj() - l31 * l31.conj() - l32 * l32.conj();
+    if d33.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    l.data[3][3] = T::from_real(d33.re().lsqrt());
+
+    Ok(())
+}
+
+/// Generic loop-based Cholesky for N > 4.
+fn cholesky_direct_loop<T: LinalgScalar, const N: usize>(
+    l: &mut Matrix<T, N, N>,
+) -> Result<(), LinalgError> {
     let zero_r = <T::Real as num_traits::Zero>::zero();
 
     for j in 0..N {

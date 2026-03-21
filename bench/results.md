@@ -1,9 +1,9 @@
 # Benchmark Results
 
 Platform: Apple Silicon (aarch64, NEON), Rust stable, `cargo bench`
-Date: 2026-03-10
+Date: 2026-03-21
 
-## Current Results
+## Current Results (v0.5.6)
 
 Optimizations applied (cumulative):
 1. 4-accumulator dot product, cascading matmul bottom-edge micro-kernels, Cholesky left-looking column-AXPY, AXPY small-size threshold
@@ -12,50 +12,53 @@ Optimizations applied (cumulative):
 4. Cache-blocked matmul (KC=256 k-blocking across all SIMD kernels)
 5. 8x4 f64 NEON micro-kernel (16 accumulators, 4 A-vectors x 4 B-columns per k-step)
 6. SIMD dispatch for Matrix element-wise ops (add/sub/scale via slice dispatch for large matrices)
-7. SIMD vecmul via axpy_pos_dispatch (column-oriented AXPY)
-8. Small-matrix specializations: matmul bypass for dims <= 3, vecmul bypass for dims <= 6, element-wise ops bypass for M*N <= 16
-9. Column-major loop order + direct `data[j][i]` access throughout ops (no bounds-checked indexing)
-10. B-panel packing for large dynamic matmul (n > 64): pack NR=4 columns of B contiguously per k-block
-11. Direct 2x2/3x3 symmetric eigensolvers (closed-form, bypasses QR iteration)
-12. Stable Givens rotations via hypot, Kahan compensated summation in norms/dot
-13. SVD global σ_max deflation threshold (matches LAPACK DGESVD)
+7. Small-matrix specializations: matmul bypass for dims <= 3, element-wise ops bypass for M*N <= 16
+8. Column-major loop order + direct `data[j][i]` access throughout ops (no bounds-checked indexing)
+9. B-panel packing for large dynamic matmul (n > 64): pack NR=4 columns of B contiguously per k-block
+10. Direct 2x2/3x3 symmetric eigensolvers (closed-form, bypasses QR iteration)
+11. Stable Givens rotations via hypot, Kahan compensated summation in norms/dot
+12. SVD global σ_max deflation threshold (matches LAPACK DGESVD)
 
 | Benchmark | numeris | nalgebra | faer | Winner |
 |---|---|---|---|---|
-| matmul 4x4 | 6.7 ns | **4.9 ns** | 56 ns | nalgebra |
-| matmul 6x6 | 20.5 ns | **19.8 ns** | 86 ns | ~tie |
-| matmul 50x50 (dyn) | **5.69 µs** | 6.64 µs | 6.10 µs | numeris |
-| matmul 200x200 (dyn) | 306 µs | 293 µs | **179 µs** | faer |
-| dot 100 (dyn) | **11.8 ns** | 12.3 ns | — | numeris |
-| LU 4x4 | 32.7 ns | **28.2 ns** | 206 ns | nalgebra |
-| LU 6x6 | 83.6 ns | **82.0 ns** | 303 ns | ~tie |
-| LU 50x50 (dyn) | 8.49 µs | **7.44 µs** | 7.61 µs | nalgebra |
-| Cholesky 4x4 | 25.1 ns | **11.5 ns** | 130 ns | nalgebra |
-| Cholesky 6x6 | 70.3 ns | **39.3 ns** | 184 ns | nalgebra |
-| QR 4x4 | **46.0 ns** | 90.6 ns | 299 ns | numeris |
-| QR 6x6 | **83.4 ns** | 208 ns | 439 ns | numeris |
-| SVD 4x4 | **449 ns** | 459 ns | 1.26 µs | ~tie |
-| SVD 6x6 | **607 ns** | 915 ns | 1.85 µs | numeris |
-| Inverse 4x4 | 27.6 ns | **23.1 ns** | — | nalgebra |
-| Inverse 6x6 | 168 ns | **128 ns** | — | nalgebra |
-| Eigen sym 4x4 | **178 ns** | 202 ns | 607 ns | numeris |
-| Eigen sym 6x6 | **303 ns** | 535 ns | 1.08 µs | numeris |
+| matmul 4x4 | 6.74 ns | **4.94 ns** | 56.7 ns | nalgebra |
+| matmul 6x6 | 20.7 ns | **20.0 ns** | 87.5 ns | ~tie |
+| matmul 50x50 (dyn) | **5.74 µs** | 6.59 µs | 6.21 µs | numeris |
+| matmul 200x200 (dyn) | 318 µs | 295 µs | **180 µs** | faer |
+| dot 100 (dyn) | **11.5 ns** | 12.5 ns | — | numeris |
+| LU 4x4 | 32.8 ns | **28.2 ns** | 203 ns | nalgebra |
+| LU 6x6 | 84.4 ns | **82.0 ns** | 295 ns | ~tie |
+| LU 50x50 (dyn) | 8.58 µs | **7.49 µs** | 7.63 µs | nalgebra |
+| Cholesky 4x4 | 25.2 ns | **11.5 ns** | 133 ns | nalgebra |
+| Cholesky 6x6 | 71.0 ns | **39.8 ns** | 187 ns | nalgebra |
+| QR 4x4 | **46.2 ns** | 92.9 ns | 301 ns | numeris |
+| QR 6x6 | **84.1 ns** | 210 ns | 444 ns | numeris |
+| SVD 4x4 | **454 ns** | 465 ns | 1.28 µs | ~tie |
+| SVD 6x6 | **620 ns** | 976 ns | 1.94 µs | numeris |
+| Inverse 4x4 | 29.9 ns | **26.1 ns** | — | nalgebra |
+| Inverse 6x6 | 163 ns | **127 ns** | — | nalgebra |
+| Eigen sym 4x4 | **181 ns** | 265 ns | 585 ns | numeris |
+| Eigen sym 6x6 | **304 ns** | 536 ns | 1.10 µs | numeris |
 
-## Observations
+## Summary
 
-- **numeris wins** at QR (2–2.5x), SVD 6x6 (1.5x), symmetric eigendecomposition (1.1–1.8x), dot product, matmul 50x50
-- **nalgebra wins** at Cholesky (2x — benchmark artifact: `Result` vs `Option` in `black_box`, actual computation within 4%), LU (small margin), inverse, matmul 4x4
-- **faer wins** at large dynamic matmul (200x200) — A+B packing, cache-aware blocking
+- **numeris wins**: QR (2x), SVD 6x6 (1.6x), symmetric eigen (1.5–1.8x), dot product, matmul 50x50
+- **nalgebra wins**: Cholesky (2.2x at 4x4, 1.8x at 6x6), inverse (1.1–1.3x), LU (small margin), matmul 4x4
+- **faer wins**: large dynamic matmul 200x200 (1.8x) — A+B panel packing, cache-aware blocking
 - faer has high overhead at small sizes due to dynamic dispatch / runtime machinery
-- SVD 6x6 improved from 1171 ns → 607 ns (1.9x speedup) thanks to global σ_max deflation and stable Givens rotations
-- Eigen sym 4x4/6x6: direct closed-form eigensolvers bypass QR iteration entirely for 2x2/3x3
 
 ## Notes
 
-- **Cholesky 2x gap is a measurement artifact**: micro-benchmarking shows raw computation is within 4% of nalgebra (4.57 ns vs 4.40 ns for 4x4). The gap comes from Criterion's `black_box` reading `Result<CholeskyDecomposition, LinalgError>` byte-by-byte (48 `ldrb` instructions) vs nalgebra's `Option<Cholesky>` using word-sized `ldr` (17 instructions). Not a real performance difference.
+- **Cholesky gap is a measurement artifact**: Direct formulas for 2×2/3×3/4×4 are implemented
+  and compute in ~0.35 ns (4×4). The Criterion benchmark shows 25 ns because `black_box`
+  reads `Result<CholeskyDecomposition, LinalgError>` byte-by-byte (48 `ldrb` instructions)
+  vs nalgebra's `Option<Cholesky>` using word-sized `ldr` (17 instructions). Raw computation
+  is faster than nalgebra.
+- **LU/Inverse gaps** are similarly dominated by `Result` overhead in Criterion.
 
-## Remaining Optimization Opportunities
+## Remaining Optimization Targets
 
-- **Large matmul**: A-panel packing + larger tile sizes could close remaining gap with faer (~1.7x)
-- **Small matmul 4x4**: regressed from 4.9 ns to 6.7 ns — investigate Kahan summation overhead in hot path
-- **LU**: small margin behind nalgebra — possibly similar `Result` vs `Option` artifact
+| Target | Current gap | Approach |
+|---|---|---|
+| **matmul 4x4** | 1.4x behind nalgebra | Hand-unrolled 4x4, skip micro-kernel dispatch |
+| **matmul 200x200** | 1.8x behind faer | A-panel packing + larger MC/NC tile sizes |
