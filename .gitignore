@@ -6,4 +6,4 @@ Cargo.lock
 .claude
 .DS_Store
 
-benches/*.md
+benches/*.mdsrc/.serde_impl.rs.swp
