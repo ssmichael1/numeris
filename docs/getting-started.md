@@ -35,6 +35,7 @@ numeris = { version = "0.5", features = ["all"] }
 | `stats` | no | Statistical distributions (10 families) with sampling. Implies `special`. |
 | `complex` | no | `Complex<f32>` / `Complex<f64>` support for all decompositions. |
 | `nalgebra` | no | Conversions between numeris and nalgebra types. |
+| `serde` | no | Serialize/deserialize all types via serde. Row-major format. |
 | `libm` | baseline | Pure-Rust software float math. Always on as fallback. |
 | `all` | no | All of the above. |
 

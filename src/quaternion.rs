@@ -36,6 +36,7 @@ use crate::Matrix;
 /// assert!((rotated[1] - 1.0).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quaternion<T> {
     pub w: T,
     pub x: T,

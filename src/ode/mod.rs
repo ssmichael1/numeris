@@ -119,7 +119,8 @@ impl fmt::Display for OdeError {
 }
 
 /// Result of an adaptive integration.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Solution<T: FloatScalar, const M: usize, const N: usize> {
     /// Final independent variable value.
     pub t: T,
@@ -138,7 +139,8 @@ pub struct Solution<T: FloatScalar, const M: usize, const N: usize> {
 
 /// Stored data for dense interpolation between accepted steps.
 #[cfg(feature = "std")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DenseOutput<T: FloatScalar, const M: usize, const N: usize> {
     /// Independent variable at start of each accepted step.
     pub t: Vec<T>,

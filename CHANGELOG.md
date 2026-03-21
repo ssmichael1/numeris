@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.5
+
+- **`serde` feature** — optional serialization/deserialization for all types:
+  - `Matrix<T, M, N>` serializes as row-major `[[1,2],[3,4]]` (matches `Matrix::new()` input).
+  - `Vector<T, N>` serializes as flat `[1,2,3]`.
+  - `Quaternion<T>` serializes as `{"w":1.0,"x":0.0,"y":0.0,"z":0.0}`.
+  - `DynMatrix<T>` serializes as `{"nrows":2,"ncols":3,"data":[[1,2,3],[4,5,6]]}`.
+  - `DynVector<T>` serializes as flat `[1,2,3]`.
+  - `Solution` and `DenseOutput` also serializable.
+- **Improved `Display` for `Matrix`**:
+  - Precision formatting: `format!("{:.2}", m)` works.
+  - Vectors display as compact `[1, 2, 3]` instead of columnar.
+  - Padding inside `│` borders for readability.
+
 ## 0.5.4
 
 - **`From<[T; N]>` for `Vector`** — `let v: Vector<f64, 3> = [1.0, 2.0, 3.0].into()`.

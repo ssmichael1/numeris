@@ -137,6 +137,7 @@
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
 //! | `nalgebra`| no       | Conversions between numeris and nalgebra types |
+//! | `serde`   | no       | Serialize/deserialize all types via serde |
 //! | `all`     | no       | All features |
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -171,6 +172,8 @@ pub mod special;
 pub mod stats;
 #[cfg(feature = "nalgebra")]
 mod nalgebra_interop;
+#[cfg(feature = "serde")]
+mod serde_impl;
 pub mod quaternion;
 pub mod traits;
 

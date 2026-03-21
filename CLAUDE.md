@@ -77,7 +77,9 @@ Checked items are implemented; unchecked are potential future work.
   and norms work with complex elements. Zero overhead for real-only code paths.
 - **`nalgebra`** — conversions between numeris and nalgebra types (`From`/`Into`, `MatrixRef`/`MatrixMut` impls).
   Enables `nalgebra/std`. `nalgebra::SMatrix` and `DMatrix` can be used directly with numeris linalg free functions.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`.
+- **`serde`** — serialize/deserialize `Matrix`, `Vector`, `Quaternion`, `DynMatrix`, `DynVector`, `Solution`.
+  Row-major format for matrices (matches `Matrix::new()`), flat arrays for vectors.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`, `serde`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
