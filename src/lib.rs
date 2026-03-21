@@ -27,8 +27,8 @@
 //!   Stack-allocated `[[T; M]; N]` column-major storage (matches LAPACK conventions).
 //!   `Matrix::new()` accepts row-major input and transposes internally.
 //!   Includes arithmetic, indexing, norms, block operations, and iteration.
-//!   [`Vector<T, N>`] and [`ColumnVector<T, N>`] are type aliases for 1-row and
-//!   1-column matrices.
+//!   [`Vector<T, N>`] is a type alias for an N×1 column matrix (matching
+//!   nalgebra convention).
 //!
 //! - [`dynmatrix`] — Heap-allocated `DynMatrix<T>` with runtime dimensions
 //!   (requires `alloc` feature, included with `std`). `Vec<T>` column-major storage
@@ -50,9 +50,10 @@
 //!
 //! - [`ode`] — Fixed-step RK4 and 7 adaptive Runge-Kutta solvers (RKF45,
 //!   RKTS54, RKV65, RKV87, RKV98, RKV98NoInterp, RKV98Efficient). PI step-size
-//!   controller with dense output / interpolation. RODAS4 L-stable Rosenbrock
-//!   method for stiff systems (user-supplied or finite-difference Jacobians).
-//!   Requires `ode` feature.
+//!   controller with dense output / interpolation. Supports both vector and
+//!   matrix state (e.g., state transition matrix propagation). RODAS4 L-stable
+//!   Rosenbrock method for stiff systems (vector state, user-supplied or
+//!   finite-difference Jacobians). Requires `ode` feature.
 //!
 //! - [`optim`] — Optimization: scalar root finding ([`optim::brent`],
 //!   [`optim::newton_1d`]), BFGS quasi-Newton minimization ([`optim::minimize_bfgs`]),
@@ -135,6 +136,7 @@
 //! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.) with sampling. Implies `special` |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
+//! | `nalgebra`| no       | Conversions between numeris and nalgebra types |
 //! | `all`     | no       | All features |
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -167,10 +169,12 @@ pub mod quad;
 pub mod special;
 #[cfg(feature = "stats")]
 pub mod stats;
+#[cfg(feature = "nalgebra")]
+mod nalgebra_interop;
 pub mod quaternion;
 pub mod traits;
 
-pub use matrix::vector::{ColumnVector, ColumnVector3, Vector, Vector3};
+pub use matrix::vector::{Vector, Vector3};
 pub use matrix::Matrix;
 pub use matrix::aliases::{
     Matrix1, Matrix2, Matrix3, Matrix4, Matrix5, Matrix6,
@@ -181,7 +185,6 @@ pub use matrix::aliases::{
     Matrix5x1, Matrix5x2, Matrix5x3, Matrix5x4, Matrix5x6,
     Matrix6x1, Matrix6x2, Matrix6x3, Matrix6x4, Matrix6x5,
     Vector1, Vector2, Vector4, Vector5, Vector6,
-    ColumnVector1, ColumnVector2, ColumnVector4, ColumnVector5, ColumnVector6,
 };
 #[cfg(feature = "alloc")]
 pub use dynmatrix::{

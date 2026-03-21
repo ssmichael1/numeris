@@ -432,8 +432,8 @@ impl<T: Scalar, const M: usize, const N: usize> Div<T> for &Matrix<T, M, N> {
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// Matrix-vector product: `A * v` → result.
     ///
-    /// Takes and returns row vectors for convenience, avoiding
-    /// explicit transpose. Equivalent to `(A * v^T)^T`.
+    /// Computes `A * v` where `v` is an N×1 column vector,
+    /// returning an M×1 column vector.
     ///
     /// ```
     /// use numeris::{Matrix, Vector};
@@ -444,17 +444,17 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// assert_eq!(r[1], 11.0); // 5*1 + 3*2
     /// ```
     pub fn vecmul(&self, v: &Vector<T, N>) -> Vector<T, M> {
-        // Vector<T, M> = Matrix<T, 1, M>: out.data[i][0] is element i.
+        // Vector<T, M> = Matrix<T, M, 1>: out.data[0][i] is element i.
         // Matrix<T, M, N>: self.data[k][i] is element (row=i, col=k).
-        // Vector<T, N>: v.data[k][0] is element k.
+        // Vector<T, N> = Matrix<T, N, 1>: v.data[0][k] is element k.
         let mut out = Vector::<T, M>::zeros();
         if M <= 6 && N <= 6 {
             // For small matrices, bypass dispatch overhead.
             // Compiler fully unrolls the const-generic loops.
             for k in 0..N {
-                let v_k = v.data[k][0];
+                let v_k = v.data[0][k];
                 for i in 0..M {
-                    out.data[i][0] = out.data[i][0] + self.data[k][i] * v_k;
+                    out.data[0][i] = out.data[0][i] + self.data[k][i] * v_k;
                 }
             }
         } else {

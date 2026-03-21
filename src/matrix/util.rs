@@ -371,8 +371,8 @@ mod tests {
     fn display_vector() {
         let v = Vector::from_array([1.0, 2.0, 3.0]);
         let s = format!("{}", v);
-        // Vector is 1×N, so should be a single line
-        assert_eq!(s.lines().count(), 1);
+        // Vector is N×1, so each element is on its own line
+        assert_eq!(s.lines().count(), 3);
     }
 
     #[test]

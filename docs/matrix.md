@@ -122,11 +122,10 @@ let one  = a.norm_one();        // max col sum = 7.0
 
 ## Vectors
 
-`Vector<T, N>` is a row vector — a type alias for `Matrix<T, 1, N>`.
-`ColumnVector<T, N>` is a column vector — a type alias for `Matrix<T, N, 1>`.
+`Vector<T, N>` is a column vector — a type alias for `Matrix<T, N, 1>`, matching nalgebra's convention. Single-index access: `v[i]`.
 
 ```rust
-use numeris::{Vector, ColumnVector, Vector3};
+use numeris::{Vector, Vector3};
 
 let v = Vector::from_array([3.0_f64, 4.0, 0.0]);
 let u = Vector::from_array([1.0_f64, 0.0, 0.0]);
@@ -138,9 +137,6 @@ let hat = v.normalize();       // unit vector
 
 let cross = v.cross(&u);       // 3D cross product → Vector3<f64>
 let outer = v.outer(&u);       // outer product → Matrix<f64, 3, 3>
-
-// Column vector construction
-let cv = ColumnVector::from_column([1.0_f64, 2.0, 3.0]);
 ```
 
 ## Block Operations
@@ -175,22 +171,21 @@ m.set_block(1, 1, &patch);
 
 ## Size Aliases
 
-Square matrices and row vectors up to 6×6:
+Square matrices and vectors up to 6×6:
 
-| Square | Rectangular (examples) | Row vectors | Column vectors |
-|---|---|---|---|
-| `Matrix1<T>` | `Matrix2x3<T>` | `Vector1<T>` | `ColumnVector1<T>` |
-| `Matrix2<T>` | `Matrix3x4<T>` | `Vector2<T>` | `ColumnVector2<T>` |
-| `Matrix3<T>` | `Matrix4x6<T>` | `Vector3<T>` | `ColumnVector3<T>` |
-| … up to `Matrix6<T>` | All M×N for M,N ∈ 1..=6, M≠N | … `Vector6<T>` | … `ColumnVector6<T>` |
+| Square | Rectangular (examples) | Vectors |
+|---|---|---|
+| `Matrix1<T>` | `Matrix2x3<T>` | `Vector1<T>` |
+| `Matrix2<T>` | `Matrix3x4<T>` | `Vector2<T>` |
+| `Matrix3<T>` | `Matrix4x6<T>` | `Vector3<T>` |
+| … up to `Matrix6<T>` | All M×N for M,N ∈ 1..=6, M≠N | … `Vector6<T>` |
 
 ```rust
-use numeris::{Matrix3, Matrix4x3, Vector3, ColumnVector3};
+use numeris::{Matrix3, Matrix4x3, Vector3};
 
 let rot: Matrix3<f64>     = Matrix3::eye();
 let pts: Matrix4x3<f64>   = Matrix4x3::zeros();   // 4 rows, 3 cols
 let v:   Vector3<f64>     = Vector3::from_array([1.0, 2.0, 3.0]);
-let cv:  ColumnVector3<f64> = ColumnVector3::from_column([4.0, 5.0, 6.0]);
 ```
 
 ## Utilities

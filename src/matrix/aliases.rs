@@ -1,6 +1,6 @@
-//! Pre-defined type aliases for common matrix, vector, and column vector sizes.
+//! Pre-defined type aliases for common matrix and vector sizes.
 
-use crate::matrix::vector::{ColumnVector, Vector};
+use crate::matrix::vector::Vector;
 use crate::Matrix;
 
 // ── Square matrix aliases ──────────────────────────────────────────
@@ -86,28 +86,15 @@ pub type Matrix6x4<T> = Matrix<T, 6, 4>;
 /// 6×5 matrix.
 pub type Matrix6x5<T> = Matrix<T, 6, 5>;
 
-// ── Row vector aliases ─────────────────────────────────────────────
+// ── Vector aliases ───────────────────────────────────────────────
 
-/// 1-element row vector.
+/// 1-element vector.
 pub type Vector1<T> = Vector<T, 1>;
-/// 2-element row vector.
+/// 2-element vector.
 pub type Vector2<T> = Vector<T, 2>;
-/// 4-element row vector.
+/// 4-element vector.
 pub type Vector4<T> = Vector<T, 4>;
-/// 5-element row vector.
+/// 5-element vector.
 pub type Vector5<T> = Vector<T, 5>;
-/// 6-element row vector.
+/// 6-element vector.
 pub type Vector6<T> = Vector<T, 6>;
-
-// ── Column vector aliases ──────────────────────────────────────────
-
-/// 1-element column vector.
-pub type ColumnVector1<T> = ColumnVector<T, 1>;
-/// 2-element column vector.
-pub type ColumnVector2<T> = ColumnVector<T, 2>;
-/// 4-element column vector.
-pub type ColumnVector4<T> = ColumnVector<T, 4>;
-/// 5-element column vector.
-pub type ColumnVector5<T> = ColumnVector<T, 5>;
-/// 6-element column vector.
-pub type ColumnVector6<T> = ColumnVector<T, 6>;

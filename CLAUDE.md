@@ -41,7 +41,8 @@ Checked items are implemented; unchecked are potential future work.
   Avoids `[T; M*N]` which requires unstable `generic_const_exprs`.
 - **Const generics** — matrix dimensions are `const M: usize` (rows) and `const N: usize` (cols).
 - **Naming** — `Matrix` is the fixed-size type (the default for embedded). `DynMatrix` (requires `alloc`)
-  for runtime-sized matrices. Shared behavior via `MatrixRef`/`MatrixMut` traits.
+  for runtime-sized matrices. `Vector<T, N>` = `Matrix<T, N, 1>` (column vector, matching nalgebra).
+  Shared behavior via `MatrixRef`/`MatrixMut` traits.
 - **Element traits** — `Scalar` (blanket trait: `Copy + PartialEq + Debug + Zero + One + Num`) for all
   matrix ops; `FloatScalar` (extends `Scalar + Float`) for quaternions and ordered comparisons;
   `LinalgScalar` for decompositions and norms (covers both real floats and `Complex<T>`).
@@ -74,7 +75,9 @@ Checked items are implemented; unchecked are potential future work.
   via the `libm` crate. When `std` is also enabled, `std` takes precedence.
 - **`complex`** — adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. All decompositions
   and norms work with complex elements. Zero overhead for real-only code paths.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`.
+- **`nalgebra`** — conversions between numeris and nalgebra types (`From`/`Into`, `MatrixRef`/`MatrixMut` impls).
+  Enables `nalgebra/std`. `nalgebra::SMatrix` and `DMatrix` can be used directly with numeris linalg free functions.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -89,7 +92,7 @@ src/
 │   ├── aliases.rs      # Size aliases: Matrix1–Matrix6, Matrix2x3, Vector1–6, etc.
 │   ├── ops.rs          # Add, Sub, Neg, Mul (matrix & scalar), vecmul, transpose
 │   ├── square.rs       # trace, det, diag, from_diag, pow, is_symmetric
-│   ├── vector.rs       # Vector, Vector3, ColumnVector, ColumnVector3, dot, cross
+│   ├── vector.rs       # Vector (N×1 column), Vector3, dot, cross, outer
 │   ├── block.rs        # block, set_block, top_left/right, head, tail, segment
 │   ├── norm.rs         # L1, L2, Frobenius, infinity, one norms, normalize
 │   ├── slice.rs        # as_slice, col_slice, from_slice, iter, IntoIterator
@@ -139,6 +142,7 @@ src/
 │   ├── f32_avx.rs      # x86_64 AVX f32 kernels (8-wide, compile-time opt-in)
 │   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide, compile-time opt-in)
 │   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide, compile-time opt-in)
+├── nalgebra_interop.rs # (requires `nalgebra` feature) From/Into, MatrixRef/MatrixMut for nalgebra types
 ├── interp/             # (requires `interp` feature)
 │   ├── mod.rs          # InterpError, find_interval, validate_sorted helpers, re-exports
 │   ├── linear.rs       # LinearInterp<T, N> + DynLinearInterp<T>

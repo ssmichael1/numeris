@@ -1,5 +1,5 @@
 use super::*;
-use crate::Vector;
+use crate::{Matrix, Vector};
 
 const PI: f64 = core::f64::consts::PI;
 const TAU: f64 = 2.0 * PI;
@@ -517,6 +517,39 @@ mod adaptive_tests {
             &settings,
         );
         assert!(matches!(result, Err(OdeError::StepNotFinite)));
+    }
+
+    // ── Matrix state ODE tests ────────────────────────────────────
+
+    #[test]
+    fn rk4_matrix_exponential() {
+        // dX/dt = A*X where A = [[0, 1], [-1, 0]] (rotation)
+        // X(0) = I, exact: X(t) = [[cos(t), sin(t)], [-sin(t), cos(t)]]
+        let a = Matrix::new([[0.0_f64, 1.0], [-1.0, 0.0]]);
+        let x0: Matrix<f64, 2, 2> = Matrix::eye();
+        let xf = rk4(0.0, TAU, 0.001, &x0, |_t, x| a * *x);
+        // After one full rotation, X(2π) ≈ I
+        assert!((xf[(0, 0)] - 1.0).abs() < 1e-7, "x00 = {}", xf[(0, 0)]);
+        assert!(xf[(0, 1)].abs() < 1e-7, "x01 = {}", xf[(0, 1)]);
+        assert!(xf[(1, 0)].abs() < 1e-7, "x10 = {}", xf[(1, 0)]);
+        assert!((xf[(1, 1)] - 1.0).abs() < 1e-7, "x11 = {}", xf[(1, 1)]);
+    }
+
+    #[test]
+    fn adaptive_matrix_exponential() {
+        // Same problem with adaptive solver
+        let a = Matrix::new([[0.0_f64, 1.0], [-1.0, 0.0]]);
+        let x0: Matrix<f64, 2, 2> = Matrix::eye();
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-10,
+            rel_tol: 1e-10,
+            ..AdaptiveSettings::default()
+        };
+        let sol = RKTS54::integrate(0.0, TAU, &x0, |_t, x| a * *x, &settings).unwrap();
+        assert!((sol.y[(0, 0)] - 1.0).abs() < 1e-8, "x00 = {}", sol.y[(0, 0)]);
+        assert!(sol.y[(0, 1)].abs() < 1e-8, "x01 = {}", sol.y[(0, 1)]);
+        assert!(sol.y[(1, 0)].abs() < 1e-8, "x10 = {}", sol.y[(1, 0)]);
+        assert!((sol.y[(1, 1)] - 1.0).abs() < 1e-8, "x11 = {}", sol.y[(1, 1)]);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::matrix::vector::ColumnVector;
+use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
@@ -25,10 +25,10 @@ use super::{apply_var_floor, cholesky_with_jitter, fd_jacobian, EstimateError};
 ///
 /// ```
 /// use numeris::estimate::Ekf;
-/// use numeris::{ColumnVector, Matrix};
+/// use numeris::{Vector, Matrix};
 ///
 /// // Constant-velocity model: state = [position, velocity]
-/// let x0 = ColumnVector::from_column([0.0_f64, 1.0]);
+/// let x0 = Vector::from_array([0.0_f64, 1.0]);
 /// let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
 /// let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
 ///
@@ -38,22 +38,22 @@ use super::{apply_var_floor, cholesky_with_jitter, fd_jacobian, EstimateError};
 ///
 /// // Predict (with process noise)
 /// ekf.predict(
-///     |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+///     |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
 ///     |_x| Matrix::new([[1.0, dt], [0.0, 1.0]]),
 ///     Some(&q),
 /// );
 ///
 /// // Update with position measurement
 /// ekf.update(
-///     &ColumnVector::from_column([0.12]),
-///     |x| ColumnVector::from_column([x[(0, 0)]]),
+///     &Vector::from_array([0.12]),
+///     |x| Vector::from_array([x[0]]),
 ///     |_x| Matrix::new([[1.0, 0.0]]),
 ///     &r,
 /// ).unwrap();
 /// ```
 pub struct Ekf<T: FloatScalar, const N: usize, const M: usize> {
     /// State estimate.
-    pub x: ColumnVector<T, N>,
+    pub x: Vector<T, N>,
     /// State covariance.
     pub p: Matrix<T, N, N>,
     /// Minimum allowed diagonal variance (0 = disabled).
@@ -64,7 +64,7 @@ pub struct Ekf<T: FloatScalar, const N: usize, const M: usize> {
 
 impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// Create a new EKF with initial state `x0` and covariance `p0`.
-    pub fn new(x0: ColumnVector<T, N>, p0: Matrix<T, N, N>) -> Self {
+    pub fn new(x0: Vector<T, N>, p0: Matrix<T, N, N>) -> Self {
         Self {
             x: x0,
             p: p0,
@@ -94,7 +94,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
 
     /// Reference to the current state estimate.
     #[inline]
-    pub fn state(&self) -> &ColumnVector<T, N> {
+    pub fn state(&self) -> &Vector<T, N> {
         &self.x
     }
 
@@ -113,8 +113,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// Updates: `x = f(x)`, `P = γ · F P Fᵀ + Q`.
     pub fn predict(
         &mut self,
-        f: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, N>,
-        fj: impl Fn(&ColumnVector<T, N>) -> Matrix<T, N, N>,
+        f: impl Fn(&Vector<T, N>) -> Vector<T, N>,
+        fj: impl Fn(&Vector<T, N>) -> Matrix<T, N, N>,
         q: Option<&Matrix<T, N, N>>,
     ) {
         let big_f = fj(&self.x);
@@ -134,7 +134,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// Pass `None` for `q` if there is no process noise.
     pub fn predict_fd(
         &mut self,
-        f: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, N>,
+        f: impl Fn(&Vector<T, N>) -> Vector<T, N>,
         q: Option<&Matrix<T, N, N>>,
     ) {
         let big_f = fd_jacobian(&f, &self.x);
@@ -161,9 +161,9 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
-        hj: impl Fn(&ColumnVector<T, N>) -> Matrix<T, M, N>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
+        hj: impl Fn(&Vector<T, N>) -> Matrix<T, M, N>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
         let big_h = hj(&self.x);
@@ -199,8 +199,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update_fd(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
         let big_h = fd_jacobian(&h, &self.x);
@@ -236,9 +236,9 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// M=1 → 99%: 6.63 | M=2 → 9.21 | M=3 → 11.34 | M=6 → 16.81
     pub fn update_gated(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
-        hj: impl Fn(&ColumnVector<T, N>) -> Matrix<T, M, N>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
+        hj: impl Fn(&Vector<T, N>) -> Matrix<T, M, N>,
         r: &Matrix<T, M, M>,
         gate: T,
     ) -> Result<Option<T>, EstimateError> {
@@ -262,8 +262,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// Returns `Ok(None)` when rejected, `Ok(Some(nis))` when accepted.
     pub fn update_fd_gated(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
         gate: T,
     ) -> Result<Option<T>, EstimateError> {
@@ -295,9 +295,9 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// Returns the Normalized Innovation Squared at the converged solution.
     pub fn update_iterated(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
-        hj: impl Fn(&ColumnVector<T, N>) -> Matrix<T, M, N>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
+        hj: impl Fn(&Vector<T, N>) -> Matrix<T, M, N>,
         r: &Matrix<T, M, M>,
         max_iter: usize,
         tol: T,
@@ -354,8 +354,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
     /// See [`update_iterated`](Self::update_iterated) for details.
     pub fn update_fd_iterated(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
         max_iter: usize,
         tol: T,

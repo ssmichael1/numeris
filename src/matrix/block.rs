@@ -144,12 +144,12 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     /// assert_eq!(t[1], 50);
     /// ```
     pub fn tail<const P: usize>(&self) -> Vector<T, P> {
-        self.block(0, N - P)
+        self.block(N - P, 0)
     }
 
     /// Extract P elements starting at index i.
     pub fn segment<const P: usize>(&self, i: usize) -> Vector<T, P> {
-        self.block(0, i)
+        self.block(i, 0)
     }
 }
 

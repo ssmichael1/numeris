@@ -77,10 +77,10 @@ The EKF linearizes nonlinear dynamics at the current estimate using Jacobians. F
 
 ```rust
 use numeris::estimate::Ekf;
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 // 2-state constant-velocity model, 1-dimensional position measurement
-let x0 = ColumnVector::from_column([0.0_f64, 1.0]);  // [pos, vel]
+let x0 = Vector::from_array([0.0_f64, 1.0]);  // [pos, vel]
 let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
 let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
 
@@ -90,9 +90,9 @@ let r = Matrix::new([[0.5_f64]]);                              // measurement no
 
 // Prediction step: provide dynamics f(x) and Jacobian F = ∂f/∂x
 ekf.predict(
-    |x| ColumnVector::from_column([
-        x[(0, 0)] + dt * x[(1, 0)],
-        x[(1, 0)],
+    |x| Vector::from_array([
+        x[0] + dt * x[1],
+        x[1],
     ]),
     |_x| Matrix::new([[1.0_f64, dt], [0.0, 1.0]]),
     q.as_ref(),
@@ -100,14 +100,14 @@ ekf.predict(
 
 // Update step: returns NIS = yᵀ S⁻¹ y (chi-squared distributed under M dof)
 let nis = ekf.update(
-    &ColumnVector::from_column([0.12_f64]),  // measurement z
-    |x| ColumnVector::from_column([x[(0, 0)]]),
+    &Vector::from_array([0.12_f64]),  // measurement z
+    |x| Vector::from_array([x[0]]),
     |_x| Matrix::new([[1.0_f64, 0.0]]),
     &r,
 ).unwrap();
 
 // Access state and covariance
-let x = ekf.state();       // &ColumnVector<f64, 2>
+let x = ekf.state();       // &Vector<f64, 2>
 let p = ekf.covariance();  // &Matrix<f64, 2, 2>
 ```
 
@@ -119,12 +119,12 @@ When analytic Jacobians are unavailable, use `predict_fd` / `update_fd`:
 
 ```rust
 ekf.predict_fd(
-    |x| ColumnVector::from_column([x[(0,0)] + dt*x[(1,0)], x[(1,0)]]),
+    |x| Vector::from_array([x[0] + dt*x[1], x[1]]),
     q.as_ref(),
 );
 let nis = ekf.update_fd(
-    &ColumnVector::from_column([0.12]),
-    |x| ColumnVector::from_column([x[(0,0)]]),
+    &Vector::from_array([0.12]),
+    |x| Vector::from_array([x[0]]),
     &r,
 ).unwrap();
 ```
@@ -155,7 +155,7 @@ Propagates 2N+1 sigma points through the nonlinear dynamics — no Jacobians nee
 
 ```rust
 use numeris::estimate::Ukf;
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
 // Default: alpha=1.0, beta=2.0, kappa=0.0 — all weights non-negative.
@@ -163,13 +163,13 @@ let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
 let mut ukf_tuned = Ukf::<f64, 2, 1>::with_params(x0, p0, 0.1, 2.0, 0.0);
 
 ukf.predict(
-    |x| ColumnVector::from_column([x[(0,0)] + dt*x[(1,0)], x[(1,0)]]),
+    |x| Vector::from_array([x[0] + dt*x[1], x[1]]),
     q.as_ref(),
 ).unwrap();
 
 let nis = ukf.update(
-    &ColumnVector::from_column([0.12]),
-    |x| ColumnVector::from_column([x[(0,0)]]),
+    &Vector::from_array([0.12]),
+    |x| Vector::from_array([x[0]]),
     &r,
 ).unwrap();
 ```
@@ -184,7 +184,7 @@ Propagates the Cholesky factor `S` (where `P = SSᵀ`) rather than `P` directly.
 
 ```rust
 use numeris::estimate::SrUkf;
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 // Construct from covariance P (Cholesky computed internally, with jitter fallback)
 let mut srukf = SrUkf::<f64, 2, 1>::from_covariance(x0, p0).unwrap();
@@ -194,8 +194,8 @@ let s0 = p0.cholesky().unwrap().l_full();  // lower-triangular factor
 let mut srukf2 = SrUkf::<f64, 2, 1>::new(x0, s0);
 
 let nis = srukf.update(
-    &ColumnVector::from_column([0.12]),
-    |x| ColumnVector::from_column([x[(0,0)]]),
+    &Vector::from_array([0.12]),
+    |x| Vector::from_array([x[0]]),
     &r,
 ).unwrap();
 
@@ -210,18 +210,18 @@ Third-degree spherical-radial cubature rule: 2N equally-weighted cubature points
 
 ```rust
 use numeris::estimate::Ckf;
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
 
 ckf.predict(
-    |x| ColumnVector::from_column([x[(0,0)] + dt*x[(1,0)], x[(1,0)]]),
+    |x| Vector::from_array([x[0] + dt*x[1], x[1]]),
     q.as_ref(),
 ).unwrap();
 
 let nis = ckf.update(
-    &ColumnVector::from_column([0.12]),
-    |x| ColumnVector::from_column([x[(0,0)]]),
+    &Vector::from_array([0.12]),
+    |x| Vector::from_array([x[0]]),
     &r,
 ).unwrap();
 ```
@@ -232,7 +232,7 @@ Rauch–Tung–Striebel fixed-interval smoother: runs an EKF forward pass, store
 
 ```rust
 use numeris::estimate::{Ekf, EkfStep, rts_smooth};
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 // Forward EKF pass — store each step
 let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
@@ -240,15 +240,15 @@ let mut steps: Vec<EkfStep<f64, 2>> = Vec::new();
 
 for z in &measurements {
     let step = ekf.predict_store(
-        |x| ColumnVector::from_column([x[(0,0)] + dt*x[(1,0)], x[(1,0)]]),
+        |x| Vector::from_array([x[0] + dt*x[1], x[1]]),
         |_x| Matrix::new([[1.0_f64, dt], [0.0, 1.0]]),
         q.as_ref(),
     );
     steps.push(step);
 
     ekf.update(
-        &ColumnVector::from_column([*z]),
-        |x| ColumnVector::from_column([x[(0,0)]]),
+        &Vector::from_array([*z]),
+        |x| Vector::from_array([x[0]]),
         |_x| Matrix::new([[1.0_f64, 0.0]]),
         &r,
     ).unwrap();
@@ -268,7 +268,7 @@ Supports mixed measurement dimensions via method-level const generic `M`.
 
 ```rust
 use numeris::estimate::BatchLsq;
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 let mut lsq = BatchLsq::<f64, 2>::new();  // 2-state
 
@@ -277,15 +277,15 @@ let h1 = Matrix::new([[1.0_f64, 0.0]]);    // 1×2: observe position
 let h2 = Matrix::new([[0.0_f64, 1.0]]);    // 1×2: observe velocity
 let r  = Matrix::new([[0.1_f64]]);
 
-lsq.add_observation(&ColumnVector::from_column([1.05_f64]), &h1, &r).unwrap();
-lsq.add_observation(&ColumnVector::from_column([0.95_f64]), &h1, &r).unwrap();
-lsq.add_observation(&ColumnVector::from_column([1.0_f64]),  &h2, &r).unwrap();
+lsq.add_observation(&Vector::from_array([1.05_f64]), &h1, &r).unwrap();
+lsq.add_observation(&Vector::from_array([0.95_f64]), &h1, &r).unwrap();
+lsq.add_observation(&Vector::from_array([1.0_f64]),  &h2, &r).unwrap();
 
 // Solve: returns (state estimate, covariance)
 let (x_est, p_est) = lsq.solve().unwrap();
 
 // With a prior (Tikhonov regularization):
-let x_prior = ColumnVector::from_column([0.0_f64, 0.0]);
+let x_prior = Vector::from_array([0.0_f64, 0.0]);
 let p_prior  = Matrix::new([[1.0_f64, 0.0], [0.0, 1.0]]);
 let mut lsq_prior = BatchLsq::<f64, 2>::with_prior(&x_prior, &p_prior).unwrap();
 ```

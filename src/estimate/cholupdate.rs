@@ -3,7 +3,7 @@
 //! Delegates to the generic implementations in [`crate::linalg`].
 
 use crate::linalg::{cholesky_rank1_update, cholesky_rank1_downdate};
-use crate::matrix::vector::ColumnVector;
+use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
@@ -18,7 +18,7 @@ use super::EstimateError;
 #[allow(dead_code)]
 pub(crate) fn cholupdate<T: FloatScalar, const N: usize>(
     l: &mut Matrix<T, N, N>,
-    v: &mut ColumnVector<T, N>,
+    v: &mut Vector<T, N>,
     sign: T,
 ) -> Result<(), EstimateError> {
     let result = if sign >= T::zero() {

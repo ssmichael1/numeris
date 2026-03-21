@@ -66,14 +66,14 @@ These modules work with `#![no_std]` and zero heap allocation:
 #![no_main]
 
 use numeris::estimate::Ekf;
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 // 4-state IMU attitude EKF (quaternion + bias)
 // Works on Cortex-M4/M7 with FPU, no heap required
 static mut EKF: Option<Ekf<f32, 4, 3>> = None;
 
 pub fn init() {
-    let x0 = ColumnVector::<f32, 4>::zeros();
+    let x0 = Vector::<f32, 4>::zeros();
     let p0 = Matrix::<f32, 4, 4>::eye();
 
     unsafe { EKF = Some(Ekf::new(x0, p0)); }
@@ -88,7 +88,7 @@ pub fn imu_update(gyro: [f32; 3], dt: f32) {
             ekf.predict(
                 |x| {
                     // Quaternion kinematics: q_dot = 0.5 * Omega(gyro - bias) * q
-                    ColumnVector::zeros()  // simplified
+                    Vector::zeros()  // simplified
                 },
                 |_x| Matrix::eye(),
                 Some(&q),

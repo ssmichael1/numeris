@@ -82,8 +82,8 @@ impl<T: LinalgScalar, const N: usize> Vector<T, N> {
     }
 }
 
-impl<T: FloatScalar, const N: usize> Vector<T, N> {
-    /// Scaled norm: `norm() / sqrt(N)`.
+impl<T: FloatScalar, const M: usize, const N: usize> Matrix<T, M, N> {
+    /// Scaled Frobenius norm: `frobenius_norm() / sqrt(M * N)`.
     ///
     /// Makes the error metric independent of state dimension,
     /// used by ODE solvers for step size control.
@@ -95,7 +95,7 @@ impl<T: FloatScalar, const N: usize> Vector<T, N> {
     /// assert!((sn - 5.0 / 2.0_f64.sqrt()).abs() < 1e-12);
     /// ```
     pub fn scaled_norm(&self) -> T {
-        self.norm() / T::from(N).unwrap().sqrt()
+        self.frobenius_norm() / T::from(M * N).unwrap().sqrt()
     }
 }
 

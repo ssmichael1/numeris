@@ -1,5 +1,9 @@
 //! ODE integration — fixed-step, adaptive, and stiff solvers.
 //!
+//! All explicit solvers accept any `Matrix<T, M, N>` as state — including
+//! vectors (`Vector<T, S>` = `Matrix<T, S, 1>`) and general matrices
+//! (e.g., for state transition matrix propagation or matrix Riccati equations).
+//!
 //! # Fixed-step
 //!
 //! [`rk4_step`] and [`rk4`] provide classic 4th-order Runge-Kutta integration.
@@ -64,7 +68,7 @@ mod rodas4;
 
 use core::fmt;
 use crate::traits::FloatScalar;
-use crate::matrix::vector::Vector;
+use crate::Matrix;
 
 #[cfg(test)]
 mod tests;
@@ -115,11 +119,11 @@ impl fmt::Display for OdeError {
 }
 
 /// Result of an adaptive integration.
-pub struct Solution<T: FloatScalar, const S: usize> {
+pub struct Solution<T: FloatScalar, const M: usize, const N: usize> {
     /// Final independent variable value.
     pub t: T,
-    /// Final state vector.
-    pub y: Vector<T, S>,
+    /// Final state (vector or matrix).
+    pub y: Matrix<T, M, N>,
     /// Total derivative evaluations.
     pub evals: usize,
     /// Accepted steps.
@@ -128,18 +132,18 @@ pub struct Solution<T: FloatScalar, const S: usize> {
     pub rejected: usize,
     /// Dense output data (requires `std` feature).
     #[cfg(feature = "std")]
-    pub dense: Option<DenseOutput<T, S>>,
+    pub dense: Option<DenseOutput<T, M, N>>,
 }
 
 /// Stored data for dense interpolation between accepted steps.
 #[cfg(feature = "std")]
-pub struct DenseOutput<T: FloatScalar, const S: usize> {
+pub struct DenseOutput<T: FloatScalar, const M: usize, const N: usize> {
     /// Independent variable at start of each accepted step.
     pub t: Vec<T>,
     /// Step size of each accepted step.
     pub h: Vec<T>,
     /// All k-stages at each accepted step.
-    pub stages: Vec<Vec<Vector<T, S>>>,
+    pub stages: Vec<Vec<Matrix<T, M, N>>>,
     /// State at start of each accepted step.
-    pub y: Vec<Vector<T, S>>,
+    pub y: Vec<Matrix<T, M, N>>,
 }

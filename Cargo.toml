@@ -3,9 +3,9 @@ members = [".", "bench"]
 
 [package]
 name = "numeris"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.77"
 description = "Pure-Rust numerical algorithms library — high performance with SIMD support while also supporting no-std for embedded and WASM targets."
 license = "MIT"
 repository = "https://github.com/ssmichael1/numeris"
@@ -31,6 +31,7 @@ all = [
     "estimate",
     "special",
     "stats",
+    "nalgebra",
 ]
 control = []
 estimate = ["alloc"]
@@ -44,10 +45,12 @@ stats = ["special"]
 std = ["alloc", "num-traits/std", "num-complex?/std"]
 libm = ["num-traits/libm", "num-complex?/libm"]
 complex = ["dep:num-complex"]
+nalgebra = ["dep:nalgebra", "nalgebra/std"]
 
 [dependencies]
 num-traits = { version = "0.2", default-features = false, features = ["libm"] }
 num-complex = { version = "0.4", default-features = false, optional = true }
+nalgebra = { version = "0.33", default-features = false, optional = true }
 
 [[example]]
 name = "gen_plots"

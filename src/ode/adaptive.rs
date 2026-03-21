@@ -1,5 +1,5 @@
 use crate::traits::FloatScalar;
-use crate::matrix::vector::Vector;
+use crate::Matrix;
 use super::{OdeError, Solution};
 
 /// Settings for adaptive step-size control.
@@ -95,13 +95,17 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
     const FSAL: bool;
 
     /// Integrate from `t0` to `tf` with initial state `y0`.
-    fn integrate<T: FloatScalar, const S: usize>(
+    ///
+    /// The state can be a vector (`Matrix<T, S, 1>`) or a general matrix
+    /// (`Matrix<T, M, N>`), enabling matrix ODE integration (e.g., state
+    /// transition matrices, matrix Riccati equations).
+    fn integrate<T: FloatScalar, const M: usize, const N: usize>(
         t0: T,
         tf: T,
-        y0: &Vector<T, S>,
-        mut f: impl FnMut(T, &Vector<T, S>) -> Vector<T, S>,
+        y0: &Matrix<T, M, N>,
+        mut f: impl FnMut(T, &Matrix<T, M, N>) -> Matrix<T, M, N>,
         settings: &AdaptiveSettings<T>,
-    ) -> Result<Solution<T, S>, OdeError> {
+    ) -> Result<Solution<T, M, N>, OdeError> {
         let mut nevals: usize = 0;
         let mut naccept: usize = 0;
         let mut nreject: usize = 0;
@@ -149,7 +153,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
         };
 
         // For FSAL methods, cache the last k evaluation
-        let mut k_last: Option<Vector<T, S>> = None;
+        let mut k_last: Option<Matrix<T, M, N>> = None;
 
         // Consecutive rejection counter for robustness
         let mut consecutive_rejects: usize = 0;
@@ -173,7 +177,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             }
 
             // Compute k-stages on the stack
-            let mut karr = [Vector::<T, S>::zeros(); STAGES];
+            let mut karr = [Matrix::<T, M, N>::zeros(); STAGES];
 
             if Self::FSAL && k_last.is_some() {
                 karr[0] = k_last.take().unwrap();
@@ -205,7 +209,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             ynp1 = ynp1 * h;
 
             // Error estimate
-            let mut yerr = Vector::<T, S>::zeros();
+            let mut yerr = Matrix::<T, M, N>::zeros();
             for (idx, ki) in karr.iter().enumerate() {
                 let berr_abs = Self::BERR[idx].abs();
                 if berr_abs > 1.0e-20 {
@@ -325,10 +329,10 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
     ///
     /// Requires `std` feature and `dense_output = true` in settings.
     #[cfg(feature = "std")]
-    fn interpolate<T: FloatScalar, const S: usize>(
+    fn interpolate<T: FloatScalar, const M: usize, const N: usize>(
         t_interp: T,
-        sol: &Solution<T, S>,
-    ) -> Result<Vector<T, S>, OdeError> {
+        sol: &Solution<T, M, N>,
+    ) -> Result<Matrix<T, M, N>, OdeError> {
         let dense = sol.dense.as_ref().ok_or(OdeError::NoDenseOutput)?;
         if dense.t.is_empty() {
             return Err(OdeError::NoDenseOutput);

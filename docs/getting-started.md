@@ -34,6 +34,7 @@ numeris = { version = "0.3", features = ["all"] }
 | `quad` | no | Numerical quadrature — Gauss-Legendre, adaptive Simpson, composite rules. |
 | `stats` | no | Statistical distributions (10 families) with sampling. Implies `special`. |
 | `complex` | no | `Complex<f32>` / `Complex<f64>` support for all decompositions. |
+| `nalgebra` | no | Conversions between numeris and nalgebra types. |
 | `libm` | baseline | Pure-Rust software float math. Always on as fallback. |
 | `all` | no | All of the above. |
 
@@ -89,7 +90,7 @@ let v = vector![1.0_f64, 2.0];
 let r = m.vecmul(&v);
 ```
 
-The prelude includes `Matrix`, `Vector`, `ColumnVector`, all size aliases (`Matrix1`–`Matrix6`, `Vector1`–`Vector6`), scalar traits (`Scalar`, `FloatScalar`, `LinalgScalar`), `LinalgError`, and `Quaternion`.
+The prelude includes `Matrix`, `Vector`, all size aliases (`Matrix1`–`Matrix6`, `Vector1`–`Vector6`), scalar traits (`Scalar`, `FloatScalar`, `LinalgScalar`), `LinalgError`, and `Quaternion`.
 
 ## Macros
 
@@ -102,7 +103,7 @@ use numeris::{matrix, vector};
 let m = matrix![1.0, 2.0, 3.0; 4.0, 5.0, 6.0];  // 2×3
 let s = matrix![42.0];                              // 1×1
 
-// vector! creates a row vector (1×N)
+// vector! creates a column vector (N×1)
 let v = vector![1.0_f64, 2.0, 3.0];
 ```
 

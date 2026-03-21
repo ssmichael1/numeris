@@ -42,7 +42,7 @@ pub trait MatrixMut<T>: MatrixRef<T> {
 }
 ```
 
-Both `Matrix<T, M, N>` and `DynMatrix<T>` implement these traits. The consequence: **the same LU, Cholesky, QR, SVD, Eigen, and Schur code handles fixed and dynamic matrices**. There are no separate implementations — just one set of free functions.
+Both `Matrix<T, M, N>` and `DynMatrix<T>` implement these traits. With the `nalgebra` feature, `nalgebra::SMatrix` and `nalgebra::DMatrix` also implement them. The consequence: **the same LU, Cholesky, QR, SVD, Eigen, and Schur code handles fixed, dynamic, and nalgebra matrices**. There are no separate implementations — just one set of free functions.
 
 `col_as_slice()` / `col_as_mut_slice()` are the key methods: they return contiguous `&[T]` slices of individual columns, enabling SIMD dispatch to operate on contiguous data without gathering.
 

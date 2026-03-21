@@ -1,7 +1,7 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use crate::matrix::vector::ColumnVector;
+use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
@@ -19,11 +19,11 @@ use super::EstimateError;
 /// - `f_jacobian` — the `F` matrix used in the predict step
 pub struct EkfStep<T: FloatScalar, const N: usize> {
     /// State after predict, before update.
-    pub x_predicted: ColumnVector<T, N>,
+    pub x_predicted: Vector<T, N>,
     /// Covariance after predict, before update.
     pub p_predicted: Matrix<T, N, N>,
     /// State after update.
-    pub x_updated: ColumnVector<T, N>,
+    pub x_updated: Vector<T, N>,
     /// Covariance after update.
     pub p_updated: Matrix<T, N, N>,
     /// Dynamics Jacobian `F` used in the predict step.
@@ -44,7 +44,7 @@ pub struct EkfStep<T: FloatScalar, const N: usize> {
 ///
 /// # Returns
 ///
-/// `Vec<(ColumnVector<T,N>, Matrix<T,N,N>)>` of smoothed (state, covariance)
+/// `Vec<(Vector<T,N>, Matrix<T,N,N>)>` of smoothed (state, covariance)
 /// for each timestep, in the same order as `steps`.
 ///
 /// Returns `SingularInnovation` if any predicted covariance is singular
@@ -54,7 +54,7 @@ pub struct EkfStep<T: FloatScalar, const N: usize> {
 ///
 /// ```
 /// use numeris::estimate::{Ekf, EkfStep, rts_smooth};
-/// use numeris::{ColumnVector, Matrix};
+/// use numeris::{Vector, Matrix};
 ///
 /// let dt = 0.1_f64;
 /// let q = Matrix::new([[0.01, 0.0], [0.0, 0.01]]);
@@ -62,7 +62,7 @@ pub struct EkfStep<T: FloatScalar, const N: usize> {
 /// let f_jac = Matrix::new([[1.0, dt], [0.0, 1.0]]);
 ///
 /// let mut ekf = Ekf::<f64, 2, 1>::new(
-///     ColumnVector::from_column([0.0, 0.0]),
+///     Vector::from_array([0.0, 0.0]),
 ///     Matrix::new([[10.0, 0.0], [0.0, 10.0]]),
 /// );
 ///
@@ -73,7 +73,7 @@ pub struct EkfStep<T: FloatScalar, const N: usize> {
 ///     // Predict
 ///     let x_pre = ekf.x;
 ///     ekf.predict(
-///         |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+///         |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
 ///         |_| f_jac,
 ///         Some(&q),
 ///     );
@@ -82,8 +82,8 @@ pub struct EkfStep<T: FloatScalar, const N: usize> {
 ///
 ///     // Update
 ///     ekf.update(
-///         &ColumnVector::from_column([z_val]),
-///         |x| ColumnVector::from_column([x[(0, 0)]]),
+///         &Vector::from_array([z_val]),
+///         |x| Vector::from_array([x[0]]),
 ///         |_| Matrix::new([[1.0, 0.0]]),
 ///         &r,
 ///     ).unwrap();
@@ -102,16 +102,16 @@ pub struct EkfStep<T: FloatScalar, const N: usize> {
 /// ```
 pub fn rts_smooth<T: FloatScalar, const N: usize>(
     steps: &[EkfStep<T, N>],
-) -> Result<Vec<(ColumnVector<T, N>, Matrix<T, N, N>)>, EstimateError> {
+) -> Result<Vec<(Vector<T, N>, Matrix<T, N, N>)>, EstimateError> {
     let n = steps.len();
     if n == 0 {
         return Ok(Vec::new());
     }
 
-    let mut smoothed: Vec<(ColumnVector<T, N>, Matrix<T, N, N>)> = Vec::with_capacity(n);
+    let mut smoothed: Vec<(Vector<T, N>, Matrix<T, N, N>)> = Vec::with_capacity(n);
     // Pre-fill with zeros so we can index backwards
     for _ in 0..n {
-        smoothed.push((ColumnVector::zeros(), Matrix::zeros()));
+        smoothed.push((Vector::zeros(), Matrix::zeros()));
     }
 
     // Last step: smoothed = filtered

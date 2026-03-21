@@ -1,6 +1,6 @@
 # ODE Integration
 
-numeris provides fixed-step and adaptive ODE integrators for non-stiff and stiff systems. All solvers work on `Vector<T, N>` state vectors and closure-based dynamics functions.
+numeris provides fixed-step and adaptive ODE integrators for non-stiff and stiff systems. All explicit solvers work on `Matrix<T, M, N>` states (including `Vector<T, N>` = `Matrix<T, N, 1>`) with closure-based dynamics functions — enabling both vector ODE and matrix ODE integration (e.g., state transition matrices, matrix Riccati equations). Rosenbrock (stiff) solvers operate on vector states only.
 
 Requires the `ode` feature (default).
 
@@ -21,10 +21,10 @@ let dt = 0.01;
 let t_end = 2.0 * std::f64::consts::PI;
 
 // Integrate from t=0 to t=t_end
-let sol = rk4(0.0, t_end, &y0, f, dt);
+let sol = rk4(0.0, t_end, dt, &y0, f);
 
 // Or take a single step
-let y1 = rk4_step(0.0, &y0, f, dt);
+let y1 = rk4_step(0.0, &y0, dt, f);
 ```
 
 RK4 is fully no-std and no-alloc — suitable for embedded real-time control loops.

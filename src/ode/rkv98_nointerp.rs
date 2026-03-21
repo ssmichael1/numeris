@@ -11,7 +11,7 @@ use super::{OdeError, Solution};
 #[cfg(feature = "std")]
 use crate::traits::FloatScalar;
 #[cfg(feature = "std")]
-use crate::matrix::vector::Vector;
+use crate::Matrix;
 
 /// Verner 9(8) Efficient (no interpolation) — 16 stages, order 9(8).
 pub struct RKV98NoInterp;
@@ -91,10 +91,10 @@ impl RKAdaptive<16, 1> for RKV98NoInterp {
     ];
 
     #[cfg(feature = "std")]
-    fn interpolate<T: FloatScalar, const S: usize>(
+    fn interpolate<T: FloatScalar, const M: usize, const N: usize>(
         _t_interp: T,
-        _sol: &Solution<T, S>,
-    ) -> Result<Vector<T, S>, OdeError> {
+        _sol: &Solution<T, M, N>,
+    ) -> Result<Matrix<T, M, N>, OdeError> {
         Err(OdeError::InterpNotImplemented)
     }
 }

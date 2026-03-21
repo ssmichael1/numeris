@@ -1,7 +1,7 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use crate::matrix::vector::ColumnVector;
+use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
@@ -20,9 +20,9 @@ use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
 ///
 /// ```
 /// use numeris::estimate::Ckf;
-/// use numeris::{ColumnVector, Matrix};
+/// use numeris::{Vector, Matrix};
 ///
-/// let x0 = ColumnVector::from_column([0.0_f64, 1.0]);
+/// let x0 = Vector::from_array([0.0_f64, 1.0]);
 /// let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
 /// let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
 ///
@@ -31,19 +31,19 @@ use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
 /// let r = Matrix::new([[0.5]]);
 ///
 /// ckf.predict(
-///     |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+///     |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
 ///     Some(&q),
 /// ).unwrap();
 ///
 /// ckf.update(
-///     &ColumnVector::from_column([0.12]),
-///     |x| ColumnVector::from_column([x[(0, 0)]]),
+///     &Vector::from_array([0.12]),
+///     |x| Vector::from_array([x[0]]),
 ///     &r,
 /// ).unwrap();
 /// ```
 pub struct Ckf<T: FloatScalar, const N: usize, const M: usize> {
     /// State estimate.
-    pub x: ColumnVector<T, N>,
+    pub x: Vector<T, N>,
     /// State covariance.
     pub p: Matrix<T, N, N>,
     /// Minimum allowed diagonal variance (0 = disabled).
@@ -54,7 +54,7 @@ pub struct Ckf<T: FloatScalar, const N: usize, const M: usize> {
 
 impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// Create a new CKF with initial state `x0` and covariance `p0`.
-    pub fn new(x0: ColumnVector<T, N>, p0: Matrix<T, N, N>) -> Self {
+    pub fn new(x0: Vector<T, N>, p0: Matrix<T, N, N>) -> Self {
         Self {
             x: x0,
             p: p0,
@@ -79,7 +79,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
 
     /// Reference to the current state estimate.
     #[inline]
-    pub fn state(&self) -> &ColumnVector<T, N> {
+    pub fn state(&self) -> &Vector<T, N> {
         &self.x
     }
 
@@ -91,9 +91,9 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
 
     /// Generate 2N cubature points from state and Cholesky factor.
     fn cubature_points(
-        x: &ColumnVector<T, N>,
+        x: &Vector<T, N>,
         l: &Matrix<T, N, N>,
-    ) -> Vec<ColumnVector<T, N>> {
+    ) -> Vec<Vector<T, N>> {
         let sqrt_n = T::from(N).unwrap().sqrt();
         let mut points = Vec::with_capacity(2 * N);
 
@@ -103,8 +103,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             let mut neg = *x;
             for r in 0..N {
                 let offset = sqrt_n * l[(r, i)];
-                pos[(r, 0)] = pos[(r, 0)] + offset;
-                neg[(r, 0)] = neg[(r, 0)] - offset;
+                pos[r] = pos[r] + offset;
+                neg[r] = neg[r] - offset;
             }
             points.push(pos);
             points.push(neg);
@@ -122,7 +122,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// reconstructs the predicted mean and covariance as `γ · P_cubature + Q`.
     pub fn predict(
         &mut self,
-        f: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, N>,
+        f: impl Fn(&Vector<T, N>) -> Vector<T, N>,
         q: Option<&Matrix<T, N, N>>,
     ) -> Result<(), EstimateError> {
         let chol = cholesky_with_jitter(&self.p)?;
@@ -132,13 +132,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         let w = T::one() / T::from(2 * N).unwrap();
 
         // Propagate and compute mean
-        let mut propagated: Vec<ColumnVector<T, N>> = Vec::with_capacity(2 * N);
-        let mut x_mean = ColumnVector::<T, N>::zeros();
+        let mut propagated: Vec<Vector<T, N>> = Vec::with_capacity(2 * N);
+        let mut x_mean = Vector::<T, N>::zeros();
 
         for pt in &points {
             let fp = f(pt);
             for r in 0..N {
-                x_mean[(r, 0)] = x_mean[(r, 0)] + w * fp[(r, 0)];
+                x_mean[r] = x_mean[r] + w * fp[r];
             }
             propagated.push(fp);
         }
@@ -149,7 +149,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             let d = *pt - x_mean;
             for r in 0..N {
                 for c in 0..N {
-                    p_new[(r, c)] = p_new[(r, c)] + w * d[(r, 0)] * d[(c, 0)];
+                    p_new[(r, c)] = p_new[(r, c)] + w * d[r] * d[c];
                 }
             }
         }
@@ -176,8 +176,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
         let chol = cholesky_with_jitter(&self.p)?;
@@ -187,13 +187,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         let w = T::one() / T::from(2 * N).unwrap();
 
         // Transform through measurement model
-        let mut z_points: Vec<ColumnVector<T, M>> = Vec::with_capacity(2 * N);
-        let mut z_mean = ColumnVector::<T, M>::zeros();
+        let mut z_points: Vec<Vector<T, M>> = Vec::with_capacity(2 * N);
+        let mut z_mean = Vector::<T, M>::zeros();
 
         for pt in &points {
             let zp = h(pt);
             for r in 0..M {
-                z_mean[(r, 0)] = z_mean[(r, 0)] + w * zp[(r, 0)];
+                z_mean[r] = z_mean[r] + w * zp[r];
             }
             z_points.push(zp);
         }
@@ -204,7 +204,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             let dz = *zp - z_mean;
             for ri in 0..M {
                 for ci in 0..M {
-                    s_mat[(ri, ci)] = s_mat[(ri, ci)] + w * dz[(ri, 0)] * dz[(ci, 0)];
+                    s_mat[(ri, ci)] = s_mat[(ri, ci)] + w * dz[ri] * dz[ci];
                 }
             }
         }
@@ -217,7 +217,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             let dz = *zp - z_mean;
             for ri in 0..N {
                 for ci in 0..M {
-                    pxz[(ri, ci)] = pxz[(ri, ci)] + w * dx[(ri, 0)] * dz[(ci, 0)];
+                    pxz[(ri, ci)] = pxz[(ri, ci)] + w * dx[ri] * dz[ci];
                 }
             }
         }
@@ -249,8 +249,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     /// Chi-squared thresholds: M=1 → 99%: 6.63 | M=2 → 9.21 | M=3 → 11.34
     pub fn update_gated(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
         gate: T,
     ) -> Result<Option<T>, EstimateError> {
@@ -261,13 +261,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         let points = Self::cubature_points(&self.x, &l);
         let w = T::one() / T::from(2 * N).unwrap();
 
-        let mut z_points: Vec<ColumnVector<T, M>> = Vec::with_capacity(2 * N);
-        let mut z_mean = ColumnVector::<T, M>::zeros();
+        let mut z_points: Vec<Vector<T, M>> = Vec::with_capacity(2 * N);
+        let mut z_mean = Vector::<T, M>::zeros();
 
         for pt in &points {
             let zp = h(pt);
             for r_i in 0..M {
-                z_mean[(r_i, 0)] = z_mean[(r_i, 0)] + w * zp[(r_i, 0)];
+                z_mean[r_i] = z_mean[r_i] + w * zp[r_i];
             }
             z_points.push(zp);
         }
@@ -277,7 +277,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             let dz = *zp - z_mean;
             for ri in 0..M {
                 for ci in 0..M {
-                    s_mat[(ri, ci)] = s_mat[(ri, ci)] + w * dz[(ri, 0)] * dz[(ci, 0)];
+                    s_mat[(ri, ci)] = s_mat[(ri, ci)] + w * dz[ri] * dz[ci];
                 }
             }
         }

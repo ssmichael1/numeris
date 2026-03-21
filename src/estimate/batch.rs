@@ -1,4 +1,4 @@
-use crate::matrix::vector::ColumnVector;
+use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
@@ -18,24 +18,24 @@ use super::EstimateError;
 ///
 /// ```
 /// use numeris::estimate::BatchLsq;
-/// use numeris::{ColumnVector, Matrix};
+/// use numeris::{Vector, Matrix};
 ///
 /// let mut lsq = BatchLsq::<f64, 1>::new();
 ///
 /// // Accumulate scalar observations
 /// let h = Matrix::new([[1.0_f64]]);
 /// let r = Matrix::new([[0.1]]);
-/// lsq.add_observation(&ColumnVector::from_column([1.05]), &h, &r).unwrap();
-/// lsq.add_observation(&ColumnVector::from_column([0.95]), &h, &r).unwrap();
+/// lsq.add_observation(&Vector::from_array([1.05]), &h, &r).unwrap();
+/// lsq.add_observation(&Vector::from_array([0.95]), &h, &r).unwrap();
 ///
 /// let (x, _p) = lsq.solve().unwrap();
-/// assert!((x[(0, 0)] - 1.0).abs() < 0.1);
+/// assert!((x[0] - 1.0).abs() < 0.1);
 /// ```
 pub struct BatchLsq<T: FloatScalar, const N: usize> {
     /// Information matrix: Λ = Σ HᵀR⁻¹H.
     info: Matrix<T, N, N>,
     /// Information vector: η = Σ HᵀR⁻¹z.
-    eta: ColumnVector<T, N>,
+    eta: Vector<T, N>,
 }
 
 impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
@@ -43,7 +43,7 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
     pub fn new() -> Self {
         Self {
             info: Matrix::zeros(),
-            eta: ColumnVector::zeros(),
+            eta: Vector::zeros(),
         }
     }
 
@@ -52,7 +52,7 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
     /// Sets `Λ = P₀⁻¹` and `η = P₀⁻¹·x₀`.
     /// Returns `SingularInnovation` if `P0` is singular.
     pub fn with_prior(
-        x0: &ColumnVector<T, N>,
+        x0: &Vector<T, N>,
         p0: &Matrix<T, N, N>,
     ) -> Result<Self, EstimateError> {
         let p0_inv = p0
@@ -73,7 +73,7 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
     /// Updates: `Λ += HᵀR⁻¹H`, `η += HᵀR⁻¹z`.
     pub fn add_observation<const M: usize>(
         &mut self,
-        z: &ColumnVector<T, M>,
+        z: &Vector<T, M>,
         h: &Matrix<T, M, N>,
         r: &Matrix<T, M, M>,
     ) -> Result<(), EstimateError> {
@@ -93,7 +93,7 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
     /// Returns `(x, P)` where `P = Λ⁻¹` and `x = P·η`.
     /// Returns `SingularInnovation` if the information matrix is singular
     /// (insufficient observations to determine all states).
-    pub fn solve(&self) -> Result<(ColumnVector<T, N>, Matrix<T, N, N>), EstimateError> {
+    pub fn solve(&self) -> Result<(Vector<T, N>, Matrix<T, N, N>), EstimateError> {
         let p = self
             .info
             .cholesky()
@@ -111,13 +111,13 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
 
     /// Reference to the accumulated information vector.
     #[inline]
-    pub fn information_vector(&self) -> &ColumnVector<T, N> {
+    pub fn information_vector(&self) -> &Vector<T, N> {
         &self.eta
     }
 
     /// Reset to zero information (discard all accumulated data).
     pub fn reset(&mut self) {
         self.info = Matrix::zeros();
-        self.eta = ColumnVector::zeros();
+        self.eta = Vector::zeros();
     }
 }

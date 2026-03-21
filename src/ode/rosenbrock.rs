@@ -7,7 +7,10 @@ use crate::linalg::lu::{lu_in_place, lu_solve};
 use crate::traits::FloatScalar;
 use crate::matrix::vector::Vector;
 use crate::Matrix;
-use super::{AdaptiveSettings, OdeError, Solution};
+use super::{AdaptiveSettings, OdeError};
+
+/// Type alias for Rosenbrock solutions (always vector state).
+pub type RosenbrockSolution<T, const S: usize> = super::Solution<T, S, 1>;
 
 /// Forward-difference Jacobian approximation.
 ///
@@ -103,7 +106,7 @@ pub trait Rosenbrock<const STAGES: usize> {
         f: impl FnMut(T, &Vector<T, S>) -> Vector<T, S>,
         jac: impl FnMut(T, &Vector<T, S>) -> Matrix<T, S, S>,
         settings: &AdaptiveSettings<T>,
-    ) -> Result<Solution<T, S>, OdeError> {
+    ) -> Result<RosenbrockSolution<T, S>, OdeError> {
         rosenbrock_step_loop::<Self, T, S, STAGES>(t0, tf, y0, f, JacSource::User(jac), settings)
     }
 
@@ -135,7 +138,7 @@ pub trait Rosenbrock<const STAGES: usize> {
         y0: &Vector<T, S>,
         f: impl FnMut(T, &Vector<T, S>) -> Vector<T, S>,
         settings: &AdaptiveSettings<T>,
-    ) -> Result<Solution<T, S>, OdeError> {
+    ) -> Result<RosenbrockSolution<T, S>, OdeError> {
         rosenbrock_step_loop::<Self, T, S, STAGES>(
             t0, tf, y0, f,
             JacSource::<T, S, fn(T, &Vector<T, S>) -> Matrix<T, S, S>>::Auto,
@@ -160,7 +163,7 @@ fn rosenbrock_step_loop<R, T, const S: usize, const STAGES: usize>(
     mut f: impl FnMut(T, &Vector<T, S>) -> Vector<T, S>,
     mut jac_source: JacSource<T, S, impl FnMut(T, &Vector<T, S>) -> Matrix<T, S, S>>,
     settings: &AdaptiveSettings<T>,
-) -> Result<Solution<T, S>, OdeError>
+) -> Result<RosenbrockSolution<T, S>, OdeError>
 where
     R: Rosenbrock<STAGES> + ?Sized,
     T: FloatScalar,
@@ -414,7 +417,7 @@ where
         }
     }
 
-    Ok(Solution {
+    Ok(super::Solution {
         t,
         y,
         evals: nevals,

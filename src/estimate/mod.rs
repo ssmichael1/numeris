@@ -9,10 +9,10 @@
 //!
 //! ```
 //! use numeris::estimate::Ekf;
-//! use numeris::{ColumnVector, Matrix};
+//! use numeris::{Vector, Matrix};
 //!
 //! // 2-state constant-velocity, 1 measurement (position only)
-//! let x0 = ColumnVector::from_column([0.0_f64, 1.0]); // [pos, vel]
+//! let x0 = Vector::from_array([0.0_f64, 1.0]); // [pos, vel]
 //! let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
 //! let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
 //!
@@ -22,15 +22,15 @@
 //!
 //! // Predict with explicit Jacobian
 //! ekf.predict(
-//!     |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+//!     |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
 //!     |_x| Matrix::new([[1.0, dt], [0.0, 1.0]]),
 //!     Some(&q),
 //! );
 //!
 //! // Update with measurement
 //! ekf.update(
-//!     &ColumnVector::from_column([0.12]),
-//!     |x| ColumnVector::from_column([x[(0, 0)]]),
+//!     &Vector::from_array([0.12]),
+//!     |x| Vector::from_array([x[0]]),
 //!     |_x| Matrix::new([[1.0, 0.0]]),
 //!     &r,
 //! ).unwrap();
@@ -40,9 +40,9 @@
 //!
 //! ```
 //! use numeris::estimate::Ukf;
-//! use numeris::{ColumnVector, Matrix};
+//! use numeris::{Vector, Matrix};
 //!
-//! let x0 = ColumnVector::from_column([0.0_f64, 1.0]);
+//! let x0 = Vector::from_array([0.0_f64, 1.0]);
 //! let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
 //! let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
 //!
@@ -51,13 +51,13 @@
 //! let r = Matrix::new([[0.5]]);
 //!
 //! ukf.predict(
-//!     |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+//!     |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
 //!     Some(&q),
 //! ).unwrap();
 //!
 //! ukf.update(
-//!     &ColumnVector::from_column([0.12]),
-//!     |x| ColumnVector::from_column([x[(0, 0)]]),
+//!     &Vector::from_array([0.12]),
+//!     |x| Vector::from_array([x[0]]),
 //!     &r,
 //! ).unwrap();
 //! ```
@@ -66,18 +66,18 @@
 //!
 //! ```
 //! use numeris::estimate::BatchLsq;
-//! use numeris::{ColumnVector, Matrix};
+//! use numeris::{Vector, Matrix};
 //!
 //! let mut lsq = BatchLsq::<f64, 1>::new();
 //!
 //! // Accumulate scalar observations: z = x + noise
 //! let h = Matrix::new([[1.0_f64]]);
 //! let r = Matrix::new([[0.1]]);
-//! lsq.add_observation(&ColumnVector::from_column([1.05]), &h, &r).unwrap();
-//! lsq.add_observation(&ColumnVector::from_column([0.95]), &h, &r).unwrap();
+//! lsq.add_observation(&Vector::from_array([1.05]), &h, &r).unwrap();
+//! lsq.add_observation(&Vector::from_array([0.95]), &h, &r).unwrap();
 //!
 //! let (x, p) = lsq.solve().unwrap();
-//! assert!((x[(0, 0)] - 1.0).abs() < 0.1);
+//! assert!((x[0] - 1.0).abs() < 0.1);
 //! ```
 
 mod ekf;
@@ -107,7 +107,7 @@ pub use rts::{EkfStep, rts_smooth};
 pub use batch::BatchLsq;
 
 use crate::linalg::CholeskyDecomposition;
-use crate::matrix::vector::ColumnVector;
+use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
@@ -179,26 +179,26 @@ pub(crate) fn apply_var_floor<T: FloatScalar, const N: usize>(
     }
 }
 
-/// Forward-difference Jacobian of `f: ColumnVector<T,N> → ColumnVector<T,M>`.
+/// Forward-difference Jacobian of `f: Vector<T,N> → Vector<T,M>`.
 ///
 /// Uses step size `h_j = sqrt(ε) * max(|x_j|, 1)` for each component.
 pub(crate) fn fd_jacobian<T: FloatScalar, const N: usize, const M: usize>(
-    f: &impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
-    x: &ColumnVector<T, N>,
+    f: &impl Fn(&Vector<T, N>) -> Vector<T, M>,
+    x: &Vector<T, N>,
 ) -> Matrix<T, M, N> {
     let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
     let mut jac = Matrix::<T, M, N>::zeros();
 
     for j in 0..N {
-        let xj = x[(j, 0)];
+        let xj = x[j];
         let h = sqrt_eps * xj.abs().max(T::one());
         let mut x_pert = *x;
-        x_pert[(j, 0)] = xj + h;
+        x_pert[j] = xj + h;
         let f_pert = f(&x_pert);
 
         for i in 0..M {
-            jac[(i, j)] = (f_pert[(i, 0)] - f0[(i, 0)]) / h;
+            jac[(i, j)] = (f_pert[i] - f0[i]) / h;
         }
     }
 

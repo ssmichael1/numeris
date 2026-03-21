@@ -1,7 +1,7 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use crate::matrix::vector::ColumnVector;
+use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
@@ -26,9 +26,9 @@ use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
 ///
 /// ```
 /// use numeris::estimate::Ukf;
-/// use numeris::{ColumnVector, Matrix};
+/// use numeris::{Vector, Matrix};
 ///
-/// let x0 = ColumnVector::from_column([0.0_f64, 1.0]);
+/// let x0 = Vector::from_array([0.0_f64, 1.0]);
 /// let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
 /// let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
 ///
@@ -38,20 +38,20 @@ use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
 ///
 /// // Predict
 /// ukf.predict(
-///     |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+///     |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
 ///     Some(&q),
 /// ).unwrap();
 ///
 /// // Update
 /// ukf.update(
-///     &ColumnVector::from_column([0.12]),
-///     |x| ColumnVector::from_column([x[(0, 0)]]),
+///     &Vector::from_array([0.12]),
+///     |x| Vector::from_array([x[0]]),
 ///     &r,
 /// ).unwrap();
 /// ```
 pub struct Ukf<T: FloatScalar, const N: usize, const M: usize> {
     /// State estimate.
-    pub x: ColumnVector<T, N>,
+    pub x: Vector<T, N>,
     /// State covariance.
     pub p: Matrix<T, N, N>,
     alpha: T,
@@ -68,7 +68,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     ///
     /// These defaults yield non-negative sigma-point weights for all state dimensions.
     /// For tighter sigma point spread, use `with_params` to reduce `alpha`.
-    pub fn new(x0: ColumnVector<T, N>, p0: Matrix<T, N, N>) -> Self {
+    pub fn new(x0: Vector<T, N>, p0: Matrix<T, N, N>) -> Self {
         Self::with_params(
             x0,
             p0,
@@ -85,7 +85,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     /// - `beta` — prior distribution knowledge (2.0 optimal for Gaussian)
     /// - `kappa` — secondary scaling (0 or 3-N)
     pub fn with_params(
-        x0: ColumnVector<T, N>,
+        x0: Vector<T, N>,
         p0: Matrix<T, N, N>,
         alpha: T,
         beta: T,
@@ -119,7 +119,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
 
     /// Reference to the current state estimate.
     #[inline]
-    pub fn state(&self) -> &ColumnVector<T, N> {
+    pub fn state(&self) -> &Vector<T, N> {
         &self.x
     }
 
@@ -166,37 +166,37 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     /// reconstructs the predicted mean and covariance as `γ · P_sigma + Q`.
     pub fn predict(
         &mut self,
-        f: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, N>,
+        f: impl Fn(&Vector<T, N>) -> Vector<T, N>,
         q: Option<&Matrix<T, N, N>>,
     ) -> Result<(), EstimateError> {
         let scaled_l = self.sigma_cholesky()?;
         let (wm_0, wc_0, w_i) = self.weights();
 
         // Propagate sigma points and store
-        let mut sigmas: Vec<ColumnVector<T, N>> = Vec::with_capacity(2 * N + 1);
+        let mut sigmas: Vec<Vector<T, N>> = Vec::with_capacity(2 * N + 1);
 
         // Central point
         sigmas.push(f(&self.x));
 
         // Positive and negative perturbations
         for i in 0..N {
-            let mut col = ColumnVector::<T, N>::zeros();
+            let mut col = Vector::<T, N>::zeros();
             for r in 0..N {
-                col[(r, 0)] = scaled_l[(r, i)];
+                col[r] = scaled_l[(r, i)];
             }
             sigmas.push(f(&(self.x + col)));
             sigmas.push(f(&(self.x - col)));
         }
 
         // Weighted mean
-        let mut x_mean = ColumnVector::<T, N>::zeros();
+        let mut x_mean = Vector::<T, N>::zeros();
         for r in 0..N {
-            x_mean[(r, 0)] = wm_0 * sigmas[0][(r, 0)];
+            x_mean[r] = wm_0 * sigmas[0][r];
         }
         for i in 0..N {
             for r in 0..N {
-                x_mean[(r, 0)] =
-                    x_mean[(r, 0)] + w_i * (sigmas[2 * i + 1][(r, 0)] + sigmas[2 * i + 2][(r, 0)]);
+                x_mean[r] =
+                    x_mean[r] + w_i * (sigmas[2 * i + 1][r] + sigmas[2 * i + 2][r]);
             }
         }
 
@@ -205,7 +205,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         let d0 = sigmas[0] - x_mean;
         for r in 0..N {
             for c in 0..N {
-                p_new[(r, c)] = p_new[(r, c)] + wc_0 * d0[(r, 0)] * d0[(c, 0)];
+                p_new[(r, c)] = p_new[(r, c)] + wc_0 * d0[r] * d0[c];
             }
         }
         for i in 0..N {
@@ -214,7 +214,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             for r in 0..N {
                 for c in 0..N {
                     p_new[(r, c)] = p_new[(r, c)]
-                        + w_i * (dp[(r, 0)] * dp[(c, 0)] + dm[(r, 0)] * dm[(c, 0)]);
+                        + w_i * (dp[r] * dp[c] + dm[r] * dm[c]);
                 }
             }
         }
@@ -245,40 +245,40 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     /// Returns the Normalized Innovation Squared (NIS): `yᵀ S⁻¹ y`.
     pub fn update(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
         let scaled_l = self.sigma_cholesky()?;
         let (wm_0, wc_0, w_i) = self.weights();
 
         // Generate state sigma points
-        let mut sigmas_x: Vec<ColumnVector<T, N>> = Vec::with_capacity(2 * N + 1);
+        let mut sigmas_x: Vec<Vector<T, N>> = Vec::with_capacity(2 * N + 1);
         sigmas_x.push(self.x);
         for i in 0..N {
-            let mut col = ColumnVector::<T, N>::zeros();
+            let mut col = Vector::<T, N>::zeros();
             for r in 0..N {
-                col[(r, 0)] = scaled_l[(r, i)];
+                col[r] = scaled_l[(r, i)];
             }
             sigmas_x.push(self.x + col);
             sigmas_x.push(self.x - col);
         }
 
         // Transform through measurement model
-        let mut sigmas_z: Vec<ColumnVector<T, M>> = Vec::with_capacity(2 * N + 1);
+        let mut sigmas_z: Vec<Vector<T, M>> = Vec::with_capacity(2 * N + 1);
         for sx in &sigmas_x {
             sigmas_z.push(h(sx));
         }
 
         // Measurement mean
-        let mut z_mean = ColumnVector::<T, M>::zeros();
+        let mut z_mean = Vector::<T, M>::zeros();
         for r in 0..M {
-            z_mean[(r, 0)] = wm_0 * sigmas_z[0][(r, 0)];
+            z_mean[r] = wm_0 * sigmas_z[0][r];
         }
         for i in 0..N {
             for r in 0..M {
-                z_mean[(r, 0)] = z_mean[(r, 0)]
-                    + w_i * (sigmas_z[2 * i + 1][(r, 0)] + sigmas_z[2 * i + 2][(r, 0)]);
+                z_mean[r] = z_mean[r]
+                    + w_i * (sigmas_z[2 * i + 1][r] + sigmas_z[2 * i + 2][r]);
             }
         }
 
@@ -287,7 +287,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         let dz0 = sigmas_z[0] - z_mean;
         for r in 0..M {
             for c in 0..M {
-                s[(r, c)] = s[(r, c)] + wc_0 * dz0[(r, 0)] * dz0[(c, 0)];
+                s[(r, c)] = s[(r, c)] + wc_0 * dz0[r] * dz0[c];
             }
         }
         for i in 0..N {
@@ -296,7 +296,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             for r in 0..M {
                 for c in 0..M {
                     s[(r, c)] = s[(r, c)]
-                        + w_i * (dzp[(r, 0)] * dzp[(c, 0)] + dzm[(r, 0)] * dzm[(c, 0)]);
+                        + w_i * (dzp[r] * dzp[c] + dzm[r] * dzm[c]);
                 }
             }
         }
@@ -307,7 +307,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         let dx0 = sigmas_x[0] - self.x;
         for ri in 0..N {
             for ci in 0..M {
-                pxz[(ri, ci)] = pxz[(ri, ci)] + wc_0 * dx0[(ri, 0)] * dz0[(ci, 0)];
+                pxz[(ri, ci)] = pxz[(ri, ci)] + wc_0 * dx0[ri] * dz0[ci];
             }
         }
         for i in 0..N {
@@ -318,7 +318,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             for ri in 0..N {
                 for ci in 0..M {
                     pxz[(ri, ci)] = pxz[(ri, ci)]
-                        + w_i * (dxp[(ri, 0)] * dzp[(ci, 0)] + dxm[(ri, 0)] * dzm[(ci, 0)]);
+                        + w_i * (dxp[ri] * dzp[ci] + dxm[ri] * dzm[ci]);
                 }
             }
         }
@@ -350,8 +350,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     /// Chi-squared thresholds: M=1 → 99%: 6.63 | M=2 → 9.21 | M=3 → 11.34
     pub fn update_gated(
         &mut self,
-        z: &ColumnVector<T, M>,
-        h: impl Fn(&ColumnVector<T, N>) -> ColumnVector<T, M>,
+        z: &Vector<T, M>,
+        h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
         gate: T,
     ) -> Result<Option<T>, EstimateError> {
@@ -359,30 +359,30 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         let scaled_l = self.sigma_cholesky()?;
         let (wm_0, wc_0, w_i) = self.weights();
 
-        let mut sigmas_x: Vec<ColumnVector<T, N>> = Vec::with_capacity(2 * N + 1);
+        let mut sigmas_x: Vec<Vector<T, N>> = Vec::with_capacity(2 * N + 1);
         sigmas_x.push(self.x);
         for i in 0..N {
-            let mut col = ColumnVector::<T, N>::zeros();
+            let mut col = Vector::<T, N>::zeros();
             for r_i in 0..N {
-                col[(r_i, 0)] = scaled_l[(r_i, i)];
+                col[r_i] = scaled_l[(r_i, i)];
             }
             sigmas_x.push(self.x + col);
             sigmas_x.push(self.x - col);
         }
 
-        let mut sigmas_z: Vec<ColumnVector<T, M>> = Vec::with_capacity(2 * N + 1);
+        let mut sigmas_z: Vec<Vector<T, M>> = Vec::with_capacity(2 * N + 1);
         for sx in &sigmas_x {
             sigmas_z.push(h(sx));
         }
 
-        let mut z_mean = ColumnVector::<T, M>::zeros();
+        let mut z_mean = Vector::<T, M>::zeros();
         for r_i in 0..M {
-            z_mean[(r_i, 0)] = wm_0 * sigmas_z[0][(r_i, 0)];
+            z_mean[r_i] = wm_0 * sigmas_z[0][r_i];
         }
         for i in 0..N {
             for r_i in 0..M {
-                z_mean[(r_i, 0)] = z_mean[(r_i, 0)]
-                    + w_i * (sigmas_z[2 * i + 1][(r_i, 0)] + sigmas_z[2 * i + 2][(r_i, 0)]);
+                z_mean[r_i] = z_mean[r_i]
+                    + w_i * (sigmas_z[2 * i + 1][r_i] + sigmas_z[2 * i + 2][r_i]);
             }
         }
 
@@ -390,7 +390,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         let dz0 = sigmas_z[0] - z_mean;
         for r_i in 0..M {
             for ci in 0..M {
-                s_mat[(r_i, ci)] = s_mat[(r_i, ci)] + wc_0 * dz0[(r_i, 0)] * dz0[(ci, 0)];
+                s_mat[(r_i, ci)] = s_mat[(r_i, ci)] + wc_0 * dz0[r_i] * dz0[ci];
             }
         }
         for i in 0..N {
@@ -399,7 +399,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             for r_i in 0..M {
                 for ci in 0..M {
                     s_mat[(r_i, ci)] = s_mat[(r_i, ci)]
-                        + w_i * (dzp[(r_i, 0)] * dzp[(ci, 0)] + dzm[(r_i, 0)] * dzm[(ci, 0)]);
+                        + w_i * (dzp[r_i] * dzp[ci] + dzm[r_i] * dzm[ci]);
                 }
             }
         }

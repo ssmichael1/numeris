@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/numeris)](https://crates.io/crates/numeris)
 [![docs.rs](https://img.shields.io/docsrs/numeris)](https://docs.rs/numeris)
 [![License: MIT](https://img.shields.io/crates/l/numeris)](https://opensource.org/licenses/MIT)
-[![MSRV](https://img.shields.io/badge/MSRV-1.70-blue)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/MSRV-1.77-blue)](https://www.rust-lang.org)
 
 Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to SciPy, suitable for embedded targets (no heap allocation, no FPU assumptions) while being highly performant on desktop/server hardware via SIMD intrinsics.
 
@@ -16,8 +16,9 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 
 - **Fixed-size matrices** — stack-allocated, const-generic `Matrix<T, M, N>`
 - **Dynamic matrices** — heap-allocated `DynMatrix<T>` with runtime dimensions (optional `alloc` feature)
+- **nalgebra interop** — zero-cost conversions between numeris and nalgebra types (optional `nalgebra` feature)
 - **Linear algebra** — LU, Cholesky, QR, SVD decompositions; symmetric eigendecomposition; real Schur decomposition
-- **ODE integration** — fixed-step RK4, 7 adaptive Runge-Kutta solvers with dense output, RODAS4 stiff solver
+- **ODE integration** — fixed-step RK4, 7 adaptive Runge-Kutta solvers with dense output, RODAS4 stiff solver; supports both vector and matrix state
 - **Optimization** — root finding (Brent, Newton), BFGS minimization, Gauss-Newton and Levenberg-Marquardt least squares
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
 - **State estimation** — EKF, UKF, Square-Root UKF, Cubature Kalman Filter, RTS smoother, batch least-squares
@@ -319,10 +320,10 @@ numeris = { version = "0.4", features = ["estimate"] }
 
 ```rust
 use numeris::estimate::{Ekf, Ukf, SrUkf, Ckf, BatchLsq};
-use numeris::{ColumnVector, Matrix};
+use numeris::{Vector, Matrix};
 
 // EKF: 2-state constant-velocity, 1 measurement (position)
-let x0 = ColumnVector::from_column([0.0_f64, 1.0]); // [pos, vel]
+let x0 = Vector::from_array([0.0_f64, 1.0]); // [pos, vel]
 let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
 let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
 
@@ -332,15 +333,15 @@ let r = Matrix::new([[0.5]]);
 
 // Predict with dynamics model + Jacobian
 ekf.predict(
-    |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+    |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
     |_x| Matrix::new([[1.0, dt], [0.0, 1.0]]),
     Some(&q),
 );
 
 // Update with position measurement
 ekf.update(
-    &ColumnVector::from_column([0.12]),
-    |x| ColumnVector::from_column([x[(0, 0)]]),
+    &Vector::from_array([0.12]),
+    |x| Vector::from_array([x[0]]),
     |_x| Matrix::new([[1.0, 0.0]]),
     &r,
 ).unwrap();
@@ -348,19 +349,19 @@ ekf.update(
 // UKF: no Jacobians needed — uses sigma points
 let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
 ukf.predict(
-    |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+    |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
     Some(&q),
 ).unwrap();
 ukf.update(
-    &ColumnVector::from_column([0.12]),
-    |x| ColumnVector::from_column([x[(0, 0)]]),
+    &Vector::from_array([0.12]),
+    |x| Vector::from_array([x[0]]),
     &r,
 ).unwrap();
 
 // CKF: tuning-free sigma-point filter (2N points, equal weights)
 let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
 ckf.predict(
-    |x| ColumnVector::from_column([x[(0, 0)] + dt * x[(1, 0)], x[(1, 0)]]),
+    |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
     Some(&q),
 ).unwrap();
 
@@ -368,8 +369,8 @@ ckf.predict(
 let mut lsq = BatchLsq::<f64, 1>::new();
 let h = Matrix::new([[1.0_f64]]);
 let r_lsq = Matrix::new([[0.1]]);
-lsq.add_observation(&ColumnVector::from_column([1.05]), &h, &r_lsq).unwrap();
-lsq.add_observation(&ColumnVector::from_column([0.95]), &h, &r_lsq).unwrap();
+lsq.add_observation(&Vector::from_array([1.05]), &h, &r_lsq).unwrap();
+lsq.add_observation(&Vector::from_array([0.95]), &h, &r_lsq).unwrap();
 let (x_est, _p_est) = lsq.solve().unwrap();
 ```
 
@@ -430,7 +431,8 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `stats` | no | Statistical distributions (Normal, Gamma, Beta, etc.). Implies `special`. |
 | `libm` | baseline | Pure-Rust software float math. Always available as fallback. |
 | `complex` | no | Adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. |
-| `all` | no | All features: `std` + `ode` + `optim` + `control` + `estimate` + `interp` + `special` + `stats` + `complex`. |
+| `nalgebra` | no | Conversions between numeris and nalgebra types (`From`/`Into`, `MatrixRef`/`MatrixMut`). |
+| `all` | no | All features. |
 
 ```bash
 # Default (std + ode)
@@ -486,7 +488,7 @@ numeris is competitive with nalgebra at small fixed sizes and significantly fast
 - Utilities: `transpose`, `from_fn`, `map`, `swap_rows`, `swap_cols`, `sum`, `abs`
 - Iteration: `iter()`, `iter_mut()`, `as_slice()`, `IntoIterator`
 
-Vectors are type aliases: `Vector<T, N>` = `Matrix<T, 1, N>` (row vector), `ColumnVector<T, N>` = `Matrix<T, N, 1>`.
+`Vector<T, N>` = `Matrix<T, N, 1>` — a column vector, matching nalgebra's convention. Single-index access: `v[i]`.
 
 Vector-specific: `dot`, `cross`, `outer`, `norm`, `norm_l1`, `normalize`.
 
@@ -497,7 +499,7 @@ Convenience aliases are provided for common sizes (all re-exported from the crat
 | Square | Rectangular (examples) | Vectors |
 |---|---|---|
 | `Matrix1` .. `Matrix6` | `Matrix2x3`, `Matrix3x4`, `Matrix4x6`, ... | `Vector1` .. `Vector6` |
-| | All M×N combinations for M,N ∈ 1..6, M≠N | `ColumnVector1` .. `ColumnVector6` |
+| | All M×N combinations for M,N ∈ 1..6, M≠N | |
 
 ```rust
 use numeris::{Matrix3, Matrix4x3, Vector3};
@@ -547,7 +549,7 @@ Same convenience methods on `DynMatrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.
 <details>
 <summary><b><code>ode</code></b> — ODE integration</summary>
 
-Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdaptive` trait. PI step-size controller (Söderlind & Wang 2006). Dense output / interpolation available for most solvers (gated behind `std`). For stiff systems, `RODAS4` provides an L-stable Rosenbrock method via the `Rosenbrock` trait — accepts user-supplied or automatic finite-difference Jacobians.
+Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdaptive` trait. PI step-size controller (Söderlind & Wang 2006). Dense output / interpolation available for most solvers (gated behind `std`). State can be a vector (`Vector<T, N>`) or a matrix (`Matrix<T, M, N>`) — enabling matrix ODE integration (e.g., state transition matrices, matrix Riccati equations). For stiff systems, `RODAS4` provides an L-stable Rosenbrock method via the `Rosenbrock` trait — accepts user-supplied or automatic finite-difference Jacobians (vector state only).
 
 </details>
 

@@ -3,10 +3,11 @@ use core::ops::{Index, IndexMut};
 use crate::traits::Scalar;
 use crate::Matrix;
 
-/// A row vector (1×N matrix).
+/// A column vector (N×1 matrix).
 ///
 /// Vectors support single-index access (`v[i]`), dot products, norms, and
-/// cross products (3-element vectors). Use [`ColumnVector`] for column vectors.
+/// cross products (3-element vectors). Natural matrix-vector multiplication:
+/// `(M×N) * (N×1) → (M×1)`.
 ///
 /// # Examples
 ///
@@ -18,7 +19,7 @@ use crate::Matrix;
 /// assert_eq!(v.dot(&v), 25.0);
 /// assert!((v.norm() - 5.0).abs() < 1e-12);
 /// ```
-pub type Vector<T, const N: usize> = Matrix<T, 1, N>;
+pub type Vector<T, const N: usize> = Matrix<T, N, 1>;
 
 impl<T: Scalar, const N: usize> Vector<T, N> {
     /// Create a vector from a 1D array.
@@ -30,17 +31,15 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     /// ```
     #[inline]
     pub fn from_array(data: [T; N]) -> Self {
-        // Vector is 1×N: column-major storage is [[T;1]; N]
-        // Each column has exactly one element = data[i]
-        let col_data: [[T; 1]; N] = data.map(|x| [x]);
-        Self { data: col_data }
+        // Vector is N×1: column-major storage is [[T;N]; 1]
+        Self { data: [data] }
     }
 
     /// Create a vector filled with a single value.
     #[inline]
     pub fn fill(value: T) -> Self {
         Self {
-            data: [[value]; N],
+            data: [[value; N]],
         }
     }
 
@@ -86,7 +85,7 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     }
 }
 
-/// A 3-element row vector.
+/// A 3-element vector.
 ///
 /// Adds `cross()` for cross product in addition to all `Vector` methods.
 pub type Vector3<T> = Vector<T, 3>;
@@ -111,7 +110,7 @@ impl<T: Scalar> Vector3<T> {
     }
 }
 
-// ── Named component accessors (row vectors) ────────────────────────
+// ── Named component accessors ──────────────────────────────────────
 
 impl<T: Copy, const N: usize> Vector<T, N> {
     /// First component.
@@ -159,62 +158,20 @@ impl<T: Copy> Vector3<T> {
     pub fn set_z(&mut self, val: T) { self[2] = val; }
 }
 
-// Single-index access: v[i] instead of v[(0, i)]
+// Single-index access: v[i] instead of v[(i, 0)]
 impl<T, const N: usize> Index<usize> for Vector<T, N> {
     type Output = T;
 
     #[inline]
     fn index(&self, i: usize) -> &T {
-        &self[(0, i)]
+        &self[(i, 0)]
     }
 }
 
 impl<T, const N: usize> IndexMut<usize> for Vector<T, N> {
     #[inline]
     fn index_mut(&mut self, i: usize) -> &mut T {
-        &mut self[(0, i)]
-    }
-}
-
-// ── Column vector ───────────────────────────────────────────────────
-
-/// A column vector (N×1 matrix).
-///
-/// Enables natural `Matrix * ColumnVector` multiplication:
-/// `(M×N) * (N×1) → (M×1)`.
-///
-/// Convert between row and column vectors with `.transpose()`.
-/// Single-element access uses `cv[(i, 0)]`.
-pub type ColumnVector<T, const N: usize> = Matrix<T, N, 1>;
-
-/// A 3-element column vector.
-pub type ColumnVector3<T> = ColumnVector<T, 3>;
-
-impl<T: Scalar, const N: usize> ColumnVector<T, N> {
-    /// Create a column vector from a 1D array.
-    ///
-    /// ```
-    /// use numeris::ColumnVector;
-    /// let cv = ColumnVector::from_column([1.0, 2.0, 3.0]);
-    /// assert_eq!(cv[(0, 0)], 1.0);
-    /// assert_eq!(cv[(2, 0)], 3.0);
-    /// ```
-    #[inline]
-    pub fn from_column(data: [T; N]) -> Self {
-        // ColumnVector is N×1: column-major storage is [[T;N]; 1]
-        Self { data: [data] }
-    }
-}
-
-impl<T: Scalar> ColumnVector3<T> {
-    /// Cross product of two 3-column-vectors.
-    #[inline]
-    pub fn cross_col(&self, rhs: &Self) -> Self {
-        Self::from_column([
-            self[(1, 0)] * rhs[(2, 0)] - self[(2, 0)] * rhs[(1, 0)],
-            self[(2, 0)] * rhs[(0, 0)] - self[(0, 0)] * rhs[(2, 0)],
-            self[(0, 0)] * rhs[(1, 0)] - self[(1, 0)] * rhs[(0, 0)],
-        ])
+        &mut self[(i, 0)]
     }
 }
 
@@ -304,7 +261,6 @@ mod tests {
 
     #[test]
     fn vector3_as_vector() {
-        // Vector3 is just a Vector<T, 3>, so dot/arithmetic work
         let a = Vector3::from_array([1.0, 2.0, 3.0]);
         let b = Vector3::from_array([4.0, 5.0, 6.0]);
         assert_eq!(a.dot(&b), 32.0);
@@ -337,70 +293,35 @@ mod tests {
         assert!(m.is_symmetric());
     }
 
-    // ── Column vector tests ──────────────────────────────────────
+    // ── Matrix-vector multiplication ────────────────────────────
 
     #[test]
-    fn column_vector_from_column() {
-        let cv = ColumnVector::from_column([1.0, 2.0, 3.0]);
-        assert_eq!(cv[(0, 0)], 1.0);
-        assert_eq!(cv[(1, 0)], 2.0);
-        assert_eq!(cv[(2, 0)], 3.0);
-        assert_eq!(cv.nrows(), 3);
-        assert_eq!(cv.ncols(), 1);
-    }
-
-    #[test]
-    fn matrix_times_column_vector() {
+    fn matrix_times_vector() {
         // (2×3) * (3×1) → (2×1)
         let m = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-        let v = ColumnVector::from_column([7.0, 8.0, 9.0]);
+        let v = Vector::from_array([7.0, 8.0, 9.0]);
 
         let result = m * v;
         assert_eq!(result.nrows(), 2);
         assert_eq!(result.ncols(), 1);
-        assert_eq!(result[(0, 0)], 50.0);  // 1*7 + 2*8 + 3*9
-        assert_eq!(result[(1, 0)], 122.0); // 4*7 + 5*8 + 6*9
+        assert_eq!(result[0], 50.0);  // 1*7 + 2*8 + 3*9
+        assert_eq!(result[1], 122.0); // 4*7 + 5*8 + 6*9
     }
 
     #[test]
-    fn row_column_transpose_roundtrip() {
-        let row = Vector::from_array([1.0, 2.0, 3.0]);
-        let col: ColumnVector<f64, 3> = row.transpose();
-        let back: Vector<f64, 3> = col.transpose();
-        assert_eq!(row, back);
-    }
-
-    #[test]
-    fn column_vector3_cross() {
-        let x = ColumnVector3::from_column([1.0, 0.0, 0.0]);
-        let y = ColumnVector3::from_column([0.0, 1.0, 0.0]);
-        let z = x.cross_col(&y);
-        assert_eq!(z[(0, 0)], 0.0);
-        assert_eq!(z[(1, 0)], 0.0);
-        assert_eq!(z[(2, 0)], 1.0);
-    }
-
-    #[test]
-    fn square_matrix_times_column_vector() {
+    fn square_matrix_times_vector() {
         // Ax = b style
         let a = Matrix::new([[2.0, 1.0], [5.0, 3.0]]);
-        let x = ColumnVector::from_column([1.0, 2.0]);
+        let x = Vector::from_array([1.0, 2.0]);
         let b = a * x;
-        assert_eq!(b[(0, 0)], 4.0);  // 2*1 + 1*2
-        assert_eq!(b[(1, 0)], 11.0); // 5*1 + 3*2
+        assert_eq!(b[0], 4.0);  // 2*1 + 1*2
+        assert_eq!(b[1], 11.0); // 5*1 + 3*2
     }
 
-    // ── Row vector tests ────────────────────────────────────────
-
     #[test]
-    fn vector_matrix_multiply() {
-        // (1×2) * (2×3) → (1×3)
-        let v = Vector::from_array([1.0, 2.0]);
-        let m = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-
-        let result = v * m;
-        assert_eq!(result[0], 9.0);  // 1*1 + 2*4
-        assert_eq!(result[1], 12.0); // 1*2 + 2*5
-        assert_eq!(result[2], 15.0); // 1*3 + 2*6
+    fn vector_is_column() {
+        let v = Vector::from_array([1.0, 2.0, 3.0]);
+        assert_eq!(v.nrows(), 3);
+        assert_eq!(v.ncols(), 1);
     }
 }

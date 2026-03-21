@@ -197,17 +197,15 @@ impl<T: Scalar, const N: usize> From<Vector<T, N>> for DynVector<T> {
     /// assert_eq!(dv[0], 1.0);
     /// ```
     fn from(v: Vector<T, N>) -> Self {
-        Self {
-            inner: DynMatrix::from(v),
-        }
+        // Vector is N×1 (column vector), but DynVector stores as 1×N row.
+        Self::from_slice(v.as_slice())
     }
 }
 
 impl<T: Scalar, const N: usize> From<&Vector<T, N>> for DynVector<T> {
     fn from(v: &Vector<T, N>) -> Self {
-        Self {
-            inner: DynMatrix::from(v),
-        }
+        // Vector is N×1 (column vector), but DynVector stores as 1×N row.
+        Self::from_slice(v.as_slice())
     }
 }
 
