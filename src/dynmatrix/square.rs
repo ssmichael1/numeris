@@ -50,7 +50,7 @@ impl<T: Scalar> DynMatrix<T> {
     /// ```
     pub fn from_diag(v: &DynVector<T>) -> Self {
         let n = v.len();
-        let mut m = Self::zeros(n, n, T::zero());
+        let mut m = Self::zeros(n, n);
         for i in 0..n {
             m[(i, i)] = v[i];
         }
@@ -70,7 +70,7 @@ impl<T: Scalar> DynMatrix<T> {
     pub fn pow(&self, mut n: u32) -> Self {
         assert!(self.is_square(), "pow requires a square matrix");
         let sz = self.nrows;
-        let mut result = Self::eye(sz, T::zero());
+        let mut result = Self::eye(sz);
         let mut base = self.clone();
         while n > 0 {
             if n & 1 == 1 {
@@ -169,7 +169,7 @@ mod tests {
         let m = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         assert_eq!(m.trace(), 5.0);
 
-        let id = DynMatrix::eye(3, 0.0_f64);
+        let id = DynMatrix::<f64>::eye(3);
         assert_eq!(id.trace(), 3.0);
     }
 
@@ -193,7 +193,7 @@ mod tests {
         let m = DynMatrix::from_rows(2, 2, &[1.0, 1.0, 0.0, 1.0]);
 
         let m0 = m.pow(0);
-        assert_eq!(m0, DynMatrix::eye(2, 0.0_f64));
+        assert_eq!(m0, DynMatrix::<f64>::eye(2));
 
         let m1 = m.pow(1);
         assert_eq!(m1, m);
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn det_identity() {
-        let id = DynMatrix::eye(4, 0.0_f64);
+        let id = DynMatrix::<f64>::eye(4);
         assert!((id.det() - 1.0).abs() < 1e-12);
     }
 

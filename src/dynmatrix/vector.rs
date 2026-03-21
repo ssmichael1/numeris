@@ -64,7 +64,7 @@ impl<T: Scalar> DynVector<T> {
     /// ```
     pub fn zeros(n: usize, _zero: T) -> Self {
         Self {
-            inner: DynMatrix::zeros(1, n, T::zero()),
+            inner: DynMatrix::zeros(1, n),
         }
     }
 

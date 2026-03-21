@@ -359,7 +359,7 @@ impl<T: Scalar> DynMatrix<T> {
     /// ```
     /// use numeris::DynMatrix;
     /// let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-    /// let b = DynMatrix::eye(2, 0.0_f64);
+    /// let b = DynMatrix::<f64>::eye(2);
     /// let c = a.kronecker(&b);
     /// assert_eq!(c.nrows(), 4);
     /// assert_eq!(c.ncols(), 4);
@@ -559,7 +559,7 @@ mod tests {
     #[test]
     fn identity_multiply() {
         let a = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-        let id = DynMatrix::eye(2, 0.0_f64);
+        let id = DynMatrix::<f64>::eye(2);
         assert_eq!(&a * &id, a);
         assert_eq!(&id * &a, a);
     }
@@ -567,11 +567,11 @@ mod tests {
     #[test]
     fn kronecker_identity() {
         // I₂ ⊗ I₂ = I₄
-        let i2 = DynMatrix::eye(2, 0.0_f64);
+        let i2 = DynMatrix::<f64>::eye(2);
         let i4 = i2.kronecker(&i2);
         assert_eq!(i4.nrows(), 4);
         assert_eq!(i4.ncols(), 4);
-        let expected = DynMatrix::eye(4, 0.0_f64);
+        let expected = DynMatrix::<f64>::eye(4);
         assert_eq!(i4, expected);
     }
 

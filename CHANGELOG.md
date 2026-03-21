@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- **`DynMatrix::zeros`** no longer takes a dummy type-inference parameter.
+  Use `DynMatrix::<f64>::zeros(m, n)` instead of `DynMatrix::zeros(m, n, 0.0_f64)`.
+- **`DynMatrix::eye`** same change: `DynMatrix::<f64>::eye(n)` instead of `DynMatrix::eye(n, 0.0_f64)`.
+
 ## 0.5.0
 
 ### Breaking Changes

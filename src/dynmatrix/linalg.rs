@@ -65,7 +65,7 @@ impl<T: LinalgScalar> DynLu<T> {
     /// Compute the matrix inverse.
     pub fn inverse(&self) -> DynMatrix<T> {
         let n = self.lu.nrows();
-        let mut inv = DynMatrix::zeros(n, n, T::zero());
+        let mut inv = DynMatrix::zeros(n, n);
         let mut col_buf = vec![T::zero(); n];
         let mut e = vec![T::zero(); n];
 
@@ -232,7 +232,7 @@ impl<T: LinalgScalar> DynCholesky<T> {
     /// Extract the full lower triangular factor (zeros above diagonal).
     pub fn l_full(&self) -> DynMatrix<T> {
         let n = self.l.nrows();
-        let mut out = DynMatrix::zeros(n, n, T::zero());
+        let mut out = DynMatrix::zeros(n, n);
         for i in 0..n {
             for j in 0..=i {
                 out[(i, j)] = self.l[(i, j)];
@@ -276,7 +276,7 @@ impl<T: LinalgScalar> DynCholesky<T> {
     /// Matrix inverse using the Cholesky factorization.
     pub fn inverse(&self) -> DynMatrix<T> {
         let n = self.l.nrows();
-        let mut inv = DynMatrix::zeros(n, n, T::zero());
+        let mut inv = DynMatrix::zeros(n, n);
         let mut e = vec![T::zero(); n];
         let mut y = vec![T::zero(); n];
         let mut x = vec![T::zero(); n];
@@ -401,7 +401,7 @@ impl<T: LinalgScalar> DynQr<T> {
     /// Extract the upper-triangular R factor (N × N).
     pub fn r(&self) -> DynMatrix<T> {
         let n = self.qr.ncols();
-        let mut r = DynMatrix::zeros(n, n, T::zero());
+        let mut r = DynMatrix::zeros(n, n);
         for i in 0..n {
             for j in i..n {
                 r[(i, j)] = self.qr[(i, j)];
@@ -415,7 +415,7 @@ impl<T: LinalgScalar> DynQr<T> {
         let m = self.qr.nrows();
         let n = self.qr.ncols();
 
-        let mut q = DynMatrix::zeros(m, n, T::zero());
+        let mut q = DynMatrix::zeros(m, n);
         for i in 0..n {
             q[(i, i)] = T::one();
         }
@@ -532,7 +532,7 @@ impl<T: LinalgScalar> DynQrPivot<T> {
     /// Extract the upper-triangular R factor (N x N).
     pub fn r(&self) -> DynMatrix<T> {
         let n = self.qr.ncols();
-        let mut r = DynMatrix::zeros(n, n, T::zero());
+        let mut r = DynMatrix::zeros(n, n);
         for i in 0..n {
             for j in i..n {
                 r[(i, j)] = self.qr[(i, j)];
@@ -546,7 +546,7 @@ impl<T: LinalgScalar> DynQrPivot<T> {
         let m = self.qr.nrows();
         let n = self.qr.ncols();
 
-        let mut q = DynMatrix::zeros(m, n, T::zero());
+        let mut q = DynMatrix::zeros(m, n);
         for i in 0..n {
             q[(i, i)] = T::one();
         }
@@ -619,13 +619,13 @@ impl<T: LinalgScalar> DynSymmetricEigen<T> {
         if n == 0 {
             return Ok(Self {
                 eigenvalues: Vec::new(),
-                eigenvectors: DynMatrix::zeros(0, 0, T::zero()),
+                eigenvectors: DynMatrix::zeros(0, 0),
             });
         }
 
         let mut diag = vec![<T::Real as num_traits::Zero>::zero(); n];
         let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); n];
-        let mut q = DynMatrix::zeros(n, n, T::zero());
+        let mut q = DynMatrix::zeros(n, n);
 
         tridiagonalize(a, &mut diag, &mut off_diag, &mut q);
         tridiagonal_qr_with_vecs::<T>(
@@ -652,7 +652,7 @@ impl<T: LinalgScalar> DynSymmetricEigen<T> {
 
         let mut diag = vec![<T::Real as num_traits::Zero>::zero(); n];
         let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); n];
-        let mut q = DynMatrix::zeros(n, n, T::zero());
+        let mut q = DynMatrix::zeros(n, n);
 
         tridiagonalize(a, &mut diag, &mut off_diag, &mut q);
         tridiagonal_qr_no_vecs::<T>(&mut diag, &mut off_diag[..n.saturating_sub(1)], 30 * n)?;
@@ -702,7 +702,7 @@ impl<T: FloatScalar> DynSchur<T> {
         assert!(a.is_square(), "Schur decomposition requires a square matrix");
         let n = a.nrows();
         let mut s = a.clone();
-        let mut q = DynMatrix::zeros(n, n, T::zero());
+        let mut q = DynMatrix::zeros(n, n);
 
         if n <= 1 {
             for i in 0..n {
@@ -821,9 +821,9 @@ impl<T: LinalgScalar> DynSvd<T> {
 
         if m == 0 || n == 0 {
             return Ok(Self {
-                u: DynMatrix::zeros(m, k, T::zero()),
+                u: DynMatrix::zeros(m, k),
                 singular_values: Vec::new(),
-                vt: DynMatrix::zeros(k, n, T::zero()),
+                vt: DynMatrix::zeros(k, n),
             });
         }
 
@@ -854,8 +854,8 @@ impl<T: LinalgScalar> DynSvd<T> {
             }
         }
 
-        let mut u_mat = DynMatrix::zeros(rows, rows, T::zero());
-        let mut v_mat = DynMatrix::zeros(cols, cols, T::zero());
+        let mut u_mat = DynMatrix::zeros(rows, rows);
+        let mut v_mat = DynMatrix::zeros(cols, cols);
         let mut diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
         let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
 
@@ -891,13 +891,13 @@ impl<T: LinalgScalar> DynSvd<T> {
             // A^T = U_full · diag(σ) · V_full^T  →  A = V_full · diag(σ) · U_full^T
             // A's thin U (M×K): first K=M columns of V_full → cols×cols (cols=M, K=M → full V)
             // A's thin V^T (K×N): first K=M rows of U_full^T → M × rows, rows=N
-            let mut u_thin = DynMatrix::zeros(m, k, T::zero());
+            let mut u_thin = DynMatrix::zeros(m, k);
             for i in 0..m {
                 for j in 0..k {
                     u_thin[(i, j)] = v_mat[(i, j)];
                 }
             }
-            let mut vt_thin = DynMatrix::zeros(k, n, T::zero());
+            let mut vt_thin = DynMatrix::zeros(k, n);
             for i in 0..k {
                 for j in 0..n {
                     vt_thin[(i, j)] = u_mat[(j, i)].conj();
@@ -910,14 +910,14 @@ impl<T: LinalgScalar> DynSvd<T> {
             })
         } else {
             // U_thin = first K=N columns of U_full → M×N
-            let mut u_thin = DynMatrix::zeros(m, k, T::zero());
+            let mut u_thin = DynMatrix::zeros(m, k);
             for i in 0..m {
                 for j in 0..k {
                     u_thin[(i, j)] = u_mat[(i, j)];
                 }
             }
             // V^T_thin = first K=N rows of V_full^H → N×N (same as full)
-            let mut vt_thin = DynMatrix::zeros(k, n, T::zero());
+            let mut vt_thin = DynMatrix::zeros(k, n);
             for i in 0..k {
                 for j in 0..n {
                     vt_thin[(i, j)] = v_mat[(j, i)].conj();
@@ -965,8 +965,8 @@ impl<T: LinalgScalar> DynSvd<T> {
             }
         }
 
-        let mut u_mat = DynMatrix::zeros(rows, rows, T::zero());
-        let mut v_mat = DynMatrix::zeros(cols, cols, T::zero());
+        let mut u_mat = DynMatrix::zeros(rows, rows);
+        let mut v_mat = DynMatrix::zeros(cols, cols);
         let mut diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
         let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
 

@@ -345,7 +345,7 @@ mod tests {
 
     #[test]
     fn set_row_col() {
-        let mut m = DynMatrix::zeros(2, 2, 0.0_f64);
+        let mut m = DynMatrix::<f64>::zeros(2, 2);
         m.set_row(0, &DynVector::from_slice(&[1.0, 2.0]));
         assert_eq!(m[(0, 0)], 1.0);
         assert_eq!(m[(0, 1)], 2.0);

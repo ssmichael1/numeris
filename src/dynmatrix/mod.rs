@@ -31,7 +31,7 @@ use crate::Matrix;
 /// use numeris::{DynMatrix, Matrix};
 /// use numeris::dynmatrix::DimensionMismatch;
 ///
-/// let d = DynMatrix::zeros(2, 3, 0.0_f64);
+/// let d = DynMatrix::<f64>::zeros(2, 3);
 /// let result: Result<Matrix<f64, 2, 2>, _> = (&d).try_into();
 /// assert!(result.is_err());
 /// ```
@@ -69,7 +69,7 @@ impl core::fmt::Display for DimensionMismatch {
 /// assert_eq!(a.nrows(), 2);
 /// assert_eq!(a.ncols(), 2);
 ///
-/// let b = DynMatrix::eye(3, 0.0_f64);
+/// let b = DynMatrix::<f64>::eye(3);
 /// assert_eq!(b[(0, 0)], 1.0);
 /// assert_eq!(b[(0, 1)], 0.0);
 /// ```
@@ -83,16 +83,16 @@ pub struct DynMatrix<T> {
 // ── Constructors ────────────────────────────────────────────────────
 
 impl<T: Scalar> DynMatrix<T> {
-    /// Create an `nrows x ncols` matrix filled with `value`.
+    /// Create an `nrows x ncols` zero matrix.
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let m = DynMatrix::zeros(2, 3, 0.0_f64);
+    /// let m = DynMatrix::<f64>::zeros(2, 3);
     /// assert_eq!(m.nrows(), 2);
     /// assert_eq!(m.ncols(), 3);
     /// assert_eq!(m[(1, 2)], 0.0);
     /// ```
-    pub fn zeros(nrows: usize, ncols: usize, _zero: T) -> Self {
+    pub fn zeros(nrows: usize, ncols: usize) -> Self {
         Self {
             data: vec![T::zero(); nrows * ncols],
             nrows,
@@ -118,17 +118,15 @@ impl<T: Scalar> DynMatrix<T> {
 
     /// Create an `n x n` identity matrix.
     ///
-    /// The `_zero` parameter is only used for type inference.
-    ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let id = DynMatrix::eye(3, 0.0_f64);
+    /// let id = DynMatrix::<f64>::eye(3);
     /// assert_eq!(id[(0, 0)], 1.0);
     /// assert_eq!(id[(0, 1)], 0.0);
     /// assert_eq!(id[(2, 2)], 1.0);
     /// ```
-    pub fn eye(n: usize, _zero: T) -> Self {
-        let mut m = Self::zeros(n, n, T::zero());
+    pub fn eye(n: usize) -> Self {
+        let mut m = Self::zeros(n, n);
         for i in 0..n {
             m[(i, i)] = T::one();
         }
@@ -375,7 +373,7 @@ mod tests {
 
     #[test]
     fn zeros() {
-        let m = DynMatrix::zeros(3, 4, 0.0_f64);
+        let m = DynMatrix::<f64>::zeros(3, 4);
         assert_eq!(m.nrows(), 3);
         assert_eq!(m.ncols(), 4);
         for i in 0..3 {
@@ -397,7 +395,7 @@ mod tests {
 
     #[test]
     fn eye() {
-        let m = DynMatrix::eye(3, 0.0_f64);
+        let m = DynMatrix::<f64>::eye(3);
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
@@ -439,7 +437,7 @@ mod tests {
 
     #[test]
     fn index_mut() {
-        let mut m = DynMatrix::zeros(2, 2, 0.0_f64);
+        let mut m = DynMatrix::<f64>::zeros(2, 2);
         m[(0, 1)] = 5.0;
         assert_eq!(m[(0, 1)], 5.0);
     }
@@ -460,7 +458,7 @@ mod tests {
 
     #[test]
     fn matrix_mut_trait() {
-        let mut m = DynMatrix::zeros(2, 2, 0.0_f64);
+        let mut m = DynMatrix::<f64>::zeros(2, 2);
         fn set_diag<T: Scalar>(m: &mut impl MatrixMut<T>, val: T) {
             let n = m.nrows().min(m.ncols());
             for i in 0..n {
@@ -510,9 +508,9 @@ mod tests {
 
     #[test]
     fn is_square() {
-        let sq = DynMatrix::zeros(3, 3, 0.0_f64);
+        let sq = DynMatrix::<f64>::zeros(3, 3);
         assert!(sq.is_square());
-        let rect = DynMatrix::zeros(2, 3, 0.0_f64);
+        let rect = DynMatrix::<f64>::zeros(2, 3);
         assert!(!rect.is_square());
     }
 

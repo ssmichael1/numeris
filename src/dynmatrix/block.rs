@@ -29,7 +29,7 @@ impl<T: Scalar> DynMatrix<T> {
     ///
     /// ```
     /// use numeris::DynMatrix;
-    /// let mut m = DynMatrix::zeros(3, 3, 0.0_f64);
+    /// let mut m = DynMatrix::<f64>::zeros(3, 3);
     /// let patch = DynMatrix::from_rows(2, 2, &[1.0, 2.0, 3.0, 4.0]);
     /// m.set_block(1, 1, &patch);
     /// assert_eq!(m[(1, 1)], 1.0);
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn set_block_basic() {
-        let mut m = DynMatrix::zeros(4, 4, 0i32);
+        let mut m = DynMatrix::<i32>::zeros(4, 4);
         let patch = DynMatrix::from_rows(2, 2, &[1, 2, 3, 4]);
         m.set_block(1, 1, &patch);
         assert_eq!(m[(1, 1)], 1);
