@@ -116,7 +116,7 @@ pub fn minimize_bfgs<T: FloatScalar, const N: usize>(
         }
 
         // Search direction: p = -H * g
-        let p = -h.vecmul(&g);
+        let p = -h * g;
 
         // Check descent direction; reset H if not
         let grad_dot_p = g.dot(&p);
@@ -183,7 +183,7 @@ pub fn minimize_bfgs<T: FloatScalar, const N: usize>(
             let rho = T::one() / ys;
 
             // H += (1 + rho * y^T * H * y) * rho * s * s^T - rho * (H*y*s^T + s*y^T*H)
-            let hy = h.vecmul(&y);
+            let hy = h * y;
             let yhy = y.dot(&hy);
 
             // Factor: (1 + rho * y^T H y) * rho

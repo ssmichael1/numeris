@@ -6,7 +6,7 @@
 //!
 //! let m = matrix![1.0, 2.0; 3.0, 4.0];
 //! let v = vector![1.0_f64, 2.0];
-//! let r = m.vecmul(&v);
+//! let r = m * v;
 //! ```
 
 pub use crate::Matrix;

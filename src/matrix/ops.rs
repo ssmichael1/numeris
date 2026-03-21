@@ -1,6 +1,5 @@
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use crate::matrix::vector::Vector;
 use crate::traits::Scalar;
 use crate::Matrix;
 
@@ -427,47 +426,6 @@ impl<T: Scalar, const M: usize, const N: usize> Div<T> for &Matrix<T, M, N> {
     }
 }
 
-// ── Matrix-vector product ────────────────────────────────────────────
-
-impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
-    /// Matrix-vector product: `A * v` → result.
-    ///
-    /// Computes `A * v` where `v` is an N×1 column vector,
-    /// returning an M×1 column vector.
-    ///
-    /// ```
-    /// use numeris::{Matrix, Vector};
-    /// let a = Matrix::new([[2.0, 1.0], [5.0, 3.0]]);
-    /// let v = Vector::from_array([1.0, 2.0]);
-    /// let r = a.vecmul(&v);
-    /// assert_eq!(r[0], 4.0);  // 2*1 + 1*2
-    /// assert_eq!(r[1], 11.0); // 5*1 + 3*2
-    /// ```
-    pub fn vecmul(&self, v: &Vector<T, N>) -> Vector<T, M> {
-        // Vector<T, M> = Matrix<T, M, 1>: out.data[0][i] is element i.
-        // Matrix<T, M, N>: self.data[k][i] is element (row=i, col=k).
-        // Vector<T, N> = Matrix<T, N, 1>: v.data[0][k] is element k.
-        let mut out = Vector::<T, M>::zeros();
-        if M <= 6 && N <= 6 {
-            // For small matrices, bypass dispatch overhead.
-            // Compiler fully unrolls the const-generic loops.
-            for k in 0..N {
-                let v_k = v.data[0][k];
-                for i in 0..M {
-                    out.data[0][i] = out.data[0][i] + self.data[k][i] * v_k;
-                }
-            }
-        } else {
-            // Column-oriented AXPY: out += v[k] * col_k (SIMD on contiguous columns)
-            let out_slice = out.as_mut_slice();
-            for k in 0..N {
-                crate::simd::axpy_pos_dispatch(out_slice, v[k], self.col_slice(k));
-            }
-        }
-        out
-    }
-}
-
 // ── Element-wise multiplication (Hadamard product) ──────────────────
 
 impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
@@ -544,6 +502,7 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::matrix::vector::Vector;
 
     #[test]
     fn add_sub() {
@@ -697,30 +656,30 @@ mod tests {
     }
 
     #[test]
-    fn vecmul_square() {
+    fn matrix_times_vector_square() {
         let a = Matrix::new([[2.0, 1.0], [5.0, 3.0]]);
         let v = Vector::from_array([1.0, 2.0]);
-        let result = a.vecmul(&v);
+        let result = a * v;
         assert_eq!(result[0], 4.0);  // 2*1 + 1*2
         assert_eq!(result[1], 11.0); // 5*1 + 3*2
     }
 
     #[test]
-    fn vecmul_non_square() {
-        // (2×3) * vec(3) → vec(2)
+    fn matrix_times_vector_non_square() {
+        // (2×3) * (3×1) → (2×1)
         let a = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
         let v = Vector::from_array([7.0, 8.0, 9.0]);
-        let result = a.vecmul(&v);
+        let result = a * v;
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], 50.0);  // 1*7 + 2*8 + 3*9
         assert_eq!(result[1], 122.0); // 4*7 + 5*8 + 6*9
     }
 
     #[test]
-    fn vecmul_identity() {
+    fn matrix_times_vector_identity() {
         let id: Matrix<f64, 3, 3> = Matrix::eye();
         let v = Vector::from_array([1.0, 2.0, 3.0]);
-        assert_eq!(id.vecmul(&v), v);
+        assert_eq!(id * v, v);
     }
 
     #[test]

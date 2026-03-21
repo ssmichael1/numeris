@@ -135,7 +135,7 @@ pub fn least_squares_lm<T: FloatScalar, const M: usize, const N: usize>(
         // J^T J
         let jtj = j.transpose() * j;
         // Gradient: g = J^T * r
-        let g = j.transpose().vecmul(&r);
+        let g = j.transpose() * r;
         let g_norm = g.norm();
 
         if g_norm < settings.grad_tol {

@@ -87,7 +87,7 @@ use numeris::{matrix, vector};
 
 let m = matrix![1.0, 2.0; 3.0, 4.0];
 let v = vector![1.0_f64, 2.0];
-let r = m.vecmul(&v);
+let r = m * v;
 ```
 
 The prelude includes `Matrix`, `Vector`, all size aliases (`Matrix1`–`Matrix6`, `Vector1`–`Vector6`), scalar traits (`Scalar`, `FloatScalar`, `LinalgScalar`), `LinalgError`, and `Quaternion`.
@@ -135,7 +135,7 @@ let d = a * 2.0;         // scalar multiply
 
 // Vectors
 let v = Vector::from_array([1.0_f64, 0.0, 0.0]);
-let w = a.vecmul(&v);    // A * v (matrix-vector)
+let w = a * v;    // A * v (matrix-vector)
 let dot = v.dot(&w);
 
 // Indexing

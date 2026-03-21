@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2
+
+- **`DynVector` is now N×1** (column vector), matching `Vector<T, N>` = `Matrix<T, N, 1>`.
+  Previously stored as 1×N internally — `nrows()` and `ncols()` now return the expected values.
+- **`DynVector::zeros`** no longer takes a dummy parameter: `DynVector::<f64>::zeros(n)`.
+- **`vecmul` removed** — use `a * v` (standard `Mul` trait) instead. `Vector` is now N×1 so
+  `Matrix<T,M,N> * Vector<T,N>` works directly via matrix multiplication.
+- **`vector!` macro** doc corrected: creates a column vector (N×1), not a row vector.
+
 ## 0.5.1
 
 - **`DynMatrix::zeros`** no longer takes a dummy type-inference parameter.

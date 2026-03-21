@@ -251,7 +251,7 @@ impl<T: FloatScalar> Quaternion<T> {
     /// // Rotation via quaternion and matrix should match
     /// let v = Vector3::from_array([1.0, 0.0, 0.0]);
     /// let r_q = q * v;
-    /// let r_m = m.vecmul(&v);
+    /// let r_m = m * v;
     /// assert!((r_q[0] - r_m[0]).abs() < 1e-12);
     /// ```
     pub fn to_rotation_matrix(&self) -> Matrix<T, 3, 3> {
@@ -903,7 +903,7 @@ mod tests {
         let v = Vector3::from_array([1.0, 2.0, 3.0]);
         let r_quat = q * v;
         let m = q.to_rotation_matrix();
-        let r_mat = m.vecmul(&v);
+        let r_mat = m * v;
 
         assert!(approx_eq(r_quat[0], r_mat[0]));
         assert!(approx_eq(r_quat[1], r_mat[1]));

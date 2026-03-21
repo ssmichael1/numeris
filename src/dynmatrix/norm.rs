@@ -84,8 +84,8 @@ impl<T: LinalgScalar> DynVector<T> {
         DynVector {
             inner: DynMatrix {
                 data,
-                nrows: 1,
-                ncols: self.len(),
+                nrows: self.len(),
+                ncols: 1,
             },
         }
     }

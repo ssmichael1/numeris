@@ -22,7 +22,7 @@ macro_rules! matrix {
     };
 }
 
-/// Construct a row [`Vector`](crate::Vector) (1×N matrix).
+/// Construct a column [`Vector`](crate::Vector) (N×1 matrix).
 ///
 /// ```
 /// use numeris::vector;

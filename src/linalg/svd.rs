@@ -1088,7 +1088,7 @@ mod tests {
         let b = Vector::from_array([1.0, 2.0, 3.0]);
         let x = a.solve_svd(&b).unwrap();
         // Residual should be small: A*x ≈ b in least-squares sense
-        let ax = a.vecmul(&x);
+        let ax = a * x;
         let residual = (ax[0]-1.0).powi(2) + (ax[1]-2.0).powi(2) + (ax[2]-3.0).powi(2);
         assert!(residual < 1.0, "residual too large: {}", residual);
         // Normal equations: A^T A x = A^T b

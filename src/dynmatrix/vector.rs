@@ -6,18 +6,21 @@ use crate::traits::{MatrixMut, MatrixRef, Scalar};
 
 use super::DynMatrix;
 
-/// Dynamically-sized vector (wraps a 1×N `DynMatrix`).
+/// Dynamically-sized column vector (wraps an N×1 `DynMatrix`).
 ///
-/// Enforces single-row constraint and provides single-index access `v[i]`.
+/// Matches the fixed-size `Vector<T, N>` = `Matrix<T, N, 1>` convention.
+/// Provides single-index access `v[i]`.
 ///
 /// # Examples
 ///
 /// ```
-/// use numeris::DynVector;
+/// use numeris::{DynVector, MatrixRef};
 ///
 /// let v = DynVector::from_slice(&[1.0_f64, 2.0, 3.0]);
 /// assert_eq!(v[0], 1.0);
 /// assert_eq!(v.len(), 3);
+/// assert_eq!(v.nrows(), 3);
+/// assert_eq!(v.ncols(), 1);
 /// assert!((v.dot(&v) - 14.0).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -36,7 +39,7 @@ impl<T: Scalar> DynVector<T> {
     /// ```
     pub fn from_slice(data: &[T]) -> Self {
         Self {
-            inner: DynMatrix::from_slice(1, data.len(), data),
+            inner: DynMatrix::from_slice(data.len(), 1, data),
         }
     }
 
@@ -50,7 +53,7 @@ impl<T: Scalar> DynVector<T> {
     pub fn from_vec(data: Vec<T>) -> Self {
         let n = data.len();
         Self {
-            inner: DynMatrix::from_vec(1, n, data),
+            inner: DynMatrix::from_vec(n, 1, data),
         }
     }
 
@@ -58,27 +61,27 @@ impl<T: Scalar> DynVector<T> {
     ///
     /// ```
     /// use numeris::DynVector;
-    /// let v = DynVector::zeros(4, 0.0_f64);
+    /// let v = DynVector::<f64>::zeros(4);
     /// assert_eq!(v.len(), 4);
     /// assert_eq!(v[3], 0.0);
     /// ```
-    pub fn zeros(n: usize, _zero: T) -> Self {
+    pub fn zeros(n: usize) -> Self {
         Self {
-            inner: DynMatrix::zeros(1, n),
+            inner: DynMatrix::zeros(n, 1),
         }
     }
 
     /// Create a vector filled with a value.
     pub fn fill(n: usize, value: T) -> Self {
         Self {
-            inner: DynMatrix::fill(1, n, value),
+            inner: DynMatrix::fill(n, 1, value),
         }
     }
 
     /// Number of elements.
     #[inline]
     pub fn len(&self) -> usize {
-        self.inner.ncols()
+        self.inner.nrows()
     }
 
     /// Whether the vector is empty.
@@ -137,14 +140,14 @@ impl<T> Index<usize> for DynVector<T> {
 
     #[inline]
     fn index(&self, i: usize) -> &T {
-        &self.inner[(0, i)]
+        &self.inner[(i, 0)]
     }
 }
 
 impl<T> IndexMut<usize> for DynVector<T> {
     #[inline]
     fn index_mut(&mut self, i: usize) -> &mut T {
-        &mut self.inner[(0, i)]
+        &mut self.inner[(i, 0)]
     }
 }
 
@@ -153,12 +156,12 @@ impl<T> IndexMut<usize> for DynVector<T> {
 impl<T> MatrixRef<T> for DynVector<T> {
     #[inline]
     fn nrows(&self) -> usize {
-        1
+        self.inner.nrows()
     }
 
     #[inline]
     fn ncols(&self) -> usize {
-        self.inner.ncols()
+        1
     }
 
     #[inline]
@@ -197,14 +200,12 @@ impl<T: Scalar, const N: usize> From<Vector<T, N>> for DynVector<T> {
     /// assert_eq!(dv[0], 1.0);
     /// ```
     fn from(v: Vector<T, N>) -> Self {
-        // Vector is N×1 (column vector), but DynVector stores as 1×N row.
         Self::from_slice(v.as_slice())
     }
 }
 
 impl<T: Scalar, const N: usize> From<&Vector<T, N>> for DynVector<T> {
     fn from(v: &Vector<T, N>) -> Self {
-        // Vector is N×1 (column vector), but DynVector stores as 1×N row.
         Self::from_slice(v.as_slice())
     }
 }
@@ -243,7 +244,7 @@ mod tests {
 
     #[test]
     fn zeros() {
-        let v = DynVector::zeros(4, 0.0_f64);
+        let v = DynVector::<f64>::zeros(4);
         assert_eq!(v.len(), 4);
         for i in 0..4 {
             assert_eq!(v[i], 0.0);
@@ -252,7 +253,7 @@ mod tests {
 
     #[test]
     fn index_mut() {
-        let mut v = DynVector::zeros(3, 0.0_f64);
+        let mut v = DynVector::<f64>::zeros(3);
         v[1] = 42.0;
         assert_eq!(v[1], 42.0);
     }
@@ -274,11 +275,11 @@ mod tests {
     }
 
     #[test]
-    fn matrix_ref_trait() {
+    fn dimensions_match_vector() {
+        // DynVector should be N×1 like Vector
         let v = DynVector::from_slice(&[1.0, 2.0, 3.0]);
-        assert_eq!(v.nrows(), 1);
-        assert_eq!(v.ncols(), 3);
-        assert_eq!(*v.get(0, 1), 2.0);
+        assert_eq!(v.nrows(), 3);
+        assert_eq!(v.ncols(), 1);
     }
 
     #[test]
@@ -291,8 +292,8 @@ mod tests {
     fn into_dynmatrix() {
         let v = DynVector::from_slice(&[1.0, 2.0, 3.0]);
         let m: DynMatrix<f64> = v.into();
-        assert_eq!(m.nrows(), 1);
-        assert_eq!(m.ncols(), 3);
-        assert_eq!(m[(0, 1)], 2.0);
+        assert_eq!(m.nrows(), 3);
+        assert_eq!(m.ncols(), 1);
+        assert_eq!(m[(1, 0)], 2.0);
     }
 }

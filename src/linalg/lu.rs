@@ -283,7 +283,7 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
     ///     [1.0,        1.0001,   1.00020001],
     /// ]);
     /// let x_true = Vector::from_array([1.0, 2.0, 3.0]);
-    /// let b = a.vecmul(&x_true);
+    /// let b = a * x_true;
     ///
     /// let lu = a.lu().unwrap();
     /// let x_plain = lu.solve(&b);
@@ -301,7 +301,7 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
 
         for _ in 0..3 {
             // Compute residual r = b - A*x
-            let ax = a.vecmul(&x);
+            let ax = a * x;
             let mut r = *b;
             for i in 0..N {
                 r[i] = r[i] - ax[i];
@@ -527,7 +527,7 @@ impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
     ///     [1.0,        1.0001,   1.00020001],
     /// ]);
     /// let x_true = Vector::from_array([1.0, 2.0, 3.0]);
-    /// let b = a.vecmul(&x_true);
+    /// let b = a * x_true;
     ///
     /// let x = a.solve_refined(&b).unwrap();
     /// for i in 0..3 {
@@ -697,7 +697,7 @@ mod tests {
             [1.0,        1.0001,   1.00020001],
         ]);
         let x_true = Vector::from_array([1.0, 2.0, 3.0]);
-        let b = a.vecmul(&x_true);
+        let b = a * x_true;
 
         let lu = a.lu().unwrap();
         let x_plain = lu.solve(&b);
@@ -721,7 +721,7 @@ mod tests {
             [1.0,        1.0001,   1.00020001],
         ]);
         let x_true = Vector::from_array([1.0, 2.0, 3.0]);
-        let b = a.vecmul(&x_true);
+        let b = a * x_true;
 
         let x = a.solve_refined(&b).unwrap();
         for i in 0..3 {
@@ -740,7 +740,7 @@ mod tests {
         let x_true = Vector::<f64, 8>::from_fn(|i, _| {
             (i as f64 + 1.0) * if i % 2 == 0 { 1.0 } else { -1.0 }
         });
-        let b = a.vecmul(&x_true);
+        let b = a * x_true;
 
         let lu = a.lu().unwrap();
         let x_plain = lu.solve(&b);

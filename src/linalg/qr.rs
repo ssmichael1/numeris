@@ -659,10 +659,10 @@ mod tests {
 
         // Verify the residual r = b - Ax is orthogonal to column space of A
         // i.e. A^T * r ≈ 0
-        let ax = a.vecmul(&x);
+        let ax = a * x;
         let r = b - ax;
         let at = a.transpose();
-        let atr = at.vecmul(&r);
+        let atr = at * r;
         for i in 0..2 {
             assert_near(atr[i], 0.0, TOL, &format!("A^T r[{}]", i));
         }

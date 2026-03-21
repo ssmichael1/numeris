@@ -82,7 +82,7 @@ let h = a / 2.0;
 
 // Matrix-vector multiply
 let v = Vector::from_array([1.0_f64, 0.0]);
-let w = a.vecmul(&v);       // a * v → Vector<f64, 2>
+let w = a * v;       // a * v → Vector<f64, 2>
 
 // Transpose
 let at = a.transpose();     // Matrix<f64, 2, 2>

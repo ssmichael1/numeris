@@ -90,7 +90,7 @@ src/
 ├── matrix/
 │   ├── mod.rs          # Matrix struct, constructors, Index, trait impls
 │   ├── aliases.rs      # Size aliases: Matrix1–Matrix6, Matrix2x3, Vector1–6, etc.
-│   ├── ops.rs          # Add, Sub, Neg, Mul (matrix & scalar), vecmul, transpose
+│   ├── ops.rs          # Add, Sub, Neg, Mul (matrix & scalar), transpose
 │   ├── square.rs       # trace, det, diag, from_diag, pow, is_symmetric
 │   ├── vector.rs       # Vector (N×1 column), Vector3, dot, cross, outer
 │   ├── block.rs        # block, set_block, top_left/right, head, tail, segment

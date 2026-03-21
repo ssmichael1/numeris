@@ -127,7 +127,7 @@ fn finite_diff_jacobian_linear() {
     // f(x) = A*x, Jacobian = A
     let a = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]);
     let x = Vector::from_array([1.0, 1.0]);
-    let j = finite_difference_jacobian(|x: &Vector<f64, 2>| a.vecmul(x), &x);
+    let j = finite_difference_jacobian(|x: &Vector<f64, 2>| a * *x, &x);
     for i in 0..3 {
         for k in 0..2 {
             assert_near(j[(i, k)], a[(i, k)], 1e-5, "jacobian");
@@ -235,7 +235,7 @@ fn gn_linear_least_squares() {
     let b = Vector::from_array([1.0, 2.0, 4.0]);
 
     let r = least_squares_gn(
-        |x: &Vector<f64, 2>| a.vecmul(x) - b,
+        |x: &Vector<f64, 2>| a * *x - b,
         |_: &Vector<f64, 2>| a,
         &Vector::from_array([0.0, 0.0]),
         &GaussNewtonSettings::default(),
@@ -390,7 +390,7 @@ fn lm_linear_exact() {
     let b = Vector::from_array([1.0, 2.0, 4.0]);
 
     let r = least_squares_lm(
-        |x: &Vector<f64, 2>| a.vecmul(x) - b,
+        |x: &Vector<f64, 2>| a * *x - b,
         |_: &Vector<f64, 2>| a,
         &Vector::from_array([0.0, 0.0]),
         &LmSettings::default(),

@@ -69,7 +69,7 @@ impl Default for GaussNewtonSettings<f32> {
 /// let a = Matrix::new([[1.0_f64, 1.0], [1.0, 2.0], [1.0, 3.0]]);
 /// let b = Vector::from_array([1.0, 2.0, 3.0]);
 /// let r = least_squares_gn(
-///     |x: &Vector<f64, 2>| a.vecmul(x) - b,
+///     |x: &Vector<f64, 2>| a * *x - b,
 ///     |_: &Vector<f64, 2>| a,
 ///     &Vector::from_array([0.0, 0.0]),
 ///     &GaussNewtonSettings::default(),
@@ -96,7 +96,7 @@ pub fn least_squares_gn<T: FloatScalar, const M: usize, const N: usize>(
         j_evals += 1;
 
         // Gradient: g = J^T * r
-        let g = j.transpose().vecmul(&r);
+        let g = j.transpose() * r;
         let g_norm = g.norm();
 
         if g_norm < settings.grad_tol {
