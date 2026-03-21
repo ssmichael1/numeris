@@ -175,6 +175,34 @@ impl<T, const N: usize> IndexMut<usize> for Vector<T, N> {
     }
 }
 
+// ── Ordering (lexicographic) ────────────────────────────────────────
+
+impl<T: PartialOrd, const N: usize> PartialOrd for Vector<T, N> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        for i in 0..N {
+            match self.data[0][i].partial_cmp(&other.data[0][i]) {
+                Some(core::cmp::Ordering::Equal) => continue,
+                ord => return ord,
+            }
+        }
+        Some(core::cmp::Ordering::Equal)
+    }
+}
+
+impl<T: Ord, const N: usize> Ord for Vector<T, N> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        for i in 0..N {
+            match self.data[0][i].cmp(&other.data[0][i]) {
+                core::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            }
+        }
+        core::cmp::Ordering::Equal
+    }
+}
+
+impl<T: Eq, const N: usize> Eq for Vector<T, N> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

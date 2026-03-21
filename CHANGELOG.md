@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.3
+
+- **`Solution` and `DenseOutput` derive `Debug`**.
+- **`DynVector` iterators**: `iter()`, `iter_mut()`, `IntoIterator` impls.
+- **`DynVector::from_fn(n, |i| ...)`** constructor.
+- **`Matrix::t()` / `DynMatrix::t()`** shorthand for `transpose()`.
+- **`LuDecomposition::solve_matrix(&b)`** — multi-RHS solve (`AX = B`).
+- **`PartialOrd` / `Ord` / `Eq` for `Vector`** — lexicographic ordering.
+
 ## 0.5.2
 
 - **`DynVector` is now N×1** (column vector), matching `Vector<T, N>` = `Matrix<T, N, 1>`.

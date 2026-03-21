@@ -245,6 +245,40 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
         Ok(Self { lu, perm, even })
     }
 
+    /// Solve `AX = B` for X where B has multiple columns.
+    ///
+    /// Each column of B is solved independently.
+    ///
+    /// ```
+    /// use numeris::Matrix;
+    ///
+    /// let a = Matrix::new([[2.0_f64, 1.0], [5.0, 3.0]]);
+    /// let b = Matrix::new([[4.0, 3.0], [11.0, 7.0]]);
+    /// let lu = a.lu().unwrap();
+    /// let x = lu.solve_matrix(&b);
+    /// assert!((x[(0, 0)] - 1.0).abs() < 1e-12);
+    /// assert!((x[(1, 0)] - 2.0).abs() < 1e-12);
+    /// ```
+    pub fn solve_matrix<const P: usize>(&self, b: &Matrix<T, N, P>) -> Matrix<T, N, P> {
+        let mut x = Matrix::<T, N, P>::zeros();
+        for col in 0..P {
+            let mut b_flat = [T::zero(); N];
+            for i in 0..N {
+                b_flat[i] = b[(i, col)];
+            }
+            let mut x_flat = [T::zero(); N];
+            if N <= 6 {
+                lu_solve_small(&self.lu.data, &self.perm, &b_flat, &mut x_flat);
+            } else {
+                lu_solve(&self.lu, &self.perm, &b_flat, &mut x_flat);
+            }
+            for i in 0..N {
+                x[(i, col)] = x_flat[i];
+            }
+        }
+        x
+    }
+
     /// Solve Ax = b for x.
     pub fn solve(&self, b: &Vector<T, N>) -> Vector<T, N> {
         let mut b_flat = [T::zero(); N];

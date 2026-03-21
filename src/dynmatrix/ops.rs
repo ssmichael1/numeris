@@ -407,6 +407,15 @@ impl<T: Scalar> DynMatrix<T> {
     /// assert_eq!(t.ncols(), 2);
     /// assert_eq!(t[(1, 0)], 2.0);
     /// ```
+    /// Shorthand for [`transpose`](Self::transpose).
+    #[inline]
+    pub fn t(&self) -> Self
+    where
+        T: Copy,
+    {
+        self.transpose()
+    }
+
     pub fn transpose(&self) -> Self
     where
         T: Copy,

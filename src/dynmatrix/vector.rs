@@ -131,6 +131,55 @@ impl<T: Scalar> DynVector<T> {
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         self.inner.as_mut_slice()
     }
+
+    /// Iterate over elements.
+    #[inline]
+    pub fn iter(&self) -> core::slice::Iter<'_, T> {
+        self.as_slice().iter()
+    }
+
+    /// Iterate mutably over elements.
+    #[inline]
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
+        self.as_mut_slice().iter_mut()
+    }
+}
+
+impl<T: Scalar> DynVector<T> {
+    /// Create a vector from a function `f(index) -> value`.
+    ///
+    /// ```
+    /// use numeris::DynVector;
+    /// let v = DynVector::from_fn(4, |i| (i * i) as f64);
+    /// assert_eq!(v[0], 0.0);
+    /// assert_eq!(v[3], 9.0);
+    /// ```
+    pub fn from_fn(n: usize, f: impl Fn(usize) -> T) -> Self {
+        let data: Vec<T> = (0..n).map(f).collect();
+        Self::from_vec(data)
+    }
+}
+
+// ── IntoIterator ────────────────────────────────────────────────────
+
+impl<'a, T: Scalar> IntoIterator for &'a DynVector<T> {
+    type Item = &'a T;
+    type IntoIter = core::slice::Iter<'a, T>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T: Scalar> IntoIterator for &'a mut DynVector<T> {
+    type Item = &'a mut T;
+    type IntoIter = core::slice::IterMut<'a, T>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
 }
 
 // ── Index ───────────────────────────────────────────────────────────

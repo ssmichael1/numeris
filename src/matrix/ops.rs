@@ -487,6 +487,12 @@ impl<T: Scalar, const M: usize, const N: usize> Matrix<T, M, N> {
     /// assert_eq!(t.ncols(), 2);
     /// assert_eq!(t[(1, 0)], 2.0);
     /// ```
+    /// Shorthand for [`transpose`](Self::transpose).
+    #[inline]
+    pub fn t(&self) -> Matrix<T, N, M> {
+        self.transpose()
+    }
+
     pub fn transpose(&self) -> Matrix<T, N, M> {
         let mut out = Matrix::<T, N, M>::zeros();
         for j in 0..N {
