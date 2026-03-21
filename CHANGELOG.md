@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.6
+
+- **`Quaternion::rotation_between(a, b)`** — shortest-arc unit quaternion that rotates
+  vector `a` to vector `b`. Normalizes inputs, handles parallel and anti-parallel cases.
+
 ## 0.5.5
 
 - **`serde` feature** — optional serialization/deserialization for all types:
