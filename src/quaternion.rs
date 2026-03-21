@@ -99,6 +99,62 @@ impl<T: FloatScalar> Quaternion<T> {
     /// assert!((q.norm() - 1.0).abs() < 1e-12);
     /// ```
     #[inline]
+    /// Quaternion that rotates vector `a` to vector `b` (shortest arc).
+    ///
+    /// Both vectors are normalized internally. If `a` and `b` are
+    /// (anti-)parallel, a rotation about an arbitrary perpendicular axis
+    /// is returned.
+    ///
+    /// ```
+    /// use numeris::{Quaternion, Vector3};
+    ///
+    /// let a = Vector3::from_array([1.0_f64, 0.0, 0.0]);
+    /// let b = Vector3::from_array([0.0, 1.0, 0.0]);
+    /// let q = Quaternion::rotation_between(a, b);
+    /// let rotated = q * a;
+    /// assert!((rotated[0] - b[0]).abs() < 1e-12);
+    /// assert!((rotated[1] - b[1]).abs() < 1e-12);
+    /// assert!((rotated[2] - b[2]).abs() < 1e-12);
+    /// ```
+    pub fn rotation_between(a: Vector3<T>, b: Vector3<T>) -> Self {
+        let a = a.normalize();
+        let b = b.normalize();
+        let dot = a.dot(&b);
+        let cross = a.cross(&b);
+
+        // Nearly parallel: identity
+        if dot > T::one() - T::epsilon() {
+            return Self::identity();
+        }
+
+        // Nearly anti-parallel: 180° about any perpendicular axis
+        if dot < -(T::one() - T::epsilon()) {
+            // Find a perpendicular axis
+            let perp = if a[0].abs() < T::from(0.9).unwrap() {
+                Vector3::from_array([T::one(), T::zero(), T::zero()])
+            } else {
+                Vector3::from_array([T::zero(), T::one(), T::zero()])
+            };
+            let axis = a.cross(&perp).normalize();
+            return Self {
+                w: T::zero(),
+                x: axis[0],
+                y: axis[1],
+                z: axis[2],
+            };
+        }
+
+        // General case: q = [1 + dot, cross] normalized
+        let w = T::one() + dot;
+        let q = Self {
+            w,
+            x: cross[0],
+            y: cross[1],
+            z: cross[2],
+        };
+        q.normalize()
+    }
+
     pub fn from_axis_angle(axis: Vector3<T>, angle: T) -> Self {
         let half = angle / (T::one() + T::one());
         let (s, c) = half.sin_cos();
@@ -673,6 +729,47 @@ mod tests {
         assert_eq!(q.x, 0.0);
         assert_eq!(q.y, 0.0);
         assert_eq!(q.z, 0.0);
+    }
+
+    #[test]
+    fn rotation_between_orthogonal() {
+        let x = Vector3::from_array([1.0, 0.0, 0.0]);
+        let y = Vector3::from_array([0.0, 1.0, 0.0]);
+        let q = Quaternion::rotation_between(x, y);
+        let r = q * x;
+        assert!(approx_eq(r[0], 0.0));
+        assert!(approx_eq(r[1], 1.0));
+        assert!(approx_eq(r[2], 0.0));
+    }
+
+    #[test]
+    fn rotation_between_parallel() {
+        let a = Vector3::from_array([1.0, 0.0, 0.0]);
+        let q = Quaternion::rotation_between(a, a);
+        assert!(quat_approx_eq(&q, &Quaternion::identity()));
+    }
+
+    #[test]
+    fn rotation_between_antiparallel() {
+        let a = Vector3::from_array([1.0, 0.0, 0.0]);
+        let b = Vector3::from_array([-1.0, 0.0, 0.0]);
+        let q = Quaternion::rotation_between(a, b);
+        let r = q * a;
+        assert!(approx_eq(r[0], -1.0));
+        assert!(approx_eq(r[1], 0.0));
+        assert!(approx_eq(r[2], 0.0));
+    }
+
+    #[test]
+    fn rotation_between_arbitrary() {
+        let a = Vector3::from_array([1.0, 2.0, 3.0]);
+        let b = Vector3::from_array([-2.0, 1.0, 0.5]);
+        let q = Quaternion::rotation_between(a, b);
+        let r = q * a.normalize();
+        let bn = b.normalize();
+        assert!(approx_eq(r[0], bn[0]));
+        assert!(approx_eq(r[1], bn[1]));
+        assert!(approx_eq(r[2], bn[2]));
     }
 
     #[test]
