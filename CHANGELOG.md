@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.7
+
+- **Binary search interpolation** — dense output `interpolate` now uses `partition_point`
+  for O(log n) step lookup instead of O(n) linear scan.
+- **`interpolate_batch`** — new method for interpolating at multiple sorted time points
+  in a single O(n+m) pass, avoiding repeated binary searches.
+
 ## 0.5.6
 
 - **`Quaternion::rotation_between(a, b)`** — shortest-arc unit quaternion that rotates

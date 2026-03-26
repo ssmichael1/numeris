@@ -89,7 +89,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
     const C: [f64; STAGES];
     /// Interpolation coefficients (STAGES × NI).
     const BI: [[f64; NI]; STAGES];
-    /// Order of the higher-order method.
+    /// Order of the propagating (higher-order) method, used in the PID step-size controller.
     const ORDER: usize;
     /// First Same As Last optimization.
     const FSAL: bool;
@@ -350,15 +350,16 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             return Err(OdeError::InterpOutOfBounds);
         }
 
-        // Find the step containing t_interp
+        // Find the step containing t_interp via binary search
         let idx = if forward {
-            let mut i = dense.t.iter().position(|&x| x >= t_interp).unwrap_or(dense.t.len());
-            i = i.saturating_sub(1);
-            i
+            // dense.t is ascending; find last step where t[i] <= t_interp
+            let i = dense.t.partition_point(|&x| x <= t_interp);
+            i.saturating_sub(1)
         } else {
-            let mut i = dense.t.iter().position(|&x| x <= t_interp).unwrap_or(dense.t.len());
-            i = i.saturating_sub(1);
-            i
+            // dense.t is descending; partition_point expects [true,..,false]
+            // x >= t_interp is true for early (large) values, false for later (small) ones
+            let i = dense.t.partition_point(|&x| x >= t_interp);
+            i.saturating_sub(1)
         };
 
         let h = dense.h[idx];
@@ -387,5 +388,77 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
         result = result * h;
 
         Ok(result)
+    }
+
+    /// Interpolate the dense output at multiple points in one pass.
+    ///
+    /// `t_interps` must be sorted in the same direction as the integration
+    /// (ascending for forward, descending for backward). This avoids
+    /// repeated binary searches by walking the step index forward.
+    ///
+    /// Requires `std` feature and `dense_output = true` in settings.
+    #[cfg(feature = "std")]
+    fn interpolate_batch<T: FloatScalar, const M: usize, const N: usize>(
+        t_interps: &[T],
+        sol: &Solution<T, M, N>,
+    ) -> Result<Vec<Matrix<T, M, N>>, OdeError> {
+        let dense = sol.dense.as_ref().ok_or(OdeError::NoDenseOutput)?;
+        if dense.t.is_empty() {
+            return Err(OdeError::NoDenseOutput);
+        }
+
+        let forward = sol.t > dense.t[0];
+        let (lo, hi) = if forward {
+            (dense.t[0], sol.t)
+        } else {
+            (sol.t, dense.t[0])
+        };
+
+        let mut results = Vec::with_capacity(t_interps.len());
+        let mut step_idx = 0usize;
+        let n_steps = dense.t.len();
+
+        for &t_interp in t_interps {
+            if t_interp < lo || t_interp > hi {
+                return Err(OdeError::InterpOutOfBounds);
+            }
+
+            // Advance step_idx forward to find the correct step
+            // (assumes t_interps is sorted in the same direction as dense.t)
+            if forward {
+                while step_idx + 1 < n_steps && dense.t[step_idx + 1] <= t_interp {
+                    step_idx += 1;
+                }
+            } else {
+                while step_idx + 1 < n_steps && dense.t[step_idx + 1] >= t_interp {
+                    step_idx += 1;
+                }
+            }
+
+            let h = dense.h[step_idx];
+            let t_frac = (t_interp - dense.t[step_idx]) / h;
+
+            let mut bi = [T::zero(); STAGES];
+            for i in 0..STAGES {
+                let mut tj = T::one();
+                let mut sum = T::zero();
+                for j in 0..NI {
+                    tj = tj * t_frac;
+                    sum = sum + T::from(Self::BI[i][j]).unwrap() * tj;
+                }
+                bi[i] = sum;
+            }
+
+            let mut result = dense.y[step_idx] / h;
+            for (i, ki) in dense.stages[step_idx].iter().enumerate() {
+                if bi[i] != T::zero() {
+                    result = result + *ki * bi[i];
+                }
+            }
+            result = result * h;
+            results.push(result);
+        }
+
+        Ok(results)
     }
 }

@@ -1,6 +1,6 @@
 use super::adaptive::RKAdaptive;
 
-/// Runge-Kutta-Fehlberg 4(5) — 6 stages, order 5(4).
+/// Runge-Kutta-Fehlberg — 6 stages, order 5(4) with local extrapolation.
 pub struct RKF45;
 
 impl RKAdaptive<6, 1> for RKF45 {
@@ -72,6 +72,6 @@ impl RKAdaptive<6, 1> for RKF45 {
         [2.0 / 55.0],
     ];
 
-    const ORDER: usize = 4;
+    const ORDER: usize = 5;
     const FSAL: bool = false;
 }

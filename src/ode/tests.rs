@@ -233,6 +233,64 @@ mod adaptive_tests {
         test_interp::<26, 9, RKV98Efficient>();
     }
 
+    fn test_interp_batch<const N: usize, const NI: usize, S: RKAdaptive<N, NI>>() {
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-12,
+            rel_tol: 1e-12,
+            dense_output: true,
+            ..AdaptiveSettings::default()
+        };
+        let sol = S::integrate(0.0, PI, &y0, ydot, &settings).unwrap();
+
+        // Build sorted array of 101 interpolation times from 0 to PI
+        let times: Vec<f64> = (0..=100).map(|i| PI * (i as f64) / 100.0).collect();
+
+        let batch = S::interpolate_batch(&times, &sol).unwrap();
+        assert_eq!(batch.len(), 101);
+
+        for (i, y_batch) in batch.iter().enumerate() {
+            let t = times[i];
+            // Check against analytic solution
+            assert!((y_batch[0] - t.cos()).abs() < 1e-9,
+                "batch cos mismatch at t={t}: {} vs {}", y_batch[0], t.cos());
+            assert!((y_batch[1] - (-t.sin())).abs() < 1e-9,
+                "batch sin mismatch at t={t}: {} vs {}", y_batch[1], -t.sin());
+
+            // Check that batch matches individual interpolate
+            let y_single = S::interpolate(t, &sol).unwrap();
+            assert!((y_batch[0] - y_single[0]).abs() < 1e-15,
+                "batch vs single mismatch at t={t}");
+            assert!((y_batch[1] - y_single[1]).abs() < 1e-15,
+                "batch vs single mismatch at t={t}");
+        }
+    }
+
+    #[test]
+    fn interp_batch_rkts54() {
+        test_interp_batch::<7, 4, RKTS54>();
+    }
+
+    #[test]
+    fn interp_batch_rkv65() {
+        test_interp_batch::<10, 6, RKV65>();
+    }
+
+    #[test]
+    fn interp_batch_rkv87() {
+        test_interp_batch::<17, 7, RKV87>();
+    }
+
+    #[test]
+    fn interp_batch_rkv98() {
+        test_interp_batch::<21, 8, RKV98>();
+    }
+
+    #[test]
+    fn interp_batch_rkv98_efficient() {
+        test_interp_batch::<26, 9, RKV98Efficient>();
+    }
+
     #[test]
     fn interp_nointerp_returns_error() {
         let y0 = Vector::from_array([1.0_f64, 0.0]);
