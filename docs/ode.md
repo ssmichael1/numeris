@@ -2,7 +2,7 @@
 
 numeris provides fixed-step and adaptive ODE integrators for non-stiff and stiff systems. All explicit solvers work on `Matrix<T, M, N>` states (including `Vector<T, N>` = `Matrix<T, N, 1>`) with closure-based dynamics functions — enabling both vector ODE and matrix ODE integration (e.g., state transition matrices, matrix Riccati equations). Rosenbrock (stiff) solvers operate on vector states only.
 
-Requires the `ode` feature (default).
+Requires the `ode` feature.
 
 ## Fixed-Step RK4
 

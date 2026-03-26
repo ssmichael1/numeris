@@ -9,11 +9,11 @@ Add numeris to your `Cargo.toml`:
 numeris = "0.5"
 ```
 
-The default features include `std` and `ode`. To enable additional modules, list them explicitly:
+The default feature is `std` (which implies `alloc`). To enable additional modules, list them explicitly:
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", features = ["optim", "control", "estimate", "interp", "special", "stats", "complex"] }
+numeris = { version = "0.5", features = ["ode", "optim", "control", "estimate", "interp", "special", "stats", "complex"] }
 
 # Or enable everything at once:
 numeris = { version = "0.5", features = ["all"] }
@@ -25,7 +25,7 @@ numeris = { version = "0.5", features = ["all"] }
 |---|---|---|
 | `std` | **yes** | Implies `alloc`. Uses hardware FPU via system libm. Full float speed. |
 | `alloc` | via `std` | Enables `DynMatrix` / `DynVector` (heap-allocated, runtime-sized). |
-| `ode` | **yes** | ODE integration — RK4, 7 adaptive solvers, RODAS4 stiff solver. |
+| `ode` | no | ODE integration — RK4, 7 adaptive solvers, RODAS4 stiff solver. |
 | `optim` | no | Optimization — root finding, BFGS, Gauss-Newton, Levenberg-Marquardt. |
 | `control` | no | Digital IIR filters (Butterworth, Chebyshev Type I) and PID controller. |
 | `estimate` | no | State estimation — EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ. Implies `alloc`. |
@@ -42,7 +42,7 @@ numeris = { version = "0.5", features = ["all"] }
 ## Build Variants
 
 ```bash
-# Default (std + ode)
+# Default (std only — matrix, linalg, quaternion)
 cargo build
 
 # All features — the kitchen sink

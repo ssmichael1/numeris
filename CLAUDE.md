@@ -64,7 +64,7 @@ Checked items are implemented; unchecked are potential future work.
 - **`std`** (default) — implies `alloc`. Enables `num-traits/std`, so float math (`sin`, `sqrt`, etc.)
   uses the system's native libm backed by hardware FPU. Full speed on desktop/server.
 - **`alloc`** — enables `DynMatrix` and `DynVector` (heap-allocated, runtime-sized). Implied by `std`.
-- **`ode`** (default) — ODE integration module (RK4, adaptive solvers).
+- **`ode`** — ODE integration module (RK4, adaptive solvers).
 - **`optim`** — Optimization module (root finding, BFGS, Gauss-Newton, Levenberg-Marquardt).
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).

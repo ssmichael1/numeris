@@ -422,7 +422,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 |---|---|---|
 | `std` | yes | Implies `alloc`. Uses hardware FPU via system libm. |
 | `alloc` | via `std` | Enables `DynMatrix` / `DynVector` (heap-allocated, runtime-sized). |
-| `ode` | yes | ODE integration (RK4, adaptive solvers). |
+| `ode` | no | ODE integration (RK4, adaptive solvers). |
 | `optim` | no | Optimization (root finding, BFGS, Gauss-Newton, LM). |
 | `control` | no | Digital IIR filters, PID controller, lead/lag compensators, PID tuning. |
 | `estimate` | no | State estimation (EKF, UKF, SR-UKF, CKF, RTS, batch LSQ). Implies `alloc`. |
@@ -436,7 +436,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `all` | no | All features. |
 
 ```bash
-# Default (std + ode)
+# Default (std only — matrix, linalg, quaternion)
 cargo build
 
 # All features
