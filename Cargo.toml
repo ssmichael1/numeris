@@ -28,6 +28,7 @@ all = [
     "control",
     "complex",
     "interp",
+    "imageproc",
     "estimate",
     "special",
     "stats",
@@ -37,6 +38,7 @@ all = [
 control = []
 estimate = ["alloc"]
 interp = []
+imageproc = ["alloc"]
 alloc = []
 ode = []
 optim = []

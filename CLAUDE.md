@@ -14,6 +14,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
+- [x] **imageproc** — 2D image processing (convolution, separable filters, Gaussian/box blur, Sobel gradients)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
@@ -69,6 +70,7 @@ Checked items are implemented; unchecked are potential future work.
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
+- **`imageproc`** — 2D image processing on `DynMatrix` (convolution, separable filters, Gaussian/box blur, Sobel gradients, border modes). Implies `alloc`.
 - **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
 - **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
@@ -152,6 +154,18 @@ src/
 │   ├── lagrange.rs     # LagrangeInterp<T, N> + DynLagrangeInterp<T> (barycentric)
 │   ├── spline.rs       # CubicSpline<T, N> + DynCubicSpline<T> (natural BCs, Thomas algorithm)
 │   ├── bilinear.rs     # BilinearInterp<T, NX, NY> + DynBilinearInterp<T> (2D rectangular grid)
+│   └── tests.rs        # comprehensive tests
+├── imageproc/          # (requires `imageproc` feature, implies `alloc`)
+│   ├── mod.rs          # ImageError, module decls, re-exports
+│   ├── border.rs       # BorderMode<T> (Zero/Constant/Replicate/Reflect), fetch_border
+│   ├── kernels.rs      # gaussian_kernel_1d, box_kernel_1d, sobel/scharr/laplacian 3x3
+│   ├── convolve.rs     # convolve2d (dense, any MatrixRef kernel), convolve2d_separable (column-wise SIMD AXPY)
+│   ├── filters.rs      # gaussian_blur, box_blur, sobel/scharr_gradients, laplacian, laplacian_of_gaussian, unsharp_mask, gradient_magnitude
+│   ├── integral.rs     # integral_image (SAT), integral_rect_sum (O(1) rectangle query)
+│   ├── morphology.rs   # max_filter/min_filter/dilate/erode via Van Herk (O(1) amortized per pixel, ~3 compares)
+│   ├── pool.rs         # median_pool (block-decimating), median_pool_upsampled (pool + bilinear)
+│   ├── rank.rs         # rank/percentile/median_filter (radius 1,2 stack-array fast paths, else quickselect); median_filter_u16 (Huang sliding histogram)
+│   ├── resize.rs       # resize_bilinear (precomputed tables, column-contiguous inner loop)
 │   └── tests.rs        # comprehensive tests
 ├── control/            # (requires `control` feature)
 │   ├── mod.rs          # ControlError, module declarations, re-exports

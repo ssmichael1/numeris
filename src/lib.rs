@@ -83,6 +83,28 @@
 //!   Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires
 //!   `alloc`). Out-of-bounds evaluations extrapolate. Requires `interp` feature.
 //!
+//! - [`imageproc`] — 2D image processing on `DynMatrix` buffers:
+//!   [`imageproc::convolve2d`] (dense kernel, any [`MatrixRef`]),
+//!   [`imageproc::convolve2d_separable`] (1D × 1D passes, column-wise SIMD AXPY),
+//!   [`imageproc::gaussian_blur`], [`imageproc::box_blur`],
+//!   [`imageproc::laplacian`], [`imageproc::laplacian_of_gaussian`],
+//!   [`imageproc::unsharp_mask`], [`imageproc::sobel_gradients`],
+//!   [`imageproc::scharr_gradients`], [`imageproc::gradient_magnitude`],
+//!   [`imageproc::integral_image`] / [`imageproc::integral_rect_sum`]
+//!   (O(1) rectangle sums), [`imageproc::median_filter`] /
+//!   [`imageproc::percentile_filter`] / [`imageproc::rank_filter`]
+//!   (sliding order-statistic filters, quickselect),
+//!   [`imageproc::median_filter_u16`] (Huang sliding-histogram median,
+//!   O(H·W·r) for ≤16-bit data), [`imageproc::median_pool`] /
+//!   [`imageproc::median_pool_upsampled`] (block-decimating median, fast
+//!   background estimation), [`imageproc::max_filter`] /
+//!   [`imageproc::min_filter`] / [`imageproc::dilate`] / [`imageproc::erode`]
+//!   (Van Herk sliding min/max, O(1) amortized per pixel),
+//!   [`imageproc::resize_bilinear`], kernel generators
+//!   ([`imageproc::gaussian_kernel_1d`], [`imageproc::sobel_x_3x3`], etc.),
+//!   and [`imageproc::BorderMode`] (Zero / Constant / Replicate / Reflect).
+//!   Requires `imageproc` feature (implies `alloc`).
+//!
 //! - [`special`] — Special functions: [`special::gamma`], [`special::lgamma`],
 //!   [`special::digamma`], [`special::beta`] / [`special::lbeta`],
 //!   regularized incomplete gamma ([`special::gamma_inc`] / [`special::gamma_inc_upper`]),
@@ -131,6 +153,7 @@
 //! | `control` | no       | Digital IIR filters, PID, lead/lag compensators, PID tuning |
 //! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
 //! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline, bilinear 2D) |
+//! | `imageproc` | no     | 2D image processing (convolution, Gaussian/box blur, Sobel). Implies `alloc` |
 //! | `quad`    | no       | Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite rules) |
 //! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma/beta) |
 //! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.) with sampling. Implies `special` |
@@ -162,6 +185,8 @@ pub mod control;
 pub mod estimate;
 #[cfg(feature = "interp")]
 pub mod interp;
+#[cfg(feature = "imageproc")]
+pub mod imageproc;
 #[cfg(feature = "optim")]
 pub mod optim;
 #[cfg(feature = "quad")]
