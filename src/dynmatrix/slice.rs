@@ -20,6 +20,24 @@ impl<T> DynMatrix<T> {
         &mut self.data
     }
 
+    /// Consume the matrix and return the underlying column-major [`Vec<T>`].
+    ///
+    /// Zero-copy — just moves ownership of the backing buffer out. Useful
+    /// when a caller needs to recover an owned `Vec<T>` after passing it
+    /// through numeric routines (e.g. chaining through `gaussian_blur` then
+    /// interpreting the result as a flat pixel buffer).
+    ///
+    /// ```
+    /// use numeris::DynMatrix;
+    /// let m = DynMatrix::from_vec(2, 3, vec![1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// let v = m.into_vec();
+    /// assert_eq!(v, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// ```
+    #[inline]
+    pub fn into_vec(self) -> alloc::vec::Vec<T> {
+        self.data
+    }
+
     /// View column `j` as a slice.
     ///
     /// ```
