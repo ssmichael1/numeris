@@ -209,12 +209,21 @@ let max5 = max_filter(&img, 2, BorderMode::Replicate);
 let min5 = min_filter(&img, 2, BorderMode::Replicate);
 ```
 
-Compose to get opening (erode then dilate) or closing (dilate then erode):
+Prebuilt compositions:
 
 ```rust
-let opened  = dilate(&erode (&img, 2, BorderMode::Replicate), 2, BorderMode::Replicate);
-let closed  = erode (&dilate(&img, 2, BorderMode::Replicate), 2, BorderMode::Replicate);
+use numeris::imageproc::{opening, closing, morphology_gradient, top_hat, black_hat, BorderMode};
+# use numeris::DynMatrix;
+# let img = DynMatrix::<f64>::fill(16, 16, 1.0);
+
+let op   = opening(&img, 2, BorderMode::Replicate);               // erode → dilate
+let cl   = closing(&img, 2, BorderMode::Replicate);               // dilate → erode
+let grad = morphology_gradient(&img, 1, BorderMode::Replicate);   // dilate − erode
+let th   = top_hat(&img, 3, BorderMode::Replicate);               // src − opening
+let bh   = black_hat(&img, 3, BorderMode::Replicate);             // closing − src
 ```
+
+`top_hat` isolates bright features smaller than the structuring element (great for point-source extraction on an uneven background); `black_hat` does the dual for dark features.
 
 ## Integral Image
 
@@ -240,6 +249,124 @@ let s_centre = integral_rect_sum(&sat, 1, 1, 2, 2);  // 5.0
 The SAT is `(H+1) × (W+1)` with a zero-padded first row and column, so rectangle sums reduce to a single four-term inclusion-exclusion:
 `sat[r1, c1] + sat[r0, c0] − sat[r1, c0] − sat[r0, c1]`.
 
+## Local Statistics
+
+Moving-window mean, variance, and standard deviation — **O(1) per pixel** via one integral image for `x` and another for `x²`. Boundary windows clip to the image extent (fewer terms near the edges).
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{local_mean, local_variance, local_stddev};
+
+let img = DynMatrix::<f64>::fill(32, 32, 5.0);
+let mean   = local_mean(&img, 3);
+let var    = local_variance(&img, 3);  // E[x²] − E[x]², clamped ≥ 0
+let stddev = local_stddev(&img, 3);    // sqrt(var)
+```
+
+These power `adaptive_threshold`, local contrast normalization, and noise-floor estimation.
+
+## Multi-Scale
+
+**Difference of Gaussians** — band-pass blob detector, approximates the Laplacian of Gaussian:
+
+```rust
+use numeris::imageproc::{difference_of_gaussians, BorderMode};
+# use numeris::DynMatrix;
+# let img = DynMatrix::<f64>::fill(64, 64, 1.0);
+let dog = difference_of_gaussians(&img, 1.0, 1.6, BorderMode::Replicate);
+```
+
+**Gaussian pyramid** — iterative blur + 2× decimate, useful for multi-scale search:
+
+```rust
+use numeris::imageproc::{gaussian_pyramid, BorderMode};
+# use numeris::DynMatrix;
+# let img = DynMatrix::<f64>::fill(128, 128, 1.0);
+let levels = gaussian_pyramid(&img, 5, 1.0, BorderMode::Replicate);
+// levels[0] is the original (128×128); levels[4] is 8×8.
+```
+
+## Thresholding
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{threshold, threshold_otsu, adaptive_threshold};
+
+let img = DynMatrix::<f64>::fill(32, 32, 0.7);
+
+// Static cutoff.
+let bin = threshold(&img, 0.5);
+
+// Otsu's method — automatic threshold via between-class variance
+// maximization over a 256-bin histogram. Ties in the run of max-variance
+// bins are resolved to the midpoint.
+let t = threshold_otsu(&img);
+
+// Adaptive — each pixel compared against its local mean + offset.
+// Uses the integral image; O(1) per pixel.
+let adapt = adaptive_threshold(&img, 7, 0.02);
+```
+
+## Edge Detection (Canny)
+
+Full five-stage pipeline: Gaussian blur → Sobel → gradient magnitude → non-maximum suppression along the quantized gradient direction → double threshold → hysteresis (8-connectivity, DFS from strong seeds).
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{canny, BorderMode};
+
+let img = DynMatrix::<f64>::fill(64, 64, 0.0);
+let edges = canny(&img, 1.4, 0.05, 0.15, BorderMode::Replicate);
+// edges is a binary {0, 1} image.
+```
+
+Typical parameters: `sigma ≈ 1.0–1.6`, `high ≈ 3·low`.
+
+## Corner Detection
+
+**Harris** — `det(M) − k·trace(M)²` on the Gaussian-smoothed structure tensor. Positive for corners, negative for edges, ~0 for flat regions.
+
+**Shi-Tomasi** — the smaller eigenvalue `min(λ₁, λ₂)` of the same structure tensor. More selective than Harris for corners vs. edges.
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{harris_corners, shi_tomasi_corners, BorderMode};
+
+let img = DynMatrix::<f64>::fill(64, 64, 0.0);
+let harris = harris_corners(&img, 1.0, 0.05, BorderMode::Replicate);
+let tomasi = shi_tomasi_corners(&img, 1.0, BorderMode::Replicate);
+```
+
+Both return a raw response map — threshold it and run your own peak finder (e.g. a local-maximum pass) to get corner positions.
+
+## Geometric Utilities
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{
+    flip_horizontal, flip_vertical, rotate_90, rotate_180, rotate_270,
+    pad, crop, resize_nearest, BorderMode,
+};
+
+let img = DynMatrix::<f64>::zeros(4, 6);
+
+let fh = flip_horizontal(&img);
+let fv = flip_vertical(&img);
+let r  = rotate_90(&img);    // 4×6 → 6×4
+let r2 = rotate_180(&img);
+let r3 = rotate_270(&img);
+
+// Pad by 2 pixels on all sides using the border mode.
+let padded = pad(&img, 2, 2, 2, 2, BorderMode::Replicate);
+
+// Crop a subregion [top, left, height, width].
+let cropped = crop(&img, 1, 1, 2, 3);
+
+// Nearest-neighbour resize — use for masks / label maps where bilinear
+// would corrupt discrete values.
+let mask_up = resize_nearest(&img, 8, 12);
+```
+
 ## Bilinear Resize
 
 Pixel-center coordinate convention, matching OpenCV's default `INTER_LINEAR`:
@@ -260,15 +387,24 @@ Per-axis interpolation indices and fractional weights are precomputed; the inner
 | Task | Radius | Best option |
 |---|---|---|
 | Smoothing (low-noise) | any | `gaussian_blur` |
-| Mean filter | any | `box_blur` (separable) |
+| Mean filter | any | `box_blur` (separable) or `local_mean` (integral, O(1)/px) |
 | Salt-and-pepper denoise, float | ≤ 2 | `median_filter` (stack-array fast path) |
 | Salt-and-pepper denoise, float | ≥ 3 | `median_filter` (quickselect) |
 | Salt-and-pepper denoise, ≤16-bit int | any | `median_filter_u16` (Huang) |
 | Smooth background map | any | `median_pool_upsampled` |
 | Grayscale morphology | any | `dilate` / `erode` (Van Herk) |
 | Arbitrary percentile | any | `percentile_filter` |
+| Local variance / std | any | `local_variance` / `local_stddev` |
+| Binary thresholding | — | `threshold` / `threshold_otsu` / `adaptive_threshold` |
+| Edge detection | — | `sobel_gradients` + `gradient_magnitude`, or `canny` for thinned binary edges |
+| Corner detection | — | `harris_corners` / `shi_tomasi_corners` |
+| Blob detection | — | `difference_of_gaussians` / `laplacian_of_gaussian` |
+| Bright-spot isolation | — | `top_hat` |
+| Multi-scale search | — | `gaussian_pyramid` |
 | Rectangle sums | — | `integral_image` + `integral_rect_sum` |
-| Geometric resize | — | `resize_bilinear` |
+| Bilinear resize | — | `resize_bilinear` |
+| Nearest-neighbour resize (masks) | — | `resize_nearest` |
+| Flip / rotate 90° / pad / crop | — | `flip_*` / `rotate_*` / `pad` / `crop` |
 
 ## Background Subtraction
 

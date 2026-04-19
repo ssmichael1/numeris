@@ -41,20 +41,28 @@
 //! ```
 
 mod border;
+mod canny;
 mod convolve;
+mod corners;
 mod filters;
+mod geometric;
 mod integral;
 mod kernels;
+mod local_stats;
+mod multiscale;
 mod morphology;
 mod pool;
 mod rank;
 mod resize;
+mod threshold;
 
 #[cfg(test)]
 mod tests;
 
 pub use border::{fetch_border, BorderMode};
+pub use canny::canny;
 pub use convolve::{convolve2d, convolve2d_separable};
+pub use corners::{harris_corners, shi_tomasi_corners};
 pub use filters::{
     box_blur, gaussian_blur, gradient_magnitude, laplacian, laplacian_of_gaussian,
     scharr_gradients, sobel_gradients, unsharp_mask,
@@ -64,10 +72,19 @@ pub use kernels::{
     box_kernel_1d, gaussian_kernel_1d, laplacian_3x3, laplacian_3x3_diag, scharr_x_3x3,
     scharr_y_3x3, sobel_x_3x3, sobel_y_3x3,
 };
-pub use morphology::{dilate, erode, max_filter, min_filter};
+pub use geometric::{
+    crop, flip_horizontal, flip_vertical, pad, resize_nearest, rotate_180, rotate_270, rotate_90,
+};
+pub use local_stats::{local_mean, local_stddev, local_variance};
+pub use multiscale::{difference_of_gaussians, gaussian_pyramid};
+pub use morphology::{
+    black_hat, closing, dilate, erode, max_filter, min_filter, morphology_gradient, opening,
+    top_hat,
+};
 pub use pool::{median_pool, median_pool_upsampled};
 pub use rank::{median_filter, median_filter_u16, percentile_filter, rank_filter};
 pub use resize::resize_bilinear;
+pub use threshold::{adaptive_threshold, threshold, threshold_otsu};
 
 /// Errors from image processing operations.
 #[derive(Debug, Clone, Copy, PartialEq)]

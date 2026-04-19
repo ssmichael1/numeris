@@ -768,6 +768,280 @@ fn median_radius_1_small_image_fallback() {
     }
 }
 
+// ── Morphology compositions ────────────────────────────────────────────
+
+#[test]
+fn opening_removes_small_bright_feature() {
+    // A single bright pixel on a dark background — 3×3 opening should remove it.
+    let mut img = DynMatrix::<f64>::zeros(9, 9);
+    img[(4, 4)] = 1.0;
+    let out = opening(&img, 1, BorderMode::Zero);
+    for i in 0..9 { for j in 0..9 { assert_eq!(out[(i, j)], 0.0); } }
+}
+
+#[test]
+fn closing_fills_small_dark_hole() {
+    // A single dark pixel in a bright background — 3×3 closing fills it.
+    let mut img = DynMatrix::<f64>::fill(9, 9, 1.0);
+    img[(4, 4)] = 0.0;
+    let out = closing(&img, 1, BorderMode::Replicate);
+    assert_eq!(out[(4, 4)], 1.0);
+}
+
+#[test]
+fn morphology_gradient_highlights_boundary() {
+    // Sharp step image — gradient should be nonzero around the step.
+    let mut img = DynMatrix::<f64>::zeros(9, 9);
+    for i in 0..9 { for j in 5..9 { img[(i, j)] = 1.0; } }
+    let g = morphology_gradient(&img, 1, BorderMode::Replicate);
+    // Columns adjacent to the step have nonzero response; deep interior is zero.
+    assert!(g[(4, 4)] > 0.0);
+    assert_eq!(g[(4, 0)], 0.0);
+    assert_eq!(g[(4, 8)], 0.0);
+}
+
+#[test]
+fn top_hat_isolates_bright_spike() {
+    let mut img = DynMatrix::<f64>::fill(11, 11, 5.0);
+    img[(5, 5)] = 20.0;
+    let t = top_hat(&img, 1, BorderMode::Replicate);
+    // Background goes to zero; the spike location retains the difference.
+    for i in 0..11 { for j in 0..11 {
+        if (i, j) == (5, 5) { assert!(t[(i, j)] > 0.0); }
+        else { assert_eq!(t[(i, j)], 0.0); }
+    }}
+}
+
+#[test]
+fn black_hat_isolates_dark_spike() {
+    let mut img = DynMatrix::<f64>::fill(11, 11, 5.0);
+    img[(5, 5)] = 0.0;
+    let b = black_hat(&img, 1, BorderMode::Replicate);
+    assert!(b[(5, 5)] > 0.0);
+}
+
+// ── Geometric ─────────────────────────────────────────────────────────
+
+#[test]
+fn flip_horizontal_reverses_cols() {
+    let img = DynMatrix::from_rows(2, 3, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    let f = flip_horizontal(&img);
+    assert_eq!(f[(0, 0)], 3.0);
+    assert_eq!(f[(0, 2)], 1.0);
+    assert_eq!(f[(1, 0)], 6.0);
+    assert_eq!(f[(1, 2)], 4.0);
+}
+
+#[test]
+fn flip_vertical_reverses_rows() {
+    let img = DynMatrix::from_rows(2, 3, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    let f = flip_vertical(&img);
+    assert_eq!(f[(0, 0)], 4.0);
+    assert_eq!(f[(1, 2)], 3.0);
+}
+
+#[test]
+fn rotate_90_180_270_and_back() {
+    let img = DynMatrix::from_rows(2, 3, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    let r1 = rotate_90(&img);
+    let r2 = rotate_180(&img);
+    let r3 = rotate_270(&img);
+    assert_eq!(r1.nrows(), 3); assert_eq!(r1.ncols(), 2);
+    assert_eq!(r2.nrows(), 2); assert_eq!(r2.ncols(), 3);
+    assert_eq!(r3.nrows(), 3); assert_eq!(r3.ncols(), 2);
+
+    // Known value checks for rotate_90 clockwise of
+    //   1 2 3
+    //   4 5 6
+    // is
+    //   4 1
+    //   5 2
+    //   6 3
+    assert_eq!(r1[(0, 0)], 4.0);
+    assert_eq!(r1[(0, 1)], 1.0);
+    assert_eq!(r1[(2, 1)], 3.0);
+
+    // rotate_180 is element reversal.
+    assert_eq!(r2[(0, 0)], 6.0);
+    assert_eq!(r2[(1, 2)], 1.0);
+
+    // rotate_90(rotate_270(x)) == x
+    let back = rotate_90(&rotate_270(&img));
+    for i in 0..2 { for j in 0..3 { assert_eq!(back[(i, j)], img[(i, j)]); } }
+}
+
+#[test]
+fn pad_adds_border_pixels() {
+    let img = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+    let p = pad(&img, 1, 1, 1, 1, BorderMode::Zero);
+    assert_eq!(p.nrows(), 4); assert_eq!(p.ncols(), 4);
+    // Corners are border, middle 2×2 is the original.
+    assert_eq!(p[(0, 0)], 0.0);
+    assert_eq!(p[(1, 1)], 1.0);
+    assert_eq!(p[(2, 2)], 4.0);
+    assert_eq!(p[(3, 3)], 0.0);
+}
+
+#[test]
+fn pad_replicate_extends_edges() {
+    let img = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
+    let p = pad(&img, 1, 1, 1, 1, BorderMode::Replicate);
+    // Edges extend the nearest pixel.
+    assert_eq!(p[(0, 0)], 1.0);
+    assert_eq!(p[(0, 3)], 2.0);
+    assert_eq!(p[(3, 0)], 3.0);
+    assert_eq!(p[(3, 3)], 4.0);
+}
+
+#[test]
+fn crop_extracts_subregion() {
+    let img = DynMatrix::from_fn(4, 5, |i, j| (i * 10 + j) as f64);
+    let c = crop(&img, 1, 2, 2, 3);
+    assert_eq!(c.nrows(), 2); assert_eq!(c.ncols(), 3);
+    assert_eq!(c[(0, 0)], 12.0); // img[(1, 2)]
+    assert_eq!(c[(1, 2)], 24.0); // img[(2, 4)]
+}
+
+#[test]
+fn resize_nearest_preserves_discrete_labels() {
+    // Discrete labels that bilinear would corrupt must stay integral.
+    let img = DynMatrix::<f64>::from_fn(2, 2, |i, j| (i * 2 + j) as f64);
+    let up = resize_nearest(&img, 4, 4);
+    for i in 0..4 {
+        for j in 0..4 {
+            let v = up[(i, j)];
+            assert_eq!(v, v.round(), "non-integer value {v} at ({i},{j})");
+        }
+    }
+}
+
+// ── Local stats ────────────────────────────────────────────────────────
+
+#[test]
+fn local_mean_on_constant() {
+    let img = DynMatrix::<f64>::fill(10, 10, 7.0);
+    let m = local_mean(&img, 2);
+    for i in 0..10 { for j in 0..10 { assert!((m[(i, j)] - 7.0).abs() < 1e-12); } }
+}
+
+#[test]
+fn local_variance_constant_is_zero() {
+    let img = DynMatrix::<f64>::fill(8, 8, 3.5);
+    let v = local_variance(&img, 1);
+    for i in 0..8 { for j in 0..8 { assert!(v[(i, j)] < 1e-12); } }
+}
+
+#[test]
+fn local_stddev_matches_sqrt_variance() {
+    let img = DynMatrix::from_fn(8, 8, |i, j| ((i * 7 + j * 3) % 11) as f64);
+    let v = local_variance(&img, 1);
+    let s = local_stddev(&img, 1);
+    for i in 0..8 { for j in 0..8 {
+        assert!((s[(i, j)] - v[(i, j)].sqrt()).abs() < 1e-10);
+    }}
+}
+
+// ── DoG / pyramid ──────────────────────────────────────────────────────
+
+#[test]
+fn dog_on_constant_is_zero() {
+    let img = DynMatrix::<f64>::fill(24, 24, 4.0);
+    let d = difference_of_gaussians(&img, 1.0, 1.6, BorderMode::Replicate);
+    for i in 3..21 { for j in 3..21 { assert!(d[(i, j)].abs() < 1e-10); } }
+}
+
+#[test]
+fn gaussian_pyramid_halves_sizes() {
+    let img = DynMatrix::<f64>::fill(64, 64, 1.0);
+    let pyr = gaussian_pyramid(&img, 4, 1.0, BorderMode::Replicate);
+    assert_eq!(pyr.len(), 4);
+    assert_eq!(pyr[0].nrows(), 64);
+    assert_eq!(pyr[1].nrows(), 32);
+    assert_eq!(pyr[2].nrows(), 16);
+    assert_eq!(pyr[3].nrows(), 8);
+}
+
+// ── Thresholding ───────────────────────────────────────────────────────
+
+#[test]
+fn threshold_binary() {
+    let img = DynMatrix::from_rows(2, 2, &[0.0_f64, 0.5, 1.0, 1.5]);
+    let out = threshold(&img, 0.75);
+    assert_eq!(out[(0, 0)], 0.0);
+    assert_eq!(out[(0, 1)], 0.0);
+    assert_eq!(out[(1, 0)], 1.0);
+    assert_eq!(out[(1, 1)], 1.0);
+}
+
+#[test]
+fn threshold_otsu_bimodal() {
+    // Bimodal image: one cluster near 1.0, another near 10.0.
+    // Otsu should pick a threshold in between.
+    let img = DynMatrix::from_fn(16, 16, |i, j| {
+        if (i * 16 + j) % 2 == 0 { 1.0_f64 } else { 10.0 }
+    });
+    let t = threshold_otsu(&img);
+    assert!(t > 1.5 && t < 9.5, "Otsu threshold out of expected band: {t}");
+}
+
+#[test]
+fn adaptive_threshold_responds_to_local_brightness() {
+    // Gradient background + isolated bright spot — adaptive threshold
+    // should pick up the spot even though a global threshold at half-max
+    // would miss it.
+    let img = DynMatrix::from_fn(17, 17, |_i, j| j as f64);
+    let mut img = img;
+    img[(8, 8)] = 100.0;
+    let out = adaptive_threshold(&img, 3, 5.0);
+    assert_eq!(out[(8, 8)], 1.0);
+}
+
+// ── Canny ──────────────────────────────────────────────────────────────
+
+#[test]
+fn canny_on_step_produces_edge() {
+    // Vertical step between columns 15 and 16 — a single clean edge column
+    // should survive Canny's pipeline.
+    let mut img = DynMatrix::<f64>::zeros(32, 32);
+    for i in 0..32 { for j in 16..32 { img[(i, j)] = 1.0; } }
+    let edges = canny(&img, 1.0, 0.05, 0.15, BorderMode::Replicate);
+    // Some edge pixels exist near the step in the middle rows.
+    let mut edge_count = 0;
+    for i in 8..24 { for j in 14..18 { if edges[(i, j)] > 0.5 { edge_count += 1; } } }
+    assert!(edge_count > 8, "expected > 8 edge pixels in the centre strip, got {edge_count}");
+}
+
+#[test]
+fn canny_on_constant_is_empty() {
+    let img = DynMatrix::<f64>::fill(16, 16, 5.0);
+    let edges = canny(&img, 1.0, 0.05, 0.15, BorderMode::Replicate);
+    for i in 0..16 { for j in 0..16 { assert_eq!(edges[(i, j)], 0.0); } }
+}
+
+// ── Harris / Shi-Tomasi ────────────────────────────────────────────────
+
+#[test]
+fn harris_detects_square_corners() {
+    let mut img = DynMatrix::<f64>::fill(32, 32, 0.0);
+    for i in 10..22 { for j in 10..22 { img[(i, j)] = 1.0; } }
+    let r = harris_corners(&img, 1.0, 0.05, BorderMode::Replicate);
+    // Corners should have a stronger response than flat interior or edge interior.
+    let corner = r[(10, 10)].max(r[(11, 11)]);
+    let flat = r[(16, 16)].abs();
+    let edge = r[(10, 16)].abs(); // on the top edge, not at a corner
+    assert!(corner > flat, "corner={corner}, flat={flat}");
+    assert!(corner > edge, "corner={corner}, edge={edge}");
+}
+
+#[test]
+fn shi_tomasi_nonnegative() {
+    let img = DynMatrix::from_fn(16, 16, |i, j| ((i * 3 + j * 5) % 7) as f64);
+    let r = shi_tomasi_corners(&img, 1.0, BorderMode::Replicate);
+    for i in 0..16 { for j in 0..16 {
+        assert!(r[(i, j)] >= 0.0, "negative response {} at ({i},{j})", r[(i, j)]);
+    }}
+}
+
 #[test]
 fn median_pool_rejects_sparse_bright_sources() {
     // A dark background with a handful of bright pixels — block median

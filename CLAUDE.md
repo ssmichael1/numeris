@@ -161,11 +161,17 @@ src/
 │   ├── kernels.rs      # gaussian_kernel_1d, box_kernel_1d, sobel/scharr/laplacian 3x3
 │   ├── convolve.rs     # convolve2d (dense, any MatrixRef kernel), convolve2d_separable (column-wise SIMD AXPY)
 │   ├── filters.rs      # gaussian_blur, box_blur, sobel/scharr_gradients, laplacian, laplacian_of_gaussian, unsharp_mask, gradient_magnitude
+│   ├── geometric.rs    # flip_horizontal/vertical, rotate_90/180/270, pad (BorderMode-aware), crop, resize_nearest
 │   ├── integral.rs     # integral_image (SAT), integral_rect_sum (O(1) rectangle query)
-│   ├── morphology.rs   # max_filter/min_filter/dilate/erode via Van Herk (O(1) amortized per pixel, ~3 compares)
+│   ├── local_stats.rs  # local_mean, local_variance, local_stddev via integral images (O(1) per pixel)
+│   ├── morphology.rs   # max/min_filter, dilate/erode (Van Herk O(1) amortized); opening, closing, morphology_gradient, top_hat, black_hat
+│   ├── multiscale.rs   # difference_of_gaussians, gaussian_pyramid (blur + 2× decimate)
 │   ├── pool.rs         # median_pool (block-decimating), median_pool_upsampled (pool + bilinear)
 │   ├── rank.rs         # rank/percentile/median_filter (radius 1,2 stack-array fast paths, else quickselect); median_filter_u16 (Huang sliding histogram)
 │   ├── resize.rs       # resize_bilinear (precomputed tables, column-contiguous inner loop)
+│   ├── threshold.rs    # threshold (binary), threshold_otsu (256-bin between-class variance), adaptive_threshold (local mean + offset)
+│   ├── canny.rs        # Canny edge detector (Gaussian → Sobel → NMS → double threshold → hysteresis)
+│   ├── corners.rs      # harris_corners, shi_tomasi_corners (structure tensor + response)
 │   └── tests.rs        # comprehensive tests
 ├── control/            # (requires `control` feature)
 │   ├── mod.rs          # ControlError, module declarations, re-exports

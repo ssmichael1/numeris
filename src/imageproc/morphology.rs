@@ -65,6 +65,89 @@ pub fn erode<T: FloatScalar>(
     min_filter(src, radius, border)
 }
 
+/// Morphological **opening**: erosion followed by dilation with the same
+/// structuring element. Removes bright features smaller than the structuring
+/// element while preserving the shape of larger ones.
+pub fn opening<T: FloatScalar>(
+    src: &DynMatrix<T>,
+    radius: usize,
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
+    let eroded = erode(src, radius, border);
+    dilate(&eroded, radius, border)
+}
+
+/// Morphological **closing**: dilation followed by erosion. Fills dark holes
+/// and gaps smaller than the structuring element.
+pub fn closing<T: FloatScalar>(
+    src: &DynMatrix<T>,
+    radius: usize,
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
+    let dilated = dilate(src, radius, border);
+    erode(&dilated, radius, border)
+}
+
+/// Morphological **gradient**: `dilate(src) − erode(src)`. Highlights
+/// boundaries — the width of the response scales with the structuring
+/// element radius.
+pub fn morphology_gradient<T: FloatScalar>(
+    src: &DynMatrix<T>,
+    radius: usize,
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
+    let d = dilate(src, radius, border);
+    let e = erode(src, radius, border);
+    let nrows = src.nrows();
+    let ncols = src.ncols();
+    let mut out = DynMatrix::<T>::zeros(nrows, ncols);
+    for j in 0..ncols {
+        for i in 0..nrows {
+            out[(i, j)] = d[(i, j)] - e[(i, j)];
+        }
+    }
+    out
+}
+
+/// **Top-hat** transform: `src − opening(src)`. Isolates bright features
+/// smaller than the structuring element — useful for point-source extraction
+/// on a slowly-varying background.
+pub fn top_hat<T: FloatScalar>(
+    src: &DynMatrix<T>,
+    radius: usize,
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
+    let op = opening(src, radius, border);
+    let nrows = src.nrows();
+    let ncols = src.ncols();
+    let mut out = DynMatrix::<T>::zeros(nrows, ncols);
+    for j in 0..ncols {
+        for i in 0..nrows {
+            out[(i, j)] = src[(i, j)] - op[(i, j)];
+        }
+    }
+    out
+}
+
+/// **Black-hat** transform: `closing(src) − src`. Isolates dark features
+/// smaller than the structuring element.
+pub fn black_hat<T: FloatScalar>(
+    src: &DynMatrix<T>,
+    radius: usize,
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
+    let cl = closing(src, radius, border);
+    let nrows = src.nrows();
+    let ncols = src.ncols();
+    let mut out = DynMatrix::<T>::zeros(nrows, ncols);
+    for j in 0..ncols {
+        for i in 0..nrows {
+            out[(i, j)] = cl[(i, j)] - src[(i, j)];
+        }
+    }
+    out
+}
+
 // ── internal ──────────────────────────────────────────────────────────
 
 #[inline]

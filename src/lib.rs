@@ -83,26 +83,17 @@
 //!   Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires
 //!   `alloc`). Out-of-bounds evaluations extrapolate. Requires `interp` feature.
 //!
-//! - [`imageproc`] — 2D image processing on `DynMatrix` buffers:
-//!   [`imageproc::convolve2d`] (dense kernel, any [`MatrixRef`]),
-//!   [`imageproc::convolve2d_separable`] (1D × 1D passes, column-wise SIMD AXPY),
-//!   [`imageproc::gaussian_blur`], [`imageproc::box_blur`],
-//!   [`imageproc::laplacian`], [`imageproc::laplacian_of_gaussian`],
-//!   [`imageproc::unsharp_mask`], [`imageproc::sobel_gradients`],
-//!   [`imageproc::scharr_gradients`], [`imageproc::gradient_magnitude`],
-//!   [`imageproc::integral_image`] / [`imageproc::integral_rect_sum`]
-//!   (O(1) rectangle sums), [`imageproc::median_filter`] /
-//!   [`imageproc::percentile_filter`] / [`imageproc::rank_filter`]
-//!   (sliding order-statistic filters, quickselect),
-//!   [`imageproc::median_filter_u16`] (Huang sliding-histogram median,
-//!   O(H·W·r) for ≤16-bit data), [`imageproc::median_pool`] /
-//!   [`imageproc::median_pool_upsampled`] (block-decimating median, fast
-//!   background estimation), [`imageproc::max_filter`] /
-//!   [`imageproc::min_filter`] / [`imageproc::dilate`] / [`imageproc::erode`]
-//!   (Van Herk sliding min/max, O(1) amortized per pixel),
-//!   [`imageproc::resize_bilinear`], kernel generators
-//!   ([`imageproc::gaussian_kernel_1d`], [`imageproc::sobel_x_3x3`], etc.),
-//!   and [`imageproc::BorderMode`] (Zero / Constant / Replicate / Reflect).
+//! - [`imageproc`] — 2D image processing on `DynMatrix` buffers. Full
+//!   toolkit: convolution ([`imageproc::convolve2d`],
+//!   [`imageproc::convolve2d_separable`]), blurs / sharpening / gradients /
+//!   Laplacian / LoG, order-statistic filters (quickselect and
+//!   Huang sliding-histogram for u16), morphology (Van Herk max/min plus
+//!   opening / closing / top-hat / black-hat / morphology gradient),
+//!   integral image and local mean / variance / stddev, thresholding
+//!   (binary / Otsu / adaptive), Canny edge detection, Harris and
+//!   Shi-Tomasi corners, difference of Gaussians and Gaussian pyramid,
+//!   geometric utilities (flip, rotate 90°/180°/270°, pad, crop,
+//!   resize bilinear and nearest). See [`imageproc`] module for details.
 //!   Requires `imageproc` feature (implies `alloc`).
 //!
 //! - [`special`] — Special functions: [`special::gamma`], [`special::lgamma`],
