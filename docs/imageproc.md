@@ -162,7 +162,7 @@ At `radius = 1` and `radius = 2`, `median_filter` splits the image into an inter
 
 ### Huang sliding histogram (u16)
 
-For quantized data (8- to 16-bit integer images, e.g. FITS frames), use the `u16` specialization — **O(H·W·r) instead of O(H·W·r²)** via a 65 536-bin histogram that is incrementally updated as the window slides:
+For quantized data (8- to 16-bit integer images), use the `u16` specialization — **O(H·W·r) instead of O(H·W·r²)** via a 65 536-bin histogram that is incrementally updated as the window slides:
 
 ```rust
 use numeris::DynMatrix;
@@ -179,7 +179,7 @@ assert_eq!(out[(32, 32)], 800);
 
 ### Block-median pool (fast, approximate)
 
-For fast smooth background estimation — the common star-tracker use case — `median_pool_upsampled` computes a block-median decimation and bilinear-upsamples back to the original resolution. Dramatically faster than a true sliding median at large radii, at the cost of losing edge localization:
+For fast smooth background estimation, `median_pool_upsampled` computes a block-median decimation and bilinear-upsamples back to the original resolution. Dramatically faster than a true sliding median at large radii, at the cost of losing edge localization:
 
 ```rust
 use numeris::DynMatrix;
@@ -189,7 +189,7 @@ let img = DynMatrix::<f64>::fill(512, 512, 10.0);
 let bg  = median_pool_upsampled(&img, 16);  // 16×16 block median + bilinear
 ```
 
-See the [star-tracker background subtraction](#star-tracker-background-subtraction) example below.
+See the [background subtraction](#background-subtraction) example below.
 
 ## Morphology
 
@@ -270,9 +270,9 @@ Per-axis interpolation indices and fractional weights are precomputed; the inner
 | Rectangle sums | — | `integral_image` + `integral_rect_sum` |
 | Geometric resize | — | `resize_bilinear` |
 
-## Star-Tracker Background Subtraction
+## Background Subtraction
 
-A complete pipeline for isolating bright point sources on a spatially-varying background — the typical star-tracker preprocessing step:
+A pipeline for isolating bright point sources on a spatially-varying background by subtracting a coarse median-pooled estimate:
 
 ![Background subtraction with median_pool_upsampled](includes/plot_imageproc_bgsub.svg)
 
@@ -290,7 +290,7 @@ fn background_subtract(frame: &DynMatrix<f32>) -> DynMatrix<f32> {
 }
 ```
 
-For a 1024×1024 frame with 16×16 blocks: ~4 096 block medians of 256 elements each (≈1 M quickselect ops) + O(H·W) bilinear upsample. Comfortably sub-frame-rate on a typical flight CPU, and much faster than a true sliding median at the same effective radius.
+For a 1024×1024 frame with 16×16 blocks: ~4 096 block medians of 256 elements each (≈1 M quickselect ops) + O(H·W) bilinear upsample. Much faster than a true sliding median at the same effective radius.
 
 !!! note "Sliding vs block median"
-    `median_pool_upsampled` *approximates* a sliding median — outputs are blurred by the bilinear upsample and edges are not strictly preserved. If your pipeline needs the exact salt-and-pepper rejection semantics (e.g., isolated dead pixels on star centroids), use `median_filter_u16` with a small radius and quantize first; if you only need a smooth background subtraction, the pool is far faster.
+    `median_pool_upsampled` *approximates* a sliding median — outputs are blurred by the bilinear upsample and edges are not strictly preserved. If your pipeline needs the exact salt-and-pepper rejection semantics (e.g. isolated dead pixels near a point source), use `median_filter_u16` with a small radius and quantize first; if you only need a smooth background subtraction, the pool is far faster.
