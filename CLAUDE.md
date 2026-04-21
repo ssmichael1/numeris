@@ -14,7 +14,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
-- [x] **imageproc** — 2D image processing (convolution, separable filters, Gaussian/box blur, Sobel gradients)
+- [x] **imageproc** — 2D image processing (filters, morphology, integral image/local stats, multi-scale, thresholding, Canny, corners, geometric)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
@@ -70,7 +70,7 @@ Checked items are implemented; unchecked are potential future work.
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
-- **`imageproc`** — 2D image processing on `DynMatrix` (convolution, separable filters, Gaussian/box blur, Sobel gradients, border modes). Implies `alloc`.
+- **`imageproc`** — 2D image processing on `DynMatrix` (convolution, filters, morphology, integral image / local stats, thresholding, Canny, Harris/Shi-Tomasi corners, DoG / Gaussian pyramid, geometric ops, `BorderMode`). Implies `alloc`.
 - **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
 - **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
@@ -223,6 +223,23 @@ src/
 │   └── tests.rs        # comprehensive tests
 └── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle
 ```
+
+## Pre-Push / Release Checklist
+
+Before merging to `main` (`main` is branch-protected — all changes must land via PR), user-facing
+changes must be reflected in every documentation surface — otherwise the sources drift apart and
+one of them becomes a lie. When adding/removing/renaming a public API, feature flag, module, or
+behavior, update all of the following:
+
+- [ ] **`src/lib.rs`** — crate-level rustdoc: per-module summary bullet, Cargo-features table row, any `pub use` re-exports
+- [ ] **`README.md`** — Features bullet list, Cargo-features table, module `<details>` block, Module plan checkbox
+- [ ] **`CHANGELOG.md`** — new version entry describing the change (match the style of recent entries; bump `Cargo.toml` version if not already bumped)
+- [ ] **`docs/` (mkdocs)** — module page under `docs/` covering the new API, and `mkdocs.yml` nav if a new page was added; regenerate any demo plots in `docs/examples/` whose output changed
+- [ ] **`CLAUDE.md`** — Module Plan, Cargo Features, and File Layout sections (keep module descriptions current, not frozen at the initial commit)
+
+A PR that only updates source code without touching these surfaces is incomplete. The only
+exception is internal-only changes (private helpers, test refactors, SIMD kernel swaps with no
+API impact) — in that case, still consider whether the `CHANGELOG` deserves a line.
 
 ## Current Focus
 

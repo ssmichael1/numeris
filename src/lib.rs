@@ -144,7 +144,7 @@
 //! | `control` | no       | Digital IIR filters, PID, lead/lag compensators, PID tuning |
 //! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
 //! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline, bilinear 2D) |
-//! | `imageproc` | no     | 2D image processing (convolution, Gaussian/box blur, Sobel). Implies `alloc` |
+//! | `imageproc` | no     | 2D image processing: filters, morphology, integral image, thresholding, Canny, corners, DoG, pyramid, geometric. Implies `alloc` |
 //! | `quad`    | no       | Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite rules) |
 //! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma/beta) |
 //! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.) with sampling. Implies `special` |

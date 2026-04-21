@@ -23,6 +23,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
 - **State estimation** — EKF, UKF, Square-Root UKF, Cubature Kalman Filter, RTS smoother, batch least-squares
 - **Interpolation** — linear, Hermite, barycentric Lagrange, natural cubic spline, bilinear (2D)
+- **Image processing** — 2D convolution, Gaussian/box blur, Sobel/Scharr gradients, median/rank filters, morphology (Van Herk), integral image, Otsu/adaptive thresholding, Canny, Harris/Shi-Tomasi corners, Gaussian pyramid
 - **Special functions** — gamma, lgamma, digamma, beta, incomplete gamma/beta, erf/erfc
 - **Statistical distributions** — Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
@@ -427,6 +428,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `control` | no | Digital IIR filters, PID controller, lead/lag compensators, PID tuning. |
 | `estimate` | no | State estimation (EKF, UKF, SR-UKF, CKF, RTS, batch LSQ). Implies `alloc`. |
 | `interp` | no | Interpolation (linear, Hermite, barycentric Lagrange, cubic spline, bilinear). |
+| `imageproc` | no | 2D image processing on `DynMatrix` (filters, morphology, integral image, Canny, corners, geometric). Implies `alloc`. |
 | `special` | no | Special functions (gamma, beta, erf, incomplete gamma/beta, digamma). |
 | `stats` | no | Statistical distributions (Normal, Gamma, Beta, etc.). Implies `special`. |
 | `libm` | baseline | Pure-Rust software float math. Always available as fallback. |
@@ -614,6 +616,23 @@ Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requ
 </details>
 
 <details>
+<summary><b><code>imageproc</code></b> — 2D image processing (requires <code>imageproc</code> feature)</summary>
+
+Operates on `DynMatrix<T>` buffers (column-major, `BorderMode`-aware). Convolution inner loops dispatch through the SIMD dot/AXPY kernels on contiguous column slices. Implies `alloc`.
+
+- **Filtering & convolution**: `convolve2d` (any `MatrixRef` kernel), `convolve2d_separable`, `gaussian_blur`, `box_blur`, `unsharp_mask`, `laplacian`, `laplacian_of_gaussian`, `sobel_gradients`, `scharr_gradients`, `gradient_magnitude`
+- **Order-statistic filters**: `rank_filter`, `percentile_filter`, `median_filter` (quickselect; 3×3/5×5 stack fast paths), `median_filter_u16` (Huang sliding histogram), `median_pool`, `median_pool_upsampled`
+- **Morphology** (Van Herk - Gil-Werman, ~3 compares/pixel): `max_filter`, `min_filter`, `dilate`, `erode`, `opening`, `closing`, `morphology_gradient`, `top_hat`, `black_hat`
+- **Local statistics** via integral image (O(1) per pixel): `integral_image`, `integral_rect_sum`, `local_mean`, `local_variance`, `local_stddev`
+- **Multi-scale**: `difference_of_gaussians`, `gaussian_pyramid`
+- **Thresholding**: `threshold`, `threshold_otsu`, `adaptive_threshold`
+- **Edges & corners**: `canny` (Gaussian → Sobel → NMS → hysteresis), `harris_corners`, `shi_tomasi_corners`
+- **Geometric**: `flip_horizontal`, `flip_vertical`, `rotate_90` / `180` / `270`, `pad`, `crop`, `resize_nearest`, `resize_bilinear`
+- `BorderMode<T>`: `Zero` / `Constant` / `Replicate` / `Reflect`, works with integer images (e.g. `u16`)
+
+</details>
+
+<details>
 <summary><b><code>special</code></b> — Special functions (requires <code>special</code> feature)</summary>
 
 Fully no-std, generic over `FloatScalar` (f32/f64).
@@ -684,6 +703,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
+- [x] **imageproc** — 2D image processing (convolution, filters, morphology, integral image, thresholding, Canny, corners, geometric)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration

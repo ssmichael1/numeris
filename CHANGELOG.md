@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.5.9
+
+- **`imageproc` feature** — 2D image processing on `DynMatrix<T>` buffers, column-major,
+  `BorderMode`-aware (Zero / Constant / Replicate / Reflect), no-std with `alloc`. Convolution
+  inner loops dispatch through the existing SIMD dot/AXPY kernels on contiguous column slices.
+  - **Filtering**: `convolve2d` (any `MatrixRef` kernel), `convolve2d_separable`,
+    `gaussian_blur`, `box_blur`, `unsharp_mask`, `laplacian`, `laplacian_of_gaussian`,
+    `sobel_gradients`, `scharr_gradients`, `gradient_magnitude`.
+  - **Order statistics**: `rank_filter`, `percentile_filter`, `median_filter` (quickselect
+    with 3×3 and 5×5 stack-array fast paths), `median_filter_u16` (Huang sliding histogram,
+    bit-exact vs. quickselect), `median_pool`, `median_pool_upsampled`.
+  - **Morphology** (Van Herk - Gil-Werman, ~3 compares per pixel regardless of radius):
+    `max_filter`, `min_filter`, `dilate`, `erode`, `opening`, `closing`, `morphology_gradient`,
+    `top_hat`, `black_hat`.
+  - **Local statistics** via integral image (O(1) per pixel): `integral_image`,
+    `integral_rect_sum`, `local_mean`, `local_variance`, `local_stddev`.
+  - **Multi-scale**: `difference_of_gaussians`, `gaussian_pyramid`.
+  - **Thresholding**: `threshold`, `threshold_otsu` (256-bin between-class variance),
+    `adaptive_threshold` (local mean + offset).
+  - **Edges & corners**: `canny` (Gaussian → Sobel → NMS → hysteresis),
+    `harris_corners`, `shi_tomasi_corners`.
+  - **Geometric**: `flip_horizontal`, `flip_vertical`, `rotate_90` / `180` / `270`,
+    `pad` (BorderMode-aware), `crop`, `resize_nearest`, `resize_bilinear` (precomputed
+    per-axis tables, column-contiguous inner loop).
+  - Kernel generators: `gaussian_kernel_1d`, `box_kernel_1d`, `sobel_x_3x3` / `sobel_y_3x3`,
+    `scharr_x_3x3` / `scharr_y_3x3`, `laplacian_3x3` / `laplacian_3x3_diag`.
+- **`DynMatrix::into_vec`** — zero-copy extraction of the underlying column-major `Vec<T>`
+  by moving ownership out. Useful for recovering an owned pixel buffer after chaining
+  through numeric routines.
+
 ## 0.5.7
 
 - **Binary search interpolation** — dense output `interpolate` now uses `partition_point`
