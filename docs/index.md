@@ -19,6 +19,8 @@ Numeris API reference is [here](https://docs.rs/numeris/)
 | **Optimization** | Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt |
 | **State Estimation** | EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares |
 | **Interpolation** | Linear, Hermite, Lagrange, cubic spline, bilinear |
+| **Image Processing** | 2D convolution, Gaussian/box blur, Sobel/Scharr gradients, morphology (Van Herk), Canny, Harris/Shi-Tomasi corners, Otsu/adaptive thresholding |
+| **Quadrature** | Gauss-Legendre (N=1–10, 15, 20), adaptive Simpson, composite trapezoid/Simpson |
 | **Special Functions** | gamma, lgamma, digamma, beta, betainc, incomplete gamma, erf |
 | **Statistics** | 10 distributions (Normal, Gamma, Beta, Student's t, Poisson, …) |
 | **Digital Control** | Butterworth/Chebyshev IIR filters, PID controller |
