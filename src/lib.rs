@@ -83,6 +83,19 @@
 //!   Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requires
 //!   `alloc`). Out-of-bounds evaluations extrapolate. Requires `interp` feature.
 //!
+//! - [`imageproc`] — 2D image processing on `DynMatrix` buffers. Full
+//!   toolkit: convolution ([`imageproc::convolve2d`],
+//!   [`imageproc::convolve2d_separable`]), blurs / sharpening / gradients /
+//!   Laplacian / LoG, order-statistic filters (quickselect and
+//!   Huang sliding-histogram for u16), morphology (Van Herk max/min plus
+//!   opening / closing / top-hat / black-hat / morphology gradient),
+//!   integral image and local mean / variance / stddev, thresholding
+//!   (binary / Otsu / adaptive), Canny edge detection, Harris and
+//!   Shi-Tomasi corners, difference of Gaussians and Gaussian pyramid,
+//!   geometric utilities (flip, rotate 90°/180°/270°, pad, crop,
+//!   resize bilinear and nearest). See [`imageproc`] module for details.
+//!   Requires `imageproc` feature (implies `alloc`).
+//!
 //! - [`special`] — Special functions: [`special::gamma`], [`special::lgamma`],
 //!   [`special::digamma`], [`special::beta`] / [`special::lbeta`],
 //!   regularized incomplete gamma ([`special::gamma_inc`] / [`special::gamma_inc_upper`]),
@@ -131,6 +144,7 @@
 //! | `control` | no       | Digital IIR filters, PID, lead/lag compensators, PID tuning |
 //! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
 //! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline, bilinear 2D) |
+//! | `imageproc` | no     | 2D image processing: filters, morphology, integral image, thresholding, Canny, corners, DoG, pyramid, geometric. Implies `alloc` |
 //! | `quad`    | no       | Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite rules) |
 //! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma/beta) |
 //! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.) with sampling. Implies `special` |
@@ -162,6 +176,8 @@ pub mod control;
 pub mod estimate;
 #[cfg(feature = "interp")]
 pub mod interp;
+#[cfg(feature = "imageproc")]
+pub mod imageproc;
 #[cfg(feature = "optim")]
 pub mod optim;
 #[cfg(feature = "quad")]

@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import integrate, interpolate, signal, stats
+from scipy import integrate, interpolate, ndimage, signal, stats
 
 import scienceplots  # noqa: F401 — registers styles
 
@@ -373,6 +373,128 @@ def make_continuous_cdf_plot():
     savefig(fig, "plot_continuous_cdf")
 
 
+# ── Image processing ───────────────────────────────────────────────────────
+
+
+def _synthetic_starfield(h=128, w=128, seed=42):
+    """Astronomy-style synthetic test image: noisy background, Gaussian
+    stars, one small bright rectangle, salt-and-pepper outliers."""
+    rng = np.random.default_rng(seed)
+    bg = 50.0 + rng.normal(0, 6.0, size=(h, w))
+    yy, xx = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
+    stars = [
+        (20, 30, 180, 1.4),
+        (50, 80, 220, 1.1),
+        (90, 20, 160, 1.6),
+        (100, 100, 200, 1.2),
+        (70, 50, 140, 1.3),
+        (35, 105, 170, 1.5),
+    ]
+    img = bg.copy()
+    for cy, cx, amp, sigma in stars:
+        img += amp * np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * sigma ** 2))
+    # Small bright block — makes morphology effects visible.
+    img[103:112, 42:51] = 240
+    # Salt-and-pepper outliers.
+    n_sp = 60
+    ii = rng.integers(0, h, n_sp)
+    jj = rng.integers(0, w, n_sp)
+    vv = rng.choice([0.0, 255.0], size=n_sp)
+    img_sp = img.copy()
+    img_sp[ii, jj] = vv
+    return img, img_sp
+
+
+def make_imageproc_panel():
+    """6-panel showcase: noisy input, Gaussian blur, 3×3 median,
+    Sobel gradient magnitude, dilate, erode. Uses scipy.ndimage as the
+    algorithmic reference — numeris produces the same results."""
+    img_clean, img = _synthetic_starfield()
+
+    gauss = ndimage.gaussian_filter(img, sigma=1.5, mode="nearest")
+    median = ndimage.median_filter(img, size=3, mode="nearest")
+    sx = ndimage.sobel(img_clean, axis=1, mode="nearest")
+    sy = ndimage.sobel(img_clean, axis=0, mode="nearest")
+    grad = np.hypot(sx, sy)
+    dilated = ndimage.grey_dilation(img_clean, size=(5, 5), mode="nearest")
+    eroded = ndimage.grey_erosion(img_clean, size=(5, 5), mode="nearest")
+
+    fig, axes = plt.subplots(2, 3, figsize=(8.5, 5.6))
+    panels = [
+        (img, "Input (noise + salt & pepper)"),
+        (gauss, "gaussian_blur σ=1.5"),
+        (median, "median_filter r=1"),
+        (grad, "sobel + gradient_magnitude"),
+        (dilated, "dilate r=2 (max_filter)"),
+        (eroded, "erode r=2 (min_filter)"),
+    ]
+    for ax, (data, title) in zip(axes.flat, panels):
+        ax.imshow(data, cmap="gray", interpolation="nearest")
+        ax.set_title(title, fontsize=9)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    savefig(fig, "plot_imageproc_panel")
+
+
+def _block_median_pool(img, block):
+    h, w = img.shape
+    h_out = (h + block - 1) // block
+    w_out = (w + block - 1) // block
+    out = np.zeros((h_out, w_out))
+    for bi in range(h_out):
+        for bj in range(w_out):
+            i0 = bi * block
+            i1 = min(i0 + block, h)
+            j0 = bj * block
+            j1 = min(j0 + block, w)
+            out[bi, bj] = np.median(img[i0:i1, j0:j1])
+    return out
+
+
+def make_imageproc_bgsub():
+    """Star-tracker style background subtraction via median_pool_upsampled.
+
+    Input has a slowly-varying illumination gradient plus noise plus several
+    bright point sources. Block-median rejects the sources, bilinear
+    upsample produces a smooth background map, subtraction isolates the
+    sources."""
+    rng = np.random.default_rng(7)
+    h, w = 128, 128
+    yy, xx = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
+    bg_true = 40.0 + 0.35 * yy + 0.15 * xx
+    img = bg_true + rng.normal(0, 2.5, size=(h, w))
+    for _ in range(18):
+        cy = rng.integers(10, h - 10)
+        cx = rng.integers(10, w - 10)
+        amp = rng.uniform(60, 180)
+        img += amp * np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * 1.1 ** 2))
+
+    block = 16
+    pooled = _block_median_pool(img, block)
+    # Bilinear upsample (pixel-center convention).
+    bg_est = ndimage.zoom(
+        pooled,
+        zoom=(h / pooled.shape[0], w / pooled.shape[1]),
+        order=1,
+        mode="nearest",
+    )
+    subtracted = img - bg_est
+
+    fig, axes = plt.subplots(1, 3, figsize=(9, 3.2))
+    for ax, data, title in zip(
+        axes,
+        [img, bg_est, subtracted],
+        ["Input (sources + gradient)", "median_pool_upsampled (block=16)", "Input − background"],
+    ):
+        ax.imshow(data, cmap="gray", interpolation="nearest")
+        ax.set_title(title, fontsize=9)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    savefig(fig, "plot_imageproc_bgsub")
+
+
 # ── main ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -390,5 +512,7 @@ if __name__ == "__main__":
     make_binomial_pmf_plot()
     make_poisson_pmf_plot()
     make_continuous_cdf_plot()
+    make_imageproc_panel()
+    make_imageproc_bgsub()
 
     print("Done.")

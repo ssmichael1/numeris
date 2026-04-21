@@ -14,6 +14,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
+- [x] **imageproc** — 2D image processing (filters, morphology, integral image/local stats, multi-scale, thresholding, Canny, corners, geometric)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
@@ -69,6 +70,7 @@ Checked items are implemented; unchecked are potential future work.
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
+- **`imageproc`** — 2D image processing on `DynMatrix` (convolution, filters, morphology, integral image / local stats, thresholding, Canny, Harris/Shi-Tomasi corners, DoG / Gaussian pyramid, geometric ops, `BorderMode`). Implies `alloc`.
 - **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
 - **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
@@ -153,6 +155,24 @@ src/
 │   ├── spline.rs       # CubicSpline<T, N> + DynCubicSpline<T> (natural BCs, Thomas algorithm)
 │   ├── bilinear.rs     # BilinearInterp<T, NX, NY> + DynBilinearInterp<T> (2D rectangular grid)
 │   └── tests.rs        # comprehensive tests
+├── imageproc/          # (requires `imageproc` feature, implies `alloc`)
+│   ├── mod.rs          # ImageError, module decls, re-exports
+│   ├── border.rs       # BorderMode<T> (Zero/Constant/Replicate/Reflect), fetch_border
+│   ├── kernels.rs      # gaussian_kernel_1d, box_kernel_1d, sobel/scharr/laplacian 3x3
+│   ├── convolve.rs     # convolve2d (dense, any MatrixRef kernel), convolve2d_separable (column-wise SIMD AXPY)
+│   ├── filters.rs      # gaussian_blur, box_blur, sobel/scharr_gradients, laplacian, laplacian_of_gaussian, unsharp_mask, gradient_magnitude
+│   ├── geometric.rs    # flip_horizontal/vertical, rotate_90/180/270, pad (BorderMode-aware), crop, resize_nearest
+│   ├── integral.rs     # integral_image (SAT), integral_rect_sum (O(1) rectangle query)
+│   ├── local_stats.rs  # local_mean, local_variance, local_stddev via integral images (O(1) per pixel)
+│   ├── morphology.rs   # max/min_filter, dilate/erode (Van Herk O(1) amortized); opening, closing, morphology_gradient, top_hat, black_hat
+│   ├── multiscale.rs   # difference_of_gaussians, gaussian_pyramid (blur + 2× decimate)
+│   ├── pool.rs         # median_pool (block-decimating), median_pool_upsampled (pool + bilinear)
+│   ├── rank.rs         # rank/percentile/median_filter (radius 1,2 stack-array fast paths, else quickselect); median_filter_u16 (Huang sliding histogram)
+│   ├── resize.rs       # resize_bilinear (precomputed tables, column-contiguous inner loop)
+│   ├── threshold.rs    # threshold (binary), threshold_otsu (256-bin between-class variance), adaptive_threshold (local mean + offset)
+│   ├── canny.rs        # Canny edge detector (Gaussian → Sobel → NMS → double threshold → hysteresis)
+│   ├── corners.rs      # harris_corners, shi_tomasi_corners (structure tensor + response)
+│   └── tests.rs        # comprehensive tests
 ├── control/            # (requires `control` feature)
 │   ├── mod.rs          # ControlError, module declarations, re-exports
 │   ├── biquad.rs       # Biquad, BiquadCascade, DFII-T tick/process, bilinear transform helpers
@@ -203,6 +223,23 @@ src/
 │   └── tests.rs        # comprehensive tests
 └── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle
 ```
+
+## Pre-Push / Release Checklist
+
+Before merging to `main` (`main` is branch-protected — all changes must land via PR), user-facing
+changes must be reflected in every documentation surface — otherwise the sources drift apart and
+one of them becomes a lie. When adding/removing/renaming a public API, feature flag, module, or
+behavior, update all of the following:
+
+- [ ] **`src/lib.rs`** — crate-level rustdoc: per-module summary bullet, Cargo-features table row, any `pub use` re-exports
+- [ ] **`README.md`** — Features bullet list, Cargo-features table, module `<details>` block, Module plan checkbox
+- [ ] **`CHANGELOG.md`** — new version entry describing the change (match the style of recent entries; bump `Cargo.toml` version if not already bumped)
+- [ ] **`docs/` (mkdocs)** — module page under `docs/` covering the new API, and `mkdocs.yml` nav if a new page was added; regenerate any demo plots in `docs/examples/` whose output changed
+- [ ] **`CLAUDE.md`** — Module Plan, Cargo Features, and File Layout sections (keep module descriptions current, not frozen at the initial commit)
+
+A PR that only updates source code without touching these surfaces is incomplete. The only
+exception is internal-only changes (private helpers, test refactors, SIMD kernel swaps with no
+API impact) — in that case, still consider whether the `CHANGELOG` deserves a line.
 
 ## Current Focus
 

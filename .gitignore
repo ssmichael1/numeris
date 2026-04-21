@@ -6,4 +6,6 @@ Cargo.lock
 .claude
 .DS_Store
 
-benches/*.mdsrc/.serde_impl.rs.swp
+benches/*.md
+src/.serde_impl.rs.swp
+__pycache__/
