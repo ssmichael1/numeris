@@ -453,6 +453,8 @@ pub(crate) fn scale_in_place_dispatch<T: Scalar>(a: &mut [T], scalar: T) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
 
     // ── Dot product boundary tests ─────────────────────────────────
 
