@@ -271,6 +271,8 @@ impl fmt::Write for WriteCounting {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
 
     #[test]
     fn sum() {

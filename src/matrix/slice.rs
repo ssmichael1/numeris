@@ -113,6 +113,8 @@ impl<'a, T, const M: usize, const N: usize> IntoIterator for &'a mut Matrix<T, M
 mod tests {
     use super::*;
     use crate::matrix::vector::Vector;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
 
     #[test]
     fn as_slice_col_major() {
