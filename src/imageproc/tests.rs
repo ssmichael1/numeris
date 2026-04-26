@@ -1042,6 +1042,225 @@ fn shi_tomasi_nonnegative() {
     }}
 }
 
+// ── connected components ───────────────────────────────────────────────
+
+#[test]
+fn cc_empty_image_has_no_components() {
+    let img = DynMatrix::<u8>::zeros(0, 0);
+    let comps = connected_components(&img, Connectivity::Four, 0u8);
+    assert!(comps.is_empty());
+}
+
+#[test]
+fn cc_all_background_has_no_components() {
+    let img = DynMatrix::<u8>::zeros(5, 5);
+    let comps = connected_components(&img, Connectivity::Eight, 0u8);
+    assert!(comps.is_empty());
+}
+
+#[test]
+fn cc_all_foreground_is_single_component() {
+    let img = DynMatrix::<u8>::fill(3, 4, 1);
+    let comps = connected_components(&img, Connectivity::Four, 0u8);
+    assert_eq!(comps.len(), 1);
+    assert_eq!(comps[0].area, 12);
+    assert_eq!(comps[0].bbox_min, (0, 0));
+    assert_eq!(comps[0].bbox_max, (2, 3));
+}
+
+#[test]
+fn cc_two_separated_blobs() {
+    // Two 2×2 blobs with a column of background between them.
+    let img = DynMatrix::<u8>::from_rows(
+        4, 5,
+        &[1, 1, 0, 1, 1,
+          1, 1, 0, 1, 1,
+          0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0],
+    );
+    let comps = connected_components(&img, Connectivity::Four, 0u8);
+    assert_eq!(comps.len(), 2);
+    assert_eq!(comps[0].area, 4);
+    assert_eq!(comps[1].area, 4);
+    assert_eq!(comps[0].bbox_min, (0, 0));
+    assert_eq!(comps[0].bbox_max, (1, 1));
+    assert_eq!(comps[1].bbox_min, (0, 3));
+    assert_eq!(comps[1].bbox_max, (1, 4));
+}
+
+#[test]
+fn cc_4_vs_8_connectivity_diagonal() {
+    // Two pixels touching only diagonally: one component under 8-conn,
+    // two components under 4-conn.
+    let img = DynMatrix::<u8>::from_rows(
+        2, 2,
+        &[1, 0,
+          0, 1],
+    );
+    let c4 = connected_components(&img, Connectivity::Four, 0u8);
+    assert_eq!(c4.len(), 2);
+    let c8 = connected_components(&img, Connectivity::Eight, 0u8);
+    assert_eq!(c8.len(), 1);
+    assert_eq!(c8[0].area, 2);
+}
+
+#[test]
+fn cc_u_shape_requires_equivalence_resolution() {
+    // U-shape: the two legs are first labeled separately during row 0,
+    // then unified at the bottom. Exercises the union-find merge path.
+    let img = DynMatrix::<u8>::from_rows(
+        3, 4,
+        &[1, 0, 0, 1,
+          1, 0, 0, 1,
+          1, 1, 1, 1],
+    );
+    let comps = connected_components(&img, Connectivity::Four, 0u8);
+    assert_eq!(comps.len(), 1);
+    assert_eq!(comps[0].area, 8);
+    assert_eq!(comps[0].bbox_min, (0, 0));
+    assert_eq!(comps[0].bbox_max, (2, 3));
+}
+
+#[test]
+fn cc_component_centroid_and_moments() {
+    // 3×3 solid block at rows 1..4, cols 2..5.
+    let mut img = DynMatrix::<u8>::zeros(6, 8);
+    for r in 1..4 { for c in 2..5 { img[(r, c)] = 1; } }
+    let comps = connected_components(&img, Connectivity::Four, 0u8);
+    assert_eq!(comps.len(), 1);
+    let comp = &comps[0];
+    assert_eq!(comp.area, 9);
+    assert!((comp.centroid.0 - 2.0).abs() < 1e-12);
+    assert!((comp.centroid.1 - 3.0).abs() < 1e-12);
+    // For a 3×3 block centered at (2, 3): Σ(r−2)² = 2·(1+0+1)·3/... compute directly.
+    // Pixels rows {1,2,3} × cols {2,3,4}. Σ(r−2)² = 3·(1+0+1) = 6. Similarly Σ(c−3)² = 6.
+    // Cross: Σ(r−2)(c−3) = 0 (symmetric).
+    assert!((comp.mu20 - 6.0).abs() < 1e-12);
+    assert!((comp.mu02 - 6.0).abs() < 1e-12);
+    assert!(comp.mu11.abs() < 1e-12);
+}
+
+#[test]
+fn cc_area_matches_pixels_inside_bbox() {
+    let img = DynMatrix::<u8>::from_rows(
+        4, 5,
+        &[0, 1, 1, 0, 0,
+          0, 0, 1, 1, 0,
+          0, 0, 0, 1, 0,
+          0, 0, 0, 0, 0],
+    );
+    let (labels, comps) = connected_components_with_label_buffer(
+        &img, Connectivity::Eight, 0u8,
+    );
+    assert_eq!(comps.len(), 1);
+    let c = &comps[0];
+    // Count labeled pixels inside the bbox; must equal area, and every
+    // such pixel must be foreground in the original image.
+    let w = 5usize;
+    let mut counted = 0u32;
+    for r in c.bbox_min.0..=c.bbox_max.0 {
+        for col in c.bbox_min.1..=c.bbox_max.1 {
+            if labels[r as usize * w + col as usize] == 1 {
+                assert_eq!(img[(r as usize, col as usize)], 1);
+                counted += 1;
+            }
+        }
+    }
+    assert_eq!(counted, c.area);
+}
+
+#[test]
+fn cc_labeled_image_consistent_with_components() {
+    let img = DynMatrix::<u8>::from_rows(
+        4, 5,
+        &[1, 1, 0, 2, 2,
+          1, 0, 0, 0, 2,
+          0, 0, 3, 0, 0,
+          0, 0, 0, 0, 4],
+    );
+    let (labels, comps) = connected_components_labeled(&img, Connectivity::Four, 0u8);
+    assert_eq!(comps.len(), 4);
+    // Every background pixel has label 0; every foreground has a non-zero label
+    // matching some component's bbox.
+    for r in 0..4 { for c in 0..5 {
+        if img[(r, c)] == 0 {
+            assert_eq!(labels[(r, c)], 0);
+        } else {
+            let id = labels[(r, c)] as usize;
+            assert!(id >= 1 && id <= comps.len());
+            let comp = &comps[id - 1];
+            assert!(r as u32 >= comp.bbox_min.0 && r as u32 <= comp.bbox_max.0);
+            assert!(c as u32 >= comp.bbox_min.1 && c as u32 <= comp.bbox_max.1);
+        }
+    }}
+}
+
+#[test]
+fn cc_with_label_buffer_matches_labeled_variant() {
+    // Both variants must agree on label IDs (modulo storage layout).
+    let img = DynMatrix::<u8>::from_rows(
+        4, 5,
+        &[1, 1, 0, 2, 2,
+          1, 0, 0, 0, 2,
+          0, 0, 3, 0, 0,
+          0, 0, 0, 0, 4],
+    );
+    let (mat_labels, mat_comps) =
+        connected_components_labeled(&img, Connectivity::Four, 0u8);
+    let (flat_labels, flat_comps) =
+        connected_components_with_label_buffer(&img, Connectivity::Four, 0u8);
+    assert_eq!(mat_comps.len(), flat_comps.len());
+    let w = 5usize;
+    for r in 0..4 {
+        for c in 0..5 {
+            assert_eq!(mat_labels[(r, c)], flat_labels[r * w + c]);
+        }
+    }
+}
+
+#[test]
+fn cc_works_on_float_input_with_custom_background() {
+    // Use f64 with background = -1.0 (distinct from 0.0 in the image).
+    let img = DynMatrix::<f64>::from_rows(
+        3, 3,
+        &[-1.0,  0.0, -1.0,
+          -1.0,  0.0, -1.0,
+          -1.0, -1.0, -1.0],
+    );
+    let comps = connected_components(&img, Connectivity::Four, -1.0_f64);
+    assert_eq!(comps.len(), 1);
+    assert_eq!(comps[0].area, 2);
+}
+
+#[test]
+fn cc_works_on_fixed_size_matrix() {
+    // Since connected_components is generic over MatrixRef<T>, it should
+    // work on a stack-allocated fixed-size Matrix too, not just DynMatrix.
+    let m: Matrix<u8, 3, 3> = Matrix::new([
+        [1, 0, 1],
+        [1, 0, 0],
+        [0, 0, 1],
+    ]);
+    let comps = connected_components(&m, Connectivity::Four, 0u8);
+    assert_eq!(comps.len(), 3);
+}
+
+#[test]
+fn cc_spiral_single_component() {
+    // A winding thin path — stresses label equivalence across many rows.
+    let img = DynMatrix::<u8>::from_rows(
+        5, 5,
+        &[1, 1, 1, 1, 1,
+          0, 0, 0, 0, 1,
+          1, 1, 1, 0, 1,
+          1, 0, 0, 0, 1,
+          1, 1, 1, 1, 1],
+    );
+    let c4 = connected_components(&img, Connectivity::Four, 0u8);
+    assert_eq!(c4.len(), 1);
+    assert_eq!(c4[0].area, 17);
+}
+
 #[test]
 fn median_pool_rejects_sparse_bright_sources() {
     // A dark background with a handful of bright pixels — block median

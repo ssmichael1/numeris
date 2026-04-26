@@ -14,7 +14,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
-- [x] **imageproc** — 2D image processing (filters, morphology, integral image/local stats, multi-scale, thresholding, Canny, corners, geometric)
+- [x] **imageproc** — 2D image processing (filters, morphology, integral image/local stats, multi-scale, thresholding, Canny, corners, connected components, geometric)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
@@ -70,7 +70,7 @@ Checked items are implemented; unchecked are potential future work.
 - **`control`** — Digital IIR filters (Butterworth, Chebyshev Type I biquad cascades).
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
-- **`imageproc`** — 2D image processing on `DynMatrix` (convolution, filters, morphology, integral image / local stats, thresholding, Canny, Harris/Shi-Tomasi corners, DoG / Gaussian pyramid, geometric ops, `BorderMode`). Implies `alloc`.
+- **`imageproc`** — 2D image processing on `DynMatrix` (convolution, filters, morphology, integral image / local stats, thresholding, Canny, Harris/Shi-Tomasi corners, DoG / Gaussian pyramid, connected components, geometric ops, `BorderMode`). Implies `alloc`.
 - **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
 - **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
@@ -172,6 +172,7 @@ src/
 │   ├── threshold.rs    # threshold (binary), threshold_otsu (256-bin between-class variance), adaptive_threshold (local mean + offset)
 │   ├── canny.rs        # Canny edge detector (Gaussian → Sobel → NMS → double threshold → hysteresis)
 │   ├── corners.rs      # harris_corners, shi_tomasi_corners (structure tensor + response)
+│   ├── connected.rs    # Connectivity enum, Component, connected_components, connected_components_labeled, connected_components_with_label_buffer (SAUF union-find)
 │   └── tests.rs        # comprehensive tests
 ├── control/            # (requires `control` feature)
 │   ├── mod.rs          # ControlError, module declarations, re-exports

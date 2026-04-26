@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.10
+
+- **`imageproc::connected_components`** — connected-components labeling via two-pass SAUF
+  (Scan + Array-based Union-Find), with path compression and union by rank. Operates on any
+  `MatrixRef<T>` with foreground defined as `elem != background`; accepts 4- or 8-connectivity.
+  Each `Component` reports `area`, inclusive bounding box, centroid, and central second moments
+  (`mu20`, `mu02`, `mu11`). Two labels-image variants:
+  - `connected_components_labeled` returns a `DynMatrix<u32>` (column-major, matches the rest
+    of the imageproc API) for downstream masking.
+  - `connected_components_with_label_buffer` returns a row-major flat `Vec<u32>` for
+    cache-friendly downstream iteration when sweeping per-component bounding boxes in
+    scan order.
+
 ## 0.5.9
 
 - **`imageproc` feature** — 2D image processing on `DynMatrix<T>` buffers, column-major,
