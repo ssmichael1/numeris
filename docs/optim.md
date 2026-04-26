@@ -10,13 +10,18 @@ numeris = { version = "0.5", features = ["optim"] }
 
 ## Algorithm Summary
 
-| Algorithm | Function | Use case |
-|---|---|---|
-| Brent's method | `brent` | Bracketed scalar root finding — superlinear convergence |
-| Newton 1D | `newton_1d` | Scalar root finding with analytic derivative |
-| BFGS | `minimize_bfgs` | Unconstrained smooth minimization |
-| Gauss-Newton | `least_squares_gn` | Nonlinear least squares (QR-based, full-rank Jacobian) |
-| Levenberg-Marquardt | `least_squares_lm` | Nonlinear least squares (damped, more robust) |
+| Algorithm | Fixed-size | Dynamic-size | Use case |
+|---|---|---|---|
+| Brent's method | `brent` | — | Bracketed scalar root finding — superlinear convergence |
+| Newton 1D | `newton_1d` | — | Scalar root finding with analytic derivative |
+| BFGS | `minimize_bfgs` | `minimize_bfgs_dyn` | Unconstrained smooth minimization |
+| Gauss-Newton | `least_squares_gn` | `least_squares_gn_dyn` | Nonlinear least squares (QR-based, full-rank Jacobian) |
+| Levenberg-Marquardt | `least_squares_lm` | `least_squares_lm_dyn` | Nonlinear least squares (damped, more robust) |
+
+The fixed-size routines work on `Vector<T, N>` / `Matrix<T, M, N>` and are
+no-alloc (suitable for embedded). The `_dyn` variants take `DynVector<T>` /
+`DynMatrix<T>` and pick the parameter / residual dimension at runtime — they
+require the `alloc` feature.
 
 ## Root Finding
 
@@ -247,6 +252,50 @@ use numeris::optim::{OptimResult, LsqResult};
 // result.cost      — ½‖r‖² at solution
 // result.iterations — iterations taken
 ```
+
+## Dynamic-Dimension Variants
+
+When the parameter or residual dimension is only known at runtime, use the
+`_dyn` routines. They mirror the fixed-size API but accept `DynVector<T>` /
+`DynMatrix<T>` and require the `alloc` feature.
+
+```rust
+use numeris::optim::{least_squares_lm_dyn, LmSettings};
+use numeris::{DynMatrix, DynVector};
+
+let t = vec![0.0_f64, 1.0, 2.0, 3.0, 4.0];
+let y = vec![2.0, 2.7, 3.65, 4.95, 6.7];
+let m = t.len();
+
+let result = least_squares_lm_dyn(
+    |x: &DynVector<f64>| {
+        let mut r = DynVector::zeros(m);
+        for i in 0..m {
+            r[i] = x[0] * (x[1] * t[i]).exp() - y[i];
+        }
+        r
+    },
+    |x: &DynVector<f64>| {
+        let mut j = DynMatrix::zeros(m, 2);
+        for i in 0..m {
+            let e = (x[1] * t[i]).exp();
+            j[(i, 0)] = e;
+            j[(i, 1)] = x[0] * t[i] * e;
+        }
+        j
+    },
+    &DynVector::from_slice(&[1.0, 0.1]),
+    &LmSettings::default(),
+).unwrap();
+
+assert!(result.cost < 0.1);
+```
+
+`minimize_bfgs_dyn`, `least_squares_gn_dyn`, `finite_difference_gradient_dyn`,
+and `finite_difference_jacobian_dyn` follow the same pattern. Settings structs
+(`BfgsSettings`, `GaussNewtonSettings`, `LmSettings`) and `OptimError` are
+shared with the fixed-size routines. Results come back as
+`MinimizeResultDyn<T>` / `LeastSquaresResultDyn<T>`.
 
 ## Error Handling
 

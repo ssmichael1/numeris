@@ -1,7 +1,11 @@
 //! Optimization: root finding, unconstrained minimization, nonlinear least squares.
 //!
-//! All algorithms are no-alloc compatible, using fixed-size stack-allocated
-//! matrices from [`crate::matrix`]. Requires [`FloatScalar`] bound (real-valued only).
+//! Fixed-size routines (working on [`crate::matrix::Matrix`] / [`crate::Vector`])
+//! are no-alloc compatible. Dynamic-dimension variants ([`minimize_bfgs_dyn`],
+//! [`least_squares_gn_dyn`], [`least_squares_lm_dyn`],
+//! [`finite_difference_gradient_dyn`], [`finite_difference_jacobian_dyn`])
+//! operate on [`crate::DynVector`] / [`crate::DynMatrix`] and require the
+//! `alloc` feature. All algorithms require [`FloatScalar`] (real-valued only).
 //!
 //! # Root finding
 //!
@@ -10,19 +14,21 @@
 //!
 //! # Unconstrained minimization
 //!
-//! - [`minimize_bfgs`] — BFGS quasi-Newton with Armijo line search
+//! - [`minimize_bfgs`] / [`minimize_bfgs_dyn`] — BFGS quasi-Newton with Armijo line search
 //!
 //! # Nonlinear least squares
 //!
-//! - [`least_squares_gn`] — Gauss-Newton (QR-based)
-//! - [`least_squares_lm`] — Levenberg-Marquardt (damped normal equations)
+//! - [`least_squares_gn`] / [`least_squares_gn_dyn`] — Gauss-Newton (QR-based)
+//! - [`least_squares_lm`] / [`least_squares_lm_dyn`] — Levenberg-Marquardt (damped normal equations)
 //!
 //! # Finite differences
 //!
-//! - [`finite_difference_gradient`] — forward-difference gradient approximation
-//! - [`finite_difference_jacobian`] — forward-difference Jacobian approximation
+//! - [`finite_difference_gradient`] / [`finite_difference_gradient_dyn`]
+//! - [`finite_difference_jacobian`] / [`finite_difference_jacobian_dyn`]
 
 mod bfgs;
+#[cfg(feature = "alloc")]
+mod dyn_optim;
 mod gauss_newton;
 mod jacobian;
 mod levenberg_marquardt;
@@ -33,6 +39,11 @@ mod root;
 mod tests;
 
 pub use bfgs::{minimize_bfgs, BfgsSettings};
+#[cfg(feature = "alloc")]
+pub use dyn_optim::{
+    finite_difference_gradient_dyn, finite_difference_jacobian_dyn, least_squares_gn_dyn,
+    least_squares_lm_dyn, minimize_bfgs_dyn, LeastSquaresResultDyn, MinimizeResultDyn,
+};
 pub use gauss_newton::{least_squares_gn, GaussNewtonSettings};
 pub use jacobian::{finite_difference_gradient, finite_difference_jacobian};
 pub use levenberg_marquardt::{least_squares_lm, LmSettings};

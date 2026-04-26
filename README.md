@@ -245,15 +245,18 @@ let fit = least_squares_lm(
 assert!(fit.cost < 0.1);
 ```
 
-| Algorithm | Function | Use case |
+| Algorithm | Fixed-size | Dynamic-size |
 |---|---|---|
-| Brent's method | `brent` | Bracketed scalar root finding |
-| Newton's method | `newton_1d` | Scalar root finding with derivative |
-| BFGS | `minimize_bfgs` | Unconstrained minimization |
-| Gauss-Newton | `least_squares_gn` | Nonlinear least squares (QR-based) |
-| Levenberg-Marquardt | `least_squares_lm` | Nonlinear least squares (damped) |
+| Brent's method | `brent` | — |
+| Newton's method | `newton_1d` | — |
+| BFGS | `minimize_bfgs` | `minimize_bfgs_dyn` |
+| Gauss-Newton | `least_squares_gn` | `least_squares_gn_dyn` |
+| Levenberg-Marquardt | `least_squares_lm` | `least_squares_lm_dyn` |
 
-Finite-difference utilities: `finite_difference_gradient` and `finite_difference_jacobian` for when analytical derivatives aren't available.
+Finite-difference utilities: `finite_difference_gradient` / `finite_difference_jacobian`
+(fixed-size, no-alloc) and `finite_difference_gradient_dyn` /
+`finite_difference_jacobian_dyn` (operating on `DynVector` / `DynMatrix`,
+require `alloc`) for when analytical derivatives aren't available.
 
 ## Digital IIR filters
 
@@ -560,9 +563,10 @@ Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdap
 <summary><b><code>optim</code></b> — Optimization (requires <code>optim</code> feature)</summary>
 
 - **Root finding**: `brent` (bracketed, superlinear convergence), `newton_1d` (with derivative)
-- **Minimization**: `minimize_bfgs` (BFGS quasi-Newton with Armijo line search)
-- **Least squares**: `least_squares_gn` (Gauss-Newton via QR), `least_squares_lm` (Levenberg-Marquardt via damped normal equations)
-- **Finite differences**: `finite_difference_gradient`, `finite_difference_jacobian` for numerical derivatives
+- **Minimization**: `minimize_bfgs` (BFGS quasi-Newton with Armijo line search) and `minimize_bfgs_dyn` (runtime-sized)
+- **Least squares**: `least_squares_gn` (Gauss-Newton via QR), `least_squares_lm` (Levenberg-Marquardt via damped normal equations); `_dyn` variants accept `DynVector` / `DynMatrix` for runtime-sized parameter and residual dimensions
+- **Finite differences**: `finite_difference_gradient`, `finite_difference_jacobian` (fixed-size, no-alloc) and `finite_difference_gradient_dyn`, `finite_difference_jacobian_dyn` (require `alloc`)
+- Fixed-size routines are no-alloc; dynamic-dimension routines (`*_dyn`) require the `alloc` feature
 - All algorithms use `FloatScalar` bound (real-valued), configurable via settings structs with `Default` impls for `f32` and `f64`
 
 </details>

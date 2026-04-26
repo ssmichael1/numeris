@@ -15,7 +15,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
 - [x] **imageproc** — 2D image processing (filters, morphology, integral image/local stats, multi-scale, thresholding, Canny, corners, connected components, geometric)
-- [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
+- [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt; `_dyn` variants on `DynVector`/`DynMatrix`)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
 - [ ] **fft** — Fast Fourier Transform
@@ -194,11 +194,12 @@ src/
 ├── optim/              # (requires `optim` feature)
 │   ├── mod.rs          # OptimError, result/settings structs, re-exports
 │   ├── root.rs         # brent, newton_1d (scalar root finding)
-│   ├── line_search.rs  # backtracking_armijo (internal helper)
+│   ├── line_search.rs  # backtracking_armijo + backtracking_armijo_dyn (internal helpers)
 │   ├── bfgs.rs         # minimize_bfgs (BFGS quasi-Newton)
 │   ├── gauss_newton.rs # least_squares_gn (QR-based Gauss-Newton)
 │   ├── levenberg_marquardt.rs # least_squares_lm (damped normal equations)
 │   ├── jacobian.rs     # finite_difference_jacobian, finite_difference_gradient
+│   ├── dyn_optim.rs    # minimize_bfgs_dyn, least_squares_gn_dyn, least_squares_lm_dyn, finite_difference_*_dyn (requires `alloc`)
 │   └── tests.rs        # comprehensive tests
 ├── special/            # (requires `special` feature)
 │   ├── mod.rs          # SpecialError, Lanczos constants, module decls, re-exports

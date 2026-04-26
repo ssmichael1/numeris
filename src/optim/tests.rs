@@ -443,6 +443,281 @@ fn error_display() {
 // Settings defaults
 // ═══════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════
+// Dynamic-dimension variants
+// ═══════════════════════════════════════════════════════════════════
+
+#[cfg(feature = "alloc")]
+mod dynamic {
+    use super::{assert_near, LOOSE_TOL, TOL};
+    use crate::optim::{
+        finite_difference_gradient_dyn, finite_difference_jacobian_dyn, least_squares_gn_dyn,
+        least_squares_lm_dyn, minimize_bfgs_dyn, BfgsSettings, GaussNewtonSettings, LmSettings,
+    };
+    use crate::{DynMatrix, DynVector};
+
+    #[test]
+    fn fd_gradient_dyn_quadratic() {
+        let x = DynVector::from_slice(&[2.0_f64, 3.0]);
+        let g = finite_difference_gradient_dyn(
+            |x: &DynVector<f64>| x[0] * x[0] + 3.0 * x[1] * x[1],
+            &x,
+        );
+        assert_near(g[0], 4.0, 1e-5, "dyn grad[0]");
+        assert_near(g[1], 18.0, 1e-5, "dyn grad[1]");
+    }
+
+    #[test]
+    fn fd_jacobian_dyn_nonlinear() {
+        let x = DynVector::from_slice(&[3.0_f64, 4.0]);
+        let j = finite_difference_jacobian_dyn(
+            |x: &DynVector<f64>| DynVector::from_slice(&[x[0] * x[1], x[0] * x[0] + x[1]]),
+            &x,
+        );
+        assert_near(j[(0, 0)], 4.0, 1e-5, "dyn J[0,0]");
+        assert_near(j[(0, 1)], 3.0, 1e-5, "dyn J[0,1]");
+        assert_near(j[(1, 0)], 6.0, 1e-5, "dyn J[1,0]");
+        assert_near(j[(1, 1)], 1.0, 1e-5, "dyn J[1,1]");
+    }
+
+    #[test]
+    fn bfgs_dyn_simple_quadratic() {
+        let r = minimize_bfgs_dyn(
+            |x: &DynVector<f64>| (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2),
+            |x: &DynVector<f64>| {
+                DynVector::from_slice(&[2.0 * (x[0] - 1.0), 2.0 * (x[1] - 2.0)])
+            },
+            &DynVector::from_slice(&[0.0, 0.0]),
+            &BfgsSettings::default(),
+        )
+        .unwrap();
+
+        assert_near(r.x[0], 1.0, TOL, "dyn bfgs quad x0");
+        assert_near(r.x[1], 2.0, TOL, "dyn bfgs quad x1");
+        assert_near(r.fx, 0.0, TOL, "dyn bfgs quad f");
+        assert!(r.iterations <= 3, "dyn bfgs quad iters = {}", r.iterations);
+    }
+
+    #[test]
+    fn bfgs_dyn_rosenbrock() {
+        let r = minimize_bfgs_dyn(
+            |x: &DynVector<f64>| {
+                (1.0 - x[0]).powi(2) + 100.0 * (x[1] - x[0] * x[0]).powi(2)
+            },
+            |x: &DynVector<f64>| {
+                DynVector::from_slice(&[
+                    -2.0 * (1.0 - x[0]) + 200.0 * (x[1] - x[0] * x[0]) * (-2.0 * x[0]),
+                    200.0 * (x[1] - x[0] * x[0]),
+                ])
+            },
+            &DynVector::from_slice(&[-1.0, 1.0]),
+            &BfgsSettings {
+                max_iter: 500,
+                ..BfgsSettings::default()
+            },
+        )
+        .unwrap();
+
+        assert_near(r.x[0], 1.0, 1e-4, "dyn bfgs rosenbrock x0");
+        assert_near(r.x[1], 1.0, 1e-4, "dyn bfgs rosenbrock x1");
+    }
+
+    #[test]
+    fn bfgs_dyn_5d_quadratic() {
+        // f(x) = sum_i (x_i - i)^2, minimum at (0,1,2,3,4)
+        let r = minimize_bfgs_dyn(
+            |x: &DynVector<f64>| {
+                let mut s = 0.0;
+                for i in 0..x.len() {
+                    s += (x[i] - i as f64).powi(2);
+                }
+                s
+            },
+            |x: &DynVector<f64>| {
+                let n = x.len();
+                let mut g = DynVector::zeros(n);
+                for i in 0..n {
+                    g[i] = 2.0 * (x[i] - i as f64);
+                }
+                g
+            },
+            &DynVector::zeros(5),
+            &BfgsSettings::default(),
+        )
+        .unwrap();
+
+        for i in 0..5 {
+            assert_near(r.x[i], i as f64, TOL, "dyn bfgs 5d");
+        }
+        assert_near(r.fx, 0.0, TOL, "dyn bfgs 5d f");
+    }
+
+    #[test]
+    fn gn_dyn_linear_least_squares() {
+        let a = DynMatrix::from_rows(3, 2, &[1.0_f64, 0.0, 1.0, 1.0, 1.0, 2.0]);
+        let b = DynVector::from_slice(&[1.0_f64, 2.0, 4.0]);
+
+        let a_for_r = a.clone();
+        let b_for_r = b.clone();
+        let r = least_squares_gn_dyn(
+            move |x: &DynVector<f64>| {
+                let mut out = DynVector::zeros(3);
+                for i in 0..3 {
+                    out[i] = a_for_r[(i, 0)] * x[0] + a_for_r[(i, 1)] * x[1] - b_for_r[i];
+                }
+                out
+            },
+            move |_x: &DynVector<f64>| a.clone(),
+            &DynVector::from_slice(&[0.0, 0.0]),
+            &GaussNewtonSettings::default(),
+        )
+        .unwrap();
+
+        assert_near(r.x[0], 5.0 / 6.0, TOL, "dyn gn c0");
+        assert_near(r.x[1], 3.0 / 2.0, TOL, "dyn gn c1");
+        assert!(r.iterations <= 2, "dyn gn iters = {}", r.iterations);
+    }
+
+    #[test]
+    fn lm_dyn_exponential_fit() {
+        let t = [0.0_f64, 1.0, 2.0, 3.0, 4.0];
+        let y_data = [2.0, 2.7, 3.65, 4.95, 6.7];
+
+        let r = least_squares_lm_dyn(
+            |x: &DynVector<f64>| {
+                let mut r = DynVector::zeros(5);
+                for i in 0..5 {
+                    r[i] = x[0] * (x[1] * t[i]).exp() - y_data[i];
+                }
+                r
+            },
+            |x: &DynVector<f64>| {
+                let mut j = DynMatrix::zeros(5, 2);
+                for i in 0..5 {
+                    let e = (x[1] * t[i]).exp();
+                    j[(i, 0)] = e;
+                    j[(i, 1)] = x[0] * t[i] * e;
+                }
+                j
+            },
+            &DynVector::from_slice(&[1.0, 0.1]),
+            &LmSettings::default(),
+        )
+        .unwrap();
+
+        assert!(r.cost < 0.1, "dyn lm exp cost = {}", r.cost);
+    }
+
+    #[test]
+    fn lm_dyn_circle_fit() {
+        let angles = [0.0_f64, 1.0, 2.0, 3.0, 4.0, 5.0];
+        let mut px = [0.0_f64; 6];
+        let mut py = [0.0_f64; 6];
+        for i in 0..6 {
+            px[i] = 1.0 + 2.0 * angles[i].cos();
+            py[i] = 1.0 + 2.0 * angles[i].sin();
+        }
+
+        let r = least_squares_lm_dyn(
+            |x: &DynVector<f64>| {
+                let mut r = DynVector::zeros(6);
+                for i in 0..6 {
+                    let dx = px[i] - x[0];
+                    let dy = py[i] - x[1];
+                    r[i] = (dx * dx + dy * dy).sqrt() - x[2];
+                }
+                r
+            },
+            |x: &DynVector<f64>| {
+                let mut j = DynMatrix::zeros(6, 3);
+                for i in 0..6 {
+                    let dx = px[i] - x[0];
+                    let dy = py[i] - x[1];
+                    let d = (dx * dx + dy * dy).sqrt();
+                    j[(i, 0)] = -dx / d;
+                    j[(i, 1)] = -dy / d;
+                    j[(i, 2)] = -1.0;
+                }
+                j
+            },
+            &DynVector::from_slice(&[0.0, 0.0, 1.0]),
+            &LmSettings::default(),
+        )
+        .unwrap();
+
+        assert_near(r.x[0], 1.0, LOOSE_TOL, "dyn lm circle cx");
+        assert_near(r.x[1], 1.0, LOOSE_TOL, "dyn lm circle cy");
+        assert_near(r.x[2], 2.0, LOOSE_TOL, "dyn lm circle r");
+    }
+
+    #[test]
+    fn lm_dyn_with_numerical_jacobian() {
+        let t = [0.0_f64, 1.0, 2.0, 3.0, 4.0];
+        let y_data = [2.0, 2.7, 3.65, 4.95, 6.7];
+
+        let residual = |x: &DynVector<f64>| -> DynVector<f64> {
+            let mut r = DynVector::zeros(5);
+            for i in 0..5 {
+                r[i] = x[0] * (x[1] * t[i]).exp() - y_data[i];
+            }
+            r
+        };
+
+        let r = least_squares_lm_dyn(
+            residual,
+            |x: &DynVector<f64>| finite_difference_jacobian_dyn(residual, x),
+            &DynVector::from_slice(&[1.0, 0.1]),
+            &LmSettings::default(),
+        )
+        .unwrap();
+
+        assert!(r.cost < 0.1, "dyn lm numerical jac cost = {}", r.cost);
+    }
+
+    #[test]
+    fn fixed_dyn_match_quadratic() {
+        // Fixed and dynamic BFGS should converge to the same minimum.
+        use crate::optim::minimize_bfgs;
+        use crate::Vector;
+
+        let fixed = minimize_bfgs(
+            |x: &Vector<f64, 3>| {
+                (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2) + (x[2] + 3.0).powi(2)
+            },
+            |x: &Vector<f64, 3>| {
+                Vector::from_array([
+                    2.0 * (x[0] - 1.0),
+                    2.0 * (x[1] - 2.0),
+                    2.0 * (x[2] + 3.0),
+                ])
+            },
+            &Vector::from_array([0.0, 0.0, 0.0]),
+            &BfgsSettings::default(),
+        )
+        .unwrap();
+
+        let dyn_res = minimize_bfgs_dyn(
+            |x: &DynVector<f64>| {
+                (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2) + (x[2] + 3.0).powi(2)
+            },
+            |x: &DynVector<f64>| {
+                DynVector::from_slice(&[
+                    2.0 * (x[0] - 1.0),
+                    2.0 * (x[1] - 2.0),
+                    2.0 * (x[2] + 3.0),
+                ])
+            },
+            &DynVector::from_slice(&[0.0, 0.0, 0.0]),
+            &BfgsSettings::default(),
+        )
+        .unwrap();
+
+        for i in 0..3 {
+            assert_near(dyn_res.x[i], fixed.x[i], TOL, "fixed vs dyn x");
+        }
+    }
+}
+
 #[test]
 fn settings_defaults() {
     let rs: RootSettings<f64> = RootSettings::default();
