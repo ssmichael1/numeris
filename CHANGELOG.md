@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.11
+
+- **Dynamic-dimension `optim` routines** — `minimize_bfgs_dyn`,
+  `least_squares_gn_dyn`, `least_squares_lm_dyn`,
+  `finite_difference_gradient_dyn`, and `finite_difference_jacobian_dyn` mirror
+  the fixed-size API but accept `DynVector<T>` / `DynMatrix<T>`, picking the
+  parameter and residual dimensions at runtime. Settings structs
+  (`BfgsSettings`, `GaussNewtonSettings`, `LmSettings`) and `OptimError` are
+  shared with the fixed-size routines; results come back as
+  `MinimizeResultDyn<T>` / `LeastSquaresResultDyn<T>`. The dynamic variants
+  require the `alloc` feature; fixed-size routines remain no-alloc.
+
 ## 0.5.10
 
 - **`imageproc::connected_components`** — connected-components labeling via two-pass SAUF

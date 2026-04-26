@@ -59,7 +59,13 @@
 //!   [`optim::newton_1d`]), BFGS quasi-Newton minimization ([`optim::minimize_bfgs`]),
 //!   Gauss-Newton ([`optim::least_squares_gn`]) and Levenberg-Marquardt
 //!   ([`optim::least_squares_lm`]) nonlinear least squares. Finite-difference
-//!   Jacobian and gradient utilities. Requires `optim` feature.
+//!   Jacobian and gradient utilities. Fixed-size routines are no-alloc;
+//!   dynamic-dimension counterparts ([`optim::minimize_bfgs_dyn`],
+//!   [`optim::least_squares_gn_dyn`], [`optim::least_squares_lm_dyn`],
+//!   [`optim::finite_difference_gradient_dyn`],
+//!   [`optim::finite_difference_jacobian_dyn`]) operate on
+//!   [`DynVector`] / [`DynMatrix`] and require the `alloc` feature.
+//!   Requires `optim` feature.
 //!
 //! - [`control`] — Digital IIR filters: [`control::Biquad`] second-order section and
 //!   [`control::BiquadCascade`] for cascaded filters. Design functions for Butterworth
