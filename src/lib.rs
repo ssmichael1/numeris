@@ -92,6 +92,9 @@
 //!   integral image and local mean / variance / stddev, thresholding
 //!   (binary / Otsu / adaptive), Canny edge detection, Harris and
 //!   Shi-Tomasi corners, difference of Gaussians and Gaussian pyramid,
+//!   connected-components labeling (SAUF union-find, 4- or 8-connectivity,
+//!   with per-component area / bbox / centroid / second moments, and
+//!   optional `DynMatrix<u32>` or row-major `Vec<u32>` labels image),
 //!   geometric utilities (flip, rotate 90°/180°/270°, pad, crop,
 //!   resize bilinear and nearest). See [`imageproc`] module for details.
 //!   Requires `imageproc` feature (implies `alloc`).

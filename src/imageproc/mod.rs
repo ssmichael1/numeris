@@ -42,6 +42,7 @@
 
 mod border;
 mod canny;
+mod connected;
 mod convolve;
 mod corners;
 mod filters;
@@ -61,6 +62,10 @@ mod tests;
 
 pub use border::{fetch_border, BorderMode};
 pub use canny::canny;
+pub use connected::{
+    connected_components, connected_components_labeled,
+    connected_components_with_label_buffer, Component, Connectivity,
+};
 pub use convolve::{convolve2d, convolve2d_separable};
 pub use corners::{harris_corners, shi_tomasi_corners};
 pub use filters::{

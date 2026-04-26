@@ -339,6 +339,81 @@ let tomasi = shi_tomasi_corners(&img, 1.0, BorderMode::Replicate);
 
 Both return a raw response map — threshold it and run your own peak finder (e.g. a local-maximum pass) to get corner positions.
 
+## Connected Components
+
+Connected-components labeling groups foreground pixels into maximal connected regions. Numeris uses two-pass **SAUF** (Scan + Array-based Union-Find, Wu/Otoo/Suzuki 2009) with union-find path compression and union by rank — `O(H·W·α(H·W))`.
+
+The foreground definition is `elem != background`, so any `MatrixRef<T>` with `T: Scalar + PartialEq` works — binary `u8` images, thresholded floats, labeled masks — all first-class.
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{connected_components, Connectivity};
+
+let img = DynMatrix::<u8>::from_rows(
+    4, 5,
+    &[1, 1, 0, 1, 1,
+      1, 1, 0, 1, 1,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0],
+);
+let comps = connected_components(&img, Connectivity::Four, 0u8);
+assert_eq!(comps.len(), 2);
+```
+
+Each `Component` reports:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `area` | `u32` | Pixel count |
+| `bbox_min`, `bbox_max` | `(u32, u32)` | Inclusive bounding box `(row, col)` |
+| `centroid` | `(f64, f64)` | Mean of pixel coordinates |
+| `mu20`, `mu02`, `mu11` | `f64` | **Central second moments, unnormalized** |
+
+`mu20`, `mu02`, `mu11` are `Σ(r−r̄)²`, `Σ(c−c̄)²`, `Σ(r−r̄)(c−c̄)`. Feed `[[mu20, mu11], [mu11, mu02]]` to a 2×2 symmetric eigendecomposition to get the principal axes / orientation / eccentricity; divide by `area` for variance / covariance.
+
+If you need the per-pixel coordinates of a component, iterate the inclusive bbox window against one of the labels-image variants below and collect the pixels whose label matches `i + 1`.
+
+### Connectivity choice
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{connected_components, Connectivity};
+
+// Two pixels touching only diagonally.
+let img = DynMatrix::<u8>::from_rows(
+    2, 2,
+    &[1, 0,
+      0, 1],
+);
+assert_eq!(connected_components(&img, Connectivity::Four,  0u8).len(), 2);
+assert_eq!(connected_components(&img, Connectivity::Eight, 0u8).len(), 1);
+```
+
+### Labeled-image variants
+
+When a downstream step needs to mask or index by component ID, two variants additionally return a labels image with label `0` at background pixels and label `i+1` at pixels belonging to component `i`:
+
+- **`connected_components_labeled`** returns a `DynMatrix<u32>` (column-major, matching the rest of the imageproc API) — best when the labels image will be passed to other numeris routines.
+- **`connected_components_with_label_buffer`** returns a row-major flat `Vec<u32>` — best when downstream code sweeps each component's bounding box in scan order, since iteration is cache-friendly without a column-major repack.
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{connected_components_labeled, Connectivity};
+
+let img = DynMatrix::<u8>::from_rows(
+    3, 3,
+    &[1, 0, 2,
+      1, 0, 2,
+      0, 0, 0],
+);
+let (labels, comps) = connected_components_labeled(&img, Connectivity::Four, 0u8);
+assert_eq!(comps.len(), 2);
+assert_eq!(labels[(0, 0)], 1);
+assert_eq!(labels[(0, 2)], 2);
+```
+
+If the labels image isn't needed, prefer `connected_components` — it skips the `H × W × 4` bytes labels allocation.
+
 ## Geometric Utilities
 
 ```rust
@@ -398,6 +473,7 @@ Per-axis interpolation indices and fractional weights are precomputed; the inner
 | Binary thresholding | — | `threshold` / `threshold_otsu` / `adaptive_threshold` |
 | Edge detection | — | `sobel_gradients` + `gradient_magnitude`, or `canny` for thinned binary edges |
 | Corner detection | — | `harris_corners` / `shi_tomasi_corners` |
+| Connected components | — | `connected_components` (sparse) / `connected_components_labeled` (column-major labels image) / `connected_components_with_label_buffer` (row-major labels buffer) |
 | Blob detection | — | `difference_of_gaussians` / `laplacian_of_gaussian` |
 | Bright-spot isolation | — | `top_hat` |
 | Multi-scale search | — | `gaussian_pyramid` |

@@ -23,7 +23,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Complex number support** — all decompositions work with `Complex<f32>` / `Complex<f64>` (optional feature)
 - **State estimation** — EKF, UKF, Square-Root UKF, Cubature Kalman Filter, RTS smoother, batch least-squares
 - **Interpolation** — linear, Hermite, barycentric Lagrange, natural cubic spline, bilinear (2D)
-- **Image processing** — 2D convolution, Gaussian/box blur, Sobel/Scharr gradients, median/rank filters, morphology (Van Herk), integral image, Otsu/adaptive thresholding, Canny, Harris/Shi-Tomasi corners, Gaussian pyramid
+- **Image processing** — 2D convolution, Gaussian/box blur, Sobel/Scharr gradients, median/rank filters, morphology (Van Herk), integral image, Otsu/adaptive thresholding, Canny, Harris/Shi-Tomasi corners, Gaussian pyramid, connected-components labeling
 - **Special functions** — gamma, lgamma, digamma, beta, incomplete gamma/beta, erf/erfc
 - **Statistical distributions** — Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
@@ -428,7 +428,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `control` | no | Digital IIR filters, PID controller, lead/lag compensators, PID tuning. |
 | `estimate` | no | State estimation (EKF, UKF, SR-UKF, CKF, RTS, batch LSQ). Implies `alloc`. |
 | `interp` | no | Interpolation (linear, Hermite, barycentric Lagrange, cubic spline, bilinear). |
-| `imageproc` | no | 2D image processing on `DynMatrix` (filters, morphology, integral image, Canny, corners, geometric). Implies `alloc`. |
+| `imageproc` | no | 2D image processing on `DynMatrix` (filters, morphology, integral image, Canny, corners, connected components, geometric). Implies `alloc`. |
 | `special` | no | Special functions (gamma, beta, erf, incomplete gamma/beta, digamma). |
 | `stats` | no | Statistical distributions (Normal, Gamma, Beta, etc.). Implies `special`. |
 | `libm` | baseline | Pure-Rust software float math. Always available as fallback. |
@@ -627,6 +627,7 @@ Operates on `DynMatrix<T>` buffers (column-major, `BorderMode`-aware). Convoluti
 - **Multi-scale**: `difference_of_gaussians`, `gaussian_pyramid`
 - **Thresholding**: `threshold`, `threshold_otsu`, `adaptive_threshold`
 - **Edges & corners**: `canny` (Gaussian → Sobel → NMS → hysteresis), `harris_corners`, `shi_tomasi_corners`
+- **Connected components**: `connected_components`, `connected_components_labeled` (column-major `DynMatrix<u32>` labels image), `connected_components_with_label_buffer` (row-major flat `Vec<u32>` labels buffer) — SAUF two-pass union-find (4- or 8-connectivity) on any `MatrixRef<T>`; each `Component` reports area, bounding box, centroid, and central second moments (`mu20`/`mu02`/`mu11`)
 - **Geometric**: `flip_horizontal`, `flip_vertical`, `rotate_90` / `180` / `270`, `pad`, `crop`, `resize_nearest`, `resize_bilinear`
 - `BorderMode<T>`: `Zero` / `Constant` / `Replicate` / `Reflect`, works with integer images (e.g. `u16`)
 
@@ -703,7 +704,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **ode** — ODE integration (RK4, 7 adaptive solvers, dense output, RODAS4 stiff solver)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
-- [x] **imageproc** — 2D image processing (convolution, filters, morphology, integral image, thresholding, Canny, corners, geometric)
+- [x] **imageproc** — 2D image processing (convolution, filters, morphology, integral image, thresholding, Canny, corners, connected components, geometric)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [ ] **quad** — Numerical quadrature / integration
