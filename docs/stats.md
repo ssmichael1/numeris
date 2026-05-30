@@ -38,6 +38,14 @@ pub trait DiscreteDistribution<T> {
 
 `Normal<T> { mean: T, std_dev: T }`
 
+$$
+f(x) = \frac{1}{\sigma\sqrt{2\pi}}\,
+        \exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right),
+\qquad x \in \mathbb{R}.
+$$
+
+Mean $\mu$, variance $\sigma^2$.
+
 ![Normal distribution PDF plot](includes/plot_normal_pdf.svg)
 
 ```rust
@@ -55,6 +63,12 @@ let prob_above_130 = 1.0 - n2.cdf(130.0);       // P(IQ > 130) ≈ 2.3%
 
 `Uniform<T> { a: T, b: T }` — continuous uniform on [a, b].
 
+$$
+f(x) = \frac{1}{b - a} \quad \text{for } x \in [a, b], \qquad 0 \text{ otherwise.}
+$$
+
+Mean $\dfrac{a+b}{2}$, variance $\dfrac{(b-a)^2}{12}$.
+
 ```rust
 use numeris::stats::Uniform;
 
@@ -69,6 +83,12 @@ assert!((u.variance() - 1.0/12.0).abs() < 1e-10);
 
 `Exponential<T> { rate: T }` — rate λ (mean = 1/λ).
 
+$$
+f(x) = \lambda e^{-\lambda x}, \qquad x \ge 0.
+$$
+
+Mean $1/\lambda$, variance $1/\lambda^2$.
+
 ```rust
 use numeris::stats::Exponential;
 
@@ -82,7 +102,13 @@ assert!((e.mean() - 0.5).abs() < 1e-12);
 
 `Gamma<T> { shape: T, rate: T }` — shape α, rate β (mean = α/β).
 
-The chi-squared and exponential distributions are special cases.
+$$
+f(x) = \frac{\beta^{\alpha}}{\Gamma(\alpha)}\,
+        x^{\alpha-1} e^{-\beta x}, \qquad x > 0.
+$$
+
+Mean $\alpha/\beta$, variance $\alpha/\beta^2$. The chi-squared and exponential
+distributions are special cases.
 
 ![Gamma distribution PDF plot](includes/plot_gamma_pdf.svg)
 
@@ -100,6 +126,15 @@ assert!((g.variance() - 2.0).abs() < 1e-10);
 
 `Beta<T> { alpha: T, beta: T }` — shape parameters α, β. Support: [0, 1].
 
+$$
+f(x) = \frac{x^{\alpha-1}(1-x)^{\beta-1}}{B(\alpha, \beta)},
+\qquad x \in [0, 1], \quad
+B(\alpha, \beta) = \frac{\Gamma(\alpha)\,\Gamma(\beta)}{\Gamma(\alpha+\beta)}.
+$$
+
+Mean $\dfrac{\alpha}{\alpha+\beta}$, variance
+$\dfrac{\alpha\beta}{(\alpha+\beta)^2(\alpha+\beta+1)}$.
+
 ![Beta distribution PDF plot](includes/plot_beta_pdf.svg)
 
 ```rust
@@ -115,6 +150,13 @@ assert!((b.mean() - 2.0/7.0).abs() < 1e-10);
 
 `ChiSquared<T> { k: T }` — k degrees of freedom. Special case of Gamma(k/2, 1/2).
 
+$$
+f(x) = \frac{1}{2^{k/2}\,\Gamma(k/2)}\,
+        x^{k/2 - 1} e^{-x/2}, \qquad x > 0.
+$$
+
+Mean $k$, variance $2k$.
+
 ```rust
 use numeris::stats::ChiSquared;
 
@@ -127,6 +169,14 @@ assert_eq!(chi.variance(), 6.0);
 ### Student's t
 
 `StudentT<T> { nu: T }` — ν degrees of freedom.
+
+$$
+f(x) = \frac{\Gamma\!\left(\frac{\nu+1}{2}\right)}
+            {\sqrt{\nu\pi}\;\Gamma\!\left(\frac{\nu}{2}\right)}
+        \left(1 + \frac{x^2}{\nu}\right)^{-\frac{\nu+1}{2}}.
+$$
+
+Mean $0$ (for $\nu > 1$), variance $\dfrac{\nu}{\nu - 2}$ (for $\nu > 2$).
 
 ```rust
 use numeris::stats::StudentT;
@@ -148,6 +198,12 @@ assert!((t.variance() - 10.0/8.0).abs() < 1e-10);  // ν/(ν-2)
 
 `Bernoulli<T> { p: T }` — single trial with success probability p.
 
+$$
+P(X = k) = p^k (1-p)^{1-k}, \qquad k \in \{0, 1\}.
+$$
+
+Mean $p$, variance $p(1-p)$.
+
 ```rust
 use numeris::stats::Bernoulli;
 
@@ -161,6 +217,13 @@ assert!((b.variance() - 0.21).abs() < 1e-12);
 ### Binomial
 
 `Binomial<T> { n: u64, p: T }` — n independent Bernoulli trials.
+
+$$
+P(X = k) = \binom{n}{k} p^k (1-p)^{n-k},
+\qquad k = 0, 1, \dots, n.
+$$
+
+Mean $np$, variance $np(1-p)$.
 
 ![Binomial distribution PMF plot](includes/plot_binomial_pmf.svg)
 
@@ -177,6 +240,13 @@ assert!((b.variance() - 2.5).abs() < 1e-10);
 ### Poisson
 
 `Poisson<T> { lambda: T }` — number of events in a fixed interval.
+
+$$
+P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!},
+\qquad k = 0, 1, 2, \dots
+$$
+
+Mean $\lambda$, variance $\lambda$.
 
 ![Poisson distribution PMF plot](includes/plot_poisson_pmf.svg)
 
