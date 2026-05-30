@@ -75,7 +75,20 @@ let settings = RootSettings {
 
 ## BFGS Minimization
 
-Quasi-Newton unconstrained minimization with Armijo backtracking line search. Requires both a function and its gradient.
+Quasi-Newton unconstrained minimization with Armijo backtracking line search. Requires both a function and its gradient. Each step is
+
+$$
+x_{k+1} = x_k - \alpha_k\, H_k\, \nabla f(x_k),
+$$
+
+where $\alpha_k$ is the line-search step length and $H_k \approx (\nabla^2 f)^{-1}$
+is the BFGS inverse-Hessian estimate, updated from $s_k = x_{k+1}-x_k$,
+$y_k = \nabla f_{k+1} - \nabla f_k$, and $\rho_k = 1/(y_k^\top s_k)$:
+
+$$
+H_{k+1} = (I - \rho_k s_k y_k^\top)\,H_k\,(I - \rho_k y_k s_k^\top)
+          + \rho_k\, s_k s_k^\top.
+$$
 
 ```rust
 use numeris::optim::{minimize_bfgs, BfgsSettings};
@@ -130,7 +143,16 @@ let settings = BfgsSettings {
 
 ## Gauss-Newton Least Squares
 
-QR-based Gauss-Newton for nonlinear least squares. Works best when the Jacobian is full rank and the residual is small at the solution.
+QR-based Gauss-Newton for nonlinear least squares: minimizes $\tfrac12\|r(x)\|^2$
+for residuals $r(x) \in \mathbb{R}^m$ with Jacobian $J = \partial r/\partial x$.
+Each step solves the normal equations
+
+$$
+(J^\top J)\,\delta = -J^\top r(x_k), \qquad x_{k+1} = x_k + \delta,
+$$
+
+via a QR factorization of $J$ (without forming $J^\top J$ explicitly). Works best
+when the Jacobian is full rank and the residual is small at the solution.
 
 ```rust
 use numeris::optim::{least_squares_gn, GnSettings};
@@ -167,7 +189,16 @@ println!("cost = {:.6}", result.cost);
 
 ## Levenberg-Marquardt
 
-Damped Gauss-Newton with adaptive regularization — more robust than pure GN when the Jacobian is ill-conditioned or the initial guess is far from the solution.
+Damped Gauss-Newton with adaptive regularization — more robust than pure GN when
+the Jacobian is ill-conditioned or the initial guess is far from the solution.
+The step adds a damping term $\mu \ge 0$ to the normal equations:
+
+$$
+(J^\top J + \mu I)\,\delta = -J^\top r(x_k), \qquad x_{k+1} = x_k + \delta.
+$$
+
+$\mu$ is adapted each iteration — increased when a step fails (toward gradient
+descent), decreased when it succeeds (toward Gauss-Newton).
 
 ```rust
 use numeris::optim::{least_squares_lm, LmSettings};

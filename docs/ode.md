@@ -6,7 +6,23 @@ Requires the `ode` feature.
 
 ## Fixed-Step RK4
 
-Classic 4th-order Runge-Kutta — no error estimation, fixed step size.
+Classic 4th-order Runge-Kutta — no error estimation, fixed step size. For the
+initial-value problem $y' = f(t, y)$, one step of size $h$ is
+
+$$
+\begin{aligned}
+k_1 &= f(t,\, y), &
+k_2 &= f\!\left(t + \tfrac{h}{2},\; y + \tfrac{h}{2} k_1\right), \\
+k_3 &= f\!\left(t + \tfrac{h}{2},\; y + \tfrac{h}{2} k_2\right), &
+k_4 &= f(t + h,\; y + h\, k_3),
+\end{aligned}
+$$
+
+$$
+y_{n+1} = y_n + \frac{h}{6}\,(k_1 + 2 k_2 + 2 k_3 + k_4),
+$$
+
+with local truncation error $O(h^5)$.
 
 ```rust
 use numeris::ode::{rk4, rk4_step};

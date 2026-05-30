@@ -112,6 +112,17 @@ let d = Matrix3::from_diag(&v);
 
 ## Norms
 
+$$
+\|A\|_F = \sqrt{\sum_{i,j} |a_{ij}|^2},
+\qquad
+\|A\|_\infty = \max_i \sum_j |a_{ij}|,
+\qquad
+\|A\|_1 = \max_j \sum_i |a_{ij}|,
+$$
+
+the Frobenius norm, the maximum absolute row sum, and the maximum absolute
+column sum respectively.
+
 ```rust
 let a = Matrix::new([[3.0_f64, 0.0], [4.0, 0.0]]);
 

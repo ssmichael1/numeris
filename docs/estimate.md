@@ -75,6 +75,25 @@ Computes the Normalized Innovation Squared (NIS) before applying the state updat
 
 The EKF linearizes nonlinear dynamics at the current estimate using Jacobians. Fully no-std and no-alloc.
 
+For dynamics $x_{k+1} = f(x_k)$ and measurement $z = h(x)$, **predict** (with
+$F = \partial f/\partial x$):
+
+$$
+\hat{x}^- = f(\hat{x}), \qquad P^- = F P F^\top + Q,
+$$
+
+then **update** (with $H = \partial h/\partial x$ and innovation $y = z - h(\hat{x}^-)$):
+
+$$
+\begin{aligned}
+S &= H P^- H^\top + R, & K &= P^- H^\top S^{-1}, \\
+\hat{x} &= \hat{x}^- + K y, & P &= (I - KH)\,P^-\,(I - KH)^\top + K R K^\top.
+\end{aligned}
+$$
+
+The covariance update is written in the numerically stable **Joseph form**, and
+each update returns the **NIS** $=y^\top S^{-1} y$.
+
 ```rust
 use numeris::estimate::Ekf;
 use numeris::{Vector, Matrix};
@@ -110,8 +129,6 @@ let nis = ekf.update(
 let x = ekf.state();       // &Vector<f64, 2>
 let p = ekf.covariance();  // &Matrix<f64, 2, 2>
 ```
-
-The covariance update uses the **Joseph form** `P = (I−KH)P(I−KH)ᵀ + KRKᵀ` for numerical stability.
 
 ### Finite-Difference Jacobians
 
@@ -151,7 +168,19 @@ The final covariance is updated with the Joseph form at the converged linearizat
 
 ## Unscented Kalman Filter (UKF)
 
-Propagates 2N+1 sigma points through the nonlinear dynamics — no Jacobians needed.
+Propagates $2N+1$ sigma points through the nonlinear dynamics — no Jacobians
+needed. With scaling $\lambda = \alpha^2(N+\kappa) - N$, the points are
+
+$$
+\mathcal{X}_0 = \hat{x}, \qquad
+\mathcal{X}_i = \hat{x} \pm \left(\sqrt{(N+\lambda)\,P}\right)_i,
+\quad i = 1,\dots,N,
+$$
+
+(columns of the matrix square root), recombined with weights
+$W_0^{m} = \tfrac{\lambda}{N+\lambda}$,
+$W_0^{c} = W_0^{m} + (1 - \alpha^2 + \beta)$, and
+$W_i = \tfrac{1}{2(N+\lambda)}$ for $i > 0$.
 
 ```rust
 use numeris::estimate::Ukf;

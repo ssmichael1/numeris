@@ -4,7 +4,9 @@
 
 ## Storage Layout
 
-`DynMatrix<T>` stores elements in a `Vec<T>` in **column-major** order: element `(row, col)` is at index `col * nrows + row`. This matches the fixed `Matrix` layout and enables the same SIMD inner-loop optimizations.
+`DynMatrix<T>` stores elements in a `Vec<T>` in **column-major** order: element
+$(i, j)$ of an $m \times n$ matrix lives at linear index $j\,m + i$ (`col * nrows + row`).
+This matches the fixed `Matrix` layout and enables the same SIMD inner-loop optimizations.
 
 - `from_rows()` accepts **row-major** input (transposes internally)
 - `from_slice()` accepts **column-major** input directly
@@ -205,7 +207,19 @@ See [Linear Algebra](linalg.md) for full decomposition details.
 
 ## Kronecker Product
 
-The Kronecker product `A ⊗ B` of an `m×n` matrix `A` and a `p×q` matrix `B` is an `(m·p)×(n·q)` block matrix:
+The Kronecker product of an `m×n` matrix `A` and a `p×q` matrix `B` is the
+`(m·p)×(n·q)` block matrix
+
+$$
+A \otimes B =
+\begin{bmatrix}
+a_{11} B & \cdots & a_{1n} B \\
+\vdots   & \ddots & \vdots   \\
+a_{m1} B & \cdots & a_{mn} B
+\end{bmatrix},
+$$
+
+each block a scaled copy of `B`:
 
 ```rust
 use numeris::DynMatrix;

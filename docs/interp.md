@@ -22,7 +22,13 @@ Dynamic variants: `DynLinearInterp`, `DynHermiteInterp`, `DynLagrangeInterp`, `D
 
 ## Linear Interpolation
 
-Piecewise linear interpolation between knots. O(log N) per evaluation (binary search).
+Piecewise linear interpolation between knots: for $x \in [x_i, x_{i+1}]$,
+
+$$
+y(x) = y_i + (y_{i+1} - y_i)\,\frac{x - x_i}{x_{i+1} - x_i}.
+$$
+
+$O(\log N)$ per evaluation (binary search).
 
 Out-of-bounds queries extrapolate using the nearest segment.
 
@@ -71,7 +77,18 @@ let dy = interp.eval_deriv(1.5);  // first derivative
 
 ## Barycentric Lagrange Interpolation
 
-Global polynomial interpolation through all N knots. O(N²) setup (barycentric weights), O(N) per evaluation. C^(N-1) continuity.
+Global polynomial interpolation through all N knots, evaluated in the stable
+barycentric form
+
+$$
+p(x) = \frac{\displaystyle\sum_i \frac{w_i}{x - x_i}\, y_i}
+            {\displaystyle\sum_i \frac{w_i}{x - x_i}},
+\qquad
+w_i = \frac{1}{\prod_{j \neq i}(x_i - x_j)}.
+$$
+
+$O(N^2)$ setup (the weights $w_i$), $O(N)$ per evaluation; the interpolant is a
+single degree-$(N\!-\!1)$ polynomial.
 
 ```rust
 use numeris::interp::LagrangeInterp;
@@ -90,7 +107,9 @@ let dy = interp.eval_deriv(0.75);  // first derivative
 
 ## Natural Cubic Spline
 
-Piecewise cubic with C² continuity (continuous second derivative). Natural boundary conditions (`S''(x₀) = S''(xₙ) = 0`). Solved via Thomas algorithm (tridiagonal, O(N)).
+Piecewise cubic with $C^2$ continuity (continuous second derivative). Natural
+boundary conditions $S''(x_0) = S''(x_n) = 0$. Solved via the Thomas algorithm
+(tridiagonal, $O(N)$).
 
 ```rust
 use numeris::interp::CubicSpline;
