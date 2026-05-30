@@ -297,6 +297,14 @@ and `finite_difference_jacobian_dyn` follow the same pattern. Settings structs
 shared with the fixed-size routines. Results come back as
 `MinimizeResultDyn<T>` / `LeastSquaresResultDyn<T>`.
 
+!!! tip "Parallel finite-difference Jacobians"
+    With the **`rayon`** feature, `finite_difference_jacobian_dyn` and
+    `finite_difference_gradient_dyn` evaluate their columns in parallel — each
+    column is an independent call to your function, so an expensive `f` (e.g. an
+    ODE integration) scales across cores. Under `rayon` the closure bound
+    tightens from `FnMut` to `Fn + Sync + Send`; the no-`rayon` signature is
+    unchanged. See [Parallelism](performance.md#parallelism-rayon).
+
 ## Error Handling
 
 ```rust

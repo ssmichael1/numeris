@@ -32,7 +32,7 @@ use super::filters::{gaussian_blur, sobel_gradients};
 /// assert!(r[(10, 10)] > 0.0);
 /// assert!(r[(21, 21)] > 0.0);
 /// ```
-pub fn harris_corners<T: FloatScalar>(
+pub fn harris_corners<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     k: T,
@@ -64,7 +64,7 @@ pub fn harris_corners<T: FloatScalar>(
 /// For a symmetric 2×2 matrix `M = [a b; b c]`, the smaller eigenvalue is
 /// `((a + c) − √((a − c)² + 4 b²)) / 2`, clamped to 0 if negative rounding
 /// slips through.
-pub fn shi_tomasi_corners<T: FloatScalar>(
+pub fn shi_tomasi_corners<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     border: BorderMode<T>,
@@ -94,7 +94,7 @@ pub fn shi_tomasi_corners<T: FloatScalar>(
 
 /// Compute the three independent entries of the Gaussian-smoothed
 /// structure tensor: `(G * gx², G * gxgy, G * gy²)`.
-fn structure_tensor<T: FloatScalar>(
+fn structure_tensor<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     border: BorderMode<T>,

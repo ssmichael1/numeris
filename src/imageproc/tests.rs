@@ -145,6 +145,34 @@ fn separable_matches_direct() {
 }
 
 #[test]
+fn separable_matches_direct_large() {
+    // Image wider than CONV_PAR_MIN_COLS (64) so the `rayon` build runs the
+    // parallel per-column branch; the separable result must still equal the
+    // dense convolution exactly (parallel writes disjoint columns).
+    let ky = [1.0_f64, 2.0, 3.0];
+    let kx = [1.0_f64, 4.0, 1.0];
+    let dense = Matrix::<f64, 3, 3>::new([
+        [ky[0] * kx[0], ky[0] * kx[1], ky[0] * kx[2]],
+        [ky[1] * kx[0], ky[1] * kx[1], ky[1] * kx[2]],
+        [ky[2] * kx[0], ky[2] * kx[1], ky[2] * kx[2]],
+    ]);
+    let (h, w) = (50, 130);
+    let img = ramp(h, w);
+    let a = convolve2d_separable(&img, &ky, &kx, BorderMode::Reflect);
+    let b = convolve2d(&img, &dense, BorderMode::Reflect);
+    for i in 0..h {
+        for j in 0..w {
+            assert!(
+                (a[(i, j)] - b[(i, j)]).abs() < 1e-9,
+                "mismatch at ({i},{j}): sep={} dense={}",
+                a[(i, j)],
+                b[(i, j)]
+            );
+        }
+    }
+}
+
+#[test]
 fn delta_impulse_gives_kernel_response() {
     // A one-hot image centered at (3, 3) convolved with a kernel should
     // produce the kernel itself (correlation flips the location but since
@@ -712,6 +740,29 @@ fn min_filter_matches_naive() {
 }
 
 #[test]
+fn morphology_large_nonsquare_matches_naive_parallel() {
+    // Large and non-square so the `rayon` build exercises the parallel
+    // transpose-sandwich (vertical → transposeᵀ → vertical → transposeᵀ) and
+    // the dimension swap in the transpose. Must equal the naive 2D window
+    // extreme exactly.
+    let (h, w) = (220usize, 380usize);
+    let img = DynMatrix::from_fn(h, w, |i, j| (((i * 31) ^ (j * 17)) % 257) as f64);
+    for r in [1usize, 3] {
+        let max_fast = max_filter(&img, r, BorderMode::Reflect);
+        let max_slow =
+            naive_window_extreme(&img, r, BorderMode::Reflect, f64::NEG_INFINITY, f64::max);
+        let min_fast = min_filter(&img, r, BorderMode::Reflect);
+        let min_slow = naive_window_extreme(&img, r, BorderMode::Reflect, f64::INFINITY, f64::min);
+        for i in 0..h {
+            for j in 0..w {
+                assert_eq!(max_fast[(i, j)], max_slow[(i, j)], "max r={r} at ({i},{j})");
+                assert_eq!(min_fast[(i, j)], min_slow[(i, j)], "min r={r} at ({i},{j})");
+            }
+        }
+    }
+}
+
+#[test]
 fn dilate_erode_on_impulse() {
     let mut img = DynMatrix::<f64>::zeros(11, 11);
     img[(5, 5)] = 1.0;
@@ -751,6 +802,25 @@ fn median_radius_2_matches_rank_filter() {
     for i in 0..15 {
         for j in 0..21 {
             assert_eq!(fast[(i, j)], slow[(i, j)], "5×5 median at ({i},{j})");
+        }
+    }
+}
+
+#[test]
+fn median_large_matches_rank_filter_parallel() {
+    // Wide enough to cross the rank/median work threshold so the `rayon` build
+    // runs the parallel per-column interior path. The fast 3×3/5×5
+    // specializations (parallel interior + sequential border) must match the
+    // generic rank_filter exactly.
+    let img = DynMatrix::from_fn(90, 220, |i, j| ((i * 31 + j * 13) % 200) as f64);
+    let (h, w) = (90, 220);
+    for (r, rank) in [(1usize, 4usize), (2, 12)] {
+        let fast = median_filter(&img, r, BorderMode::Reflect);
+        let slow = rank_filter(&img, r, rank, BorderMode::Reflect);
+        for i in 0..h {
+            for j in 0..w {
+                assert_eq!(fast[(i, j)], slow[(i, j)], "median r={r} at ({i},{j})");
+            }
         }
     }
 }
@@ -922,6 +992,48 @@ fn local_mean_on_constant() {
     let img = DynMatrix::<f64>::fill(10, 10, 7.0);
     let m = local_mean(&img, 2);
     for i in 0..10 { for j in 0..10 { assert!((m[(i, j)] - 7.0).abs() < 1e-12); } }
+}
+
+#[test]
+fn local_mean_large_separable_reference_parallel() {
+    // Large enough to cross the local-stats work gate (parallel under `rayon`).
+    // For a column-separable source f(i,j) = i + j, the windowed mean equals
+    // mean_i + mean_j, computed independently per axis — a closed-form check
+    // that catches any row/column mix-up in the parallel chunking.
+    let (h, w, r) = (600usize, 600usize, 3usize);
+    let img = DynMatrix::from_fn(h, w, |i, j| (i + j) as f64);
+    let m = local_mean(&img, r);
+    let axis_mean = |idx: usize, n: usize| -> f64 {
+        let lo = idx.saturating_sub(r);
+        let hi = (idx + r + 1).min(n);
+        let cnt = hi - lo;
+        (lo..hi).map(|k| k as f64).sum::<f64>() / cnt as f64
+    };
+    for &(i, j) in &[(0usize, 0usize), (5, 7), (300, 299), (h - 1, w - 1), (250, 13)] {
+        let expected = axis_mean(i, h) + axis_mean(j, w);
+        assert!((m[(i, j)] - expected).abs() < 1e-9, "local_mean at ({i},{j})");
+    }
+}
+
+#[test]
+fn resize_large_uniform_and_midpoint_parallel() {
+    // Crosses the resize work gate (parallel under `rayon`). A uniform image
+    // resizes to a uniform image; a vertical ramp upscales to a known midpoint.
+    let uni = DynMatrix::<f64>::fill(400, 700, 9.0);
+    let up = resize_bilinear(&uni, 800, 800);
+    assert_eq!((up.nrows(), up.ncols()), (800, 800));
+    for &(i, j) in &[(0usize, 0usize), (400, 400), (799, 799), (123, 654)] {
+        assert!((up[(i, j)] - 9.0).abs() < 1e-9, "uniform resize at ({i},{j})");
+    }
+    // Column ramp src[i,j] = j: bilinear preserves the linear profile along x.
+    let ramp = DynMatrix::from_fn(300, 600, |_, j| j as f64);
+    let r2 = resize_bilinear(&ramp, 300, 1200); // 2× wider
+    // Output column j_out maps to input x = (j_out + 0.5) * (600/1200) - 0.5.
+    for j_out in [0usize, 600, 1199] {
+        let x = (j_out as f64 + 0.5) * 0.5 - 0.5;
+        let expected = x.clamp(0.0, 599.0);
+        assert!((r2[(150, j_out)] - expected).abs() < 1e-9, "ramp resize at col {j_out}");
+    }
 }
 
 #[test]

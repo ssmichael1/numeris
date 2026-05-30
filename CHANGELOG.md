@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.5.12
+
+- **`rayon` feature (opt-in parallelism)** — a new `rayon` Cargo feature adds
+  multi-threaded parallelism on runtime-sized paths without disturbing the
+  no-std-first baseline. It implies `std` and is purely additive: builds without
+  it are byte-for-byte unchanged. Dispatch is hidden behind a private `par`
+  module (mirroring `simd`), so each algorithm has a single source with the
+  feature flag in one place.
+  - First slice: `finite_difference_jacobian_dyn` and
+    `finite_difference_gradient_dyn` compute their columns in parallel (each is
+    an independent evaluation of `f`). Columns write into disjoint slices, so the
+    result is identical regardless of thread count. With `rayon` the closure
+    bound tightens from `FnMut` to `Fn + Sync + Send`; without it the signature
+    is unchanged. Parallelism engages only above a column threshold, biased
+    toward the regime it helps (an expensive `f`); see `bench/fd_jacobian` and
+    `bench/results.md` for the measured crossover (≈2.4× at n=64, ≈4× at n=256
+    with a moderately expensive evaluation).
+  - Second slice: separable convolution (`convolve2d_separable`, and thus
+    `gaussian_blur` / `box_blur` and everything built on them — `unsharp_mask`,
+    `laplacian_of_gaussian`, `canny`, `harris_corners`, `shi_tomasi_corners`,
+    `difference_of_gaussians`, `gaussian_pyramid`) computes its output columns in
+    parallel. Each output column is a disjoint write, so results are unchanged.
+    The fan-out decision is gated on per-pass *work* (`nrows · ncols · klen`),
+    not column count, so it accounts for image height and kernel size — a small
+    image stays sequential, a large one parallelizes (~2.6× at 512² for a small
+    Gaussian; see `bench/convolve`).
+  - Third slice: more `imageproc` per-column kernels — the rank / median filters
+    (`rank_filter`, `percentile_filter`, `median_filter` and its 3×3/5×5 fast
+    paths), `resize_bilinear`, and the local-statistics queries (`local_mean`,
+    `local_variance`, `local_stddev`, and `adaptive_threshold` / `median_pool_upsampled`
+    built on them). The median quickselect is the most expensive per-pixel work
+    in imageproc — ~3.4–3.7× at 256² (see `bench/rank`). Fan-out is gated on
+    per-pass work scaled by window area, and a shared `par::work_col_threshold`
+    helper now backs all the imageproc gates. The summed-area-table build under
+    the local-stats queries stays sequential (it is a prefix-sum scan, a separate
+    decomposition).
+  - Fourth slice: morphology (`max_filter`/`min_filter`, `dilate`/`erode`,
+    `opening`/`closing`, `morphology_gradient`, `top_hat`, `black_hat`). Under
+    `rayon` the separable Van Herk filter runs the horizontal direction as a
+    second *vertical* pass in transposed space (`out = (V(T(V(src))))ᵀ`), so both
+    filter passes and both transposes parallelize over output columns while
+    keeping O(1)-per-pixel cost — ~3.9–4.1× at 512²–1024² (`bench/morphology`).
+    The change is `cfg`-split: the no-`rayon` build keeps the original lean
+    sequential pass (two buffers + row scratch, no transposes), so the embedded
+    baseline is unchanged; the two extra full-image allocations are paid only
+    when `rayon` is enabled.
+  - The `Send + Sync` requirement these parallel paths place on the element type
+    is expressed through a hidden `MaybeSync` marker bound that is empty (a
+    blanket impl for all types) unless `rayon` is enabled, so non-`rayon`
+    signatures are unconstrained and `f32`/`f64` satisfy it automatically when it
+    applies.
+  - Fixed-size `Matrix` Jacobians and other small stack-allocated paths stay
+    sequential by design.
+
 ## 0.5.11
 
 - **Dynamic-dimension `optim` routines** — `minimize_bfgs_dyn`,

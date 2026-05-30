@@ -4,6 +4,30 @@ use crate::traits::{FloatScalar, MatrixMut, MatrixRef, Scalar};
 
 use super::border::{fetch_border, BorderMode};
 
+/// Approximate per-pass work (element multiply-adds: `nrows · ncols · klen`)
+/// below which a separable convolution pass runs sequentially. Above it, the
+/// `rayon` feature fans the output columns out across threads.
+///
+/// Gating on *work* rather than column count alone accounts for image height
+/// and kernel length: a wide-but-short image can be cheaper than a narrow-but-
+/// tall one. The value sits just past the measured crossover for a small
+/// Gaussian (see `bench/results.md`: 128² loses to thread overhead, 512² wins
+/// ~2.6×).
+const CONV_PAR_WORK_BUDGET: usize = 500_000;
+
+/// Minimum number of output-column chunks before parallelizing, so a tall,
+/// narrow image with heavy per-column work still gets enough chunks to spread
+/// across cores without splitting into uselessly tiny pieces.
+const CONV_PAR_MIN_COLS: usize = 8;
+
+/// Column-count threshold for [`crate::par::for_each_chunk_mut`] derived from the
+/// work budget: parallelize once `ncols` reaches `BUDGET / (nrows · klen)`,
+/// floored at [`CONV_PAR_MIN_COLS`].
+#[inline]
+fn conv_par_col_threshold(nrows: usize, klen: usize) -> usize {
+    crate::par::work_col_threshold(nrows.saturating_mul(klen), CONV_PAR_WORK_BUDGET, CONV_PAR_MIN_COLS)
+}
+
 /// 2D convolution (correlation convention: the kernel is **not** flipped).
 ///
 /// Computes `out[i, j] = Σ_{ki, kj} kernel[ki, kj] · src[i + ki - hy, j + kj - hx]`
@@ -86,7 +110,7 @@ pub fn convolve2d<T: FloatScalar, K: MatrixRef<T>>(
 ///     }
 /// }
 /// ```
-pub fn convolve2d_separable<T: FloatScalar>(
+pub fn convolve2d_separable<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel_y: &[T],
     kernel_x: &[T],
@@ -161,7 +185,12 @@ fn accumulate_shifted<T: FloatScalar>(
 
 /// 1D convolution along the vertical (row) axis, applied independently to
 /// each column.
-fn convolve_1d_vertical<T: FloatScalar>(
+///
+/// Each output column depends only on the matching source column, so with the
+/// `rayon` feature the columns are computed in parallel over disjoint output
+/// slices (above the [`conv_par_col_threshold`] work gate) — the result is
+/// identical regardless of thread count.
+fn convolve_1d_vertical<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel: &[T],
     border: BorderMode<T>,
@@ -175,11 +204,11 @@ fn convolve_1d_vertical<T: FloatScalar>(
         return dst;
     }
 
-    for j in 0..ncols {
+    let par_threshold = conv_par_col_threshold(nrows, klen);
+    crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, par_threshold, |j, dst_col| {
         // Interior AXPY: output rows where every kernel tap stays in-bounds.
         if nrows > 2 * half {
             let interior_len = nrows - 2 * half;
-            let dst_col = dst.col_as_mut_slice(j, 0);
             let src_col_full = src.col_as_slice(j, 0);
             for k in 0..klen {
                 let w = kernel[k];
@@ -198,13 +227,13 @@ fn convolve_1d_vertical<T: FloatScalar>(
         let src_col = src.col_as_slice(j, 0);
         let border_top_hi = half.min(nrows);
         let border_bot_lo = nrows.saturating_sub(half).max(border_top_hi);
-        for i in 0..border_top_hi {
-            dst[(i, j)] = vertical_tap_sum(src_col, kernel, half, i, border);
+        for (i, cell) in dst_col[..border_top_hi].iter_mut().enumerate() {
+            *cell = vertical_tap_sum(src_col, kernel, half, i, border);
         }
-        for i in border_bot_lo..nrows {
-            dst[(i, j)] = vertical_tap_sum(src_col, kernel, half, i, border);
+        for (off, cell) in dst_col[border_bot_lo..].iter_mut().enumerate() {
+            *cell = vertical_tap_sum(src_col, kernel, half, border_bot_lo + off, border);
         }
-    }
+    });
     dst
 }
 
@@ -228,7 +257,11 @@ fn vertical_tap_sum<T: FloatScalar>(
 /// 1D convolution along the horizontal (column) axis, applied independently
 /// to each row. Implemented as whole-column AXPY between shifted columns —
 /// contiguous memory access despite the axis name.
-fn convolve_1d_horizontal<T: FloatScalar>(
+///
+/// Each output column reads only (immutably) shifted source columns and writes
+/// its own disjoint output column, so with the `rayon` feature the output
+/// columns are computed in parallel (above the [`conv_par_col_threshold`] work gate).
+fn convolve_1d_horizontal<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel: &[T],
     border: BorderMode<T>,
@@ -242,7 +275,8 @@ fn convolve_1d_horizontal<T: FloatScalar>(
         return dst;
     }
 
-    for j in 0..ncols {
+    let par_threshold = conv_par_col_threshold(nrows, klen);
+    crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, par_threshold, |j, dst_col| {
         for k in 0..klen {
             let w = kernel[k];
             if w == T::zero() {
@@ -251,17 +285,16 @@ fn convolve_1d_horizontal<T: FloatScalar>(
             let sj = j as isize + (k as isize - half as isize);
             if sj >= 0 && (sj as usize) < ncols {
                 let src_slice = src.col_as_slice(sj as usize, 0);
-                let dst_slice = dst.col_as_mut_slice(j, 0);
-                simd::axpy_pos_dispatch(dst_slice, w, src_slice);
+                simd::axpy_pos_dispatch(dst_col, w, src_slice);
             } else {
                 // Border column: apply border rule for every output row.
-                for i in 0..nrows {
+                for (i, cell) in dst_col.iter_mut().enumerate() {
                     let v = fetch_border_2d(src, i as isize, sj, border);
-                    dst[(i, j)] = dst[(i, j)] + w * v;
+                    *cell = *cell + w * v;
                 }
             }
         }
-    }
+    });
     dst
 }
 

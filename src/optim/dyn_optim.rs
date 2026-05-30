@@ -125,10 +125,29 @@ fn matt_vec<T: FloatScalar>(m: &DynMatrix<T>, v: &DynVector<T>) -> DynVector<T> 
 
 // ── Finite differences ──────────────────────────────────────────────
 
+/// Column count at or above which the `rayon` feature fans the finite-difference
+/// columns out across threads. Below it (and always without the feature) the
+/// columns are computed sequentially.
+///
+/// The crossover that actually matters is the *cost of `f`*, which cannot be
+/// known here, so column count is only a coarse proxy: with a trivially cheap
+/// `f`, even a few dozen columns can run faster sequentially (see
+/// `bench/results.md`). The guard is deliberately low to favor the regime
+/// parallelism is for — an expensive `f` (an ODE step, a measurement model),
+/// where the win is large even at small N — accepting a few-microsecond
+/// regression on cheap-`f` mid-N cases that are already fast in absolute terms.
+const FD_PAR_MIN_COLS: usize = 8;
+
 /// Approximate the Jacobian of `f: R^n → R^m` using forward finite differences.
 ///
 /// Uses step size `h_j = sqrt(ε) * max(|x_j|, 1)` for each component,
 /// requiring `n + 1` function evaluations.
+///
+/// With the `rayon` feature the `n` columns are computed in parallel (each is an
+/// independent evaluation of `f`), and the closure bound tightens from `FnMut`
+/// to `Fn + Sync + Send`. Parallelism engages only above `FD_PAR_MIN_COLS`
+/// columns; the columns write into disjoint slices of the result, so the value
+/// is identical regardless of thread count.
 ///
 /// # Example
 ///
@@ -144,26 +163,75 @@ fn matt_vec<T: FloatScalar>(m: &DynMatrix<T>, v: &DynVector<T>) -> DynVector<T> 
 /// assert!((j[(0, 0)] - 6.0).abs() < 1e-5);
 /// assert!((j[(1, 1)] - 3.0).abs() < 1e-5);
 /// ```
+#[cfg(not(feature = "rayon"))]
 pub fn finite_difference_jacobian_dyn<T: FloatScalar>(
     mut f: impl FnMut(&DynVector<T>) -> DynVector<T>,
     x: &DynVector<T>,
 ) -> DynMatrix<T> {
     let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
-    let n = x.len();
     let m = f0.len();
-    let mut jac = DynMatrix::zeros(m, n);
+    let f0 = f0.as_slice();
+    let mut jac = DynMatrix::zeros(m, x.len());
 
-    for j in 0..n {
+    crate::par::for_each_chunk_mut(jac.as_mut_slice(), m, FD_PAR_MIN_COLS, |j, col| {
         let h = sqrt_eps * x[j].abs().max(T::one());
         let mut x_pert = x.clone();
         x_pert[j] = x_pert[j] + h;
         let f_pert = f(&x_pert);
-
         for i in 0..m {
-            jac[(i, j)] = (f_pert[i] - f0[i]) / h;
+            col[i] = (f_pert[i] - f0[i]) / h;
         }
-    }
+    });
+
+    jac
+}
+
+/// Approximate the Jacobian of `f: R^n → R^m` using forward finite differences.
+///
+/// Uses step size `h_j = sqrt(ε) * max(|x_j|, 1)` for each component,
+/// requiring `n + 1` function evaluations.
+///
+/// With the `rayon` feature the `n` columns are computed in parallel (each is an
+/// independent evaluation of `f`), and the closure bound tightens from `FnMut`
+/// to `Fn + Sync + Send`. Parallelism engages only above `FD_PAR_MIN_COLS`
+/// columns; the columns write into disjoint slices of the result, so the value
+/// is identical regardless of thread count.
+///
+/// # Example
+///
+/// ```
+/// use numeris::optim::finite_difference_jacobian_dyn;
+/// use numeris::DynVector;
+///
+/// let x = DynVector::from_slice(&[3.0_f64, 4.0]);
+/// let j = finite_difference_jacobian_dyn(
+///     |x: &DynVector<f64>| DynVector::from_slice(&[x[0] * x[0], x[0] * x[1]]),
+///     &x,
+/// );
+/// assert!((j[(0, 0)] - 6.0).abs() < 1e-5);
+/// assert!((j[(1, 1)] - 3.0).abs() < 1e-5);
+/// ```
+#[cfg(feature = "rayon")]
+pub fn finite_difference_jacobian_dyn<T: FloatScalar + Send + Sync>(
+    f: impl Fn(&DynVector<T>) -> DynVector<T> + Sync + Send,
+    x: &DynVector<T>,
+) -> DynMatrix<T> {
+    let sqrt_eps = T::epsilon().sqrt();
+    let f0 = f(x);
+    let m = f0.len();
+    let f0 = f0.as_slice();
+    let mut jac = DynMatrix::zeros(m, x.len());
+
+    crate::par::for_each_chunk_mut(jac.as_mut_slice(), m, FD_PAR_MIN_COLS, |j, col| {
+        let h = sqrt_eps * x[j].abs().max(T::one());
+        let mut x_pert = x.clone();
+        x_pert[j] = x_pert[j] + h;
+        let f_pert = f(&x_pert);
+        for i in 0..m {
+            col[i] = (f_pert[i] - f0[i]) / h;
+        }
+    });
 
     jac
 }
@@ -172,6 +240,11 @@ pub fn finite_difference_jacobian_dyn<T: FloatScalar>(
 ///
 /// Uses step size `h_j = sqrt(ε) * max(|x_j|, 1)` for each component,
 /// requiring `n + 1` function evaluations.
+///
+/// With the `rayon` feature the `n` components are computed in parallel and the
+/// closure bound tightens from `FnMut` to `Fn + Sync + Send`, engaging above
+/// `FD_PAR_MIN_COLS` components. Each component writes a disjoint element, so
+/// the result is identical regardless of thread count.
 ///
 /// # Example
 ///
@@ -187,21 +260,64 @@ pub fn finite_difference_jacobian_dyn<T: FloatScalar>(
 /// assert!((g[0] - 6.0).abs() < 1e-5);
 /// assert!((g[1] - 16.0).abs() < 1e-5);
 /// ```
+#[cfg(not(feature = "rayon"))]
 pub fn finite_difference_gradient_dyn<T: FloatScalar>(
     mut f: impl FnMut(&DynVector<T>) -> T,
     x: &DynVector<T>,
 ) -> DynVector<T> {
     let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
-    let n = x.len();
-    let mut grad = DynVector::zeros(n);
+    let mut grad = DynVector::zeros(x.len());
 
-    for j in 0..n {
+    crate::par::for_each_chunk_mut(grad.as_mut_slice(), 1, FD_PAR_MIN_COLS, |j, cell| {
         let h = sqrt_eps * x[j].abs().max(T::one());
         let mut x_pert = x.clone();
         x_pert[j] = x_pert[j] + h;
-        grad[j] = (f(&x_pert) - f0) / h;
-    }
+        cell[0] = (f(&x_pert) - f0) / h;
+    });
+
+    grad
+}
+
+/// Approximate the gradient of `f: R^n → R` using forward finite differences.
+///
+/// Uses step size `h_j = sqrt(ε) * max(|x_j|, 1)` for each component,
+/// requiring `n + 1` function evaluations.
+///
+/// With the `rayon` feature the `n` components are computed in parallel and the
+/// closure bound tightens from `FnMut` to `Fn + Sync + Send`, engaging above
+/// `FD_PAR_MIN_COLS` components. Each component writes a disjoint element, so
+/// the result is identical regardless of thread count.
+///
+/// # Example
+///
+/// ```
+/// use numeris::optim::finite_difference_gradient_dyn;
+/// use numeris::DynVector;
+///
+/// let x = DynVector::from_slice(&[3.0_f64, 4.0]);
+/// let g = finite_difference_gradient_dyn(
+///     |x: &DynVector<f64>| x[0] * x[0] + x[1] * x[1] * 2.0,
+///     &x,
+/// );
+/// assert!((g[0] - 6.0).abs() < 1e-5);
+/// assert!((g[1] - 16.0).abs() < 1e-5);
+/// ```
+#[cfg(feature = "rayon")]
+pub fn finite_difference_gradient_dyn<T: FloatScalar + Send + Sync>(
+    f: impl Fn(&DynVector<T>) -> T + Sync + Send,
+    x: &DynVector<T>,
+) -> DynVector<T> {
+    let sqrt_eps = T::epsilon().sqrt();
+    let f0 = f(x);
+    let mut grad = DynVector::zeros(x.len());
+
+    crate::par::for_each_chunk_mut(grad.as_mut_slice(), 1, FD_PAR_MIN_COLS, |j, cell| {
+        let h = sqrt_eps * x[j].abs().max(T::one());
+        let mut x_pert = x.clone();
+        x_pert[j] = x_pert[j] + h;
+        cell[0] = (f(&x_pert) - f0) / h;
+    });
 
     grad
 }

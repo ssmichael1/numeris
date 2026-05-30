@@ -10,6 +10,9 @@ numeris = { version = "0.5", features = ["imageproc"] }
 
 All operations work on real-float images (`f32`, `f64`) via the `FloatScalar` trait. The fast sliding-histogram median (`median_filter_u16`) is a `u16` specialization for quantized data.
 
+!!! tip "Multi-threading"
+    Add the **`rayon`** feature to run most filters (convolution / blur, rank & median, morphology, resize, local statistics) in parallel over output columns — roughly 2.5–4× on large images, with identical results. It is opt-in and `cfg`-isolated, so the no-`rayon` build is unchanged. See [Parallelism](performance.md#parallelism-rayon).
+
 ![Image processing overview](includes/plot_imageproc_panel.svg)
 
 ## Data Layout
