@@ -65,7 +65,7 @@ Optimizations applied (cumulative):
 
 ## Parallel finite-difference Jacobian (`rayon` feature)
 
-Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench fd_jacobian`.
+Platform: Apple M3, 8 cores (4P+4E), aarch64, `cargo bench -p numeris-bench --bench fd_jacobian`.
 `seq` = sequential baseline (faithful re-impl), `par` = `finite_difference_jacobian_dyn`
 with `rayon`. `nN_wW` = N columns, W extra transcendental ops per output element
 (synthetic eval cost). Total FD work scales as O(N² · W).
@@ -86,7 +86,7 @@ cheap-`f` mid-N cases that are already fast in absolute terms.
 
 ## Parallel separable convolution (`rayon` feature)
 
-Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench convolve`
+Platform: Apple M3, 8 cores (4P+4E), aarch64, `cargo bench -p numeris-bench --bench convolve`
 (seq via `--no-default-features`). `gaussian_blur`, sigma=2 (≈13-tap kernel),
 square `n×n` f64 images.
 
@@ -103,7 +103,7 @@ overhead. Gating on work (`CONV_PAR_WORK_BUDGET`) keeps 128² sequential while
 
 ## Parallel rank / median filter (`rayon` feature)
 
-Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench rank`
+Platform: Apple M3, 8 cores (4P+4E), aarch64, `cargo bench -p numeris-bench --bench rank`
 (seq via `--no-default-features`). `median_filter`, square f64 images, radius 1
 (3×3) and 2 (5×5).
 
@@ -123,7 +123,7 @@ parallelism at smaller sizes than the cheap separable blur — and the larger
 
 ## Parallel morphology (`rayon` feature)
 
-Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench morphology`
+Platform: Apple M3, 8 cores (4P+4E), aarch64, `cargo bench -p numeris-bench --bench morphology`
 (seq via `--no-default-features`). `dilate`, radius 3, square f64 images.
 
 | n×n | seq | par | Result |
