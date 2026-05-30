@@ -35,9 +35,17 @@
     per-pass work scaled by window area, and a shared `par::work_col_threshold`
     helper now backs all the imageproc gates. The summed-area-table build under
     the local-stats queries stays sequential (it is a prefix-sum scan, a separate
-    decomposition). Morphology is deferred: its second (horizontal) Van Herk pass
-    writes strided rows in column-major storage and needs a transpose-based
-    approach.
+    decomposition).
+  - Fourth slice: morphology (`max_filter`/`min_filter`, `dilate`/`erode`,
+    `opening`/`closing`, `morphology_gradient`, `top_hat`, `black_hat`). Under
+    `rayon` the separable Van Herk filter runs the horizontal direction as a
+    second *vertical* pass in transposed space (`out = (V(T(V(src))))ᵀ`), so both
+    filter passes and both transposes parallelize over output columns while
+    keeping O(1)-per-pixel cost — ~3.9–4.1× at 512²–1024² (`bench/morphology`).
+    The change is `cfg`-split: the no-`rayon` build keeps the original lean
+    sequential pass (two buffers + row scratch, no transposes), so the embedded
+    baseline is unchanged; the two extra full-image allocations are paid only
+    when `rayon` is enabled.
   - The `Send + Sync` requirement these parallel paths place on the element type
     is expressed through a hidden `MaybeSync` marker bound that is empty (a
     blanket impl for all types) unless `rayon` is enabled, so non-`rayon`

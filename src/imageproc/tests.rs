@@ -740,6 +740,29 @@ fn min_filter_matches_naive() {
 }
 
 #[test]
+fn morphology_large_nonsquare_matches_naive_parallel() {
+    // Large and non-square so the `rayon` build exercises the parallel
+    // transpose-sandwich (vertical → transposeᵀ → vertical → transposeᵀ) and
+    // the dimension swap in the transpose. Must equal the naive 2D window
+    // extreme exactly.
+    let (h, w) = (220usize, 380usize);
+    let img = DynMatrix::from_fn(h, w, |i, j| (((i * 31) ^ (j * 17)) % 257) as f64);
+    for r in [1usize, 3] {
+        let max_fast = max_filter(&img, r, BorderMode::Reflect);
+        let max_slow =
+            naive_window_extreme(&img, r, BorderMode::Reflect, f64::NEG_INFINITY, f64::max);
+        let min_fast = min_filter(&img, r, BorderMode::Reflect);
+        let min_slow = naive_window_extreme(&img, r, BorderMode::Reflect, f64::INFINITY, f64::min);
+        for i in 0..h {
+            for j in 0..w {
+                assert_eq!(max_fast[(i, j)], max_slow[(i, j)], "max r={r} at ({i},{j})");
+                assert_eq!(min_fast[(i, j)], min_slow[(i, j)], "min r={r} at ({i},{j})");
+            }
+        }
+    }
+}
+
+#[test]
 fn dilate_erode_on_impulse() {
     let mut img = DynMatrix::<f64>::zeros(11, 11);
     img[(5, 5)] = 1.0;

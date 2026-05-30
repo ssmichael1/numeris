@@ -120,3 +120,21 @@ Quickselect per pixel is the most expensive per-pixel work in imageproc, so the
 work gate (`RANK_WORK_BUDGET`, scaled by window area `k_total`) engages
 parallelism at smaller sizes than the cheap separable blur — and the larger
 5×5 window crosses the gate sooner than 3×3, as intended.
+
+## Parallel morphology (`rayon` feature)
+
+Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench morphology`
+(seq via `--no-default-features`). `dilate`, radius 3, square f64 images.
+
+| n×n | seq | par | Result |
+|---|---|---|---|
+| 128²  | 163 µs  | 174 µs  | sequential (work < gate; small transpose overhead) |
+| 512²  | 3.07 ms | 790 µs  | **par 3.9×** |
+| 1024² | 13.7 ms | 3.33 ms | **par 4.1×** |
+
+The no-`rayon` build keeps the lean sequential separable pass (two buffers +
+row scratch, no transposes). Under `rayon`, the horizontal direction is run as
+a second *vertical* pass in transposed space, so both Van Herk passes and both
+transposes parallelize over output columns while preserving O(1)-per-pixel
+cost; the cost is two extra full-image allocations, taken only when the feature
+is enabled.

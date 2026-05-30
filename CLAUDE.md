@@ -91,11 +91,13 @@ Checked items are implemented; unchecked are potential future work.
   and many `imageproc` per-column kernels — separable convolution (`convolve2d_separable` →
   `gaussian_blur`/`box_blur` and all filters built on them: `unsharp_mask`, `laplacian_of_gaussian`,
   `canny`, Harris/Shi-Tomasi corners, DoG, Gaussian pyramid), rank/median filters (`rank_filter`,
-  `percentile_filter`, `median_filter`), `resize_bilinear`, and local-statistics queries
-  (`local_mean`/`local_variance`/`local_stddev`, `adaptive_threshold`). All parallelize over output
-  columns, gated on per-pass work via the shared `par::work_col_threshold` helper. Not yet parallel:
-  morphology (horizontal Van Herk pass is strided in column-major storage; needs a transpose) and the
-  integral-image scan (prefix sum; needs a two-pass decomposition).
+  `percentile_filter`, `median_filter`), `resize_bilinear`, local-statistics queries
+  (`local_mean`/`local_variance`/`local_stddev`, `adaptive_threshold`), and morphology
+  (`dilate`/`erode`/`opening`/`closing`/`max_filter`/`min_filter`/gradient/top-hat/black-hat). All
+  parallelize over output columns, gated on per-pass work via the shared `par::work_col_threshold`
+  helper. Morphology's horizontal Van Herk pass is run as a transposed vertical pass under `rayon`
+  (`out = (V(T(V(src))))ᵀ`), `cfg`-split so the no-`rayon` build keeps the lean two-buffer sequential
+  pass. Not yet parallel: the integral-image scan (prefix sum; needs a two-pass decomposition).
   The `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker bound (empty
   blanket impl without `rayon`, `Send + Sync` with it), so a single signature serves both builds
   without `cfg`-split twins.
