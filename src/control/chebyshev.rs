@@ -102,10 +102,7 @@ pub fn chebyshev1_lowpass<T: FloatScalar, const N: usize>(
     if current_dc.abs() > T::epsilon() {
         let scale = target_dc / current_dc;
         let (b, a) = sections[0].coefficients();
-        sections[0] = super::biquad::Biquad::new(
-            [b[0] * scale, b[1] * scale, b[2] * scale],
-            a,
-        );
+        sections[0] = super::biquad::Biquad::new([b[0] * scale, b[1] * scale, b[2] * scale], a);
     }
 
     Ok(BiquadCascade { sections })
@@ -207,10 +204,7 @@ pub fn chebyshev1_highpass<T: FloatScalar, const N: usize>(
     if current_nyq.abs() > T::epsilon() {
         let scale = target_nyq / current_nyq.abs();
         let (b, a) = sections[0].coefficients();
-        sections[0] = super::biquad::Biquad::new(
-            [b[0] * scale, b[1] * scale, b[2] * scale],
-            a,
-        );
+        sections[0] = super::biquad::Biquad::new([b[0] * scale, b[1] * scale, b[2] * scale], a);
     }
 
     Ok(BiquadCascade { sections })

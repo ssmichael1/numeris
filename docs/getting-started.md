@@ -36,7 +36,7 @@ numeris = { version = "0.5", features = ["all"] }
 | `complex` | no | `Complex<f32>` / `Complex<f64>` support for all decompositions. |
 | `nalgebra` | no | Conversions between numeris and nalgebra types. |
 | `serde` | no | Serialize/deserialize all types via serde. Row-major format. |
-| `rayon` | no | Multi-threaded parallelism on runtime-sized paths (dynamic finite-difference Jacobians, most `imageproc` filters). Purely additive; implies `std`; requires Rust ≥ 1.80. See [Performance](performance.md#parallelism-rayon). |
+| `rayon` | no | Multi-threaded parallelism on runtime-sized paths (dynamic finite-difference Jacobians, most `imageproc` filters). Purely additive; implies `std`. See [Performance](performance.md#parallelism-rayon). |
 | `libm` | baseline | Pure-Rust software float math. Always on as fallback. |
 | `all` | no | All of the above. |
 

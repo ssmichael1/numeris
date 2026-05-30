@@ -1,8 +1,8 @@
 //! Regularized incomplete gamma functions P(a,x) and Q(a,x).
 
-use crate::FloatScalar;
-use super::SpecialError;
 use super::gamma_fn::lgamma;
+use super::SpecialError;
+use crate::FloatScalar;
 
 /// Maximum iterations for series / continued fraction.
 const MAX_ITER: usize = 200;
@@ -123,7 +123,7 @@ fn cf_q<T: FloatScalar>(a: T, x: T, prefactor: T) -> Result<T, SpecialError> {
 
     for n in 1..=MAX_ITER {
         let nf = T::from(n).unwrap();
-        let an = nf * (a - nf);                      // a_n = n*(a-n)
+        let an = nf * (a - nf); // a_n = n*(a-n)
         let bn = x + T::from(2 * n + 1).unwrap() - a; // b_n = x + 2n + 1 - a
 
         d = bn + an * d;

@@ -98,9 +98,7 @@ fn ekf_predict_fd_matches_explicit() {
     let p0 = Matrix::new([[1.0, 0.0], [0.0, 1.0]]);
     let q = Matrix::new([[0.01, 0.0], [0.0, 0.01]]);
 
-    let f = |x: &Vector<f64, 2>| {
-        Vector::from_array([x[0] + dt * x[1], x[1]])
-    };
+    let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + dt * x[1], x[1]]);
     let fj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, dt], [0.0, 1.0]]);
 
     let mut ekf_explicit = Ekf::<f64, 2, 1>::new(x0, p0);
@@ -193,20 +191,8 @@ fn ekf_joseph_form_symmetry() {
     for k in 0..50 {
         let t = k as f64 * 0.1;
         ekf.predict(
-            |x| {
-                Vector::from_array([
-                    x[0] + 0.1 * x[1],
-                    x[1] + 0.1 * x[2],
-                    x[2],
-                ])
-            },
-            |_x| {
-                Matrix::new([
-                    [1.0, 0.1, 0.0],
-                    [0.0, 1.0, 0.1],
-                    [0.0, 0.0, 1.0],
-                ])
-            },
+            |x| Vector::from_array([x[0] + 0.1 * x[1], x[1] + 0.1 * x[2], x[2]]),
+            |_x| Matrix::new([[1.0, 0.1, 0.0], [0.0, 1.0, 0.1], [0.0, 0.0, 1.0]]),
             Some(&q),
         );
 
@@ -214,12 +200,7 @@ fn ekf_joseph_form_symmetry() {
         ekf.update(
             &z,
             |x| Vector::from_array([x[0], x[1]]),
-            |_x| {
-                Matrix::new([
-                    [1.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                ])
-            },
+            |_x| Matrix::new([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
             &r,
         )
         .unwrap();
@@ -275,11 +256,8 @@ mod ukf_tests {
         let q = Matrix::new([[0.001, 0.0], [0.0, 0.001]]);
         let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
 
-        ukf.predict(
-            |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
-            Some(&q),
-        )
-        .unwrap();
+        ukf.predict(|x| Vector::from_array([x[0] + dt * x[1], x[1]]), Some(&q))
+            .unwrap();
 
         approx_eq(ukf.x[0], 0.1, 1e-6);
         approx_eq(ukf.x[1], 1.0, 1e-6);
@@ -318,11 +296,8 @@ mod ukf_tests {
         let true_vel = 1.0;
 
         for _ in 0..100 {
-            ukf.predict(
-                |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
-                Some(&q),
-            )
-            .unwrap();
+            ukf.predict(|x| Vector::from_array([x[0] + dt * x[1], x[1]]), Some(&q))
+                .unwrap();
 
             true_pos += dt * true_vel;
             ukf.update(
@@ -348,11 +323,7 @@ mod ukf_tests {
         let true_range = 5.0;
         ukf.update(
             &Vector::from_array([true_range]),
-            |x| {
-                Vector::from_array([
-                    (x[0] * x[0] + x[1] * x[1]).sqrt(),
-                ])
-            },
+            |x| Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()]),
             &r,
         )
         .unwrap();
@@ -370,11 +341,8 @@ mod ukf_tests {
         // alpha=0.5 (wider sigma spread)
         let mut ukf = Ukf::<f64, 2, 1>::with_params(x0, p0, 0.5, 2.0, 0.0);
 
-        ukf.predict(
-            |x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]),
-            Some(&q),
-        )
-        .unwrap();
+        ukf.predict(|x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]), Some(&q))
+            .unwrap();
 
         // Should still produce reasonable results
         approx_eq(ukf.x[0], 0.1, 1e-6);
@@ -391,13 +359,7 @@ mod ukf_tests {
 
         for k in 0..30 {
             ukf.predict(
-                |x| {
-                    Vector::from_array([
-                        x[0] + 0.1 * x[1],
-                        x[1] + 0.1 * x[2],
-                        x[2],
-                    ])
-                },
+                |x| Vector::from_array([x[0] + 0.1 * x[1], x[1] + 0.1 * x[2], x[2]]),
                 Some(&q),
             )
             .unwrap();
@@ -420,7 +382,13 @@ mod ukf_tests {
 
         // Check positive diagonal (necessary for PD)
         for i in 0..3 {
-            assert!(ukf.p[(i, i)] > 0.0, "P[{},{}] = {} not positive", i, i, ukf.p[(i, i)]);
+            assert!(
+                ukf.p[(i, i)] > 0.0,
+                "P[{},{}] = {} not positive",
+                i,
+                i,
+                ukf.p[(i, i)]
+            );
         }
 
         // Verify Cholesky succeeds (sufficient for PD)
@@ -435,11 +403,8 @@ mod ukf_tests {
         let r = Matrix::new([[0.5_f32]]);
         let mut ukf = Ukf::<f32, 2, 1>::new(x0, p0);
 
-        ukf.predict(
-            |x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]),
-            Some(&q),
-        )
-        .unwrap();
+        ukf.predict(|x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]), Some(&q))
+            .unwrap();
 
         ukf.update(
             &Vector::from_array([0.12_f32]),
@@ -490,9 +455,7 @@ mod ukf_tests {
         let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
         let mut ukf = Ukf::<f64, 2, 1>::with_params(x0, p0, 1.0, 2.0, 0.0);
 
-        let f = |x: &Vector<f64, 2>| {
-            Vector::from_array([x[0] + dt * x[1], x[1]])
-        };
+        let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + dt * x[1], x[1]]);
         let fj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, dt], [0.0, 1.0]]);
         let h = |x: &Vector<f64, 2>| Vector::from_array([x[0]]);
         let hj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, 0.0]]);
@@ -530,9 +493,7 @@ mod ukf_tests {
         let true_x = 5.0 * 0.3_f64.cos();
 
         let h = |x: &Vector<f64, 2>| Vector::from_array([x[0] * x[1].cos()]);
-        let hj = |x: &Vector<f64, 2>| {
-            Matrix::new([[x[1].cos(), -x[0] * x[1].sin()]])
-        };
+        let hj = |x: &Vector<f64, 2>| Matrix::new([[x[1].cos(), -x[0] * x[1].sin()]]);
 
         for _ in 0..20 {
             // Identity dynamics
@@ -557,8 +518,8 @@ mod ukf_tests {
 
 #[cfg(feature = "alloc")]
 mod cholupdate_tests {
-    use super::*;
     use super::super::cholupdate::cholupdate;
+    use super::*;
     use crate::linalg::CholeskyDecomposition;
 
     #[test]
@@ -658,10 +619,7 @@ mod srukf_tests {
 
         for _ in 0..100 {
             srukf
-                .predict(
-                    |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
-                    Some(&q),
-                )
+                .predict(|x| Vector::from_array([x[0] + dt * x[1], x[1]]), Some(&q))
                 .unwrap();
 
             true_pos += dt * true_vel;
@@ -690,9 +648,7 @@ mod srukf_tests {
         let mut srukf =
             SrUkf::<f64, 2, 1>::from_covariance_with_params(x0, p0, 0.5, 2.0, 0.0).unwrap();
 
-        let f = |x: &Vector<f64, 2>| {
-            Vector::from_array([x[0] + dt * x[1], x[1]])
-        };
+        let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + dt * x[1], x[1]]);
         let h = |x: &Vector<f64, 2>| Vector::from_array([x[0]]);
 
         let measurements = [0.1, 0.22, 0.31, 0.45, 0.53];
@@ -730,13 +686,7 @@ mod srukf_tests {
         for k in 0..30 {
             srukf
                 .predict(
-                    |x| {
-                        Vector::from_array([
-                            x[0] + 0.1 * x[1],
-                            x[1] + 0.1 * x[2],
-                            x[2],
-                        ])
-                    },
+                    |x| Vector::from_array([x[0] + 0.1 * x[1], x[1] + 0.1 * x[2], x[2]]),
                     Some(&q),
                 )
                 .unwrap();
@@ -777,10 +727,7 @@ mod srukf_tests {
         let mut srukf =
             SrUkf::<f64, 2, 1>::from_covariance_with_params(x0, p0, 0.5, 2.0, 0.0).unwrap();
         srukf
-            .predict(
-                |x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]),
-                Some(&q),
-            )
+            .predict(|x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]), Some(&q))
             .unwrap();
 
         approx_eq(srukf.x[0], 0.1, 1e-6);
@@ -798,11 +745,7 @@ mod srukf_tests {
         srukf
             .update(
                 &Vector::from_array([true_range]),
-                |x| {
-                    Vector::from_array([
-                        (x[0] * x[0] + x[1] * x[1]).sqrt(),
-                    ])
-                },
+                |x| Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()]),
                 &r,
             )
             .unwrap();
@@ -820,10 +763,7 @@ mod srukf_tests {
         let mut srukf = SrUkf::<f32, 2, 1>::from_covariance(x0, p0).unwrap();
 
         srukf
-            .predict(
-                |x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]),
-                Some(&q),
-            )
+            .predict(|x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]), Some(&q))
             .unwrap();
 
         srukf
@@ -870,11 +810,8 @@ mod ckf_tests {
         let true_vel = 1.0;
 
         for _ in 0..100 {
-            ckf.predict(
-                |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
-                Some(&q),
-            )
-            .unwrap();
+            ckf.predict(|x| Vector::from_array([x[0] + dt * x[1], x[1]]), Some(&q))
+                .unwrap();
 
             true_pos += dt * true_vel;
             ckf.update(
@@ -900,9 +837,7 @@ mod ckf_tests {
         let mut ekf = Ekf::<f64, 2, 1>::new(x0, p0);
         let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
 
-        let f = |x: &Vector<f64, 2>| {
-            Vector::from_array([x[0] + dt * x[1], x[1]])
-        };
+        let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + dt * x[1], x[1]]);
         let fj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, dt], [0.0, 1.0]]);
         let h = |x: &Vector<f64, 2>| Vector::from_array([x[0]]);
         let hj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, 0.0]]);
@@ -934,11 +869,7 @@ mod ckf_tests {
         let true_range = 5.0;
         ckf.update(
             &Vector::from_array([true_range]),
-            |x| {
-                Vector::from_array([
-                    (x[0] * x[0] + x[1] * x[1]).sqrt(),
-                ])
-            },
+            |x| Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()]),
             &r,
         )
         .unwrap();
@@ -982,13 +913,7 @@ mod ckf_tests {
 
         for k in 0..30 {
             ckf.predict(
-                |x| {
-                    Vector::from_array([
-                        x[0] + 0.1 * x[1],
-                        x[1] + 0.1 * x[2],
-                        x[2],
-                    ])
-                },
+                |x| Vector::from_array([x[0] + 0.1 * x[1], x[1] + 0.1 * x[2], x[2]]),
                 Some(&q),
             )
             .unwrap();
@@ -1023,11 +948,8 @@ mod ckf_tests {
 
         // Multiple predict-update cycles
         for k in 0..20 {
-            ckf.predict(
-                |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
-                Some(&q),
-            )
-            .unwrap();
+            ckf.predict(|x| Vector::from_array([x[0] + dt * x[1], x[1]]), Some(&q))
+                .unwrap();
 
             let z_val = (k + 1) as f64 * dt;
             ckf.update(
@@ -1050,11 +972,8 @@ mod ckf_tests {
         let r = Matrix::new([[0.5_f32]]);
         let mut ckf = Ckf::<f32, 2, 1>::new(x0, p0);
 
-        ckf.predict(
-            |x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]),
-            Some(&q),
-        )
-        .unwrap();
+        ckf.predict(|x| Vector::from_array([x[0] + 0.1 * x[1], x[1]]), Some(&q))
+            .unwrap();
 
         ckf.update(
             &Vector::from_array([0.12_f32]),
@@ -1191,11 +1110,7 @@ mod rts_tests {
         // Last smoothed step should exactly equal the last filtered step
         let last = smoothed.len() - 1;
         for i in 0..2 {
-            approx_eq(
-                smoothed[last].0[i],
-                steps[last].x_updated[i],
-                1e-14,
-            );
+            approx_eq(smoothed[last].0[i], steps[last].x_updated[i], 1e-14);
         }
     }
 
@@ -1238,11 +1153,7 @@ mod rts_tests {
         for (_, (_, p)) in smoothed.iter().enumerate() {
             for i in 0..2 {
                 for j in 0..2 {
-                    approx_eq(
-                        p[(i, j)],
-                        p[(j, i)],
-                        1e-10,
-                    );
+                    approx_eq(p[(i, j)], p[(j, i)], 1e-10);
                 }
             }
         }
@@ -1396,8 +1307,7 @@ mod batch_tests {
         let h = Matrix::new([[1.0_f64]]);
         let r = Matrix::new([[0.0]]); // singular
 
-        let result =
-            lsq.add_observation(&Vector::from_array([1.0]), &h, &r);
+        let result = lsq.add_observation(&Vector::from_array([1.0]), &h, &r);
         assert_eq!(result, Err(EstimateError::SingularInnovation));
     }
 
@@ -1422,12 +1332,8 @@ mod batch_tests {
         // 2D observation: measure both states
         let h2 = Matrix::new([[1.0, 0.0], [0.0, 1.0_f64]]);
         let r2 = Matrix::new([[0.1, 0.0], [0.0, 0.1]]);
-        lsq.add_observation(
-            &Vector::from_array([3.1, 7.0]),
-            &h2,
-            &r2,
-        )
-        .unwrap();
+        lsq.add_observation(&Vector::from_array([3.1, 7.0]), &h2, &r2)
+            .unwrap();
 
         let (x, _p) = lsq.solve().unwrap();
         approx_eq(x[0], 3.05, 0.05);
@@ -1468,9 +1374,7 @@ mod cross_filter_tests {
         let mut srukf =
             SrUkf::<f64, 2, 1>::from_covariance_with_params(x0, p0, 1.0, 2.0, 0.0).unwrap();
 
-        let f = |x: &Vector<f64, 2>| {
-            Vector::from_array([x[0] + dt * x[1], x[1]])
-        };
+        let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + dt * x[1], x[1]]);
         let fj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, dt], [0.0, 1.0]]);
         let h = |x: &Vector<f64, 2>| Vector::from_array([x[0]]);
         let hj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, 0.0]]);
@@ -1510,11 +1414,7 @@ mod cross_filter_tests {
         let mut ukf = Ukf::<f64, 2, 1>::new(x0, p0);
         let mut ckf = Ckf::<f64, 2, 1>::new(x0, p0);
 
-        let h = |x: &Vector<f64, 2>| {
-            Vector::from_array([
-                (x[0] * x[0] + x[1] * x[1]).sqrt(),
-            ])
-        };
+        let h = |x: &Vector<f64, 2>| Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()]);
 
         let true_range = 5.0;
         for _ in 0..10 {
@@ -1527,10 +1427,8 @@ mod cross_filter_tests {
         }
 
         // Both should track the range
-        let ukf_range =
-            (ukf.x[0] * ukf.x[0] + ukf.x[1] * ukf.x[1]).sqrt();
-        let ckf_range =
-            (ckf.x[0] * ckf.x[0] + ckf.x[1] * ckf.x[1]).sqrt();
+        let ukf_range = (ukf.x[0] * ukf.x[0] + ukf.x[1] * ukf.x[1]).sqrt();
+        let ckf_range = (ckf.x[0] * ckf.x[0] + ckf.x[1] * ckf.x[1]).sqrt();
 
         approx_eq(ukf_range, 5.0, 0.5);
         approx_eq(ckf_range, 5.0, 0.5);
@@ -1549,9 +1447,7 @@ mod cross_filter_tests {
         let mut srukf =
             SrUkf::<f64, 2, 1>::from_covariance_with_params(x0, p0, 0.5, 2.0, 0.0).unwrap();
 
-        let f = |x: &Vector<f64, 2>| {
-            Vector::from_array([x[0] + dt * x[1], x[1]])
-        };
+        let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + dt * x[1], x[1]]);
         let h = |x: &Vector<f64, 2>| Vector::from_array([x[0]]);
 
         for k in 0..10 {
@@ -1603,9 +1499,7 @@ fn fd_jacobian_linear() {
     // f(x) = Ax where A = [[1, 2], [3, 4]]
     let x = Vector::from_array([1.0_f64, 1.0]);
     let jac = fd_jacobian(
-        &|x: &Vector<f64, 2>| {
-            Vector::from_array([x[0] + 2.0 * x[1], 3.0 * x[0] + 4.0 * x[1]])
-        },
+        &|x: &Vector<f64, 2>| Vector::from_array([x[0] + 2.0 * x[1], 3.0 * x[0] + 4.0 * x[1]]),
         &x,
     );
 
@@ -1621,9 +1515,7 @@ fn fd_jacobian_nonlinear() {
     // J = [[2*x0, 0], [x1, x0]] = [[6, 0], [4, 3]]
     let x = Vector::from_array([3.0_f64, 4.0]);
     let jac = fd_jacobian(
-        &|x: &Vector<f64, 2>| {
-            Vector::from_array([x[0] * x[0], x[0] * x[1]])
-        },
+        &|x: &Vector<f64, 2>| Vector::from_array([x[0] * x[0], x[0] * x[1]]),
         &x,
     );
 
@@ -1638,9 +1530,7 @@ fn fd_jacobian_rectangular() {
     // f: R^2 → R^3
     let x = Vector::from_array([1.0_f64, 2.0]);
     let jac = fd_jacobian(
-        &|x: &Vector<f64, 2>| {
-            Vector::from_array([x[0], x[1], x[0] + x[1]])
-        },
+        &|x: &Vector<f64, 2>| Vector::from_array([x[0], x[1], x[0] + x[1]]),
         &x,
     );
 
@@ -1675,9 +1565,15 @@ fn ekf_singular_innovation() {
     );
 
     // Jitter recovery means this now returns Ok with a huge NIS.
-    assert!(result.is_ok(), "expected Ok with jitter recovery, got {result:?}");
+    assert!(
+        result.is_ok(),
+        "expected Ok with jitter recovery, got {result:?}"
+    );
     let nis = result.unwrap();
-    assert!(nis > 1e6, "NIS should be huge for inconsistent measurement, got {nis}");
+    assert!(
+        nis > 1e6,
+        "NIS should be huge for inconsistent measurement, got {nis}"
+    );
     // State must be unchanged (K=0 since P=0).
     approx_eq(ekf.x[0], 0.0, 1e-14);
 }
@@ -1691,10 +1587,7 @@ fn estimate_error_display() {
     );
 
     let e = EstimateError::SingularInnovation;
-    assert_eq!(
-        alloc::format!("{}", e),
-        "innovation covariance is singular"
-    );
+    assert_eq!(alloc::format!("{}", e), "innovation covariance is singular");
 
     let e = EstimateError::CholdowndateFailed;
     assert_eq!(
@@ -1759,7 +1652,10 @@ fn ukf_kskt_covariance_stays_pd_after_many_updates() {
         )
         .unwrap();
         // After each update P must still be PD.
-        assert!(CholeskyDecomposition::new(&ukf.p).is_ok(), "P non-PD at step {k}");
+        assert!(
+            CholeskyDecomposition::new(&ukf.p).is_ok(),
+            "P non-PD at step {k}"
+        );
     }
 }
 
@@ -1780,7 +1676,10 @@ fn ckf_kskt_covariance_stays_pd_after_many_updates() {
             &r,
         )
         .unwrap();
-        assert!(CholeskyDecomposition::new(&ckf.p).is_ok(), "P non-PD at step {k}");
+        assert!(
+            CholeskyDecomposition::new(&ckf.p).is_ok(),
+            "P non-PD at step {k}"
+        );
     }
 }
 
@@ -1801,11 +1700,8 @@ fn ukf_default_alpha_one_converges() {
     let mut true_pos = 5.0;
     let true_vel = 1.0;
     for _ in 0..100 {
-        ukf.predict(
-            |x| Vector::from_array([x[0] + dt * x[1], x[1]]),
-            Some(&q),
-        )
-        .unwrap();
+        ukf.predict(|x| Vector::from_array([x[0] + dt * x[1], x[1]]), Some(&q))
+            .unwrap();
         true_pos += dt * true_vel;
         ukf.update(
             &Vector::from_array([true_pos]),
@@ -1838,7 +1734,11 @@ fn ekf_min_variance_floor_applied() {
             &r,
         )
         .unwrap();
-        assert!(ekf.p[(0, 0)] >= floor, "P fell below floor: {}", ekf.p[(0, 0)]);
+        assert!(
+            ekf.p[(0, 0)] >= floor,
+            "P fell below floor: {}",
+            ekf.p[(0, 0)]
+        );
     }
 }
 
@@ -1852,13 +1752,12 @@ fn ukf_min_variance_floor_applied() {
     let mut ukf = Ukf::<f64, 1, 1>::new(x0, p0).with_min_variance(floor);
 
     for _ in 0..200 {
-        ukf.update(
-            &Vector::from_array([0.0]),
-            |x| *x,
-            &r,
-        )
-        .unwrap();
-        assert!(ukf.p[(0, 0)] >= floor, "P fell below floor: {}", ukf.p[(0, 0)]);
+        ukf.update(&Vector::from_array([0.0]), |x| *x, &r).unwrap();
+        assert!(
+            ukf.p[(0, 0)] >= floor,
+            "P fell below floor: {}",
+            ukf.p[(0, 0)]
+        );
     }
 }
 
@@ -1965,16 +1864,14 @@ fn srukf_gate_rejects_large_innovation() {
 fn iekf_nonlinear_measurement_more_accurate_than_ekf() {
     // Range measurement: h(x) = sqrt(x[0]^2 + x[1]^2)
     // True state far from prior so linearization matters.
-    let x0 = Vector::from_array([4.0_f64, 3.0]);  // prior near truth
+    let x0 = Vector::from_array([4.0_f64, 3.0]); // prior near truth
     let p0 = Matrix::new([[0.5, 0.0], [0.0, 0.5]]);
-    let r = Matrix::new([[0.001]]);  // precise measurement
+    let r = Matrix::new([[0.001]]); // precise measurement
 
     let true_x = Vector::from_array([3.0_f64, 4.0]);
     let true_range = (3.0_f64 * 3.0 + 4.0 * 4.0).sqrt();
 
-    let h = |x: &Vector<f64, 2>| {
-        Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()])
-    };
+    let h = |x: &Vector<f64, 2>| Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()]);
     let hj = |x: &Vector<f64, 2>| {
         let r = (x[0] * x[0] + x[1] * x[1]).sqrt();
         Matrix::new([[x[0] / r, x[1] / r]])
@@ -1987,12 +1884,8 @@ fn iekf_nonlinear_measurement_more_accurate_than_ekf() {
     ekf.update(&z, h, hj, &r).unwrap();
     iekf.update_iterated(&z, h, hj, &r, 20, 1e-8).unwrap();
 
-    let ekf_err = ((ekf.x[0] - true_x[0]).powi(2)
-        + (ekf.x[1] - true_x[1]).powi(2))
-    .sqrt();
-    let iekf_err = ((iekf.x[0] - true_x[0]).powi(2)
-        + (iekf.x[1] - true_x[1]).powi(2))
-    .sqrt();
+    let ekf_err = ((ekf.x[0] - true_x[0]).powi(2) + (ekf.x[1] - true_x[1]).powi(2)).sqrt();
+    let iekf_err = ((iekf.x[0] - true_x[0]).powi(2) + (iekf.x[1] - true_x[1]).powi(2)).sqrt();
 
     // IEKF should be closer to the true state.
     assert!(
@@ -2034,9 +1927,7 @@ fn iekf_fd_matches_explicit() {
     let r = Matrix::new([[0.1]]);
     let z = Vector::from_array([5.0]);
 
-    let h = |x: &Vector<f64, 2>| {
-        Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()])
-    };
+    let h = |x: &Vector<f64, 2>| Vector::from_array([(x[0] * x[0] + x[1] * x[1]).sqrt()]);
     let hj = |x: &Vector<f64, 2>| {
         let rng = (x[0] * x[0] + x[1] * x[1]).sqrt();
         Matrix::new([[x[0] / rng, x[1] / rng]])
@@ -2045,7 +1936,9 @@ fn iekf_fd_matches_explicit() {
     let mut iekf_explicit = Ekf::<f64, 2, 1>::new(x0, p0);
     let mut iekf_fd = Ekf::<f64, 2, 1>::new(x0, p0);
 
-    iekf_explicit.update_iterated(&z, h, hj, &r, 20, 1e-10).unwrap();
+    iekf_explicit
+        .update_iterated(&z, h, hj, &r, 20, 1e-10)
+        .unwrap();
     iekf_fd.update_fd_iterated(&z, h, &r, 20, 1e-10).unwrap();
 
     for i in 0..2 {
@@ -2064,9 +1957,7 @@ fn ekf_fading_memory_inflates_covariance() {
     let mut ekf_std = Ekf::<f64, 2, 1>::new(x0, p0);
     let mut ekf_fade = Ekf::<f64, 2, 1>::new(x0, p0).with_fading_memory(1.05);
 
-    let f = |x: &Vector<f64, 2>| {
-        Vector::from_array([x[0] + 0.1 * x[1], x[1]])
-    };
+    let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + 0.1 * x[1], x[1]]);
     let fj = |_x: &Vector<f64, 2>| Matrix::new([[1.0, 0.1], [0.0, 1.0]]);
 
     ekf_std.predict(f, fj, None);
@@ -2090,9 +1981,7 @@ fn ukf_fading_memory_inflates_covariance() {
     let mut ukf_std = Ukf::<f64, 2, 1>::new(x0, p0);
     let mut ukf_fade = Ukf::<f64, 2, 1>::new(x0, p0).with_fading_memory(1.05);
 
-    let f = |x: &Vector<f64, 2>| {
-        Vector::from_array([x[0] + 0.1 * x[1], x[1]])
-    };
+    let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + 0.1 * x[1], x[1]]);
 
     ukf_std.predict(f, None).unwrap();
     ukf_fade.predict(f, None).unwrap();
@@ -2112,9 +2001,7 @@ fn ckf_fading_memory_inflates_covariance() {
     let mut ckf_std = Ckf::<f64, 2, 1>::new(x0, p0);
     let mut ckf_fade = Ckf::<f64, 2, 1>::new(x0, p0).with_fading_memory(1.05);
 
-    let f = |x: &Vector<f64, 2>| {
-        Vector::from_array([x[0] + 0.1 * x[1], x[1]])
-    };
+    let f = |x: &Vector<f64, 2>| Vector::from_array([x[0] + 0.1 * x[1], x[1]]);
 
     ckf_std.predict(f, None).unwrap();
     ckf_fade.predict(f, None).unwrap();

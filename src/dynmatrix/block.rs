@@ -18,7 +18,12 @@ impl<T: Scalar> DynMatrix<T> {
         assert!(
             i + rows <= self.nrows && j + cols <= self.ncols,
             "block ({},{}) size {}x{} out of bounds for {}x{} matrix",
-            i, j, rows, cols, self.nrows, self.ncols,
+            i,
+            j,
+            rows,
+            cols,
+            self.nrows,
+            self.ncols,
         );
         DynMatrix::from_fn(rows, cols, |r, c| self[(i + r, j + c)])
     }
@@ -39,7 +44,12 @@ impl<T: Scalar> DynMatrix<T> {
         assert!(
             i + src.nrows <= self.nrows && j + src.ncols <= self.ncols,
             "set_block ({},{}) size {}x{} out of bounds for {}x{} matrix",
-            i, j, src.nrows, src.ncols, self.nrows, self.ncols,
+            i,
+            j,
+            src.nrows,
+            src.ncols,
+            self.nrows,
+            self.ncols,
         );
         for r in 0..src.nrows {
             for c in 0..src.ncols {

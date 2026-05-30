@@ -1,7 +1,7 @@
-use crate::linalg::{split_two_col_slices, LinalgError};
 use crate::linalg::symmetric_eigen::givens;
-use crate::traits::{LinalgScalar, MatrixMut};
+use crate::linalg::{split_two_col_slices, LinalgError};
 use crate::matrix::vector::Vector;
+use crate::traits::{LinalgScalar, MatrixMut};
 use crate::Matrix;
 use num_traits::{Float, One, Zero};
 
@@ -227,8 +227,11 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
 
     // Use 5× machine epsilon for deflation threshold — matches nalgebra/LAPACK
     // convention and improves convergence on ill-conditioned bidiagonals.
-    let five = <T::Real as One>::one() + <T::Real as One>::one()
-        + <T::Real as One>::one() + <T::Real as One>::one() + <T::Real as One>::one();
+    let five = <T::Real as One>::one()
+        + <T::Real as One>::one()
+        + <T::Real as One>::one()
+        + <T::Real as One>::one()
+        + <T::Real as One>::one();
     let eps = T::lepsilon() * five;
     // Compute global σ_max from bidiagonal diagonal for deflation threshold.
     // Using a global threshold (eps * σ_max) instead of local relative thresholds
@@ -298,10 +301,8 @@ pub(crate) fn bidiagonal_qr<T: LinalgScalar>(
                             for row in 0..mu {
                                 let uj = *u.get(row, j);
                                 let ui = *u.get(row, idx);
-                                *u.get_mut(row, j) =
-                                    T::from_real(c) * uj + T::from_real(s) * ui;
-                                *u.get_mut(row, idx) =
-                                    T::from_real(c) * ui - T::from_real(s) * uj;
+                                *u.get_mut(row, j) = T::from_real(c) * uj + T::from_real(s) * ui;
+                                *u.get_mut(row, idx) = T::from_real(c) * ui - T::from_real(s) * uj;
                             }
                         }
                     }
@@ -508,7 +509,10 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
     /// assert!((svd.singular_values()[1] - 1.0).abs() < 1e-10);
     /// ```
     pub fn new(a: &Matrix<T, M, N>) -> Result<Self, LinalgError> {
-        assert!(M >= N, "SVD requires M >= N; transpose first for wide matrices");
+        assert!(
+            M >= N,
+            "SVD requires M >= N; transpose first for wide matrices"
+        );
 
         if N == 0 {
             return Ok(Self {
@@ -546,7 +550,15 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
         let mut diag = [<T::Real as Zero>::zero(); N];
         let mut off_diag = [<T::Real as Zero>::zero(); N]; // only first N-1 used
 
-        bidiagonalize(&mut work, &mut diag, &mut off_diag, &mut u, &mut v, true, true);
+        bidiagonalize(
+            &mut work,
+            &mut diag,
+            &mut off_diag,
+            &mut u,
+            &mut v,
+            true,
+            true,
+        );
         bidiagonal_qr::<T>(
             &mut diag,
             &mut off_diag[..N.saturating_sub(1)],
@@ -581,7 +593,10 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
 
     /// Compute only the singular values (faster, no U/V accumulation).
     pub fn singular_values_only(a: &Matrix<T, M, N>) -> Result<[T::Real; N], LinalgError> {
-        assert!(M >= N, "SVD requires M >= N; transpose first for wide matrices");
+        assert!(
+            M >= N,
+            "SVD requires M >= N; transpose first for wide matrices"
+        );
 
         if N == 0 {
             return Ok([<T::Real as Zero>::zero(); N]);
@@ -614,7 +629,15 @@ impl<T: LinalgScalar, const M: usize, const N: usize> SvdDecomposition<T, M, N> 
         let mut diag = [<T::Real as Zero>::zero(); N];
         let mut off_diag = [<T::Real as Zero>::zero(); N];
 
-        bidiagonalize(&mut work, &mut diag, &mut off_diag, &mut u, &mut v, false, false);
+        bidiagonalize(
+            &mut work,
+            &mut diag,
+            &mut off_diag,
+            &mut u,
+            &mut v,
+            false,
+            false,
+        );
         bidiagonal_qr::<T>(
             &mut diag,
             &mut off_diag[..N.saturating_sub(1)],
@@ -857,11 +880,7 @@ mod tests {
 
     #[test]
     fn diagonal_matrix() {
-        let a = Matrix::new([
-            [5.0_f64, 0.0, 0.0],
-            [0.0, 3.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ]);
+        let a = Matrix::new([[5.0_f64, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 1.0]]);
         let svd = a.svd().unwrap();
         assert_near(svd.singular_values()[0], 5.0, TOL, "σ[0]");
         assert_near(svd.singular_values()[1], 3.0, TOL, "σ[1]");
@@ -870,10 +889,7 @@ mod tests {
 
     #[test]
     fn diagonal_with_negative() {
-        let a = Matrix::new([
-            [-3.0_f64, 0.0],
-            [0.0, 2.0],
-        ]);
+        let a = Matrix::new([[-3.0_f64, 0.0], [0.0, 2.0]]);
         let svd = a.svd().unwrap();
         assert_near(svd.singular_values()[0], 3.0, TOL, "σ[0]");
         assert_near(svd.singular_values()[1], 2.0, TOL, "σ[1]");
@@ -881,10 +897,7 @@ mod tests {
 
     #[test]
     fn known_2x2() {
-        let a = Matrix::new([
-            [3.0_f64, 2.0],
-            [2.0, 3.0],
-        ]);
+        let a = Matrix::new([[3.0_f64, 2.0], [2.0, 3.0]]);
         let svd = a.svd().unwrap();
         // A^T A = [[13, 12], [12, 13]], eigenvalues 25 and 1
         assert_near(svd.singular_values()[0], 5.0, TOL, "σ[0]");
@@ -893,11 +906,7 @@ mod tests {
 
     #[test]
     fn reconstruction_3x3() {
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [4.0, 5.0, 6.0],
-            [7.0, 8.0, 0.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 0.0]]);
         let svd = a.svd().unwrap();
         let u = svd.u();
         let vt = svd.vt();
@@ -916,11 +925,7 @@ mod tests {
 
     #[test]
     fn orthogonality() {
-        let a = Matrix::new([
-            [4.0_f64, 1.0, -1.0],
-            [1.0, 3.0, 2.0],
-            [-1.0, 2.0, 5.0],
-        ]);
+        let a = Matrix::new([[4.0_f64, 1.0, -1.0], [1.0, 3.0, 2.0], [-1.0, 2.0, 5.0]]);
         let svd = a.svd().unwrap();
 
         let u = svd.u();
@@ -956,18 +961,17 @@ mod tests {
             assert!(
                 sv[i] >= sv[i + 1] - TOL,
                 "not descending: σ[{}]={} < σ[{}]={}",
-                i, sv[i], i + 1, sv[i + 1]
+                i,
+                sv[i],
+                i + 1,
+                sv[i + 1]
             );
         }
     }
 
     #[test]
     fn rank_deficient() {
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [2.0, 4.0, 6.0],
-            [3.0, 6.0, 9.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [2.0, 4.0, 6.0], [3.0, 6.0, 9.0]]);
         let svd = a.svd().unwrap();
         let sv = svd.singular_values();
 
@@ -979,12 +983,7 @@ mod tests {
 
     #[test]
     fn rectangular_tall() {
-        let a = Matrix::new([
-            [1.0_f64, 0.0],
-            [0.0, 1.0],
-            [1.0, 1.0],
-            [0.0, 0.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0]]);
         let svd = a.svd().unwrap();
         let u = svd.u();
         let vt = svd.vt();
@@ -1003,10 +1002,7 @@ mod tests {
 
     #[test]
     fn singular_values_only_path() {
-        let a = Matrix::new([
-            [3.0_f64, 0.0],
-            [0.0, 4.0],
-        ]);
+        let a = Matrix::new([[3.0_f64, 0.0], [0.0, 4.0]]);
         let sv = a.singular_values_only().unwrap();
         assert_near(sv[0], 4.0, TOL, "σ[0]");
         assert_near(sv[1], 3.0, TOL, "σ[1]");
@@ -1014,10 +1010,7 @@ mod tests {
 
     #[test]
     fn rank_and_condition() {
-        let a = Matrix::new([
-            [2.0_f64, 0.0],
-            [0.0, 0.5],
-        ]);
+        let a = Matrix::new([[2.0_f64, 0.0], [0.0, 0.5]]);
         let svd = a.svd().unwrap();
         assert_eq!(svd.rank(1e-10), 2);
         assert_near(svd.condition_number(), 4.0, TOL, "cond");
@@ -1025,10 +1018,7 @@ mod tests {
 
     #[test]
     fn f32_support() {
-        let a = Matrix::new([
-            [3.0_f32, 1.0],
-            [1.0, 3.0],
-        ]);
+        let a = Matrix::new([[3.0_f32, 1.0], [1.0, 3.0]]);
         let svd = a.svd().unwrap();
         assert!((svd.singular_values()[0] - 4.0).abs() < 1e-5);
         assert!((svd.singular_values()[1] - 2.0).abs() < 1e-5);
@@ -1080,16 +1070,12 @@ mod tests {
     fn solve_overdetermined() {
         // 3×2 system: A = [[1,0],[0,1],[1,1]], b = [1,2,3]
         // Least-squares solution
-        let a = Matrix::new([
-            [1.0_f64, 0.0],
-            [0.0, 1.0],
-            [1.0, 1.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 0.0], [0.0, 1.0], [1.0, 1.0]]);
         let b = Vector::from_array([1.0, 2.0, 3.0]);
         let x = a.solve_svd(&b).unwrap();
         // Residual should be small: A*x ≈ b in least-squares sense
         let ax = a * x;
-        let residual = (ax[0]-1.0).powi(2) + (ax[1]-2.0).powi(2) + (ax[2]-3.0).powi(2);
+        let residual = (ax[0] - 1.0).powi(2) + (ax[1] - 2.0).powi(2) + (ax[2] - 3.0).powi(2);
         assert!(residual < 1.0, "residual too large: {}", residual);
         // Normal equations: A^T A x = A^T b
         // A^T A = [[2,1],[1,2]], A^T b = [4,5] => x = [1, 2]
@@ -1099,11 +1085,7 @@ mod tests {
 
     #[test]
     fn solve_square_full_rank() {
-        let a = Matrix::new([
-            [2.0_f64, 1.0, -1.0],
-            [-3.0, -1.0, 2.0],
-            [-2.0, 1.0, 2.0],
-        ]);
+        let a = Matrix::new([[2.0_f64, 1.0, -1.0], [-3.0, -1.0, 2.0], [-2.0, 1.0, 2.0]]);
         let b = Vector::from_array([8.0, -11.0, -3.0]);
         let x_svd = a.solve_svd(&b).unwrap();
         let x_lu = a.solve(&b).unwrap();
@@ -1119,7 +1101,12 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert_near(pinv[(i, j)], expected, 1e-12, &format!("pinv[({},{})]", i, j));
+                assert_near(
+                    pinv[(i, j)],
+                    expected,
+                    1e-12,
+                    &format!("pinv[({},{})]", i, j),
+                );
             }
         }
     }
@@ -1127,11 +1114,7 @@ mod tests {
     #[test]
     fn pseudo_inverse_rectangular() {
         // A * A⁺ * A ≈ A
-        let a = Matrix::new([
-            [1.0_f64, 2.0],
-            [3.0, 4.0],
-            [5.0, 6.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]);
         let svd = a.svd().unwrap();
         let pinv = svd.pseudo_inverse();
         // pinv is 2×3, a is 3×2
@@ -1147,17 +1130,18 @@ mod tests {
     #[test]
     fn pseudo_inverse_rank_deficient() {
         // A⁺ * A * A⁺ ≈ A⁺
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [2.0, 4.0, 6.0],
-            [3.0, 6.0, 9.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [2.0, 4.0, 6.0], [3.0, 6.0, 9.0]]);
         let svd = a.svd().unwrap();
         let pinv = svd.pseudo_inverse();
         let pap = pinv * (a * pinv);
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(pap[(i, j)], pinv[(i, j)], 1e-9, &format!("PAP[({},{})]", i, j));
+                assert_near(
+                    pap[(i, j)],
+                    pinv[(i, j)],
+                    1e-9,
+                    &format!("PAP[({},{})]", i, j),
+                );
             }
         }
     }

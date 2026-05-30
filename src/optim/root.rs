@@ -149,7 +149,6 @@ pub fn brent<T: FloatScalar>(
             core::mem::swap(&mut a, &mut b);
             core::mem::swap(&mut fa, &mut fb);
         }
-
     }
 
     Err(OptimError::MaxIterations)

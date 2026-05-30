@@ -1,8 +1,8 @@
 use core::fmt::{self, Write as _};
 
-use crate::Matrix;
 use crate::matrix::vector::Vector;
 use crate::traits::{FloatScalar, Scalar};
+use crate::Matrix;
 
 // ── Constructors ────────────────────────────────────────────────────
 
@@ -294,7 +294,13 @@ impl<T: fmt::Display, const M: usize, const N: usize> fmt::Display for Matrix<T,
                     write!(f, "  ")?;
                 }
                 if let Some(p) = prec {
-                    write!(f, "{:>width$.prec$}", self[(i, j)], width = widths[j], prec = p)?;
+                    write!(
+                        f,
+                        "{:>width$.prec$}",
+                        self[(i, j)],
+                        width = widths[j],
+                        prec = p
+                    )?;
                 } else {
                     write!(f, "{:>width$}", self[(i, j)], width = widths[j])?;
                 }

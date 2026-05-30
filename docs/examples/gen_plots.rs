@@ -244,12 +244,7 @@ fn make_interp_plot() -> String {
         fmt_arr(&kx), fmt_arr(&ky),
     );
 
-    let layout = decorate_layout(
-        "Interpolation Methods on sin(x) — 6 Knots",
-        "x",
-        "y",
-        "",
-    );
+    let layout = decorate_layout("Interpolation Methods on sin(x) — 6 Knots", "x", "y", "");
 
     plotly_snippet("plot-interp", &traces, &layout, 440)
 }
@@ -309,9 +304,12 @@ fn make_control_plot() -> String {
           \"x\":{},\"y\":{},\"line\":{{\"width\":2.5}}}},\
          {{\"type\":\"scatter\",\"mode\":\"lines\",\"name\":\"6th order\",\
           \"x\":{},\"y\":{},\"line\":{{\"width\":2.5}}}}]",
-        fmt_arr(&freqs), fmt_arr(&db2),
-        fmt_arr(&freqs), fmt_arr(&db4),
-        fmt_arr(&freqs), fmt_arr(&db6),
+        fmt_arr(&freqs),
+        fmt_arr(&db2),
+        fmt_arr(&freqs),
+        fmt_arr(&db4),
+        fmt_arr(&freqs),
+        fmt_arr(&db6),
     );
 
     let layout = decorate_layout_ex(
@@ -379,8 +377,10 @@ fn make_lead_lag_plot() -> String {
           \"x\":{},\"y\":{},\"line\":{{\"width\":2.5}}}},\
          {{\"type\":\"scatter\",\"mode\":\"lines\",\"name\":\"Lag (10× DC @ 5 Hz)\",\
           \"x\":{},\"y\":{},\"line\":{{\"width\":2.5}}}}]",
-        fmt_arr(&freqs), fmt_arr(&lead_db),
-        fmt_arr(&freqs), fmt_arr(&lag_db),
+        fmt_arr(&freqs),
+        fmt_arr(&lead_db),
+        fmt_arr(&freqs),
+        fmt_arr(&lag_db),
     );
     let layout_mag = decorate_layout_ex(
         "Lead / Lag Compensators — Magnitude",
@@ -397,8 +397,10 @@ fn make_lead_lag_plot() -> String {
           \"x\":{},\"y\":{},\"line\":{{\"width\":2.5}}}},\
          {{\"type\":\"scatter\",\"mode\":\"lines\",\"name\":\"Lag phase\",\
           \"x\":{},\"y\":{},\"line\":{{\"width\":2.5}}}}]",
-        fmt_arr(&freqs), fmt_arr(&lead_ph),
-        fmt_arr(&freqs), fmt_arr(&lag_ph),
+        fmt_arr(&freqs),
+        fmt_arr(&lead_ph),
+        fmt_arr(&freqs),
+        fmt_arr(&lag_ph),
     );
     let layout_ph = decorate_layout_ex(
         "Lead / Lag Compensators — Phase",
@@ -438,9 +440,7 @@ fn make_vanderpol_plot() -> String {
         0.0,
         t_end,
         &y0,
-        |_t, y| {
-            Vector::from_array([y[1], mu * (1.0 - y[0] * y[0]) * y[1] - y[0]])
-        },
+        |_t, y| Vector::from_array([y[1], mu * (1.0 - y[0] * y[0]) * y[1] - y[0]]),
         |_t, y| {
             numeris::Matrix::new([
                 [0.0, 1.0],
@@ -476,12 +476,7 @@ fn make_vanderpol_plot() -> String {
         fmt_arr(&xv),
     );
 
-    let layout = decorate_layout(
-        "Van der Pol Oscillator (μ = 20) — RODAS4",
-        "t",
-        "y₁",
-        "",
-    );
+    let layout = decorate_layout("Van der Pol Oscillator (μ = 20) — RODAS4", "t", "y₁", "");
 
     plotly_snippet("plot-vanderpol", &traces, &layout, 420)
 }
@@ -533,7 +528,12 @@ fn make_normal_pdf_plot() -> String {
         .collect();
 
     let layout = decorate_layout("Normal Distribution — PDF", "x", "f(x)", "");
-    plotly_snippet("plot-normal-pdf", &format!("[{}]", traces.join(",")), &layout, 400)
+    plotly_snippet(
+        "plot-normal-pdf",
+        &format!("[{}]", traces.join(",")),
+        &layout,
+        400,
+    )
 }
 
 fn make_gamma_pdf_plot() -> String {
@@ -560,7 +560,12 @@ fn make_gamma_pdf_plot() -> String {
         .collect();
 
     let layout = decorate_layout("Gamma Distribution — PDF", "x", "f(x)", "");
-    plotly_snippet("plot-gamma-pdf", &format!("[{}]", traces.join(",")), &layout, 400)
+    plotly_snippet(
+        "plot-gamma-pdf",
+        &format!("[{}]", traces.join(",")),
+        &layout,
+        400,
+    )
 }
 
 fn make_beta_pdf_plot() -> String {
@@ -593,7 +598,12 @@ fn make_beta_pdf_plot() -> String {
         ",\"range\":[0,4.5]",
         "",
     );
-    plotly_snippet("plot-beta-pdf", &format!("[{}]", traces.join(",")), &layout, 400)
+    plotly_snippet(
+        "plot-beta-pdf",
+        &format!("[{}]", traces.join(",")),
+        &layout,
+        400,
+    )
 }
 
 // ─── Stats: discrete PMF plots ───────────────────────────────────────────
@@ -624,7 +634,12 @@ fn make_binomial_pmf_plot() -> String {
         "",
         ",\"barmode\":\"group\"",
     );
-    plotly_snippet("plot-binomial-pmf", &format!("[{}]", traces.join(",")), &layout, 400)
+    plotly_snippet(
+        "plot-binomial-pmf",
+        &format!("[{}]", traces.join(",")),
+        &layout,
+        400,
+    )
 }
 
 fn make_poisson_pmf_plot() -> String {
@@ -653,7 +668,12 @@ fn make_poisson_pmf_plot() -> String {
         "",
         ",\"barmode\":\"group\"",
     );
-    plotly_snippet("plot-poisson-pmf", &format!("[{}]", traces.join(",")), &layout, 400)
+    plotly_snippet(
+        "plot-poisson-pmf",
+        &format!("[{}]", traces.join(",")),
+        &layout,
+        400,
+    )
 }
 
 fn make_continuous_cdf_plot() -> String {
@@ -688,12 +708,7 @@ fn make_continuous_cdf_plot() -> String {
         line_trace("Beta(2, 5)", &xb, &yb),
     );
 
-    let layout = decorate_layout(
-        "Continuous Distributions — CDF",
-        "x",
-        "F(x)",
-        "",
-    );
+    let layout = decorate_layout("Continuous Distributions — CDF", "x", "F(x)", "");
     plotly_snippet("plot-continuous-cdf", &traces, &layout, 400)
 }
 
@@ -715,7 +730,11 @@ fn main() {
     write_snippet(&includes, "plot_beta_pdf", &make_beta_pdf_plot());
     write_snippet(&includes, "plot_binomial_pmf", &make_binomial_pmf_plot());
     write_snippet(&includes, "plot_poisson_pmf", &make_poisson_pmf_plot());
-    write_snippet(&includes, "plot_continuous_cdf", &make_continuous_cdf_plot());
+    write_snippet(
+        &includes,
+        "plot_continuous_cdf",
+        &make_continuous_cdf_plot(),
+    );
 
     println!("Done.");
 }

@@ -6,9 +6,7 @@
   multi-threaded parallelism on runtime-sized paths without disturbing the
   no-std-first baseline. It implies `std` and is purely additive: builds without
   it are byte-for-byte unchanged, and enabling it never alters an existing
-  signature. (Note: rayon requires **Rust ≥ 1.80**, so the feature raises the
-  effective MSRV; the base crate stays at 1.77.) Dispatch is hidden behind a
-  private `par` module (mirroring `simd`).
+  signature. Dispatch is hidden behind a private `par` module (mirroring `simd`).
   - First slice: new parallel finite-difference routines
     `finite_difference_jacobian_dyn_par` and `finite_difference_gradient_dyn_par`
     compute their columns across threads (each an independent evaluation of `f`),
@@ -60,6 +58,12 @@
     applies.
   - Fixed-size `Matrix` Jacobians and other small stack-allocated paths stay
     sequential by design.
+
+- **MSRV corrected to 1.80.** The declared `rust-version` was `1.77`, but core
+  matrix code uses `[T]::as_flattened` / `as_flattened_mut` (stabilized in Rust
+  1.80), so the crate never actually built on 1.77 with a fresh lockfile. The
+  declaration now reflects reality. (rayon also requires 1.80, so the feature
+  does not raise the floor.)
 
 ## 0.5.11
 

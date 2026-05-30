@@ -26,10 +26,7 @@ fn assert_complex_near(a: C, b: C, tol: f64, msg: &str) {
 #[test]
 fn complex_lu_solve() {
     // A * x = b with complex entries
-    let a = Matrix::new([
-        [c(2.0, 1.0), c(1.0, -1.0)],
-        [c(1.0, 0.0), c(3.0, 2.0)],
-    ]);
+    let a = Matrix::new([[c(2.0, 1.0), c(1.0, -1.0)], [c(1.0, 0.0), c(3.0, 2.0)]]);
     let b = Vector::from_array([c(5.0, 3.0), c(7.0, 4.0)]);
 
     let x = a.solve(&b).unwrap();
@@ -47,10 +44,7 @@ fn complex_lu_solve() {
 #[test]
 fn complex_lu_det() {
     // 2x2 complex determinant: ad - bc
-    let a = Matrix::new([
-        [c(1.0, 1.0), c(2.0, 0.0)],
-        [c(0.0, 1.0), c(1.0, -1.0)],
-    ]);
+    let a = Matrix::new([[c(1.0, 1.0), c(2.0, 0.0)], [c(0.0, 1.0), c(1.0, -1.0)]]);
     let det = a.det();
     // (1+i)(1-i) - (2)(i) = 1-i^2 - 2i = 1+1-2i = 2-2i
     assert_complex_near(det, c(2.0, -2.0), TOL, "det");
@@ -58,10 +52,7 @@ fn complex_lu_det() {
 
 #[test]
 fn complex_lu_inverse() {
-    let a = Matrix::new([
-        [c(2.0, 1.0), c(1.0, -1.0)],
-        [c(0.0, 1.0), c(3.0, 0.0)],
-    ]);
+    let a = Matrix::new([[c(2.0, 1.0), c(1.0, -1.0)], [c(0.0, 1.0), c(3.0, 0.0)]]);
     let a_inv = a.inverse().unwrap();
     let id = a * a_inv;
 
@@ -78,10 +69,7 @@ fn complex_lu_inverse() {
 #[test]
 fn complex_cholesky_hermitian() {
     // Hermitian positive-definite: A = [[4, 2+i], [2-i, 5]]
-    let a = Matrix::new([
-        [c(4.0, 0.0), c(2.0, 1.0)],
-        [c(2.0, -1.0), c(5.0, 0.0)],
-    ]);
+    let a = Matrix::new([[c(4.0, 0.0), c(2.0, 1.0)], [c(2.0, -1.0), c(5.0, 0.0)]]);
     let chol = a.cholesky().unwrap();
     let l = chol.l_full();
 
@@ -107,10 +95,7 @@ fn complex_cholesky_hermitian() {
 #[test]
 fn complex_cholesky_solve() {
     // Hermitian positive-definite
-    let a = Matrix::new([
-        [c(4.0, 0.0), c(2.0, 1.0)],
-        [c(2.0, -1.0), c(5.0, 0.0)],
-    ]);
+    let a = Matrix::new([[c(4.0, 0.0), c(2.0, 1.0)], [c(2.0, -1.0), c(5.0, 0.0)]]);
     let b = Vector::from_array([c(8.0, 3.0), c(7.0, -1.0)]);
 
     let chol = a.cholesky().unwrap();
@@ -130,10 +115,7 @@ fn complex_cholesky_solve() {
 
 #[test]
 fn complex_qr_factorization() {
-    let a = Matrix::new([
-        [c(1.0, 1.0), c(2.0, 0.0)],
-        [c(0.0, 1.0), c(1.0, -1.0)],
-    ]);
+    let a = Matrix::new([[c(1.0, 1.0), c(2.0, 0.0)], [c(0.0, 1.0), c(1.0, -1.0)]]);
     let qr = a.qr().unwrap();
     let q = qr.q();
     let r = qr.r();
@@ -162,10 +144,7 @@ fn complex_qr_factorization() {
 
 #[test]
 fn complex_qr_solve() {
-    let a = Matrix::new([
-        [c(2.0, 1.0), c(1.0, -1.0)],
-        [c(1.0, 0.0), c(3.0, 2.0)],
-    ]);
+    let a = Matrix::new([[c(2.0, 1.0), c(1.0, -1.0)], [c(1.0, 0.0), c(3.0, 2.0)]]);
     let b = Vector::from_array([c(5.0, 3.0), c(7.0, 4.0)]);
 
     let x = a.solve_qr(&b).unwrap();

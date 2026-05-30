@@ -318,7 +318,10 @@ pub fn qr_col_pivot_in_place<T: LinalgScalar>(
     let mut col_norms = [<T::Real as Zero>::zero(); 64];
     // For matrices wider than 64 we fall back to a stack vec.  This is
     // an embedded-friendly library, so we avoid alloc here.
-    assert!(n <= 64, "qr_col_pivot_in_place: N must be <= 64 for fixed-size stack storage");
+    assert!(
+        n <= 64,
+        "qr_col_pivot_in_place: N must be <= 64 for fixed-size stack storage"
+    );
     for j in 0..n {
         perm[j] = j;
         let col = a.col_as_slice(j, 0);
@@ -578,7 +581,14 @@ mod tests {
     const TOL: f64 = 1e-10;
 
     fn assert_near(a: f64, b: f64, tol: f64, msg: &str) {
-        assert!((a - b).abs() < tol, "{}: {} vs {} (diff {})", msg, a, b, (a - b).abs());
+        assert!(
+            (a - b).abs() < tol,
+            "{}: {} vs {} (diff {})",
+            msg,
+            a,
+            b,
+            (a - b).abs()
+        );
     }
 
     #[test]
@@ -596,8 +606,12 @@ mod tests {
         let qr_prod = q * r;
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], a[(i, j)], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, j)],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
 
@@ -606,8 +620,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert_near(qtq[(i, j)], expected, TOL,
-                    &format!("QtQ[({},{})]", i, j));
+                assert_near(qtq[(i, j)], expected, TOL, &format!("QtQ[({},{})]", i, j));
             }
         }
     }
@@ -628,8 +641,12 @@ mod tests {
         let qr_prod: Matrix<f64, 4, 3> = q * r;
         for i in 0..4 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], a[(i, j)], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, j)],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
 
@@ -638,8 +655,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert_near(qtq[(i, j)], expected, TOL,
-                    &format!("QtQ[({},{})]", i, j));
+                assert_near(qtq[(i, j)], expected, TOL, &format!("QtQ[({},{})]", i, j));
             }
         }
     }
@@ -647,11 +663,7 @@ mod tests {
     #[test]
     fn qr_solve_square() {
         // Compare QR solve against LU solve
-        let a = Matrix::new([
-            [2.0_f64, 1.0, -1.0],
-            [-3.0, -1.0, 2.0],
-            [-2.0, 1.0, 2.0],
-        ]);
+        let a = Matrix::new([[2.0_f64, 1.0, -1.0], [-3.0, -1.0, 2.0], [-2.0, 1.0, 2.0]]);
         let b = Vector::from_array([8.0, -11.0, -3.0]);
 
         let x_qr = a.solve_qr(&b).unwrap();
@@ -667,11 +679,7 @@ mod tests {
         // Overdetermined system: 3 equations, 2 unknowns
         // Fit y = c0 + c1*x to points (0,1), (1,2), (2,4)
         // A = [[1, 0], [1, 1], [1, 2]], b = [1, 2, 4]
-        let a = Matrix::new([
-            [1.0_f64, 0.0],
-            [1.0, 1.0],
-            [1.0, 2.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 0.0], [1.0, 1.0], [1.0, 2.0]]);
         let b = Vector::from_array([1.0, 2.0, 4.0]);
 
         let qr = a.qr().unwrap();
@@ -696,11 +704,7 @@ mod tests {
 
     #[test]
     fn qr_det() {
-        let a = Matrix::new([
-            [6.0_f64, 1.0, 1.0],
-            [4.0, -2.0, 5.0],
-            [2.0, 8.0, 7.0],
-        ]);
+        let a = Matrix::new([[6.0_f64, 1.0, 1.0], [4.0, -2.0, 5.0], [2.0, 8.0, 7.0]]);
         let qr = a.qr().unwrap();
         let det_qr = qr.det();
         let det_lu = a.det();
@@ -721,8 +725,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert_near(prod[(i, j)], expected, TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(prod[(i, j)], expected, TOL, &format!("QR[({},{})]", i, j));
             }
         }
     }
@@ -739,10 +742,7 @@ mod tests {
     #[test]
     fn qr_rank_deficient() {
         // Matrix with a zero column
-        let a = Matrix::new([
-            [1.0_f64, 0.0],
-            [0.0, 0.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 0.0], [0.0, 0.0]]);
         assert_eq!(a.qr().unwrap_err(), LinalgError::Singular);
     }
 
@@ -764,8 +764,12 @@ mod tests {
         let qr_prod = q * r;
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], a[(i, perm[j])], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, perm[j])],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
 
@@ -774,8 +778,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert_near(qtq[(i, j)], expected, TOL,
-                    &format!("QtQ[({},{})]", i, j));
+                assert_near(qtq[(i, j)], expected, TOL, &format!("QtQ[({},{})]", i, j));
             }
         }
 
@@ -786,11 +789,7 @@ mod tests {
     #[test]
     fn qr_pivot_rank_deficient() {
         // Rank-2 matrix: row 2 = row 0 + row 1
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [4.0, 5.0, 6.0],
-            [5.0, 7.0, 9.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [4.0, 5.0, 6.0], [5.0, 7.0, 9.0]]);
         let qrp = a.qr_col_pivot();
         assert_eq!(qrp.rank(1e-10), 2);
 
@@ -801,8 +800,12 @@ mod tests {
         let qr_prod = q * r;
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], a[(i, perm[j])], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, perm[j])],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
     }
@@ -810,11 +813,7 @@ mod tests {
     #[test]
     fn qr_pivot_rank_1() {
         // Rank-1 matrix: all rows are multiples of [1, 2, 3]
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [2.0, 4.0, 6.0],
-            [3.0, 6.0, 9.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [2.0, 4.0, 6.0], [3.0, 6.0, 9.0]]);
         let qrp = a.qr_col_pivot();
         assert_eq!(qrp.rank(1e-10), 1);
 
@@ -824,8 +823,12 @@ mod tests {
         let qr_prod = q * r;
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], a[(i, perm[j])], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, perm[j])],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
     }
@@ -849,8 +852,12 @@ mod tests {
         let qr_prod = q * r;
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], id[(i, perm[j])], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    id[(i, perm[j])],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
     }
@@ -872,8 +879,12 @@ mod tests {
         let qr_prod: Matrix<f64, 4, 3> = q * r;
         for i in 0..4 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], a[(i, perm[j])], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, perm[j])],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
 
@@ -882,8 +893,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert_near(qtq[(i, j)], expected, TOL,
-                    &format!("QtQ[({},{})]", i, j));
+                assert_near(qtq[(i, j)], expected, TOL, &format!("QtQ[({},{})]", i, j));
             }
         }
 
@@ -905,9 +915,11 @@ mod tests {
             assert!(
                 r[(i, i)].abs() >= r[(i + 1, i + 1)].abs() - TOL,
                 "|R[{},{}]| = {} should >= |R[{},{}]| = {}",
-                i, i,
+                i,
+                i,
                 r[(i, i)].abs(),
-                i + 1, i + 1,
+                i + 1,
+                i + 1,
                 r[(i + 1, i + 1)].abs()
             );
         }
@@ -915,11 +927,7 @@ mod tests {
 
     #[test]
     fn qr_pivot_permutation_is_valid() {
-        let a = Matrix::new([
-            [0.1_f64, 10.0, 5.0],
-            [0.2, 20.0, 10.0],
-            [0.3, 30.0, 15.0],
-        ]);
+        let a = Matrix::new([[0.1_f64, 10.0, 5.0], [0.2, 20.0, 10.0], [0.3, 30.0, 15.0]]);
         let qrp = a.qr_col_pivot();
         let perm = qrp.permutation();
 
@@ -935,11 +943,7 @@ mod tests {
     #[test]
     fn qr_pivot_column_dependent() {
         // Column 2 = column 0 + column 1
-        let a = Matrix::new([
-            [1.0_f64, 0.0, 1.0],
-            [0.0, 1.0, 1.0],
-            [1.0, 1.0, 2.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 2.0]]);
         let qrp = a.qr_col_pivot();
         assert_eq!(qrp.rank(1e-10), 2);
 
@@ -949,18 +953,19 @@ mod tests {
         let qr_prod = q * r;
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(qr_prod[(i, j)], a[(i, perm[j])], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, perm[j])],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
     }
 
     #[test]
     fn qr_pivot_2x2() {
-        let a = Matrix::new([
-            [3.0_f64, 1.0],
-            [4.0, 2.0],
-        ]);
+        let a = Matrix::new([[3.0_f64, 1.0], [4.0, 2.0]]);
         let qrp = a.qr_col_pivot();
         assert_eq!(qrp.rank(1e-10), 2);
 
@@ -970,8 +975,12 @@ mod tests {
         let qr_prod = q * r;
         for i in 0..2 {
             for j in 0..2 {
-                assert_near(qr_prod[(i, j)], a[(i, perm[j])], TOL,
-                    &format!("QR[({},{})]", i, j));
+                assert_near(
+                    qr_prod[(i, j)],
+                    a[(i, perm[j])],
+                    TOL,
+                    &format!("QR[({},{})]", i, j),
+                );
             }
         }
     }

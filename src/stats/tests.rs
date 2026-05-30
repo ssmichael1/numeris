@@ -381,8 +381,14 @@ fn normal_ln_pdf() {
 
 #[test]
 fn normal_invalid() {
-    assert_eq!(Normal::new(0.0_f64, 0.0).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Normal::new(0.0_f64, -1.0).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Normal::new(0.0_f64, 0.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Normal::new(0.0_f64, -1.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 #[test]
@@ -422,8 +428,14 @@ fn uniform_mean_variance() {
 
 #[test]
 fn uniform_invalid() {
-    assert_eq!(Uniform::new(1.0_f64, 1.0).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Uniform::new(2.0_f64, 1.0).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Uniform::new(1.0_f64, 1.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Uniform::new(2.0_f64, 1.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== Exponential ========================
@@ -454,8 +466,14 @@ fn exponential_mean_variance() {
 
 #[test]
 fn exponential_invalid() {
-    assert_eq!(Exponential::new(0.0_f64).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Exponential::new(-1.0_f64).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Exponential::new(0.0_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Exponential::new(-1.0_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== Gamma ========================
@@ -480,7 +498,11 @@ fn gamma_quantile_roundtrip() {
     let g = Gamma::new(3.0_f64, 2.0).unwrap();
     for &p in &[0.1, 0.25, 0.5, 0.75, 0.9] {
         let x = g.quantile(p);
-        assert!((g.cdf(x) - p).abs() < 1e-8, "p={p}: cdf(quantile(p))={}", g.cdf(x));
+        assert!(
+            (g.cdf(x) - p).abs() < 1e-8,
+            "p={p}: cdf(quantile(p))={}",
+            g.cdf(x)
+        );
     }
 }
 
@@ -493,8 +515,14 @@ fn gamma_mean_variance() {
 
 #[test]
 fn gamma_invalid() {
-    assert_eq!(Gamma::new(0.0_f64, 1.0).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Gamma::new(1.0_f64, 0.0).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Gamma::new(0.0_f64, 1.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Gamma::new(1.0_f64, 0.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== Beta ========================
@@ -520,7 +548,11 @@ fn beta_quantile_roundtrip() {
     let b = Beta::new(2.0_f64, 5.0).unwrap();
     for &p in &[0.1, 0.25, 0.5, 0.75, 0.9] {
         let x = b.quantile(p);
-        assert!((b.cdf(x) - p).abs() < 1e-8, "p={p}: cdf(quantile(p))={}", b.cdf(x));
+        assert!(
+            (b.cdf(x) - p).abs() < 1e-8,
+            "p={p}: cdf(quantile(p))={}",
+            b.cdf(x)
+        );
     }
 }
 
@@ -533,8 +565,14 @@ fn beta_mean_variance() {
 
 #[test]
 fn beta_invalid() {
-    assert_eq!(Beta::new(0.0_f64, 1.0).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Beta::new(1.0_f64, 0.0).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Beta::new(0.0_f64, 1.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Beta::new(1.0_f64, 0.0).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== ChiSquared ========================
@@ -568,7 +606,10 @@ fn chi_squared_mean_variance() {
 
 #[test]
 fn chi_squared_invalid() {
-    assert_eq!(ChiSquared::new(0.0_f64).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        ChiSquared::new(0.0_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== StudentT ========================
@@ -624,7 +665,10 @@ fn student_t_mean_variance() {
 
 #[test]
 fn student_t_invalid() {
-    assert_eq!(StudentT::new(0.0_f64).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        StudentT::new(0.0_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== Bernoulli ========================
@@ -653,8 +697,14 @@ fn bernoulli_mean_variance() {
 
 #[test]
 fn bernoulli_invalid() {
-    assert_eq!(Bernoulli::new(-0.1_f64).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Bernoulli::new(1.1_f64).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Bernoulli::new(-0.1_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Bernoulli::new(1.1_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 #[test]
@@ -712,8 +762,14 @@ fn binomial_mean_variance() {
 
 #[test]
 fn binomial_invalid() {
-    assert_eq!(Binomial::new(10, -0.1_f64).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Binomial::new(10, 1.1_f64).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Binomial::new(10, -0.1_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Binomial::new(10, 1.1_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== Poisson ========================
@@ -752,8 +808,14 @@ fn poisson_mean_variance() {
 
 #[test]
 fn poisson_invalid() {
-    assert_eq!(Poisson::new(0.0_f64).unwrap_err(), StatsError::InvalidParameter);
-    assert_eq!(Poisson::new(-1.0_f64).unwrap_err(), StatsError::InvalidParameter);
+    assert_eq!(
+        Poisson::new(0.0_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
+    assert_eq!(
+        Poisson::new(-1.0_f64).unwrap_err(),
+        StatsError::InvalidParameter
+    );
 }
 
 // ======================== Discrete quantile ========================
@@ -762,9 +824,9 @@ fn poisson_invalid() {
 fn bernoulli_quantile() {
     let b = Bernoulli::new(0.3_f64).unwrap();
     assert_eq!(b.quantile(0.0), 0);
-    assert_eq!(b.quantile(0.5), 0);   // CDF(0) = 0.7 >= 0.5
-    assert_eq!(b.quantile(0.7), 0);   // CDF(0) = 0.7 >= 0.7
-    assert_eq!(b.quantile(0.71), 1);  // CDF(0) = 0.7 < 0.71
+    assert_eq!(b.quantile(0.5), 0); // CDF(0) = 0.7 >= 0.5
+    assert_eq!(b.quantile(0.7), 0); // CDF(0) = 0.7 >= 0.7
+    assert_eq!(b.quantile(0.71), 1); // CDF(0) = 0.7 < 0.71
     assert_eq!(b.quantile(1.0), 1);
 }
 
@@ -817,7 +879,11 @@ fn poisson_quantile() {
         let k = dist.quantile(p);
         assert!(dist.cdf(k) >= p, "p={p}: CDF({k})={} < p", dist.cdf(k));
         if k > 0 {
-            assert!(dist.cdf(k - 1) < p, "p={p}: CDF({}) >= p (not minimal)", k - 1);
+            assert!(
+                dist.cdf(k - 1) < p,
+                "p={p}: CDF({}) >= p (not minimal)",
+                k - 1
+            );
         }
     }
 }

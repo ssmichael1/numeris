@@ -69,7 +69,12 @@ impl<T: FloatScalar> Quaternion<T> {
     pub fn rotx(angle: T) -> Self {
         let half = angle / (T::one() + T::one());
         let (s, c) = half.sin_cos();
-        Self { w: c, x: s, y: T::zero(), z: T::zero() }
+        Self {
+            w: c,
+            x: s,
+            y: T::zero(),
+            z: T::zero(),
+        }
     }
 
     /// Rotation about the Y axis by `angle` radians.
@@ -77,7 +82,12 @@ impl<T: FloatScalar> Quaternion<T> {
     pub fn roty(angle: T) -> Self {
         let half = angle / (T::one() + T::one());
         let (s, c) = half.sin_cos();
-        Self { w: c, x: T::zero(), y: s, z: T::zero() }
+        Self {
+            w: c,
+            x: T::zero(),
+            y: s,
+            z: T::zero(),
+        }
     }
 
     /// Rotation about the Z axis by `angle` radians.
@@ -85,7 +95,12 @@ impl<T: FloatScalar> Quaternion<T> {
     pub fn rotz(angle: T) -> Self {
         let half = angle / (T::one() + T::one());
         let (s, c) = half.sin_cos();
-        Self { w: c, x: T::zero(), y: T::zero(), z: s }
+        Self {
+            w: c,
+            x: T::zero(),
+            y: T::zero(),
+            z: s,
+        }
     }
 
     /// Create from an axis (must be unit length) and angle in radians.
@@ -333,21 +348,9 @@ impl<T: FloatScalar> Quaternion<T> {
         let wz = w * z;
 
         Matrix::new([
-            [
-                T::one() - two * (yy + zz),
-                two * (xy - wz),
-                two * (xz + wy),
-            ],
-            [
-                two * (xy + wz),
-                T::one() - two * (xx + zz),
-                two * (yz - wx),
-            ],
-            [
-                two * (xz - wy),
-                two * (yz + wx),
-                T::one() - two * (xx + yy),
-            ],
+            [T::one() - two * (yy + zz), two * (xy - wz), two * (xz + wy)],
+            [two * (xy + wz), T::one() - two * (xx + zz), two * (yz - wx)],
+            [two * (xz - wy), two * (yz + wx), T::one() - two * (xx + yy)],
         ])
     }
 
@@ -711,8 +714,10 @@ mod tests {
 
     fn quat_approx_eq(a: &Quaternion<f64>, b: &Quaternion<f64>) -> bool {
         // Quaternions q and -q represent the same rotation
-        let direct =
-            approx_eq(a.w, b.w) && approx_eq(a.x, b.x) && approx_eq(a.y, b.y) && approx_eq(a.z, b.z);
+        let direct = approx_eq(a.w, b.w)
+            && approx_eq(a.x, b.x)
+            && approx_eq(a.y, b.y)
+            && approx_eq(a.z, b.z);
         let negated = approx_eq(a.w, -b.w)
             && approx_eq(a.x, -b.x)
             && approx_eq(a.y, -b.y)
@@ -990,10 +995,7 @@ mod tests {
 
     #[test]
     fn rotation_matrix_roundtrip() {
-        let q = Quaternion::from_axis_angle(
-            Vector3::from_array([1.0, 1.0, 1.0]).normalize(),
-            1.23,
-        );
+        let q = Quaternion::from_axis_angle(Vector3::from_array([1.0, 1.0, 1.0]).normalize(), 1.23);
         let m = q.to_rotation_matrix();
         let q2 = Quaternion::from_rotation_matrix(&m);
         assert!(quat_approx_eq(&q, &q2));
@@ -1001,10 +1003,7 @@ mod tests {
 
     #[test]
     fn rotation_matrix_matches_vector_rotation() {
-        let q = Quaternion::from_axis_angle(
-            Vector3::from_array([0.0, 1.0, 0.0]),
-            0.8,
-        );
+        let q = Quaternion::from_axis_angle(Vector3::from_array([0.0, 1.0, 0.0]), 0.8);
         let v = Vector3::from_array([1.0, 2.0, 3.0]);
         let r_quat = q * v;
         let m = q.to_rotation_matrix();
@@ -1021,37 +1020,25 @@ mod tests {
         // that make different diagonal elements dominant
 
         // Branch: trace > 0 (small rotation)
-        let q1 = Quaternion::from_axis_angle(
-            Vector3::from_array([1.0, 0.0, 0.0]),
-            0.1,
-        );
+        let q1 = Quaternion::from_axis_angle(Vector3::from_array([1.0, 0.0, 0.0]), 0.1);
         let m1 = q1.to_rotation_matrix();
         let q1r = Quaternion::from_rotation_matrix(&m1);
         assert!(quat_approx_eq(&q1, &q1r));
 
         // Branch: m[0,0] dominant (180° about X)
-        let q2 = Quaternion::from_axis_angle(
-            Vector3::from_array([1.0, 0.0, 0.0]),
-            PI - 0.01,
-        );
+        let q2 = Quaternion::from_axis_angle(Vector3::from_array([1.0, 0.0, 0.0]), PI - 0.01);
         let m2 = q2.to_rotation_matrix();
         let q2r = Quaternion::from_rotation_matrix(&m2);
         assert!(quat_approx_eq(&q2, &q2r));
 
         // Branch: m[1,1] dominant (180° about Y)
-        let q3 = Quaternion::from_axis_angle(
-            Vector3::from_array([0.0, 1.0, 0.0]),
-            PI - 0.01,
-        );
+        let q3 = Quaternion::from_axis_angle(Vector3::from_array([0.0, 1.0, 0.0]), PI - 0.01);
         let m3 = q3.to_rotation_matrix();
         let q3r = Quaternion::from_rotation_matrix(&m3);
         assert!(quat_approx_eq(&q3, &q3r));
 
         // Branch: m[2,2] dominant (180° about Z)
-        let q4 = Quaternion::from_axis_angle(
-            Vector3::from_array([0.0, 0.0, 1.0]),
-            PI - 0.01,
-        );
+        let q4 = Quaternion::from_axis_angle(Vector3::from_array([0.0, 0.0, 1.0]), PI - 0.01);
         let m4 = q4.to_rotation_matrix();
         let q4r = Quaternion::from_rotation_matrix(&m4);
         assert!(quat_approx_eq(&q4, &q4r));
@@ -1151,8 +1138,7 @@ mod tests {
         let b = Quaternion::from_axis_angle(Vector3::from_array([0.0, 0.0, 1.0]), FRAC_PI_2);
         let mid = a.slerp(&b, 0.5);
         // Midpoint should be a 45° rotation about Z
-        let expected =
-            Quaternion::from_axis_angle(Vector3::from_array([0.0, 0.0, 1.0]), FRAC_PI_4);
+        let expected = Quaternion::from_axis_angle(Vector3::from_array([0.0, 0.0, 1.0]), FRAC_PI_4);
         assert!(quat_approx_eq(&mid, &expected));
     }
 
@@ -1200,10 +1186,7 @@ mod tests {
     #[test]
     fn derivative_euler_integration() {
         // Forward Euler with small dt should approximate exponential map
-        let q0 = Quaternion::from_axis_angle(
-            Vector3::from_array([1.0, 0.0, 0.0]),
-            0.3,
-        );
+        let q0 = Quaternion::from_axis_angle(Vector3::from_array([1.0, 0.0, 0.0]), 0.3);
         let omega = Vector3::from_array([0.0, 0.5, 0.0]);
         let dt = 1e-4;
 
@@ -1214,7 +1197,8 @@ mod tests {
             q0.x + qd.x * dt,
             q0.y + qd.y * dt,
             q0.z + qd.z * dt,
-        ).normalize();
+        )
+        .normalize();
 
         // Exponential map
         let q_exact = q0.propagate(&omega, dt);
@@ -1268,10 +1252,7 @@ mod tests {
     #[test]
     fn propagate_composition() {
         // Two half-steps should equal one full step (for constant rate)
-        let q = Quaternion::from_axis_angle(
-            Vector3::from_array([1.0, 0.0, 0.0]),
-            0.5,
-        );
+        let q = Quaternion::from_axis_angle(Vector3::from_array([1.0, 0.0, 0.0]), 0.5);
         let omega = Vector3::from_array([0.3, -0.7, 1.2]);
         let dt = 0.1;
 

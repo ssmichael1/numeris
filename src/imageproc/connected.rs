@@ -123,11 +123,7 @@ impl UnionFind {
 /// Returns the provisional-labels buffer (zero = background) and the populated
 /// union-find structure. Neighbors examined per pixel: `(r, c-1)` and
 /// `(r-1, c)` for 4-conn, plus `(r-1, c-1)` and `(r-1, c+1)` for 8-conn.
-fn first_pass<T, I>(
-    img: &I,
-    connectivity: Connectivity,
-    background: T,
-) -> (Vec<u32>, UnionFind)
+fn first_pass<T, I>(img: &I, connectivity: Connectivity, background: T) -> (Vec<u32>, UnionFind)
 where
     T: Scalar + PartialEq,
     I: MatrixRef<T> + ?Sized,

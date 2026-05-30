@@ -5,29 +5,39 @@ use criterion::{criterion_group, criterion_main, Criterion};
 // ---------------------------------------------------------------------------
 
 fn numeris_spd_4() -> numeris::Matrix4<f64> {
-    let a = numeris::Matrix4::from_fn(|i, j| ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 });
+    let a = numeris::Matrix4::from_fn(|i, j| {
+        ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 }
+    });
     let at = a.transpose();
     a * at
 }
 
 fn nalgebra_spd_4() -> nalgebra::Matrix4<f64> {
-    let a = nalgebra::Matrix4::from_fn(|i, j| ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 });
+    let a = nalgebra::Matrix4::from_fn(|i, j| {
+        ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 }
+    });
     a * a.transpose()
 }
 
 fn numeris_spd_6() -> numeris::Matrix6<f64> {
-    let a = numeris::Matrix6::from_fn(|i, j| ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 });
+    let a = numeris::Matrix6::from_fn(|i, j| {
+        ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 }
+    });
     let at = a.transpose();
     a * at
 }
 
 fn nalgebra_spd_6() -> nalgebra::Matrix6<f64> {
-    let a = nalgebra::Matrix6::from_fn(|i, j| ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 });
+    let a = nalgebra::Matrix6::from_fn(|i, j| {
+        ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 }
+    });
     a * a.transpose()
 }
 
 fn faer_spd(n: usize) -> faer::Mat<f64> {
-    let a = faer::Mat::from_fn(n, n, |i, j| ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 });
+    let a = faer::Mat::from_fn(n, n, |i, j| {
+        ((i + 1) * (j + 1)) as f64 + if i == j { 10.0 } else { 0.0 }
+    });
     &a * a.transpose()
 }
 
@@ -161,17 +171,23 @@ fn lu_4x4(c: &mut Criterion) {
     let mut g = c.benchmark_group("lu_4x4");
 
     g.bench_function("numeris", |b| {
-        let a = numeris::Matrix4::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 });
+        let a = numeris::Matrix4::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).lu())
     });
 
     g.bench_function("nalgebra", |b| {
-        let a = nalgebra::Matrix4::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 });
+        let a = nalgebra::Matrix4::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).lu())
     });
 
     g.bench_function("faer", |b| {
-        let a = faer::Mat::from_fn(4, 4, |i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 });
+        let a = faer::Mat::from_fn(4, 4, |i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).partial_piv_lu())
     });
 
@@ -182,17 +198,23 @@ fn lu_6x6(c: &mut Criterion) {
     let mut g = c.benchmark_group("lu_6x6");
 
     g.bench_function("numeris", |b| {
-        let a = numeris::Matrix6::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 });
+        let a = numeris::Matrix6::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).lu())
     });
 
     g.bench_function("nalgebra", |b| {
-        let a = nalgebra::Matrix6::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 });
+        let a = nalgebra::Matrix6::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).lu())
     });
 
     g.bench_function("faer", |b| {
-        let a = faer::Mat::from_fn(6, 6, |i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 });
+        let a = faer::Mat::from_fn(6, 6, |i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).partial_piv_lu())
     });
 
@@ -203,17 +225,23 @@ fn lu_dyn_50(c: &mut Criterion) {
     let mut g = c.benchmark_group("lu_dyn_50x50");
 
     g.bench_function("numeris", |b| {
-        let a = numeris::DynMatrix::from_fn(50, 50, |i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 500.0 } else { 0.0 });
+        let a = numeris::DynMatrix::from_fn(50, 50, |i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 500.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).lu())
     });
 
     g.bench_function("nalgebra", |b| {
-        let a = nalgebra::DMatrix::from_fn(50, 50, |i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 500.0 } else { 0.0 });
+        let a = nalgebra::DMatrix::from_fn(50, 50, |i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 500.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).clone().lu())
     });
 
     g.bench_function("faer", |b| {
-        let a = faer::Mat::from_fn(50, 50, |i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 500.0 } else { 0.0 });
+        let a = faer::Mat::from_fn(50, 50, |i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 500.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).partial_piv_lu())
     });
 
@@ -366,12 +394,16 @@ fn inverse_4x4(c: &mut Criterion) {
     let mut g = c.benchmark_group("inverse_4x4");
 
     g.bench_function("numeris", |b| {
-        let a = numeris::Matrix4::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 });
+        let a = numeris::Matrix4::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).inverse())
     });
 
     g.bench_function("nalgebra", |b| {
-        let a = nalgebra::Matrix4::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 });
+        let a = nalgebra::Matrix4::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 40.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).try_inverse())
     });
 
@@ -382,12 +414,16 @@ fn inverse_6x6(c: &mut Criterion) {
     let mut g = c.benchmark_group("inverse_6x6");
 
     g.bench_function("numeris", |b| {
-        let a = numeris::Matrix6::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 });
+        let a = numeris::Matrix6::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).inverse())
     });
 
     g.bench_function("nalgebra", |b| {
-        let a = nalgebra::Matrix6::from_fn(|i, j| ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 });
+        let a = nalgebra::Matrix6::from_fn(|i, j| {
+            ((i + 1) * 10 + j + 1) as f64 + if i == j { 60.0 } else { 0.0 }
+        });
         b.iter(|| std::hint::black_box(&a).try_inverse())
     });
 

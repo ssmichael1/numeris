@@ -1,5 +1,5 @@
-use crate::FloatScalar;
 use super::{ContinuousDistribution, StatsError};
+use crate::FloatScalar;
 
 /// Continuous uniform distribution on [a, b].
 ///

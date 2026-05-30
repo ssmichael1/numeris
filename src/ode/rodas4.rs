@@ -18,14 +18,7 @@ pub struct RODAS4;
 impl Rosenbrock<6> for RODAS4 {
     const GAMMA_DIAG: f64 = 0.25;
 
-    const ALPHA: [f64; 6] = [
-        0.0,
-        0.386,
-        0.21,
-        0.63,
-        1.0,
-        1.0,
-    ];
+    const ALPHA: [f64; 6] = [0.0, 0.386, 0.21, 0.63, 1.0, 1.0];
 
     #[rustfmt::skip]
     const A: [[f64; 6]; 6] = [
@@ -48,14 +41,7 @@ impl Rosenbrock<6> for RODAS4 {
     ];
 
     // Row sums of the full Γ matrix: γ_diag + Σ_j c_ij
-    const GAMMA_SUM: [f64; 6] = [
-        0.25,
-        -0.1043,
-        0.1035,
-        -0.03620000000000023,
-        0.0,
-        0.0,
-    ];
+    const GAMMA_SUM: [f64; 6] = [0.25, -0.1043, 0.1035, -0.03620000000000023, 0.0, 0.0];
 
     // Solution weights (4th order). For stiffly-accurate RODAS4,
     // m[0..4] = a[4,0..4] and m[4] = m[5] = 1.

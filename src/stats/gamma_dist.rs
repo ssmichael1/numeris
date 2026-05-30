@@ -1,6 +1,6 @@
+use super::{normal_quantile_standard, quantile_newton, ContinuousDistribution, StatsError};
+use crate::special::{gamma_inc, lgamma};
 use crate::FloatScalar;
-use crate::special::{lgamma, gamma_inc};
-use super::{ContinuousDistribution, StatsError, quantile_newton, normal_quantile_standard};
 
 /// Gamma distribution with shape α and rate β.
 ///
@@ -77,8 +77,7 @@ impl<T: FloatScalar> ContinuousDistribution<T> for Gamma<T> {
             return self.pdf(x).ln();
         }
         let one = T::one();
-        self.shape * self.rate.ln() - lgamma(self.shape)
-            + (self.shape - one) * x.ln()
+        self.shape * self.rate.ln() - lgamma(self.shape) + (self.shape - one) * x.ln()
             - self.rate * x
     }
 
@@ -96,10 +95,13 @@ impl<T: FloatScalar> ContinuousDistribution<T> for Gamma<T> {
         let x0 = if self.shape >= T::one() {
             let nine = T::from(9.0).unwrap();
             let z = normal_quantile_standard(p);
-            let v = T::one() - T::one() / (nine * self.shape)
-                + z / (nine * self.shape).sqrt();
+            let v = T::one() - T::one() / (nine * self.shape) + z / (nine * self.shape).sqrt();
             let wh = self.shape / self.rate * v * v * v;
-            if wh > T::zero() { wh } else { mean }
+            if wh > T::zero() {
+                wh
+            } else {
+                mean
+            }
         } else {
             mean
         };

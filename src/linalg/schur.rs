@@ -190,7 +190,11 @@ fn householder3<T: Float + Zero + One>(x: T, y: T, z: T) -> (T, T, T, T) {
     if norm <= T::epsilon() {
         return (T::one(), T::zero(), T::zero(), T::zero());
     }
-    let sign = if x >= T::zero() { T::one() } else { T::zero() - T::one() };
+    let sign = if x >= T::zero() {
+        T::one()
+    } else {
+        T::zero() - T::one()
+    };
     let u0 = x + sign * norm;
     let v1 = y / u0;
     let v2 = z / u0;
@@ -205,7 +209,11 @@ fn householder2<T: Float + Zero + One>(x: T, y: T) -> (T, T, T) {
     if norm <= T::epsilon() {
         return (T::one(), T::zero(), T::zero());
     }
-    let sign = if x >= T::zero() { T::one() } else { T::zero() - T::one() };
+    let sign = if x >= T::zero() {
+        T::one()
+    } else {
+        T::zero() - T::one()
+    };
     let u0 = x + sign * norm;
     let v1 = y / u0;
     let tau = (T::one() + T::one()) / (T::one() + v1 * v1);
@@ -278,7 +286,11 @@ impl<T: FloatScalar, const N: usize> SchurDecomposition<T, N> {
                 // Real eigenvalues: find Givens rotation to triangularize.
                 // Use column of (A - lambda2*I) as Schur vector for lambda1.
                 // This works for both distinct and repeated (defective) eigenvalues.
-                let sqrt_disc = if disc > T::zero() { disc.sqrt() } else { T::zero() };
+                let sqrt_disc = if disc > T::zero() {
+                    disc.sqrt()
+                } else {
+                    T::zero()
+                };
                 let lambda2 = tr - sqrt_disc;
                 let x = aa - lambda2;
                 let y = cc;
@@ -450,7 +462,12 @@ mod tests {
         let qtaq = q.transpose() * *a * *q;
         for i in 0..3 {
             for j in 0..3 {
-                assert_near(qtaq[(i, j)], s[(i, j)], TOL, &format!("Q^TAQ[({},{})]", i, j));
+                assert_near(
+                    qtaq[(i, j)],
+                    s[(i, j)],
+                    TOL,
+                    &format!("Q^TAQ[({},{})]", i, j),
+                );
             }
         }
 
@@ -466,18 +483,19 @@ mod tests {
         // S is quasi-upper-triangular: below sub-diagonal is zero
         for i in 2usize..3 {
             for j in 0..i.saturating_sub(1) {
-                assert_near(s[(i, j)], 0.0, TOL, &format!("S[({},{})] should be 0", i, j));
+                assert_near(
+                    s[(i, j)],
+                    0.0,
+                    TOL,
+                    &format!("S[({},{})] should be 0", i, j),
+                );
             }
         }
     }
 
     #[test]
     fn schur_all_real_eigenvalues() {
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [0.0, 4.0, 5.0],
-            [0.0, 0.0, 6.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [0.0, 4.0, 5.0], [0.0, 0.0, 6.0]]);
         let schur = a.schur().unwrap();
         verify_schur_3x3(&a, &schur);
 
@@ -494,11 +512,7 @@ mod tests {
 
     #[test]
     fn schur_general_3x3() {
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [4.0, 5.0, 6.0],
-            [7.0, 8.0, 0.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 0.0]]);
         let schur = a.schur().unwrap();
         verify_schur_3x3(&a, &schur);
 
@@ -521,16 +535,15 @@ mod tests {
         assert_near(re[1], c, TOL, "re[1]");
         assert_near(im[0].abs(), s, TOL, "|im[0]|");
         assert_near(im[1].abs(), s, TOL, "|im[1]|");
-        assert!(im[0] * im[1] < 0.0, "conjugate pair should have opposite signs");
+        assert!(
+            im[0] * im[1] < 0.0,
+            "conjugate pair should have opposite signs"
+        );
     }
 
     #[test]
     fn schur_trace_det() {
-        let a = Matrix::new([
-            [2.0_f64, 1.0, 0.0],
-            [0.0, 3.0, 1.0],
-            [1.0, 0.0, 1.0],
-        ]);
+        let a = Matrix::new([[2.0_f64, 1.0, 0.0], [0.0, 3.0, 1.0], [1.0, 0.0, 1.0]]);
         let schur = a.schur().unwrap();
         verify_schur_3x3(&a, &schur);
 
@@ -558,11 +571,7 @@ mod tests {
     #[test]
     fn schur_companion_matrix() {
         // p(x) = x^3 - 6x^2 + 11x - 6 = (x-1)(x-2)(x-3)
-        let a = Matrix::new([
-            [0.0_f64, 0.0, 6.0],
-            [1.0, 0.0, -11.0],
-            [0.0, 1.0, 6.0],
-        ]);
+        let a = Matrix::new([[0.0_f64, 0.0, 6.0], [1.0, 0.0, -11.0], [0.0, 1.0, 6.0]]);
         let schur = a.schur().unwrap();
         let (re, im) = schur.eigenvalues();
 
@@ -612,7 +621,12 @@ mod tests {
         let qtaq = q.transpose() * a * *q;
         for i in 0..4 {
             for j in 0..4 {
-                assert_near(qtaq[(i, j)], s[(i, j)], TOL, &format!("Q^TAQ[({},{})]", i, j));
+                assert_near(
+                    qtaq[(i, j)],
+                    s[(i, j)],
+                    TOL,
+                    &format!("Q^TAQ[({},{})]", i, j),
+                );
             }
         }
 

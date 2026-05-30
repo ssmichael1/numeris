@@ -168,7 +168,12 @@ fn butterworth_lp4_cutoff_gain() {
     let c: BiquadCascade<f64, 2> = butterworth_lowpass(4, 1000.0, 8000.0).unwrap();
     let gain = freq_response_mag(&c, 1000.0, 8000.0);
     // -3 dB point: gain = 1/√2
-    assert_near(gain, core::f64::consts::FRAC_1_SQRT_2, 1e-6, "BW LP4 cutoff gain");
+    assert_near(
+        gain,
+        core::f64::consts::FRAC_1_SQRT_2,
+        1e-6,
+        "BW LP4 cutoff gain",
+    );
 }
 
 #[test]
@@ -244,7 +249,12 @@ fn butterworth_lp5_dc_gain() {
 fn butterworth_lp5_cutoff() {
     let c: BiquadCascade<f64, 3> = butterworth_lowpass(5, 1000.0, 8000.0).unwrap();
     let gain = freq_response_mag(&c, 1000.0, 8000.0);
-    assert_near(gain, core::f64::consts::FRAC_1_SQRT_2, 1e-5, "BW LP5 cutoff");
+    assert_near(
+        gain,
+        core::f64::consts::FRAC_1_SQRT_2,
+        1e-5,
+        "BW LP5 cutoff",
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -269,7 +279,12 @@ fn butterworth_hp4_dc_rejection() {
 fn butterworth_hp4_cutoff_gain() {
     let c: BiquadCascade<f64, 2> = butterworth_highpass(4, 1000.0, 8000.0).unwrap();
     let gain = freq_response_mag(&c, 1000.0, 8000.0);
-    assert_near(gain, core::f64::consts::FRAC_1_SQRT_2, 1e-5, "BW HP4 cutoff");
+    assert_near(
+        gain,
+        core::f64::consts::FRAC_1_SQRT_2,
+        1e-5,
+        "BW HP4 cutoff",
+    );
 }
 
 #[test]
@@ -277,7 +292,12 @@ fn butterworth_hp3_odd() {
     let c: BiquadCascade<f64, 2> = butterworth_highpass(3, 1000.0, 8000.0).unwrap();
     assert_eq!(c.order(), 3);
     let cutoff_gain = freq_response_mag(&c, 1000.0, 8000.0);
-    assert_near(cutoff_gain, core::f64::consts::FRAC_1_SQRT_2, 1e-4, "BW HP3 cutoff");
+    assert_near(
+        cutoff_gain,
+        core::f64::consts::FRAC_1_SQRT_2,
+        1e-4,
+        "BW HP3 cutoff",
+    );
 }
 
 #[test]
@@ -285,7 +305,12 @@ fn butterworth_hp1() {
     let c: BiquadCascade<f64, 1> = butterworth_highpass(1, 1000.0, 8000.0).unwrap();
     assert_eq!(c.order(), 1);
     let cutoff_gain = freq_response_mag(&c, 1000.0, 8000.0);
-    assert_near(cutoff_gain, core::f64::consts::FRAC_1_SQRT_2, 1e-4, "BW HP1 cutoff");
+    assert_near(
+        cutoff_gain,
+        core::f64::consts::FRAC_1_SQRT_2,
+        1e-4,
+        "BW HP1 cutoff",
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -536,7 +561,12 @@ fn butterworth_lp8() {
     let dc = freq_response_mag(&c, 0.001, 8000.0);
     assert_near(dc, 1.0, 1e-5, "BW LP8 DC");
     let cutoff = freq_response_mag(&c, 1000.0, 8000.0);
-    assert_near(cutoff, core::f64::consts::FRAC_1_SQRT_2, 1e-4, "BW LP8 cutoff");
+    assert_near(
+        cutoff,
+        core::f64::consts::FRAC_1_SQRT_2,
+        1e-4,
+        "BW LP8 cutoff",
+    );
 }
 
 #[test]
@@ -595,7 +625,11 @@ fn lead_compensator_adds_phase() {
     // Phase at the center frequency should be close to the requested phase lead
     let phase = biquad_freq_response_phase(&comp, 50.0, 1000.0);
     // Bilinear transform warps frequency, so phase won't be exact, but should be positive
-    assert!(phase > 0.3, "lead adds positive phase at center freq: {}", phase);
+    assert!(
+        phase > 0.3,
+        "lead adds positive phase at center freq: {}",
+        phase
+    );
 }
 
 #[test]

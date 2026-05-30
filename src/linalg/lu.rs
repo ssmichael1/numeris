@@ -19,7 +19,11 @@ pub fn lu_in_place<T: LinalgScalar>(
 ) -> Result<bool, LinalgError> {
     let n = a.nrows();
     assert_eq!(n, a.ncols(), "LU decomposition requires a square matrix");
-    assert_eq!(n, perm.len(), "permutation slice length must match matrix size");
+    assert_eq!(
+        n,
+        perm.len(),
+        "permutation slice length must match matrix size"
+    );
 
     for i in 0..n {
         perm[i] = i;
@@ -86,12 +90,7 @@ pub fn lu_in_place<T: LinalgScalar>(
 /// `lu` is the packed L/U matrix from `lu_in_place`.
 /// `perm` is the row permutation from `lu_in_place`.
 /// `b` (input) and `x` (output) are separate slices of length n.
-pub fn lu_solve<T: LinalgScalar>(
-    lu: &impl MatrixRef<T>,
-    perm: &[usize],
-    b: &[T],
-    x: &mut [T],
-) {
+pub fn lu_solve<T: LinalgScalar>(lu: &impl MatrixRef<T>, perm: &[usize], b: &[T], x: &mut [T]) {
     let n = lu.nrows();
 
     // Apply permutation and forward substitution (solve Ly = Pb)
@@ -395,7 +394,11 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
 
     /// Compute the determinant.
     pub fn det(&self) -> T {
-        let mut d = if self.even { T::one() } else { T::zero() - T::one() };
+        let mut d = if self.even {
+            T::one()
+        } else {
+            T::zero() - T::one()
+        };
         for i in 0..N {
             d = d * self.lu[(i, i)];
         }
@@ -421,8 +424,10 @@ fn inverse_direct<T: LinalgScalar, const N: usize>(
         return Ok(out);
     }
     if N == 2 {
-        let a = m.data[0][0]; let b = m.data[1][0];
-        let c = m.data[0][1]; let d = m.data[1][1];
+        let a = m.data[0][0];
+        let b = m.data[1][0];
+        let c = m.data[0][1];
+        let d = m.data[1][1];
         let det = a * d - b * c;
         if det.modulus() < T::lepsilon() {
             return Err(LinalgError::Singular);
@@ -436,9 +441,15 @@ fn inverse_direct<T: LinalgScalar, const N: usize>(
         return Ok(out);
     }
     if N == 3 {
-        let a = m.data[0][0]; let b = m.data[1][0]; let c = m.data[2][0];
-        let d = m.data[0][1]; let e = m.data[1][1]; let f = m.data[2][1];
-        let g = m.data[0][2]; let h = m.data[1][2]; let i = m.data[2][2];
+        let a = m.data[0][0];
+        let b = m.data[1][0];
+        let c = m.data[2][0];
+        let d = m.data[0][1];
+        let e = m.data[1][1];
+        let f = m.data[2][1];
+        let g = m.data[0][2];
+        let h = m.data[1][2];
+        let i = m.data[2][2];
 
         // Cofactors (adjugate transposed)
         let c00 = e * i - f * h;
@@ -458,16 +469,34 @@ fn inverse_direct<T: LinalgScalar, const N: usize>(
         let inv_det = T::one() / det;
 
         let mut out = Matrix::<T, N, N>::zeros();
-        out.data[0][0] = c00 * inv_det; out.data[1][0] = c10 * inv_det; out.data[2][0] = c20 * inv_det;
-        out.data[0][1] = c01 * inv_det; out.data[1][1] = c11 * inv_det; out.data[2][1] = c21 * inv_det;
-        out.data[0][2] = c02 * inv_det; out.data[1][2] = c12 * inv_det; out.data[2][2] = c22 * inv_det;
+        out.data[0][0] = c00 * inv_det;
+        out.data[1][0] = c10 * inv_det;
+        out.data[2][0] = c20 * inv_det;
+        out.data[0][1] = c01 * inv_det;
+        out.data[1][1] = c11 * inv_det;
+        out.data[2][1] = c21 * inv_det;
+        out.data[0][2] = c02 * inv_det;
+        out.data[1][2] = c12 * inv_det;
+        out.data[2][2] = c22 * inv_det;
         return Ok(out);
     }
     if N == 4 {
-        let a00 = m.data[0][0]; let a01 = m.data[1][0]; let a02 = m.data[2][0]; let a03 = m.data[3][0];
-        let a10 = m.data[0][1]; let a11 = m.data[1][1]; let a12 = m.data[2][1]; let a13 = m.data[3][1];
-        let a20 = m.data[0][2]; let a21 = m.data[1][2]; let a22 = m.data[2][2]; let a23 = m.data[3][2];
-        let a30 = m.data[0][3]; let a31 = m.data[1][3]; let a32 = m.data[2][3]; let a33 = m.data[3][3];
+        let a00 = m.data[0][0];
+        let a01 = m.data[1][0];
+        let a02 = m.data[2][0];
+        let a03 = m.data[3][0];
+        let a10 = m.data[0][1];
+        let a11 = m.data[1][1];
+        let a12 = m.data[2][1];
+        let a13 = m.data[3][1];
+        let a20 = m.data[0][2];
+        let a21 = m.data[1][2];
+        let a22 = m.data[2][2];
+        let a23 = m.data[3][2];
+        let a30 = m.data[0][3];
+        let a31 = m.data[1][3];
+        let a32 = m.data[2][3];
+        let a33 = m.data[3][3];
 
         // 2x2 sub-determinants from rows 0-1
         let s0 = a00 * a11 - a01 * a10;
@@ -493,25 +522,25 @@ fn inverse_direct<T: LinalgScalar, const N: usize>(
 
         let mut out = Matrix::<T, N, N>::zeros();
         // Adjugate / det — each element is a 3x3 cofactor
-        out.data[0][0] = ( a11 * c5 - a12 * c4 + a13 * c3) * inv_det;
+        out.data[0][0] = (a11 * c5 - a12 * c4 + a13 * c3) * inv_det;
         out.data[1][0] = (T::zero() - a01 * c5 + a02 * c4 - a03 * c3) * inv_det;
-        out.data[2][0] = ( a31 * s5 - a32 * s4 + a33 * s3) * inv_det;
+        out.data[2][0] = (a31 * s5 - a32 * s4 + a33 * s3) * inv_det;
         out.data[3][0] = (T::zero() - a21 * s5 + a22 * s4 - a23 * s3) * inv_det;
 
         out.data[0][1] = (T::zero() - a10 * c5 + a12 * c2 - a13 * c1) * inv_det;
-        out.data[1][1] = ( a00 * c5 - a02 * c2 + a03 * c1) * inv_det;
+        out.data[1][1] = (a00 * c5 - a02 * c2 + a03 * c1) * inv_det;
         out.data[2][1] = (T::zero() - a30 * s5 + a32 * s2 - a33 * s1) * inv_det;
-        out.data[3][1] = ( a20 * s5 - a22 * s2 + a23 * s1) * inv_det;
+        out.data[3][1] = (a20 * s5 - a22 * s2 + a23 * s1) * inv_det;
 
-        out.data[0][2] = ( a10 * c4 - a11 * c2 + a13 * c0) * inv_det;
+        out.data[0][2] = (a10 * c4 - a11 * c2 + a13 * c0) * inv_det;
         out.data[1][2] = (T::zero() - a00 * c4 + a01 * c2 - a03 * c0) * inv_det;
-        out.data[2][2] = ( a30 * s4 - a31 * s2 + a33 * s0) * inv_det;
+        out.data[2][2] = (a30 * s4 - a31 * s2 + a33 * s0) * inv_det;
         out.data[3][2] = (T::zero() - a20 * s4 + a21 * s2 - a23 * s0) * inv_det;
 
         out.data[0][3] = (T::zero() - a10 * c3 + a11 * c1 - a12 * c0) * inv_det;
-        out.data[1][3] = ( a00 * c3 - a01 * c1 + a02 * c0) * inv_det;
+        out.data[1][3] = (a00 * c3 - a01 * c1 + a02 * c0) * inv_det;
         out.data[2][3] = (T::zero() - a30 * s3 + a31 * s1 - a32 * s0) * inv_det;
-        out.data[3][3] = ( a20 * s3 - a21 * s1 + a22 * s0) * inv_det;
+        out.data[3][3] = (a20 * s3 - a21 * s1 + a22 * s0) * inv_det;
 
         return Ok(out);
     }
@@ -609,11 +638,7 @@ mod tests {
 
     #[test]
     fn lu_solve_3x3() {
-        let a = Matrix::new([
-            [2.0_f64, 1.0, -1.0],
-            [-3.0, -1.0, 2.0],
-            [-2.0, 1.0, 2.0],
-        ]);
+        let a = Matrix::new([[2.0_f64, 1.0, -1.0], [-3.0, -1.0, 2.0], [-2.0, 1.0, 2.0]]);
         let b = Vector::from_array([8.0, -11.0, -3.0]);
 
         let x = a.solve(&b).unwrap();
@@ -638,11 +663,7 @@ mod tests {
 
     #[test]
     fn lu_inverse_3x3() {
-        let a = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [0.0, 1.0, 4.0],
-            [5.0, 6.0, 0.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 2.0, 3.0], [0.0, 1.0, 4.0], [5.0, 6.0, 0.0]]);
         let a_inv = a.inverse().unwrap();
         let id = a * a_inv;
 
@@ -670,11 +691,7 @@ mod tests {
 
     #[test]
     fn lu_det_3x3() {
-        let a = Matrix::new([
-            [6.0_f64, 1.0, 1.0],
-            [4.0, -2.0, 5.0],
-            [2.0, 8.0, 7.0],
-        ]);
+        let a = Matrix::new([[6.0_f64, 1.0, 1.0], [4.0, -2.0, 5.0], [2.0, 8.0, 7.0]]);
         let lu = a.lu().unwrap();
         assert!((lu.det() - (-306.0)).abs() < 1e-10);
     }
@@ -725,6 +742,7 @@ mod tests {
     #[test]
     fn solve_refined_improves_accuracy() {
         // Ill-conditioned 3x3 system (condition number ~3200)
+        #[rustfmt::skip]
         let a = Matrix::new([
             [1.0_f64,    1.0,      1.0     ],
             [1.0,        1.0001,   1.0001  ],
@@ -737,18 +755,27 @@ mod tests {
         let x_plain = lu.solve(&b);
         let x_refined = lu.solve_refined(&a, &b);
 
-        let err_plain: f64 = (0..3).map(|i| (x_plain[i] - x_true[i]).abs()).fold(0.0, f64::max);
-        let err_refined: f64 = (0..3).map(|i| (x_refined[i] - x_true[i]).abs()).fold(0.0, f64::max);
+        let err_plain: f64 = (0..3)
+            .map(|i| (x_plain[i] - x_true[i]).abs())
+            .fold(0.0, f64::max);
+        let err_refined: f64 = (0..3)
+            .map(|i| (x_refined[i] - x_true[i]).abs())
+            .fold(0.0, f64::max);
 
         // Refined should be at least as good
-        assert!(err_refined <= err_plain + 1e-15,
-            "refined err {} should be <= plain err {}", err_refined, err_plain);
+        assert!(
+            err_refined <= err_plain + 1e-15,
+            "refined err {} should be <= plain err {}",
+            err_refined,
+            err_plain
+        );
         // Both should be reasonably accurate
         assert!(err_refined < 1e-6, "refined err {} too large", err_refined);
     }
 
     #[test]
     fn solve_refined_convenience() {
+        #[rustfmt::skip]
         let a = Matrix::new([
             [1.0_f64,    1.0,      1.0     ],
             [1.0,        1.0001,   1.0001  ],
@@ -759,8 +786,13 @@ mod tests {
 
         let x = a.solve_refined(&b).unwrap();
         for i in 0..3 {
-            assert!((x[i] - x_true[i]).abs() < 1e-6,
-                "x[{}] = {}, expected {}", i, x[i], x_true[i]);
+            assert!(
+                (x[i] - x_true[i]).abs() < 1e-6,
+                "x[{}] = {}, expected {}",
+                i,
+                x[i],
+                x_true[i]
+            );
         }
     }
 
@@ -768,9 +800,7 @@ mod tests {
     fn solve_refined_multi_iteration_ill_conditioned() {
         // 8x8 Hilbert matrix — condition number ~1.5e10, large enough that
         // plain solve loses several digits and refinement recovers them.
-        let a = Matrix::<f64, 8, 8>::from_fn(|i, j| {
-            1.0 / ((i + j + 1) as f64)
-        });
+        let a = Matrix::<f64, 8, 8>::from_fn(|i, j| 1.0 / ((i + j + 1) as f64));
         let x_true = Vector::<f64, 8>::from_fn(|i, _| {
             (i as f64 + 1.0) * if i % 2 == 0 { 1.0 } else { -1.0 }
         });
@@ -780,13 +810,23 @@ mod tests {
         let x_plain = lu.solve(&b);
         let x_refined = lu.solve_refined(&a, &b);
 
-        let err_plain: f64 = (0..8).map(|i| (x_plain[i] - x_true[i]).abs()).fold(0.0, f64::max);
-        let err_refined: f64 = (0..8).map(|i| (x_refined[i] - x_true[i]).abs()).fold(0.0, f64::max);
+        let err_plain: f64 = (0..8)
+            .map(|i| (x_plain[i] - x_true[i]).abs())
+            .fold(0.0, f64::max);
+        let err_refined: f64 = (0..8)
+            .map(|i| (x_refined[i] - x_true[i]).abs())
+            .fold(0.0, f64::max);
 
         // Both should achieve reasonable accuracy for this ill-conditioned system
-        assert!(err_plain < 1e-4,
-            "plain err {} too large for Hilbert system", err_plain);
-        assert!(err_refined < 1e-4,
-            "refined err {} too large for Hilbert system", err_refined);
+        assert!(
+            err_plain < 1e-4,
+            "plain err {} too large for Hilbert system",
+            err_plain
+        );
+        assert!(
+            err_refined < 1e-4,
+            "refined err {} too large for Hilbert system",
+            err_refined
+        );
     }
 }

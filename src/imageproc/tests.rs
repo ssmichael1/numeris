@@ -96,16 +96,10 @@ fn identity_kernel_leaves_image_unchanged() {
 fn constant_image_convolves_to_kernel_sum() {
     let img = DynMatrix::<f64>::fill(7, 7, 3.0);
     // 3x3 kernel with entries summing to 2.0
-    let k = Matrix::<f64, 3, 3>::new([
-        [0.1, 0.2, 0.3],
-        [0.0, 0.5, 0.0],
-        [0.2, 0.5, 0.2],
-    ]);
+    let k = Matrix::<f64, 3, 3>::new([[0.1, 0.2, 0.3], [0.0, 0.5, 0.0], [0.2, 0.5, 0.2]]);
     let out = convolve2d(&img, &k, BorderMode::Replicate);
     // All output pixels should equal 3.0 * sum_of_kernel.
-    let ksum: f64 = (0..3)
-        .flat_map(|i| (0..3).map(move |j| k[(i, j)]))
-        .sum();
+    let ksum: f64 = (0..3).flat_map(|i| (0..3).map(move |j| k[(i, j)])).sum();
     for i in 0..7 {
         for j in 0..7 {
             assert!(
@@ -179,11 +173,7 @@ fn delta_impulse_gives_kernel_response() {
     // it's a delta, the footprint is the kernel values around (3,3)).
     let mut img = DynMatrix::<f64>::zeros(7, 7);
     img[(3, 3)] = 1.0;
-    let k = Matrix::<f64, 3, 3>::new([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-        [7.0, 8.0, 9.0],
-    ]);
+    let k = Matrix::<f64, 3, 3>::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
     let out = convolve2d(&img, &k, BorderMode::Zero);
     // out[i, j] = sum over (ki, kj) of k[ki, kj] * img[i+ki-1, j+kj-1]
     //           = k[1-(i-3), 1-(j-3)] when (i+ki-1, j+kj-1) = (3,3)
@@ -312,7 +302,10 @@ fn scharr_detects_horizontal_step() {
     let (gx, gy) = scharr_gradients(&img, BorderMode::Replicate);
     // Scharr Gy should be strongly positive along the transition.
     for j in 1..8 {
-        assert!(gy[(4, j)] > 0.0 || gy[(5, j)] > 0.0, "no response at col {j}");
+        assert!(
+            gy[(4, j)] > 0.0 || gy[(5, j)] > 0.0,
+            "no response at col {j}"
+        );
     }
     // Scharr Gx should be ~0 in the interior (no horizontal variation).
     for i in 1..8 {
@@ -463,7 +456,10 @@ fn median_removes_salt_and_pepper() {
     let out = median_filter(&img, 1, BorderMode::Replicate);
     for i in 0..9 {
         for j in 0..9 {
-            assert!((out[(i, j)] - 5.0).abs() < 1e-12, "spike leaked to ({i},{j})");
+            assert!(
+                (out[(i, j)] - 5.0).abs() < 1e-12,
+                "spike leaked to ({i},{j})"
+            );
         }
     }
 }
@@ -601,10 +597,8 @@ fn median_pool_shape_and_values() {
         4,
         6,
         &[
-            1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
-            13.0, 14.0, 15.0, 16.0, 17.0, 18.0,
-            19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
+            1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
+            16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
         ],
     );
     let out = median_pool(&img, 2);
@@ -669,12 +663,7 @@ fn naive_window_extreme<F: Fn(f64, f64) -> f64>(
     out
 }
 
-fn fetch_border_2d_f64(
-    src: &DynMatrix<f64>,
-    i: isize,
-    j: isize,
-    border: BorderMode<f64>,
-) -> f64 {
+fn fetch_border_2d_f64(src: &DynMatrix<f64>, i: isize, j: isize, border: BorderMode<f64>) -> f64 {
     let nrows = src.nrows() as isize;
     let ncols = src.ncols() as isize;
     let in_bounds = i >= 0 && i < nrows && j >= 0 && j < ncols;
@@ -710,7 +699,8 @@ fn max_filter_matches_naive() {
     let img = DynMatrix::from_fn(13, 17, |i, j| ((i * 7) ^ (j * 13)) as f64);
     for r in [1_usize, 2, 3, 5] {
         let fast = max_filter(&img, r, BorderMode::Replicate);
-        let slow = naive_window_extreme(&img, r, BorderMode::Replicate, f64::NEG_INFINITY, f64::max);
+        let slow =
+            naive_window_extreme(&img, r, BorderMode::Replicate, f64::NEG_INFINITY, f64::max);
         for i in 0..13 {
             for j in 0..17 {
                 assert_eq!(
@@ -770,7 +760,11 @@ fn dilate_erode_on_impulse() {
     // A 5×5 block around (5,5) should be 1.0, rest 0.
     for i in 0..11 {
         for j in 0..11 {
-            let expected = if (3..=7).contains(&i) && (3..=7).contains(&j) { 1.0 } else { 0.0 };
+            let expected = if (3..=7).contains(&i) && (3..=7).contains(&j) {
+                1.0
+            } else {
+                0.0
+            };
             assert_eq!(d[(i, j)], expected);
         }
     }
@@ -846,7 +840,11 @@ fn opening_removes_small_bright_feature() {
     let mut img = DynMatrix::<f64>::zeros(9, 9);
     img[(4, 4)] = 1.0;
     let out = opening(&img, 1, BorderMode::Zero);
-    for i in 0..9 { for j in 0..9 { assert_eq!(out[(i, j)], 0.0); } }
+    for i in 0..9 {
+        for j in 0..9 {
+            assert_eq!(out[(i, j)], 0.0);
+        }
+    }
 }
 
 #[test]
@@ -862,7 +860,11 @@ fn closing_fills_small_dark_hole() {
 fn morphology_gradient_highlights_boundary() {
     // Sharp step image — gradient should be nonzero around the step.
     let mut img = DynMatrix::<f64>::zeros(9, 9);
-    for i in 0..9 { for j in 5..9 { img[(i, j)] = 1.0; } }
+    for i in 0..9 {
+        for j in 5..9 {
+            img[(i, j)] = 1.0;
+        }
+    }
     let g = morphology_gradient(&img, 1, BorderMode::Replicate);
     // Columns adjacent to the step have nonzero response; deep interior is zero.
     assert!(g[(4, 4)] > 0.0);
@@ -876,10 +878,15 @@ fn top_hat_isolates_bright_spike() {
     img[(5, 5)] = 20.0;
     let t = top_hat(&img, 1, BorderMode::Replicate);
     // Background goes to zero; the spike location retains the difference.
-    for i in 0..11 { for j in 0..11 {
-        if (i, j) == (5, 5) { assert!(t[(i, j)] > 0.0); }
-        else { assert_eq!(t[(i, j)], 0.0); }
-    }}
+    for i in 0..11 {
+        for j in 0..11 {
+            if (i, j) == (5, 5) {
+                assert!(t[(i, j)] > 0.0);
+            } else {
+                assert_eq!(t[(i, j)], 0.0);
+            }
+        }
+    }
 }
 
 #[test]
@@ -916,9 +923,12 @@ fn rotate_90_180_270_and_back() {
     let r1 = rotate_90(&img);
     let r2 = rotate_180(&img);
     let r3 = rotate_270(&img);
-    assert_eq!(r1.nrows(), 3); assert_eq!(r1.ncols(), 2);
-    assert_eq!(r2.nrows(), 2); assert_eq!(r2.ncols(), 3);
-    assert_eq!(r3.nrows(), 3); assert_eq!(r3.ncols(), 2);
+    assert_eq!(r1.nrows(), 3);
+    assert_eq!(r1.ncols(), 2);
+    assert_eq!(r2.nrows(), 2);
+    assert_eq!(r2.ncols(), 3);
+    assert_eq!(r3.nrows(), 3);
+    assert_eq!(r3.ncols(), 2);
 
     // Known value checks for rotate_90 clockwise of
     //   1 2 3
@@ -937,14 +947,19 @@ fn rotate_90_180_270_and_back() {
 
     // rotate_90(rotate_270(x)) == x
     let back = rotate_90(&rotate_270(&img));
-    for i in 0..2 { for j in 0..3 { assert_eq!(back[(i, j)], img[(i, j)]); } }
+    for i in 0..2 {
+        for j in 0..3 {
+            assert_eq!(back[(i, j)], img[(i, j)]);
+        }
+    }
 }
 
 #[test]
 fn pad_adds_border_pixels() {
     let img = DynMatrix::from_rows(2, 2, &[1.0_f64, 2.0, 3.0, 4.0]);
     let p = pad(&img, 1, 1, 1, 1, BorderMode::Zero);
-    assert_eq!(p.nrows(), 4); assert_eq!(p.ncols(), 4);
+    assert_eq!(p.nrows(), 4);
+    assert_eq!(p.ncols(), 4);
     // Corners are border, middle 2×2 is the original.
     assert_eq!(p[(0, 0)], 0.0);
     assert_eq!(p[(1, 1)], 1.0);
@@ -967,7 +982,8 @@ fn pad_replicate_extends_edges() {
 fn crop_extracts_subregion() {
     let img = DynMatrix::from_fn(4, 5, |i, j| (i * 10 + j) as f64);
     let c = crop(&img, 1, 2, 2, 3);
-    assert_eq!(c.nrows(), 2); assert_eq!(c.ncols(), 3);
+    assert_eq!(c.nrows(), 2);
+    assert_eq!(c.ncols(), 3);
     assert_eq!(c[(0, 0)], 12.0); // img[(1, 2)]
     assert_eq!(c[(1, 2)], 24.0); // img[(2, 4)]
 }
@@ -991,7 +1007,11 @@ fn resize_nearest_preserves_discrete_labels() {
 fn local_mean_on_constant() {
     let img = DynMatrix::<f64>::fill(10, 10, 7.0);
     let m = local_mean(&img, 2);
-    for i in 0..10 { for j in 0..10 { assert!((m[(i, j)] - 7.0).abs() < 1e-12); } }
+    for i in 0..10 {
+        for j in 0..10 {
+            assert!((m[(i, j)] - 7.0).abs() < 1e-12);
+        }
+    }
 }
 
 #[test]
@@ -1009,9 +1029,18 @@ fn local_mean_large_separable_reference_parallel() {
         let cnt = hi - lo;
         (lo..hi).map(|k| k as f64).sum::<f64>() / cnt as f64
     };
-    for &(i, j) in &[(0usize, 0usize), (5, 7), (300, 299), (h - 1, w - 1), (250, 13)] {
+    for &(i, j) in &[
+        (0usize, 0usize),
+        (5, 7),
+        (300, 299),
+        (h - 1, w - 1),
+        (250, 13),
+    ] {
         let expected = axis_mean(i, h) + axis_mean(j, w);
-        assert!((m[(i, j)] - expected).abs() < 1e-9, "local_mean at ({i},{j})");
+        assert!(
+            (m[(i, j)] - expected).abs() < 1e-9,
+            "local_mean at ({i},{j})"
+        );
     }
 }
 
@@ -1023,16 +1052,22 @@ fn resize_large_uniform_and_midpoint_parallel() {
     let up = resize_bilinear(&uni, 800, 800);
     assert_eq!((up.nrows(), up.ncols()), (800, 800));
     for &(i, j) in &[(0usize, 0usize), (400, 400), (799, 799), (123, 654)] {
-        assert!((up[(i, j)] - 9.0).abs() < 1e-9, "uniform resize at ({i},{j})");
+        assert!(
+            (up[(i, j)] - 9.0).abs() < 1e-9,
+            "uniform resize at ({i},{j})"
+        );
     }
     // Column ramp src[i,j] = j: bilinear preserves the linear profile along x.
     let ramp = DynMatrix::from_fn(300, 600, |_, j| j as f64);
     let r2 = resize_bilinear(&ramp, 300, 1200); // 2× wider
-    // Output column j_out maps to input x = (j_out + 0.5) * (600/1200) - 0.5.
+                                                // Output column j_out maps to input x = (j_out + 0.5) * (600/1200) - 0.5.
     for j_out in [0usize, 600, 1199] {
         let x = (j_out as f64 + 0.5) * 0.5 - 0.5;
         let expected = x.clamp(0.0, 599.0);
-        assert!((r2[(150, j_out)] - expected).abs() < 1e-9, "ramp resize at col {j_out}");
+        assert!(
+            (r2[(150, j_out)] - expected).abs() < 1e-9,
+            "ramp resize at col {j_out}"
+        );
     }
 }
 
@@ -1040,7 +1075,11 @@ fn resize_large_uniform_and_midpoint_parallel() {
 fn local_variance_constant_is_zero() {
     let img = DynMatrix::<f64>::fill(8, 8, 3.5);
     let v = local_variance(&img, 1);
-    for i in 0..8 { for j in 0..8 { assert!(v[(i, j)] < 1e-12); } }
+    for i in 0..8 {
+        for j in 0..8 {
+            assert!(v[(i, j)] < 1e-12);
+        }
+    }
 }
 
 #[test]
@@ -1048,9 +1087,11 @@ fn local_stddev_matches_sqrt_variance() {
     let img = DynMatrix::from_fn(8, 8, |i, j| ((i * 7 + j * 3) % 11) as f64);
     let v = local_variance(&img, 1);
     let s = local_stddev(&img, 1);
-    for i in 0..8 { for j in 0..8 {
-        assert!((s[(i, j)] - v[(i, j)].sqrt()).abs() < 1e-10);
-    }}
+    for i in 0..8 {
+        for j in 0..8 {
+            assert!((s[(i, j)] - v[(i, j)].sqrt()).abs() < 1e-10);
+        }
+    }
 }
 
 // ── DoG / pyramid ──────────────────────────────────────────────────────
@@ -1059,7 +1100,11 @@ fn local_stddev_matches_sqrt_variance() {
 fn dog_on_constant_is_zero() {
     let img = DynMatrix::<f64>::fill(24, 24, 4.0);
     let d = difference_of_gaussians(&img, 1.0, 1.6, BorderMode::Replicate);
-    for i in 3..21 { for j in 3..21 { assert!(d[(i, j)].abs() < 1e-10); } }
+    for i in 3..21 {
+        for j in 3..21 {
+            assert!(d[(i, j)].abs() < 1e-10);
+        }
+    }
 }
 
 #[test]
@@ -1089,11 +1134,22 @@ fn threshold_binary() {
 fn threshold_otsu_bimodal() {
     // Bimodal image: one cluster near 1.0, another near 10.0.
     // Otsu should pick a threshold in between.
-    let img = DynMatrix::from_fn(16, 16, |i, j| {
-        if (i * 16 + j) % 2 == 0 { 1.0_f64 } else { 10.0 }
-    });
+    let img = DynMatrix::from_fn(
+        16,
+        16,
+        |i, j| {
+            if (i * 16 + j) % 2 == 0 {
+                1.0_f64
+            } else {
+                10.0
+            }
+        },
+    );
     let t = threshold_otsu(&img);
-    assert!(t > 1.5 && t < 9.5, "Otsu threshold out of expected band: {t}");
+    assert!(
+        t > 1.5 && t < 9.5,
+        "Otsu threshold out of expected band: {t}"
+    );
 }
 
 #[test]
@@ -1115,19 +1171,36 @@ fn canny_on_step_produces_edge() {
     // Vertical step between columns 15 and 16 — a single clean edge column
     // should survive Canny's pipeline.
     let mut img = DynMatrix::<f64>::zeros(32, 32);
-    for i in 0..32 { for j in 16..32 { img[(i, j)] = 1.0; } }
+    for i in 0..32 {
+        for j in 16..32 {
+            img[(i, j)] = 1.0;
+        }
+    }
     let edges = canny(&img, 1.0, 0.05, 0.15, BorderMode::Replicate);
     // Some edge pixels exist near the step in the middle rows.
     let mut edge_count = 0;
-    for i in 8..24 { for j in 14..18 { if edges[(i, j)] > 0.5 { edge_count += 1; } } }
-    assert!(edge_count > 8, "expected > 8 edge pixels in the centre strip, got {edge_count}");
+    for i in 8..24 {
+        for j in 14..18 {
+            if edges[(i, j)] > 0.5 {
+                edge_count += 1;
+            }
+        }
+    }
+    assert!(
+        edge_count > 8,
+        "expected > 8 edge pixels in the centre strip, got {edge_count}"
+    );
 }
 
 #[test]
 fn canny_on_constant_is_empty() {
     let img = DynMatrix::<f64>::fill(16, 16, 5.0);
     let edges = canny(&img, 1.0, 0.05, 0.15, BorderMode::Replicate);
-    for i in 0..16 { for j in 0..16 { assert_eq!(edges[(i, j)], 0.0); } }
+    for i in 0..16 {
+        for j in 0..16 {
+            assert_eq!(edges[(i, j)], 0.0);
+        }
+    }
 }
 
 // ── Harris / Shi-Tomasi ────────────────────────────────────────────────
@@ -1135,7 +1208,11 @@ fn canny_on_constant_is_empty() {
 #[test]
 fn harris_detects_square_corners() {
     let mut img = DynMatrix::<f64>::fill(32, 32, 0.0);
-    for i in 10..22 { for j in 10..22 { img[(i, j)] = 1.0; } }
+    for i in 10..22 {
+        for j in 10..22 {
+            img[(i, j)] = 1.0;
+        }
+    }
     let r = harris_corners(&img, 1.0, 0.05, BorderMode::Replicate);
     // Corners should have a stronger response than flat interior or edge interior.
     let corner = r[(10, 10)].max(r[(11, 11)]);
@@ -1149,9 +1226,15 @@ fn harris_detects_square_corners() {
 fn shi_tomasi_nonnegative() {
     let img = DynMatrix::from_fn(16, 16, |i, j| ((i * 3 + j * 5) % 7) as f64);
     let r = shi_tomasi_corners(&img, 1.0, BorderMode::Replicate);
-    for i in 0..16 { for j in 0..16 {
-        assert!(r[(i, j)] >= 0.0, "negative response {} at ({i},{j})", r[(i, j)]);
-    }}
+    for i in 0..16 {
+        for j in 0..16 {
+            assert!(
+                r[(i, j)] >= 0.0,
+                "negative response {} at ({i},{j})",
+                r[(i, j)]
+            );
+        }
+    }
 }
 
 // ── connected components ───────────────────────────────────────────────
@@ -1184,11 +1267,9 @@ fn cc_all_foreground_is_single_component() {
 fn cc_two_separated_blobs() {
     // Two 2×2 blobs with a column of background between them.
     let img = DynMatrix::<u8>::from_rows(
-        4, 5,
-        &[1, 1, 0, 1, 1,
-          1, 1, 0, 1, 1,
-          0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0],
+        4,
+        5,
+        &[1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     );
     let comps = connected_components(&img, Connectivity::Four, 0u8);
     assert_eq!(comps.len(), 2);
@@ -1204,11 +1285,7 @@ fn cc_two_separated_blobs() {
 fn cc_4_vs_8_connectivity_diagonal() {
     // Two pixels touching only diagonally: one component under 8-conn,
     // two components under 4-conn.
-    let img = DynMatrix::<u8>::from_rows(
-        2, 2,
-        &[1, 0,
-          0, 1],
-    );
+    let img = DynMatrix::<u8>::from_rows(2, 2, &[1, 0, 0, 1]);
     let c4 = connected_components(&img, Connectivity::Four, 0u8);
     assert_eq!(c4.len(), 2);
     let c8 = connected_components(&img, Connectivity::Eight, 0u8);
@@ -1220,12 +1297,7 @@ fn cc_4_vs_8_connectivity_diagonal() {
 fn cc_u_shape_requires_equivalence_resolution() {
     // U-shape: the two legs are first labeled separately during row 0,
     // then unified at the bottom. Exercises the union-find merge path.
-    let img = DynMatrix::<u8>::from_rows(
-        3, 4,
-        &[1, 0, 0, 1,
-          1, 0, 0, 1,
-          1, 1, 1, 1],
-    );
+    let img = DynMatrix::<u8>::from_rows(3, 4, &[1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1]);
     let comps = connected_components(&img, Connectivity::Four, 0u8);
     assert_eq!(comps.len(), 1);
     assert_eq!(comps[0].area, 8);
@@ -1237,7 +1309,11 @@ fn cc_u_shape_requires_equivalence_resolution() {
 fn cc_component_centroid_and_moments() {
     // 3×3 solid block at rows 1..4, cols 2..5.
     let mut img = DynMatrix::<u8>::zeros(6, 8);
-    for r in 1..4 { for c in 2..5 { img[(r, c)] = 1; } }
+    for r in 1..4 {
+        for c in 2..5 {
+            img[(r, c)] = 1;
+        }
+    }
     let comps = connected_components(&img, Connectivity::Four, 0u8);
     assert_eq!(comps.len(), 1);
     let comp = &comps[0];
@@ -1255,15 +1331,11 @@ fn cc_component_centroid_and_moments() {
 #[test]
 fn cc_area_matches_pixels_inside_bbox() {
     let img = DynMatrix::<u8>::from_rows(
-        4, 5,
-        &[0, 1, 1, 0, 0,
-          0, 0, 1, 1, 0,
-          0, 0, 0, 1, 0,
-          0, 0, 0, 0, 0],
+        4,
+        5,
+        &[0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
     );
-    let (labels, comps) = connected_components_with_label_buffer(
-        &img, Connectivity::Eight, 0u8,
-    );
+    let (labels, comps) = connected_components_with_label_buffer(&img, Connectivity::Eight, 0u8);
     assert_eq!(comps.len(), 1);
     let c = &comps[0];
     // Count labeled pixels inside the bbox; must equal area, and every
@@ -1284,41 +1356,38 @@ fn cc_area_matches_pixels_inside_bbox() {
 #[test]
 fn cc_labeled_image_consistent_with_components() {
     let img = DynMatrix::<u8>::from_rows(
-        4, 5,
-        &[1, 1, 0, 2, 2,
-          1, 0, 0, 0, 2,
-          0, 0, 3, 0, 0,
-          0, 0, 0, 0, 4],
+        4,
+        5,
+        &[1, 1, 0, 2, 2, 1, 0, 0, 0, 2, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4],
     );
     let (labels, comps) = connected_components_labeled(&img, Connectivity::Four, 0u8);
     assert_eq!(comps.len(), 4);
     // Every background pixel has label 0; every foreground has a non-zero label
     // matching some component's bbox.
-    for r in 0..4 { for c in 0..5 {
-        if img[(r, c)] == 0 {
-            assert_eq!(labels[(r, c)], 0);
-        } else {
-            let id = labels[(r, c)] as usize;
-            assert!(id >= 1 && id <= comps.len());
-            let comp = &comps[id - 1];
-            assert!(r as u32 >= comp.bbox_min.0 && r as u32 <= comp.bbox_max.0);
-            assert!(c as u32 >= comp.bbox_min.1 && c as u32 <= comp.bbox_max.1);
+    for r in 0..4 {
+        for c in 0..5 {
+            if img[(r, c)] == 0 {
+                assert_eq!(labels[(r, c)], 0);
+            } else {
+                let id = labels[(r, c)] as usize;
+                assert!(id >= 1 && id <= comps.len());
+                let comp = &comps[id - 1];
+                assert!(r as u32 >= comp.bbox_min.0 && r as u32 <= comp.bbox_max.0);
+                assert!(c as u32 >= comp.bbox_min.1 && c as u32 <= comp.bbox_max.1);
+            }
         }
-    }}
+    }
 }
 
 #[test]
 fn cc_with_label_buffer_matches_labeled_variant() {
     // Both variants must agree on label IDs (modulo storage layout).
     let img = DynMatrix::<u8>::from_rows(
-        4, 5,
-        &[1, 1, 0, 2, 2,
-          1, 0, 0, 0, 2,
-          0, 0, 3, 0, 0,
-          0, 0, 0, 0, 4],
+        4,
+        5,
+        &[1, 1, 0, 2, 2, 1, 0, 0, 0, 2, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4],
     );
-    let (mat_labels, mat_comps) =
-        connected_components_labeled(&img, Connectivity::Four, 0u8);
+    let (mat_labels, mat_comps) = connected_components_labeled(&img, Connectivity::Four, 0u8);
     let (flat_labels, flat_comps) =
         connected_components_with_label_buffer(&img, Connectivity::Four, 0u8);
     assert_eq!(mat_comps.len(), flat_comps.len());
@@ -1333,6 +1402,7 @@ fn cc_with_label_buffer_matches_labeled_variant() {
 #[test]
 fn cc_works_on_float_input_with_custom_background() {
     // Use f64 with background = -1.0 (distinct from 0.0 in the image).
+    #[rustfmt::skip]
     let img = DynMatrix::<f64>::from_rows(
         3, 3,
         &[-1.0,  0.0, -1.0,
@@ -1348,11 +1418,7 @@ fn cc_works_on_float_input_with_custom_background() {
 fn cc_works_on_fixed_size_matrix() {
     // Since connected_components is generic over MatrixRef<T>, it should
     // work on a stack-allocated fixed-size Matrix too, not just DynMatrix.
-    let m: Matrix<u8, 3, 3> = Matrix::new([
-        [1, 0, 1],
-        [1, 0, 0],
-        [0, 0, 1],
-    ]);
+    let m: Matrix<u8, 3, 3> = Matrix::new([[1, 0, 1], [1, 0, 0], [0, 0, 1]]);
     let comps = connected_components(&m, Connectivity::Four, 0u8);
     assert_eq!(comps.len(), 3);
 }
@@ -1361,12 +1427,11 @@ fn cc_works_on_fixed_size_matrix() {
 fn cc_spiral_single_component() {
     // A winding thin path — stresses label equivalence across many rows.
     let img = DynMatrix::<u8>::from_rows(
-        5, 5,
-        &[1, 1, 1, 1, 1,
-          0, 0, 0, 0, 1,
-          1, 1, 1, 0, 1,
-          1, 0, 0, 0, 1,
-          1, 1, 1, 1, 1],
+        5,
+        5,
+        &[
+            1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        ],
     );
     let c4 = connected_components(&img, Connectivity::Four, 0u8);
     assert_eq!(c4.len(), 1);

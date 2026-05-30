@@ -52,9 +52,7 @@ pub fn median_pool<T: FloatScalar>(src: &DynMatrix<T>, block_size: usize) -> Dyn
                 }
             }
             let mid = buf.len() / 2;
-            buf.select_nth_unstable_by(mid, |a, b| {
-                a.partial_cmp(b).unwrap_or(Ordering::Equal)
-            });
+            buf.select_nth_unstable_by(mid, |a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
             dst[(bi, bj)] = buf[mid];
         }
     }

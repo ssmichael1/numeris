@@ -1,5 +1,5 @@
-use crate::FloatScalar;
 use super::{DiscreteDistribution, StatsError};
+use crate::FloatScalar;
 
 /// Bernoulli distribution with success probability p.
 ///
@@ -34,7 +34,11 @@ impl<T: FloatScalar> Bernoulli<T> {
 impl<T: FloatScalar> Bernoulli<T> {
     /// Draw a random sample (0 or 1) from this distribution.
     pub fn sample(&self, rng: &mut super::Rng) -> u64 {
-        if rng.next_float::<T>() < self.p { 1 } else { 0 }
+        if rng.next_float::<T>() < self.p {
+            1
+        } else {
+            0
+        }
     }
 
     /// Fill a fixed-size array with independent samples.

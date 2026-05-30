@@ -1,14 +1,19 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use crate::linalg::LinalgError;
-use crate::linalg::lu::{lu_in_place, lu_solve};
-use crate::linalg::cholesky::{cholesky_in_place, cholesky_rank1_update, cholesky_rank1_downdate, forward_substitute, back_substitute_lt};
-use crate::linalg::qr::{qr_in_place, qr_col_pivot_in_place};
-use crate::linalg::symmetric_eigen::{tridiagonalize, tridiagonal_qr_with_vecs, tridiagonal_qr_no_vecs};
+use crate::linalg::cholesky::{
+    back_substitute_lt, cholesky_in_place, cholesky_rank1_downdate, cholesky_rank1_update,
+    forward_substitute,
+};
 use crate::linalg::hessenberg::hessenberg;
+use crate::linalg::lu::{lu_in_place, lu_solve};
+use crate::linalg::qr::{qr_col_pivot_in_place, qr_in_place};
 use crate::linalg::schur::francis_qr;
-use crate::linalg::svd::{bidiagonalize, bidiagonal_qr};
+use crate::linalg::svd::{bidiagonal_qr, bidiagonalize};
+use crate::linalg::symmetric_eigen::{
+    tridiagonal_qr_no_vecs, tridiagonal_qr_with_vecs, tridiagonalize,
+};
+use crate::linalg::LinalgError;
 use crate::traits::{FloatScalar, LinalgScalar};
 use num_traits::Float;
 
@@ -321,7 +326,11 @@ impl<T: FloatScalar> DynCholesky<T> {
     /// assert!((result[(0, 0)] - 5.0).abs() < 1e-12);
     /// ```
     pub fn rank1_update(&mut self, v: &mut DynVector<T>) -> Result<(), LinalgError> {
-        assert_eq!(v.len(), self.l.nrows(), "vector length must match matrix dimension");
+        assert_eq!(
+            v.len(),
+            self.l.nrows(),
+            "vector length must match matrix dimension"
+        );
         cholesky_rank1_update(&mut self.l, v.as_mut_slice())
     }
 
@@ -353,7 +362,11 @@ impl<T: FloatScalar> DynCholesky<T> {
     /// }
     /// ```
     pub fn rank1_downdate(&mut self, v: &mut DynVector<T>) -> Result<(), LinalgError> {
-        assert_eq!(v.len(), self.l.nrows(), "vector length must match matrix dimension");
+        assert_eq!(
+            v.len(),
+            self.l.nrows(),
+            "vector length must match matrix dimension"
+        );
         cholesky_rank1_downdate(&mut self.l, v.as_mut_slice())
     }
 }
@@ -699,7 +712,10 @@ pub struct DynSchur<T: FloatScalar> {
 impl<T: FloatScalar> DynSchur<T> {
     /// Compute the real Schur decomposition.
     pub fn new(a: &DynMatrix<T>) -> Result<Self, LinalgError> {
-        assert!(a.is_square(), "Schur decomposition requires a square matrix");
+        assert!(
+            a.is_square(),
+            "Schur decomposition requires a square matrix"
+        );
         let n = a.nrows();
         let mut s = a.clone();
         let mut q = DynMatrix::zeros(n, n);
@@ -859,7 +875,15 @@ impl<T: LinalgScalar> DynSvd<T> {
         let mut diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
         let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
 
-        bidiagonalize(&mut work, &mut diag, &mut off_diag, &mut u_mat, &mut v_mat, true, true);
+        bidiagonalize(
+            &mut work,
+            &mut diag,
+            &mut off_diag,
+            &mut u_mat,
+            &mut v_mat,
+            true,
+            true,
+        );
         bidiagonal_qr::<T>(
             &mut diag,
             &mut off_diag[..cols.saturating_sub(1)],
@@ -971,7 +995,13 @@ impl<T: LinalgScalar> DynSvd<T> {
         let mut off_diag = vec![<T::Real as num_traits::Zero>::zero(); cols];
 
         bidiagonalize(
-            &mut work, &mut diag, &mut off_diag, &mut u_mat, &mut v_mat, false, false,
+            &mut work,
+            &mut diag,
+            &mut off_diag,
+            &mut u_mat,
+            &mut v_mat,
+            false,
+            false,
         );
         bidiagonal_qr::<T>(
             &mut diag,
@@ -1203,10 +1233,7 @@ mod tests {
 
     #[test]
     fn symmetric_eigen_3x3_reconstruction() {
-        let a = DynMatrix::from_rows(
-            3, 3,
-            &[4.0_f64, 1.0, -1.0, 1.0, 3.0, 2.0, -1.0, 2.0, 5.0],
-        );
+        let a = DynMatrix::from_rows(3, 3, &[4.0_f64, 1.0, -1.0, 1.0, 3.0, 2.0, -1.0, 2.0, 5.0]);
         let eig = a.eig_symmetric().unwrap();
         let q = eig.eigenvectors();
         let vals = eig.eigenvalues();
@@ -1218,11 +1245,7 @@ mod tests {
                 for k in 0..3 {
                     sum += q[(i, k)] * vals[k] * q[(j, k)];
                 }
-                assert!(
-                    (sum - a[(i, j)]).abs() < 1e-10,
-                    "A[({},{})]",
-                    i, j
-                );
+                assert!((sum - a[(i, j)]).abs() < 1e-10, "A[({},{})]", i, j);
             }
         }
 
@@ -1232,11 +1255,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert!(
-                    (qtq[(i, j)] - expected).abs() < 1e-10,
-                    "QtQ[({},{})]",
-                    i, j
-                );
+                assert!((qtq[(i, j)] - expected).abs() < 1e-10, "QtQ[({},{})]", i, j);
             }
         }
     }
@@ -1263,10 +1282,7 @@ mod tests {
 
     #[test]
     fn schur_3x3_similarity() {
-        let a = DynMatrix::from_rows(
-            3, 3,
-            &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0],
-        );
+        let a = DynMatrix::from_rows(3, 3, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0]);
         let schur = a.schur().unwrap();
         let s = schur.schur_form();
         let q = schur.schur_vectors();
@@ -1279,7 +1295,8 @@ mod tests {
                 assert!(
                     (qtaq[(i, j)] - s[(i, j)]).abs() < 1e-10,
                     "Q^TAQ[({},{})]",
-                    i, j
+                    i,
+                    j
                 );
             }
         }
@@ -1313,11 +1330,7 @@ mod tests {
 
     #[test]
     fn lu_solve_3x3() {
-        let a = DynMatrix::from_rows(
-            3,
-            3,
-            &[2.0_f64, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0],
-        );
+        let a = DynMatrix::from_rows(3, 3, &[2.0_f64, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0]);
         let b = DynVector::from_slice(&[8.0, -11.0, -3.0]);
         let x = a.solve(&b).unwrap();
         assert!((x[0] - 2.0).abs() < 1e-12);
@@ -1378,11 +1391,7 @@ mod tests {
 
     #[test]
     fn cholesky_inverse() {
-        let a = DynMatrix::from_rows(
-            3,
-            3,
-            &[4.0_f64, 2.0, 1.0, 2.0, 10.0, 3.5, 1.0, 3.5, 4.5],
-        );
+        let a = DynMatrix::from_rows(3, 3, &[4.0_f64, 2.0, 1.0, 2.0, 10.0, 3.5, 1.0, 3.5, 4.5]);
         let chol = a.cholesky().unwrap();
         let a_inv = chol.inverse();
         let id = &a * &a_inv;
@@ -1409,11 +1418,7 @@ mod tests {
 
     #[test]
     fn qr_solve_square() {
-        let a = DynMatrix::from_rows(
-            3,
-            3,
-            &[2.0_f64, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0],
-        );
+        let a = DynMatrix::from_rows(3, 3, &[2.0_f64, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0]);
         let b = DynVector::from_slice(&[8.0, -11.0, -3.0]);
         let x_qr = a.solve_qr(&b).unwrap();
         let x_lu = a.solve(&b).unwrap();
@@ -1462,23 +1467,14 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert!(
-                    (qtq[(i, j)] - expected).abs() < 1e-10,
-                    "QtQ[({},{})]",
-                    i,
-                    j
-                );
+                assert!((qtq[(i, j)] - expected).abs() < 1e-10, "QtQ[({},{})]", i, j);
             }
         }
     }
 
     #[test]
     fn qr_det() {
-        let a = DynMatrix::from_rows(
-            3,
-            3,
-            &[6.0_f64, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0],
-        );
+        let a = DynMatrix::from_rows(3, 3, &[6.0_f64, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0]);
         let det_qr = a.qr().unwrap().det();
         let det_lu = a.lu().unwrap().det();
         assert!((det_qr.abs() - det_lu.abs()).abs() < 1e-10);
@@ -1488,10 +1484,7 @@ mod tests {
 
     #[test]
     fn svd_3x3_reconstruction() {
-        let a = DynMatrix::from_rows(
-            3, 3,
-            &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0],
-        );
+        let a = DynMatrix::from_rows(3, 3, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 0.0]);
         let svd = a.svd().unwrap();
         let u = svd.u();
         let vt = svd.vt();
@@ -1506,7 +1499,10 @@ mod tests {
                 assert!(
                     (sum - a[(i, j)]).abs() < 1e-9,
                     "UΣV^T[({},{})] = {}, expected {}",
-                    i, j, sum, a[(i, j)]
+                    i,
+                    j,
+                    sum,
+                    a[(i, j)]
                 );
             }
         }
@@ -1514,18 +1510,15 @@ mod tests {
 
     #[test]
     fn svd_tall_4x2() {
-        let a = DynMatrix::from_rows(
-            4, 2,
-            &[1.0_f64, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0],
-        );
+        let a = DynMatrix::from_rows(4, 2, &[1.0_f64, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0]);
         let svd = a.svd().unwrap();
         let u = svd.u();
         let vt = svd.vt();
         let sv = svd.singular_values();
 
         assert_eq!(sv.len(), 2);
-        assert_eq!(u.nrows(), 4);  // M
-        assert_eq!(u.ncols(), 2);  // K = min(M,N)
+        assert_eq!(u.nrows(), 4); // M
+        assert_eq!(u.ncols(), 2); // K = min(M,N)
         assert_eq!(vt.nrows(), 2); // K
         assert_eq!(vt.ncols(), 2); // N
 
@@ -1535,29 +1528,22 @@ mod tests {
                 for k in 0..2 {
                     sum += u[(i, k)] * sv[k] * vt[(k, j)];
                 }
-                assert!(
-                    (sum - a[(i, j)]).abs() < 1e-9,
-                    "tall UΣV^T[({},{})]",
-                    i, j
-                );
+                assert!((sum - a[(i, j)]).abs() < 1e-9, "tall UΣV^T[({},{})]", i, j);
             }
         }
     }
 
     #[test]
     fn svd_wide_2x4() {
-        let a = DynMatrix::from_rows(
-            2, 4,
-            &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-        );
+        let a = DynMatrix::from_rows(2, 4, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
         let svd = a.svd().unwrap();
         let u = svd.u();
         let vt = svd.vt();
         let sv = svd.singular_values();
 
         assert_eq!(sv.len(), 2);
-        assert_eq!(u.nrows(), 2);  // M
-        assert_eq!(u.ncols(), 2);  // K = min(M,N)
+        assert_eq!(u.nrows(), 2); // M
+        assert_eq!(u.ncols(), 2); // K = min(M,N)
         assert_eq!(vt.nrows(), 2); // K
         assert_eq!(vt.ncols(), 4); // N
 
@@ -1567,11 +1553,7 @@ mod tests {
                 for k in 0..2 {
                     sum += u[(i, k)] * sv[k] * vt[(k, j)];
                 }
-                assert!(
-                    (sum - a[(i, j)]).abs() < 1e-9,
-                    "wide UΣV^T[({},{})]",
-                    i, j
-                );
+                assert!((sum - a[(i, j)]).abs() < 1e-9, "wide UΣV^T[({},{})]", i, j);
             }
         }
     }
@@ -1600,11 +1582,7 @@ mod tests {
                 for k in 0..5 {
                     sum += u[(i, k)] * sv[k] * vt[(k, j)];
                 }
-                assert!(
-                    (sum - a[(i, j)]).abs() < 1e-8,
-                    "10x5 UΣV^T[({},{})]",
-                    i, j
-                );
+                assert!((sum - a[(i, j)]).abs() < 1e-8, "10x5 UΣV^T[({},{})]", i, j);
             }
         }
 
@@ -1624,11 +1602,7 @@ mod tests {
 
     #[test]
     fn svd_rank_and_condition() {
-        let a = DynMatrix::from_rows(3, 3, &[
-            1.0_f64, 2.0, 3.0,
-            2.0, 4.0, 6.0,
-            3.0, 6.0, 9.0,
-        ]);
+        let a = DynMatrix::from_rows(3, 3, &[1.0_f64, 2.0, 3.0, 2.0, 4.0, 6.0, 3.0, 6.0, 9.0]);
         let svd = a.svd().unwrap();
         assert_eq!(svd.rank(1e-9), 1);
         assert!(svd.condition_number() > 1e10);
@@ -1640,8 +1614,7 @@ mod tests {
             4,
             4,
             &[
-                1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 2.0, 6.0, 4.0, 1.0, 3.0, 1.0, 9.0,
-                2.0,
+                1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 2.0, 6.0, 4.0, 1.0, 3.0, 1.0, 9.0, 2.0,
             ],
         );
         let b = DynVector::from_slice(&[10.0, 26.0, 13.0, 15.0]);

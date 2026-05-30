@@ -1,6 +1,6 @@
 use crate::traits::FloatScalar;
 
-use super::{InterpError, validate_sorted};
+use super::{validate_sorted, InterpError};
 
 /// Barycentric Lagrange interpolant (fixed-size, stack-allocated).
 ///

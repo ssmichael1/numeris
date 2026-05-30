@@ -8,7 +8,7 @@ pub(crate) mod svd;
 pub(crate) mod symmetric_eigen;
 
 pub use cholesky::CholeskyDecomposition;
-pub use cholesky::{cholesky_rank1_update, cholesky_rank1_downdate};
+pub use cholesky::{cholesky_rank1_downdate, cholesky_rank1_update};
 pub use expm::expm;
 pub use lu::LuDecomposition;
 pub use qr::QrDecomposition;

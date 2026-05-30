@@ -66,22 +66,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
     ///
     /// Uses default Merwe parameters: `alpha=1.0`, `beta=2.0`, `kappa=0.0`.
     pub fn new(x0: Vector<T, N>, s0: Matrix<T, N, N>) -> Self {
-        Self::with_params(
-            x0,
-            s0,
-            T::one(),
-            T::from(2.0).unwrap(),
-            T::zero(),
-        )
+        Self::with_params(x0, s0, T::one(), T::from(2.0).unwrap(), T::zero())
     }
 
     /// Create from a covariance matrix `p0` (Cholesky is computed internally).
     ///
     /// Returns `CovarianceNotPD` if `p0` is not positive-definite.
-    pub fn from_covariance(
-        x0: Vector<T, N>,
-        p0: Matrix<T, N, N>,
-    ) -> Result<Self, EstimateError> {
+    pub fn from_covariance(x0: Vector<T, N>, p0: Matrix<T, N, N>) -> Result<Self, EstimateError> {
         let chol = cholesky_with_jitter(&p0)?;
         Ok(Self::new(x0, chol.l_full()))
     }
@@ -99,13 +90,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
     }
 
     /// Create from a Cholesky factor with custom Merwe scaling parameters.
-    pub fn with_params(
-        x0: Vector<T, N>,
-        s0: Matrix<T, N, N>,
-        alpha: T,
-        beta: T,
-        kappa: T,
-    ) -> Self {
+    pub fn with_params(x0: Vector<T, N>, s0: Matrix<T, N, N>, alpha: T, beta: T, kappa: T) -> Self {
         Self {
             x: x0,
             s: s0,
@@ -196,8 +181,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         }
         for i in 0..N {
             for r in 0..N {
-                x_mean[r] =
-                    x_mean[r] + w_i * (sigmas[2 * i + 1][r] + sigmas[2 * i + 2][r]);
+                x_mean[r] = x_mean[r] + w_i * (sigmas[2 * i + 1][r] + sigmas[2 * i + 2][r]);
             }
         }
 
@@ -210,8 +194,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             let dm = sigmas[2 * i + 2] - x_mean;
             for r in 0..N {
                 for c in 0..N {
-                    p_new[(r, c)] = p_new[(r, c)]
-                        + w_i * (dp[r] * dp[c] + dm[r] * dm[c]);
+                    p_new[(r, c)] = p_new[(r, c)] + w_i * (dp[r] * dp[c] + dm[r] * dm[c]);
                 }
             }
         }
@@ -290,8 +273,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         }
         for i in 0..N {
             for r in 0..M {
-                z_mean[r] =
-                    z_mean[r] + w_i * (sigmas_z[2 * i + 1][r] + sigmas_z[2 * i + 2][r]);
+                z_mean[r] = z_mean[r] + w_i * (sigmas_z[2 * i + 1][r] + sigmas_z[2 * i + 2][r]);
             }
         }
 
@@ -308,8 +290,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             let dzm = sigmas_z[2 * i + 2] - z_mean;
             for ri in 0..M {
                 for ci in 0..M {
-                    pzz[(ri, ci)] = pzz[(ri, ci)]
-                        + w_i * (dzp[ri] * dzp[ci] + dzm[ri] * dzm[ci]);
+                    pzz[(ri, ci)] = pzz[(ri, ci)] + w_i * (dzp[ri] * dzp[ci] + dzm[ri] * dzm[ci]);
                 }
             }
         }
@@ -330,8 +311,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             let dzm = sigmas_z[2 * i + 2] - z_mean;
             for ri in 0..N {
                 for ci in 0..M {
-                    pxz[(ri, ci)] = pxz[(ri, ci)]
-                        + w_i * (dxp[ri] * dzp[ci] + dxm[ri] * dzm[ci]);
+                    pxz[(ri, ci)] = pxz[(ri, ci)] + w_i * (dxp[ri] * dzp[ci] + dxm[ri] * dzm[ci]);
                 }
             }
         }
@@ -401,8 +381,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         }
         for i in 0..N {
             for r_i in 0..M {
-                z_mean[r_i] = z_mean[r_i]
-                    + w_i * (sigmas_z[2 * i + 1][r_i] + sigmas_z[2 * i + 2][r_i]);
+                z_mean[r_i] =
+                    z_mean[r_i] + w_i * (sigmas_z[2 * i + 1][r_i] + sigmas_z[2 * i + 2][r_i]);
             }
         }
 
@@ -418,8 +398,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             let dzm = sigmas_z[2 * i + 2] - z_mean;
             for r_i in 0..M {
                 for ci in 0..M {
-                    s_mat[(r_i, ci)] = s_mat[(r_i, ci)]
-                        + w_i * (dzp[r_i] * dzp[ci] + dzm[r_i] * dzm[ci]);
+                    s_mat[(r_i, ci)] =
+                        s_mat[(r_i, ci)] + w_i * (dzp[r_i] * dzp[ci] + dzm[r_i] * dzm[ci]);
                 }
             }
         }

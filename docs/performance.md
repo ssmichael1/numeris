@@ -109,7 +109,7 @@ numeris = { version = "0.5", features = ["rayon"] }   # implies std
 ```
 
 !!! note "MSRV"
-    The base crate supports Rust 1.77, but the `rayon` feature pulls in rayon, which requires **Rust ≥ 1.80**. Without the feature the 1.77 MSRV is unchanged.
+    The `rayon` feature pulls in the rayon crate (Rust ≥ 1.80) — though the crate's MSRV is **1.80** regardless, so the feature does not raise it.
 
 The feature is **purely additive**: builds without it are byte-for-byte unchanged, and the signatures are unconstrained (the `Send + Sync` element requirement is carried by a marker bound that is empty unless `rayon` is enabled, and is satisfied automatically by `f32` / `f64`).
 

@@ -1,8 +1,8 @@
 //! Regularized incomplete beta function I_x(a, b).
 
-use crate::FloatScalar;
-use super::SpecialError;
 use super::beta_fn::lbeta;
+use super::SpecialError;
+use crate::FloatScalar;
 
 /// Maximum iterations for continued fraction.
 const MAX_ITER: usize = 200;

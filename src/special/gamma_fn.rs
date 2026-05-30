@@ -1,7 +1,7 @@
 //! Gamma and log-gamma functions via Lanczos approximation.
 
+use super::{lanczos_sum, LANCZOS_G};
 use crate::FloatScalar;
-use super::{LANCZOS_G, lanczos_sum};
 
 /// Factorial lookup table for small positive integers: FACTORIAL[n] = n!
 /// Valid for n = 0..=20 (20! < 2^64, fits in f64 exactly up to 18!).

@@ -225,11 +225,7 @@ mod tests {
 
     #[test]
     fn det_3x3() {
-        let m = DynMatrix::from_rows(
-            3,
-            3,
-            &[6.0_f64, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0],
-        );
+        let m = DynMatrix::from_rows(3, 3, &[6.0_f64, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0]);
         assert!((m.det() - (-306.0)).abs() < 1e-10);
     }
 

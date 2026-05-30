@@ -61,7 +61,10 @@ impl<T: FloatScalar> Pid<T> {
     /// assert_eq!(pid.gains(), (1.0, 0.1, 0.05));
     /// ```
     pub fn new(kp: T, ki: T, kd: T, dt: T) -> Self {
-        assert!(dt > T::zero() && dt.is_finite(), "dt must be positive and finite");
+        assert!(
+            dt > T::zero() && dt.is_finite(),
+            "dt must be positive and finite"
+        );
 
         // Default back-calculation gain: ki/kp if kp != 0, else ki
         let kb = if kp != T::zero() { ki / kp } else { ki };
@@ -123,7 +126,10 @@ impl<T: FloatScalar> Pid<T> {
     ///     .with_derivative_filter(0.02);
     /// ```
     pub fn with_derivative_filter(mut self, tau: T) -> Self {
-        assert!(!(tau < T::zero()), "derivative filter time constant must be non-negative");
+        assert!(
+            !(tau < T::zero()),
+            "derivative filter time constant must be non-negative"
+        );
         self.tau_d = tau;
         self
     }
@@ -207,8 +213,7 @@ impl<T: FloatScalar> Pid<T> {
 
         // Anti-windup back-calculation
         if self.initialized {
-            self.integral =
-                self.integral + self.kb * (u_clamped - u_unclamped) * self.dt;
+            self.integral = self.integral + self.kb * (u_clamped - u_unclamped) * self.dt;
         }
 
         // Update state
@@ -396,7 +401,7 @@ mod tests {
         let mut pid = Pid::new(0.0, ki, 0.0, dt);
 
         pid.tick(10.0, 0.0); // error=10, no integration
-        // error=5, integral += 1.0 * (5 + 10) * 0.1 / 2 = 0.75
+                             // error=5, integral += 1.0 * (5 + 10) * 0.1 / 2 = 0.75
         let u = pid.tick(5.0, 0.0);
         assert_near(u, 0.75, TOL, "I-only varying error trapezoidal");
     }
@@ -432,8 +437,8 @@ mod tests {
         let mut pid = Pid::new(0.0, 0.0, kd, dt);
 
         pid.tick(0.0, 5.0); // initialize
-        // Setpoint changes from 0 to 100, measurement stays at 5
-        // Derivative on measurement: d_raw = -(5 - 5)/dt = 0
+                            // Setpoint changes from 0 to 100, measurement stays at 5
+                            // Derivative on measurement: d_raw = -(5 - 5)/dt = 0
         let u = pid.tick(100.0, 5.0);
         assert_near(u, 0.0, TOL, "no derivative kick on setpoint change");
     }
@@ -446,10 +451,10 @@ mod tests {
         let mut pid = Pid::new(0.0, 0.0, kd, dt).with_derivative_filter(tau);
 
         pid.tick(0.0, 0.0); // initialize
-        // Step measurement from 0 to 1
-        // d_raw = -(1 - 0)/0.01 = -100
-        // alpha = 0.01 / (0.05 + 0.01) = 1/6
-        // d_filtered = 0 + (1/6) * (-100 - 0) = -100/6
+                            // Step measurement from 0 to 1
+                            // d_raw = -(1 - 0)/0.01 = -100
+                            // alpha = 0.01 / (0.05 + 0.01) = 1/6
+                            // d_filtered = 0 + (1/6) * (-100 - 0) = -100/6
         let u = pid.tick(0.0, 1.0);
         let expected = kd * (-100.0 / 6.0);
         assert_near(u, expected, TOL, "D filtered step (attenuated)");

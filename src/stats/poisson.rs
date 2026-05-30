@@ -1,6 +1,6 @@
-use crate::FloatScalar;
-use crate::special::{lgamma, gamma_inc_upper};
 use super::{DiscreteDistribution, StatsError};
+use crate::special::{gamma_inc_upper, lgamma};
+use crate::FloatScalar;
 
 /// Poisson distribution with rate λ.
 ///

@@ -10,10 +10,7 @@ use num_traits::Zero;
 /// - `q` accumulates the orthogonal/unitary transform Q
 ///
 /// The result satisfies `A = Q H Q^H` (or `Q^T H Q^T` for real matrices).
-pub fn hessenberg<T: LinalgScalar>(
-    a: &mut impl MatrixMut<T>,
-    q: &mut impl MatrixMut<T>,
-) {
+pub fn hessenberg<T: LinalgScalar>(a: &mut impl MatrixMut<T>, q: &mut impl MatrixMut<T>) {
     let n = a.nrows();
     assert_eq!(n, a.ncols(), "hessenberg requires a square matrix");
     assert_eq!(q.nrows(), n);
@@ -136,11 +133,7 @@ mod tests {
 
     #[test]
     fn hessenberg_3x3() {
-        let orig = Matrix::new([
-            [4.0_f64, 1.0, -2.0],
-            [1.0, 2.0, 0.0],
-            [-2.0, 0.0, 3.0],
-        ]);
+        let orig = Matrix::new([[4.0_f64, 1.0, -2.0], [1.0, 2.0, 0.0], [-2.0, 0.0, 3.0]]);
         let mut a = orig;
         let mut q = Matrix::<f64, 3, 3>::zeros();
         hessenberg(&mut a, &mut q);
@@ -234,11 +227,7 @@ mod tests {
     #[test]
     fn hessenberg_already_hessenberg() {
         // Upper triangular is already Hessenberg
-        let orig = Matrix::new([
-            [1.0_f64, 2.0, 3.0],
-            [0.0, 4.0, 5.0],
-            [0.0, 0.0, 6.0],
-        ]);
+        let orig = Matrix::new([[1.0_f64, 2.0, 3.0], [0.0, 4.0, 5.0], [0.0, 0.0, 6.0]]);
         let mut a = orig;
         let mut q = Matrix::<f64, 3, 3>::zeros();
         hessenberg(&mut a, &mut q);

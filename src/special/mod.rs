@@ -40,22 +40,22 @@ use core::fmt;
 
 use crate::FloatScalar;
 
-mod gamma_fn;
-mod digamma_fn;
 mod beta_fn;
-mod incgamma;
-mod erf_fn;
 mod betainc;
+mod digamma_fn;
+mod erf_fn;
+mod gamma_fn;
+mod incgamma;
 
 #[cfg(test)]
 mod tests;
 
-pub use gamma_fn::{gamma, lgamma};
-pub use digamma_fn::digamma;
 pub use beta_fn::{beta, lbeta};
-pub use incgamma::{gamma_inc, gamma_inc_upper};
-pub use erf_fn::{erf, erfc};
 pub use betainc::betainc;
+pub use digamma_fn::digamma;
+pub use erf_fn::{erf, erfc};
+pub use gamma_fn::{gamma, lgamma};
+pub use incgamma::{gamma_inc, gamma_inc_upper};
 
 /// Errors from special function evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

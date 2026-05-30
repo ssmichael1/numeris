@@ -33,32 +33,32 @@
 //! assert!((n.mean()).abs() < 1e-14);
 //! ```
 
-mod rng;
-mod normal;
-mod uniform;
+mod bernoulli;
+mod beta_dist;
+mod binomial;
+mod chi_squared;
 mod exponential;
 mod gamma_dist;
-mod beta_dist;
-mod chi_squared;
-mod student_t;
-mod bernoulli;
-mod binomial;
+mod normal;
 mod poisson;
+mod rng;
+mod student_t;
+mod uniform;
 
 #[cfg(test)]
 mod tests;
 
-pub use rng::Rng;
-pub use normal::Normal;
-pub use uniform::Uniform;
+pub use bernoulli::Bernoulli;
+pub use beta_dist::Beta;
+pub use binomial::Binomial;
+pub use chi_squared::ChiSquared;
 pub use exponential::Exponential;
 pub use gamma_dist::Gamma;
-pub use beta_dist::Beta;
-pub use chi_squared::ChiSquared;
-pub use student_t::StudentT;
-pub use bernoulli::Bernoulli;
-pub use binomial::Binomial;
+pub use normal::Normal;
 pub use poisson::Poisson;
+pub use rng::Rng;
+pub use student_t::StudentT;
+pub use uniform::Uniform;
 
 use crate::traits::FloatScalar;
 

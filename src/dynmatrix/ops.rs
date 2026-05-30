@@ -36,7 +36,10 @@ impl<T: Scalar> Add<&DynMatrix<T>> for &DynMatrix<T> {
             (self.nrows, self.ncols),
             (rhs.nrows, rhs.ncols),
             "dimension mismatch: {}x{} + {}x{}",
-            self.nrows, self.ncols, rhs.nrows, rhs.ncols,
+            self.nrows,
+            self.ncols,
+            rhs.nrows,
+            rhs.ncols,
         );
         let mut data = vec![T::zero(); self.data.len()];
         crate::simd::add_slices_dispatch(&self.data, &rhs.data, &mut data);
@@ -60,7 +63,10 @@ impl<T: Scalar> AddAssign<&DynMatrix<T>> for DynMatrix<T> {
             (self.nrows, self.ncols),
             (rhs.nrows, rhs.ncols),
             "dimension mismatch: {}x{} += {}x{}",
-            self.nrows, self.ncols, rhs.nrows, rhs.ncols,
+            self.nrows,
+            self.ncols,
+            rhs.nrows,
+            rhs.ncols,
         );
         crate::simd::scalar::add_assign_slices(&mut self.data, &rhs.data);
     }
@@ -97,7 +103,10 @@ impl<T: Scalar> Sub<&DynMatrix<T>> for &DynMatrix<T> {
             (self.nrows, self.ncols),
             (rhs.nrows, rhs.ncols),
             "dimension mismatch: {}x{} - {}x{}",
-            self.nrows, self.ncols, rhs.nrows, rhs.ncols,
+            self.nrows,
+            self.ncols,
+            rhs.nrows,
+            rhs.ncols,
         );
         let mut data = vec![T::zero(); self.data.len()];
         crate::simd::sub_slices_dispatch(&self.data, &rhs.data, &mut data);
@@ -602,8 +611,8 @@ mod tests {
             4,
             4,
             &[
-                0.0, 5.0, 0.0, 10.0, 6.0, 7.0, 12.0, 14.0, 0.0, 15.0, 0.0, 20.0, 18.0, 21.0,
-                24.0, 28.0,
+                0.0, 5.0, 0.0, 10.0, 6.0, 7.0, 12.0, 14.0, 0.0, 15.0, 0.0, 20.0, 18.0, 21.0, 24.0,
+                28.0,
             ],
         );
         assert_eq!(c, expected);

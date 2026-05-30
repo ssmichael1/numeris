@@ -1,6 +1,6 @@
+use super::{normal_quantile_standard, quantile_newton, ContinuousDistribution, StatsError};
+use crate::special::{betainc, lgamma};
 use crate::FloatScalar;
-use crate::special::{lgamma, betainc};
-use super::{ContinuousDistribution, StatsError, quantile_newton, normal_quantile_standard};
 
 /// Student's t-distribution with ν degrees of freedom.
 ///
@@ -60,7 +60,8 @@ impl<T: FloatScalar> ContinuousDistribution<T> for StudentT<T> {
         let half = one / two;
         let pi = T::from(core::f64::consts::PI).unwrap();
         let v = self.df;
-        lgamma((v + one) * half) - lgamma(v * half)
+        lgamma((v + one) * half)
+            - lgamma(v * half)
             - half * (v * pi).ln()
             - (v + one) * half * (one + x * x / v).ln()
     }
