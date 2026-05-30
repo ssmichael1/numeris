@@ -49,6 +49,18 @@ Every filter that reads beyond the image extent takes a `BorderMode<T>`:
 
 ## Convolution
 
+2D convolution in the **correlation** convention (the kernel is *not* flipped):
+
+$$
+g(i, j) = \sum_{u=0}^{k_y - 1} \sum_{v=0}^{k_x - 1}
+  k(u, v)\, f\!\left(i + u - h_y,\; j + v - h_x\right),
+$$
+
+for a $k_y \times k_x$ kernel with half-sizes $h_y = \lfloor k_y/2 \rfloor$ and
+$h_x = \lfloor k_x/2 \rfloor$; out-of-bounds reads follow the chosen `BorderMode`.
+A separable kernel $k = k_y\, k_x^\top$ is applied as two 1D passes in
+$O\!\left(h\,w\,(k_y + k_x)\right)$ instead of $O(h\,w\,k_y k_x)$.
+
 ### Kernel generators
 
 ```rust
@@ -118,6 +130,11 @@ let sharp = unsharp_mask(&img, 1.0, 0.7, BorderMode::Replicate); // img + 0.7·(
 `gaussian_blur` truncates the kernel at `3σ` on each side and delegates to `convolve2d_separable`. `unsharp_mask` composes a blur with a per-pixel subtract — useful for edge enhancement.
 
 ## Gradients and Edges
+
+Sobel and Scharr estimate the spatial derivatives $g_x \approx \partial f/\partial x$
+and $g_y \approx \partial f/\partial y$ by 3×3 convolution; the edge strength is the
+gradient magnitude $\lvert\nabla f\rvert = \sqrt{g_x^2 + g_y^2}$, and the Laplacian
+is $\nabla^2 f = \partial^2 f/\partial x^2 + \partial^2 f/\partial y^2$.
 
 ```rust
 use numeris::DynMatrix;
@@ -249,12 +266,22 @@ let s = integral_rect_sum(&sat, 0, 0, 3, 3);  // 45.0
 let s_centre = integral_rect_sum(&sat, 1, 1, 2, 2);  // 5.0
 ```
 
-The SAT is `(H+1) × (W+1)` with a zero-padded first row and column, so rectangle sums reduce to a single four-term inclusion-exclusion:
-`sat[r1, c1] + sat[r0, c0] − sat[r1, c0] − sat[r0, c1]`.
+The summed-area table $S(i, j) = \sum_{i' < i,\; j' < j} f(i', j')$ is
+$(H{+}1) \times (W{+}1)$ with a zero-padded first row and column, so the sum over
+any half-open rectangle $[r_0, r_1) \times [c_0, c_1)$ reduces to a four-term
+inclusion-exclusion:
+
+$$
+\sum_{i = r_0}^{r_1 - 1}\;\sum_{j = c_0}^{c_1 - 1} f(i, j)
+  = S(r_1, c_1) + S(r_0, c_0) - S(r_1, c_0) - S(r_0, c_1).
+$$
 
 ## Local Statistics
 
-Moving-window mean, variance, and standard deviation — **O(1) per pixel** via one integral image for `x` and another for `x²`. Boundary windows clip to the image extent (fewer terms near the edges).
+Moving-window mean, variance, and standard deviation — **O(1) per pixel** via one
+integral image for $x$ and another for $x^2$, using
+$\operatorname{Var}(x) = E[x^2] - (E[x])^2$. Boundary windows clip to the image
+extent (fewer terms near the edges).
 
 ```rust
 use numeris::DynMatrix;
@@ -327,9 +354,17 @@ Typical parameters: `sigma ≈ 1.0–1.6`, `high ≈ 3·low`.
 
 ## Corner Detection
 
-**Harris** — `det(M) − k·trace(M)²` on the Gaussian-smoothed structure tensor. Positive for corners, negative for edges, ~0 for flat regions.
+Both operate on the Gaussian-smoothed structure tensor of the gradients,
 
-**Shi-Tomasi** — the smaller eigenvalue `min(λ₁, λ₂)` of the same structure tensor. More selective than Harris for corners vs. edges.
+$$
+M = G_\sigma * \begin{bmatrix} g_x^2 & g_x g_y \\ g_x g_y & g_y^2 \end{bmatrix}.
+$$
+
+**Harris** — response $R = \det(M) - k\,(\operatorname{tr} M)^2$. Positive for
+corners, negative for edges, $\approx 0$ for flat regions.
+
+**Shi-Tomasi** — the smaller eigenvalue $\min(\lambda_1, \lambda_2)$ of $M$. More
+selective than Harris for corners vs. edges.
 
 ```rust
 use numeris::DynMatrix;
@@ -446,6 +481,14 @@ let mask_up = resize_nearest(&img, 8, 12);
 ```
 
 ## Bilinear Resize
+
+Each output pixel maps to a source coordinate $(x, y)$ and blends the four
+surrounding samples with the fractional offsets $t_x, t_y \in [0, 1)$:
+
+$$
+f(x, y) \approx (1-t_y)\big[(1-t_x) f_{00} + t_x f_{01}\big]
+              + t_y\big[(1-t_x) f_{10} + t_x f_{11}\big].
+$$
 
 Pixel-center coordinate convention, matching OpenCV's default `INTER_LINEAR`:
 
