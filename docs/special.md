@@ -12,7 +12,12 @@ All functions work with both `f32` and `f64`, are no-std compatible, and have no
 
 ## Gamma Function
 
-The gamma function `Γ(x)` generalizes the factorial: `Γ(n) = (n-1)!` for positive integers.
+The gamma function generalizes the factorial ($\Gamma(n) = (n-1)!$ for positive
+integers):
+
+$$
+\Gamma(x) = \int_0^\infty t^{\,x-1} e^{-t}\,dt.
+$$
 
 Implemented via the Lanczos approximation (g=7, n=9 coefficients) with the reflection formula for negative arguments. Exact factorial lookup table for integer arguments 1–21.
 
@@ -34,7 +39,11 @@ assert!(gamma(0.0_f64).is_infinite());
 
 ## Digamma Function
 
-The digamma function `ψ(x) = d/dx ln Γ(x)` — the logarithmic derivative of the gamma function.
+The digamma function is the logarithmic derivative of the gamma function:
+
+$$
+\psi(x) = \frac{d}{dx}\ln\Gamma(x) = \frac{\Gamma'(x)}{\Gamma(x)}.
+$$
 
 Implemented via recurrence (shifts argument to x ≥ 6) + 7-term asymptotic expansion. Reflection formula for negative arguments.
 
@@ -51,7 +60,12 @@ assert!(digamma(0.0_f64).is_nan());
 
 ## Beta Function
 
-`B(a, b) = Γ(a)Γ(b) / Γ(a+b)`. Implemented via `lgamma` delegation.
+$$
+B(a, b) = \frac{\Gamma(a)\,\Gamma(b)}{\Gamma(a+b)}
+        = \int_0^1 t^{\,a-1}(1-t)^{\,b-1}\,dt.
+$$
+
+Implemented via `lgamma` delegation.
 
 ```rust
 use numeris::special::{beta, lbeta};
@@ -65,7 +79,14 @@ let b_half = beta(0.5_f64, 0.5_f64); // ≈ 3.14159...
 
 ## Regularized Incomplete Gamma
 
-`P(a, x) = γ(a, x) / Γ(a)` (lower) and `Q(a, x) = Γ(a, x) / Γ(a)` (upper).
+$$
+P(a, x) = \frac{\gamma(a, x)}{\Gamma(a)}
+        = \frac{1}{\Gamma(a)}\int_0^x t^{\,a-1} e^{-t}\,dt,
+\qquad
+Q(a, x) = \frac{\Gamma(a, x)}{\Gamma(a)} = 1 - P(a, x).
+$$
+
+$\gamma$ and $\Gamma(a,x)$ are the lower and upper incomplete gamma integrals.
 
 - Series expansion for `x < a + 1` (fast convergence near zero)
 - Lentz continued fraction for `x ≥ a + 1` (fast convergence in the tail)
@@ -86,7 +107,13 @@ let q = gamma_inc_upper(2.0_f64, 1.0_f64);    // ≈ 0.7358
 
 ## Regularized Incomplete Beta
 
-`I_x(a, b)`: regularized incomplete beta function. Used in the CDFs of the Beta, F, and Student's t distributions.
+The regularized incomplete beta function
+
+$$
+I_x(a, b) = \frac{1}{B(a, b)} \int_0^x t^{\,a-1}(1-t)^{\,b-1}\,dt
+$$
+
+appears in the CDFs of the Beta, F, and Student's t distributions.
 
 Implemented via Lentz continued fraction with symmetry relation `I_x(a,b) = 1 - I_{1-x}(b,a)`.
 
@@ -103,12 +130,22 @@ assert_eq!(betainc(1.0_f64, 2.0_f64, 3.0_f64), 1.0);
 
 ## Error Function
 
-`erf(x)` and `erfc(x) = 1 - erf(x)`, implemented via the regularized incomplete gamma function for numerical stability:
+The error function and its complement,
 
-```
-erf(x)  = sign(x) · P(1/2, x²)
-erfc(x) = Q(1/2, x²)   for x ≥ 0
-```
+$$
+\operatorname{erf}(x) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2}\,dt,
+\qquad
+\operatorname{erfc}(x) = 1 - \operatorname{erf}(x),
+$$
+
+are implemented via the regularized incomplete gamma function for numerical
+stability:
+
+$$
+\operatorname{erf}(x) = \operatorname{sign}(x)\,P\!\left(\tfrac12,\, x^2\right),
+\qquad
+\operatorname{erfc}(x) = Q\!\left(\tfrac12,\, x^2\right) \;\;(x \ge 0).
+$$
 
 Using `erfc` for large positive `x` avoids catastrophic cancellation in `1 - erf(x)`.
 
