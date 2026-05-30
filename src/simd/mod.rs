@@ -491,7 +491,7 @@ mod tests {
         let a = vec![1_i32, 2, 3, 4, 5];
         let b = vec![6_i32, 7, 8, 9, 10];
         let result = dot_dispatch(&a, &b);
-        assert_eq!(result, 1 * 6 + 2 * 7 + 3 * 8 + 4 * 9 + 5 * 10);
+        assert_eq!(result, 6 + 2 * 7 + 3 * 8 + 4 * 9 + 5 * 10);
     }
 
     // ── Matmul boundary tests ──────────────────────────────────────

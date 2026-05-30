@@ -38,6 +38,12 @@ pub struct BatchLsq<T: FloatScalar, const N: usize> {
     eta: Vector<T, N>,
 }
 
+impl<T: FloatScalar, const N: usize> Default for BatchLsq<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
     /// Create a new batch estimator with zero prior information.
     pub fn new() -> Self {
@@ -77,8 +83,8 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
             .inverse();
         let ht = h.transpose(); // N×M
         let ht_rinv = ht * r_inv; // N×M
-        self.info = self.info + ht_rinv * *h; // N×N
-        self.eta = self.eta + ht_rinv * *z; // N×1
+        self.info += ht_rinv * *h; // N×N
+        self.eta += ht_rinv * *z; // N×1
         Ok(())
     }
 

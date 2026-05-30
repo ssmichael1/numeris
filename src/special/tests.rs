@@ -1,4 +1,7 @@
+// This file is already included as the `tests` module; the inner `mod tests`
+// is redundant nesting kept to avoid a large dedent diff here.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use super::super::*;
 
@@ -74,7 +77,7 @@ mod tests {
     #[test]
     fn gamma_recurrence_identity() {
         // x·Γ(x) = Γ(x+1) for various x
-        for &x in &[0.3, 1.7, 3.14, 5.5] {
+        for &x in &[0.3, 1.7, 3.2, 5.5] {
             let lhs = x * gamma(x);
             let rhs = gamma(x + 1.0);
             approx_eq(lhs, rhs, 1e-12);
@@ -427,7 +430,7 @@ mod tests {
     fn erfc_large_x() {
         // erfc(6) ≈ 0 (to machine precision)
         let val = erfc(6.0_f64);
-        assert!(val >= 0.0 && val < 1e-15);
+        assert!((0.0..1e-15).contains(&val));
     }
 
     #[test]

@@ -1150,7 +1150,7 @@ mod rts_tests {
         let (_, steps) = run_forward_ekf(&measurements);
         let smoothed = rts_smooth(&steps).unwrap();
 
-        for (_, (_, p)) in smoothed.iter().enumerate() {
+        for (_, p) in smoothed.iter() {
             for i in 0..2 {
                 for j in 0..2 {
                     approx_eq(p[(i, j)], p[(j, i)], 1e-10);

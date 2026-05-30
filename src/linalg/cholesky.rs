@@ -168,8 +168,8 @@ pub fn cholesky_rank1_downdate<T: FloatScalar>(
 ///   2. `c = r / L[j,j]`, `s = v[j] / L[j,j]`
 ///   3. `L[j,j] = r`
 ///   4. For i = j+1..N:
-///        `L[i,j] = (L[i,j] + sign·s·v[i]) / c`
-///        `v[i]   = c·v[i] - s·L[i,j]_new`
+///      `L[i,j] = (L[i,j] + sign·s·v[i]) / c`
+///      `v[i]   = c·v[i] - s·L[i,j]_new`
 fn cholesky_rank1_impl<T: FloatScalar>(
     l: &mut impl MatrixMut<T>,
     v: &mut [T],
@@ -588,9 +588,7 @@ impl<T: LinalgScalar, const N: usize> CholeskyDecomposition<T, N> {
             forward_substitute(&self.l, &e, &mut y);
             back_substitute_lt(&self.l, &y, &mut x);
 
-            for row in 0..N {
-                inv.data[col][row] = x[row];
-            }
+            inv.data[col][..N].copy_from_slice(&x[..N]);
         }
 
         inv

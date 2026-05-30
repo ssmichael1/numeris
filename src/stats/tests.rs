@@ -24,7 +24,7 @@ fn rng_f64_range() {
     let mut rng = Rng::new(123);
     for _ in 0..10000 {
         let x = rng.next_f64();
-        assert!(x >= 0.0 && x < 1.0);
+        assert!((0.0..1.0).contains(&x));
     }
 }
 
@@ -33,7 +33,7 @@ fn rng_f32_range() {
     let mut rng = Rng::new(456);
     for _ in 0..10000 {
         let x = rng.next_f32();
-        assert!(x >= 0.0 && x < 1.0);
+        assert!((0.0..1.0).contains(&x));
     }
 }
 
@@ -97,7 +97,7 @@ fn sample_uniform() {
     let mut sum2 = 0.0;
     for _ in 0..n {
         let x = dist.sample(&mut rng);
-        assert!(x >= 2.0 && x < 5.0, "uniform out of range: {x}");
+        assert!((2.0..5.0).contains(&x), "uniform out of range: {x}");
         sum += x;
         sum2 += x * x;
     }

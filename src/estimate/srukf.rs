@@ -208,9 +208,9 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         }
 
         // Fading memory: scale sigma-point covariance by γ before adding Q.
-        p_new = p_new * self.gamma;
+        p_new *= self.gamma;
         if let Some(q) = q {
-            p_new = p_new + *q;
+            p_new += *q;
         }
         let half = T::from(0.5).unwrap();
         p_new = (p_new + p_new.transpose()) * half;
@@ -327,7 +327,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
 
         // State update
-        self.x = self.x + k * innovation;
+        self.x += k * innovation;
 
         // Covariance update: P_new = P - K·S·Kᵀ, then re-Cholesky.
         let mut p_new = self.covariance() - k * s_mat * k.transpose();
@@ -403,7 +403,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
                 }
             }
         }
-        s_mat = s_mat + *r;
+        s_mat += *r;
 
         let s_inv = cholesky_with_jitter(&s_mat)
             .map_err(|_| EstimateError::SingularInnovation)?

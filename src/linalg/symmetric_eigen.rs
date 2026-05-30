@@ -1131,7 +1131,7 @@ mod tests {
                 for j in 0..2 {
                     let mut dot = Complex::new(0.0, 0.0);
                     for k in 0..2 {
-                        dot = dot + q[(k, i)].conj() * q[(k, j)];
+                        dot += q[(k, i)].conj() * q[(k, j)];
                     }
                     let expected = if i == j { 1.0 } else { 0.0 };
                     assert_near(dot.re, expected, TOL, &format!("QHQ[({},{})] re", i, j));

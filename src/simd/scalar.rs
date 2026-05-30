@@ -135,6 +135,9 @@ pub fn scale_slices<T: Scalar>(a: &[T], scalar: T, out: &mut [T]) {
 }
 
 /// In-place addition: a[i] += b[i].
+///
+/// Used only by `DynMatrix` arithmetic, so gated on `alloc`.
+#[cfg(feature = "alloc")]
 #[inline]
 pub fn add_assign_slices<T: Scalar>(a: &mut [T], b: &[T]) {
     debug_assert_eq!(a.len(), b.len());
@@ -144,6 +147,9 @@ pub fn add_assign_slices<T: Scalar>(a: &mut [T], b: &[T]) {
 }
 
 /// In-place subtraction: a[i] -= b[i].
+///
+/// Used only by `DynMatrix` arithmetic, so gated on `alloc`.
+#[cfg(feature = "alloc")]
 #[inline]
 pub fn sub_assign_slices<T: Scalar>(a: &mut [T], b: &[T]) {
     debug_assert_eq!(a.len(), b.len());
@@ -153,6 +159,9 @@ pub fn sub_assign_slices<T: Scalar>(a: &mut [T], b: &[T]) {
 }
 
 /// In-place scale: a[i] *= scalar.
+///
+/// Used only by `DynMatrix` arithmetic, so gated on `alloc`.
+#[cfg(feature = "alloc")]
 #[inline]
 pub fn scale_assign_slices<T: Scalar>(a: &mut [T], scalar: T) {
     for i in 0..a.len() {

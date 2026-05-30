@@ -127,7 +127,7 @@ impl<T: FloatScalar> Pid<T> {
     /// ```
     pub fn with_derivative_filter(mut self, tau: T) -> Self {
         assert!(
-            !(tau < T::zero()),
+            tau >= T::zero(),
             "derivative filter time constant must be non-negative"
         );
         self.tau_d = tau;
