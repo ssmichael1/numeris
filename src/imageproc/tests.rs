@@ -466,11 +466,11 @@ fn median_removes_salt_and_pepper() {
 
 #[test]
 fn median_equals_center_on_constant() {
-    let img = DynMatrix::<f64>::fill(7, 7, 3.14);
+    let img = DynMatrix::<f64>::fill(7, 7, 3.0);
     let out = median_filter(&img, 2, BorderMode::Replicate);
     for i in 0..7 {
         for j in 0..7 {
-            assert!((out[(i, j)] - 3.14).abs() < 1e-12);
+            assert!((out[(i, j)] - 3.0).abs() < 1e-12);
         }
     }
 }

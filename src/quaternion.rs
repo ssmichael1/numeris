@@ -926,9 +926,9 @@ mod tests {
         let b = Quaternion::from_axis_angle(Vector3::from_array([0.0, 1.0, 0.0]), 0.7);
         let expected = a * b;
 
-        assert!(quat_approx_eq(&(&a * b), &expected));
-        assert!(quat_approx_eq(&(a * &b), &expected));
-        assert!(quat_approx_eq(&(&a * &b), &expected));
+        assert!(quat_approx_eq(&(a * b), &expected));
+        assert!(quat_approx_eq(&(a * b), &expected));
+        assert!(quat_approx_eq(&(a * b), &expected));
     }
 
     // ── Vector rotation ──────────────────────────────────────────
@@ -969,9 +969,9 @@ mod tests {
         let v = Vector3::from_array([1.0, 0.0, 0.0]);
         let expected = q * v;
 
-        let r1 = &q * v;
-        let r2 = q * &v;
-        let r3 = &q * &v;
+        let r1 = q * v;
+        let r2 = q * v;
+        let r3 = q * v;
         for r in [r1, r2, r3] {
             assert!(approx_eq(r[0], expected[0]));
             assert!(approx_eq(r[1], expected[1]));

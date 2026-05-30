@@ -288,7 +288,7 @@ where
             for jj in 0..i {
                 let a_ij = T::from(R::A[i][jj]).unwrap();
                 if a_ij != zero {
-                    y_stage = y_stage + karr[jj] * a_ij;
+                    y_stage += karr[jj] * a_ij;
                 }
             }
 
@@ -308,7 +308,7 @@ where
                 for jj in 0..i {
                     let c_ij = T::from(R::C[i][jj]).unwrap();
                     if c_ij != zero {
-                        rhs = rhs + karr[jj] * (c_ij * inv_h);
+                        rhs += karr[jj] * (c_ij * inv_h);
                     }
                 }
             }
@@ -328,7 +328,7 @@ where
         for (idx, ki) in karr.iter().enumerate() {
             let m_idx = T::from(R::M[idx]).unwrap();
             if m_idx != zero {
-                ynp1 = ynp1 + *ki * m_idx;
+                ynp1 += *ki * m_idx;
             }
         }
 
@@ -337,7 +337,7 @@ where
         for (idx, ki) in karr.iter().enumerate() {
             let diff = R::M[idx] - R::MHAT[idx];
             if diff.abs() > 1.0e-20 {
-                yerr = yerr + *ki * T::from(diff).unwrap();
+                yerr += *ki * T::from(diff).unwrap();
             }
         }
 

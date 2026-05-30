@@ -19,6 +19,20 @@ jobs:
           components: rustfmt
       - run: cargo fmt --check
 
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # Broadest config plus the no_std baseline (some lints, e.g. dead_code,
+      # are feature-specific).
+      - run: cargo clippy --all-features --tests -- -D warnings
+      - run: cargo clippy --no-default-features -- -D warnings
+
   # Build + test across feature combinations on both SIMD architectures
   # (ubuntu = x86_64 SSE2/AVX, macos = aarch64 NEON). The combos are the ones
   # that can break independently; `all` on both runners exercises the SIMD paths.

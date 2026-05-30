@@ -93,7 +93,7 @@ pub(super) fn validate_design_params<T: FloatScalar, const N: usize>(
         return Err(ControlError::InvalidOrder);
     }
     // N must equal ceil(order / 2)
-    let expected_sections = (order + 1) / 2;
+    let expected_sections = order.div_ceil(2);
     if N != expected_sections {
         return Err(ControlError::InvalidOrder);
     }

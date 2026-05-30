@@ -26,12 +26,12 @@ use crate::traits::MatrixMut;
 /// - `a_slice = &mut m[row_start..nrows, col_a]`
 /// - `b_slice = &mut m[row_start..nrows, col_b]`
 #[inline]
-pub(crate) fn split_two_col_slices<'a, T>(
-    m: &'a mut impl MatrixMut<T>,
+pub(crate) fn split_two_col_slices<T>(
+    m: &mut impl MatrixMut<T>,
     col_a: usize,
     col_b: usize,
     row_start: usize,
-) -> (&'a mut [T], &'a mut [T]) {
+) -> (&mut [T], &mut [T]) {
     debug_assert_ne!(col_a, col_b);
     // Safety: col_a and col_b are different columns, so the slices don't overlap.
     // MatrixMut guarantees column slices are contiguous and non-overlapping.

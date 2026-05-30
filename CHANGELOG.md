@@ -65,6 +65,13 @@
   declaration now reflects reality. (rayon also requires 1.80, so the feature
   does not raise the floor.)
 
+- **Clippy clean + CI gate.** The codebase is now `clippy -D warnings` clean and
+  a clippy job was added to CI. Incidental additions from the cleanup:
+  `Vector::is_empty`, a `Default` impl for `BatchLsq`, and a `SmoothedStates<T, N>`
+  type alias for the `rts_smooth` return type. `Pid::with_derivative_filter` now
+  rejects a NaN time constant (the precondition assert was `!(tau < 0)`, which
+  let NaN through; it is now `tau >= 0`).
+
 ## 0.5.11
 
 - **Dynamic-dimension `optim` routines** — `minimize_bfgs_dyn`,

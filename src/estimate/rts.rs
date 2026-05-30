@@ -7,6 +7,9 @@ use crate::Matrix;
 
 use super::EstimateError;
 
+/// Smoothed trajectory: one `(state, covariance)` pair per time step.
+pub type SmoothedStates<T, const N: usize> = Vec<(Vector<T, N>, Matrix<T, N, N>)>;
+
 /// Record of a single EKF forward-pass step, stored by the user for RTS smoothing.
 ///
 /// Each step captures the state/covariance before and after the measurement
@@ -102,7 +105,7 @@ pub struct EkfStep<T: FloatScalar, const N: usize> {
 /// ```
 pub fn rts_smooth<T: FloatScalar, const N: usize>(
     steps: &[EkfStep<T, N>],
-) -> Result<Vec<(Vector<T, N>, Matrix<T, N, N>)>, EstimateError> {
+) -> Result<SmoothedStates<T, N>, EstimateError> {
     let n = steps.len();
     if n == 0 {
         return Ok(Vec::new());

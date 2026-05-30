@@ -192,7 +192,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                 for j in 0..k {
                     let a_kj = T::from(Self::A[k][j]).unwrap();
                     if a_kj != zero {
-                        ysum = ysum + karr[j] * a_kj * h;
+                        ysum += karr[j] * a_kj * h;
                     }
                 }
                 karr[k] = f(t + T::from(Self::C[k]).unwrap() * h, &ysum);
@@ -204,10 +204,10 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             for (idx, ki) in karr.iter().enumerate() {
                 let b_idx = T::from(Self::B[idx]).unwrap();
                 if b_idx != zero {
-                    ynp1 = ynp1 + *ki * b_idx;
+                    ynp1 += *ki * b_idx;
                 }
             }
-            ynp1 = ynp1 * h;
+            ynp1 *= h;
 
             // Error estimate
             let mut yerr = Matrix::<T, M, N>::zeros();
@@ -215,10 +215,10 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                 let berr_abs = Self::BERR[idx].abs();
                 if berr_abs > 1.0e-20 {
                     let berr_t = T::from(Self::BERR[idx]).unwrap();
-                    yerr = yerr + *ki * berr_t;
+                    yerr += *ki * berr_t;
                 }
             }
-            yerr = yerr * h;
+            yerr *= h;
 
             // Normalized error
             let enorm = {
@@ -387,10 +387,10 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
         let mut result = dense.y[idx] / h;
         for (i, ki) in dense.stages[idx].iter().enumerate() {
             if bi[i] != T::zero() {
-                result = result + *ki * bi[i];
+                result += *ki * bi[i];
             }
         }
-        result = result * h;
+        result *= h;
 
         Ok(result)
     }
@@ -457,10 +457,10 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             let mut result = dense.y[step_idx] / h;
             for (i, ki) in dense.stages[step_idx].iter().enumerate() {
                 if bi[i] != T::zero() {
-                    result = result + *ki * bi[i];
+                    result += *ki * bi[i];
                 }
             }
-            result = result * h;
+            result *= h;
             results.push(result);
         }
 

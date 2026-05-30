@@ -31,6 +31,12 @@
 //! | `x86_64`  | AVX-512   | 16×4     | 32×4     |
 //! | other     | scalar    | 4×4      | 4×4      |
 
+// Each architecture file provides a full set of ISA kernels (dot, matmul, AXPY,
+// …). The compile-time dispatch selects the widest available ISA, so the
+// lower-ISA kernels (e.g. SSE2 when AVX is enabled) are deliberately present but
+// unused in that build — not removable, just inactive for this target.
+#![allow(dead_code)]
+
 pub(crate) mod scalar;
 
 #[cfg(target_arch = "aarch64")]
@@ -491,7 +497,7 @@ mod tests {
         let a = vec![1_i32, 2, 3, 4, 5];
         let b = vec![6_i32, 7, 8, 9, 10];
         let result = dot_dispatch(&a, &b);
-        assert_eq!(result, 1 * 6 + 2 * 7 + 3 * 8 + 4 * 9 + 5 * 10);
+        assert_eq!(result, 6 + 2 * 7 + 3 * 8 + 4 * 9 + 5 * 10);
     }
 
     // ── Matmul boundary tests ──────────────────────────────────────

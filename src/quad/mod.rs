@@ -480,6 +480,9 @@ pub fn adaptive_simpson<T: FloatScalar>(
     b: T,
     tol: T,
 ) -> Result<T, QuadError> {
+    // `!(tol > 0)` intentionally also rejects NaN — `tol <= 0` would let NaN
+    // pass, since every comparison with NaN is false.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(tol > T::zero()) {
         return Err(QuadError::InvalidInput);
     }

@@ -185,6 +185,25 @@
 //! keep their `FnMut` bound).
 
 #![cfg_attr(not(feature = "std"), no_std)]
+// Coefficient tables (quadrature nodes/weights, Runge-Kutta tableaux, Lanczos
+// constants, …) are written at full published precision. The extra digits beyond
+// f64 are harmless (the compiler rounds to the nearest representable value), so
+// allow the lint crate-wide rather than truncating documented source values.
+#![allow(clippy::excessive_precision)]
+// Numerical code legitimately favors index-based loops: 2D access (`a[i][j]`,
+// `A[k][j]`), parallel indexing of several arrays by the same index, and
+// `f(i, j)` element constructors are clearer with explicit indices than with
+// zipped iterators. `needless_range_loop` is a known false positive here.
+#![allow(clippy::needless_range_loop)]
+// Iterative solvers (BFGS, Gauss-Newton, LM, …) keep evaluation counters
+// (`f_evals`, `j_evals`) that are *not* loop counters — they increment
+// conditionally / multiple times per iteration (line search, etc.), so they
+// cannot be replaced by `enumerate()`.
+#![allow(clippy::explicit_counter_loop)]
+// Low-level numeric kernels (SIMD matmul with strides, Van Herk passes, ODE
+// `integrate` entry points) genuinely need many parameters (dimensions, scratch
+// buffers, callbacks); factoring them into structs would only obscure the math.
+#![allow(clippy::too_many_arguments)]
 
 #[cfg(feature = "alloc")]
 #[cfg_attr(all(test, not(feature = "std")), macro_use)]

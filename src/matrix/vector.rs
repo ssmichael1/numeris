@@ -47,6 +47,12 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
         N
     }
 
+    /// Whether the vector has zero elements (only possible for `Vector<T, 0>`).
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        N == 0
+    }
+
     /// Dot product of two vectors.
     ///
     /// ```

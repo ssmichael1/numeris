@@ -121,7 +121,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         self.x = f(&self.x);
         self.p = big_f * self.p * big_f.transpose() * self.gamma;
         if let Some(q) = q {
-            self.p = self.p + *q;
+            self.p += *q;
         }
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
@@ -141,7 +141,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         self.x = f(&self.x);
         self.p = big_f * self.p * big_f.transpose() * self.gamma;
         if let Some(q) = q {
-            self.p = self.p + *q;
+            self.p += *q;
         }
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
@@ -179,7 +179,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         // NIS = yᵀ S⁻¹ y
         let nis = (y.transpose() * s_inv * y)[(0, 0)];
 
-        self.x = self.x + k * y;
+        self.x += k * y;
 
         // Joseph form: P = (I - KH) P (I - KH)ᵀ + K R Kᵀ
         let eye: Matrix<T, N, N> = Matrix::eye();
@@ -215,7 +215,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         // NIS = yᵀ S⁻¹ y
         let nis = (y.transpose() * s_inv * y)[(0, 0)];
 
-        self.x = self.x + k * y;
+        self.x += k * y;
 
         let eye: Matrix<T, N, N> = Matrix::eye();
         let i_kh = eye - k * big_h;

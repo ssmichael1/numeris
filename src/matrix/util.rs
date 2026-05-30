@@ -167,9 +167,7 @@ impl<T: Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     pub fn swap_rows(&mut self, a: usize, b: usize) {
         if a != b {
             for j in 0..N {
-                let tmp = self.data[j][a];
-                self.data[j][a] = self.data[j][b];
-                self.data[j][b] = tmp;
+                self.data[j].swap(a, b);
             }
         }
     }

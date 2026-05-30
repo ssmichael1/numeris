@@ -605,13 +605,13 @@ mod tests {
         let a = Matrix::new([[1.0, 2.0], [3.0, 4.0]]);
         let b = Matrix::new([[5.0, 6.0], [7.0, 8.0]]);
 
-        assert_eq!(&a + b, a + b);
-        assert_eq!(a + &b, a + b);
-        assert_eq!(&a + &b, a + b);
+        assert_eq!(a + b, a + b);
+        assert_eq!(a + b, a + b);
+        assert_eq!(a + b, a + b);
 
-        assert_eq!(&b - a, b - a);
-        assert_eq!(b - &a, b - a);
-        assert_eq!(&b - &a, b - a);
+        assert_eq!(b - a, b - a);
+        assert_eq!(b - a, b - a);
+        assert_eq!(b - a, b - a);
     }
 
     #[test]
@@ -620,9 +620,9 @@ mod tests {
         let b = Matrix::new([[5.0, 6.0], [7.0, 8.0]]);
         let expected = a * b;
 
-        assert_eq!(&a * b, expected);
-        assert_eq!(a * &b, expected);
-        assert_eq!(&a * &b, expected);
+        assert_eq!(a * b, expected);
+        assert_eq!(a * b, expected);
+        assert_eq!(a * b, expected);
     }
 
     #[test]

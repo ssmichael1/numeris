@@ -152,7 +152,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         }
 
         // Fading memory: scale cubature covariance by γ before adding Q.
-        p_new = p_new * self.gamma;
+        p_new *= self.gamma;
         self.x = x_mean;
         self.p = if let Some(q) = q { p_new + *q } else { p_new };
         let half = T::from(0.5).unwrap();
@@ -205,7 +205,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
                 }
             }
         }
-        s_mat = s_mat + *r;
+        s_mat += *r;
 
         // Cross-covariance Pxz = (1/2N) Σ (x_i - x̄)(z_i - z̄)ᵀ
         let mut pxz = Matrix::<T, N, M>::zeros();
@@ -230,8 +230,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
 
         // Update state and covariance: P = P - K·S·Kᵀ (symmetric, manifestly PSD-subtracted)
-        self.x = self.x + k * innovation;
-        self.p = self.p - k * s_mat * k.transpose();
+        self.x += k * innovation;
+        self.p -= k * s_mat * k.transpose();
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
         apply_var_floor(&mut self.p, self.min_variance);
@@ -278,7 +278,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
                 }
             }
         }
-        s_mat = s_mat + *r;
+        s_mat += *r;
 
         let s_inv = cholesky_with_jitter(&s_mat)
             .map_err(|_| EstimateError::SingularInnovation)?

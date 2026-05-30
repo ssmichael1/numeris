@@ -60,7 +60,7 @@ pub fn gamma<T: FloatScalar>(x: T) -> T {
     // Positive integer fast path (factorial lookup)
     if x > zero && x == x.floor() {
         if let Some(n) = num_traits::cast::<T, u64>(x) {
-            if n >= 1 && n <= 21 {
+            if (1..=21).contains(&n) {
                 // Γ(n) = (n-1)!
                 return T::from(FACTORIAL[(n - 1) as usize]).unwrap();
             }

@@ -1565,7 +1565,7 @@ mod tests {
         // Make it full rank by adding identity-ish perturbation
         let mut a = DynMatrix::from_vec(10, 5, data);
         for i in 0..5 {
-            a[(i, i)] = a[(i, i)] + 10.0;
+            a[(i, i)] += 10.0;
         }
 
         let svd = a.svd().unwrap();

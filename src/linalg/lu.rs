@@ -147,9 +147,7 @@ fn lu_in_place_small<T: LinalgScalar, const N: usize>(
         if max_row != col {
             perm.swap(col, max_row);
             for j in 0..N {
-                let tmp = data[j][col];
-                data[j][col] = data[j][max_row];
-                data[j][max_row] = tmp;
+                data[j].swap(col, max_row);
             }
             even = !even;
         }
@@ -384,9 +382,7 @@ impl<T: LinalgScalar, const N: usize> LuDecomposition<T, N> {
                 lu_solve(&self.lu, &self.perm, &e, &mut col_buf);
             }
 
-            for row in 0..N {
-                inv.data[col][row] = col_buf[row];
-            }
+            inv.data[col][..N].copy_from_slice(&col_buf[..N]);
         }
 
         inv

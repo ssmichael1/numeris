@@ -35,7 +35,7 @@ fn complex_lu_solve() {
     for i in 0..2 {
         let mut sum = C::default();
         for j in 0..2 {
-            sum = sum + a[(i, j)] * x[j];
+            sum += a[(i, j)] * x[j];
         }
         assert_complex_near(sum, b[i], TOL, &format!("row {}", i));
     }
@@ -105,7 +105,7 @@ fn complex_cholesky_solve() {
     for i in 0..2 {
         let mut sum = C::default();
         for j in 0..2 {
-            sum = sum + a[(i, j)] * x[j];
+            sum += a[(i, j)] * x[j];
         }
         assert_complex_near(sum, b[i], TOL, &format!("row {}", i));
     }
@@ -153,7 +153,7 @@ fn complex_qr_solve() {
     for i in 0..2 {
         let mut sum = C::default();
         for j in 0..2 {
-            sum = sum + a[(i, j)] * x[j];
+            sum += a[(i, j)] * x[j];
         }
         assert_complex_near(sum, b[i], TOL, &format!("row {}", i));
     }
@@ -206,7 +206,7 @@ fn complex_3x3_lu_solve() {
     for i in 0..3 {
         let mut sum = C::default();
         for j in 0..3 {
-            sum = sum + a[(i, j)] * x[j];
+            sum += a[(i, j)] * x[j];
         }
         assert_complex_near(sum, b[i], TOL, &format!("row {}", i));
     }
