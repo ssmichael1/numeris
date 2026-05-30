@@ -4,6 +4,10 @@
 //! Only compiled when `target_feature = "avx512f"` is enabled
 //! (e.g. via `-C target-cpu=native` on Skylake-X+ / Zen 4+).
 
+// The AVX-512 intrinsics stabilized after the crate's 1.80 MSRV; this opt-in
+// high-ISA path inherently requires a newer toolchain when enabled.
+#![allow(clippy::incompatible_msrv)]
+
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
 
