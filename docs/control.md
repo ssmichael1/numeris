@@ -106,7 +106,13 @@ fn chebyshev1_highpass<T, const N: usize>(
 
 ## Biquad Sections
 
-A `Biquad<T>` implements a single second-order IIR section in **Direct Form II Transposed** (DFII-T), which is numerically better conditioned than Direct Form I:
+A `Biquad<T>` implements a single second-order IIR section with transfer function
+
+$$
+H(z) = \frac{b_0 + b_1 z^{-1} + b_2 z^{-2}}{1 + a_1 z^{-1} + a_2 z^{-2}},
+$$
+
+realized in **Direct Form II Transposed** (DFII-T), which is numerically better conditioned than Direct Form I:
 
 ```
 y[n] = b0*x[n] + s1[n-1]
@@ -132,7 +138,14 @@ let y = bq.tick(1.0);
 
 ## PID Controller
 
-Discrete-time PID with:
+Discrete-time realization of the PID control law
+
+$$
+u(t) = K_p\, e(t) + K_i \int_0^t e(\tau)\,d\tau + K_d\,\frac{d e(t)}{dt},
+\qquad e = \text{setpoint} - \text{measurement},
+$$
+
+with:
 
 - **Trapezoidal integration** (bilinear, no integrator windup from step changes)
 - **Derivative on measurement** (avoids derivative kick on setpoint changes)

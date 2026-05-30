@@ -19,7 +19,15 @@ numeris = { version = "0.5", features = ["quad"] }
 
 ## Gauss-Legendre Quadrature
 
-N-point Gauss-Legendre quadrature on `[a, b]`. Exact for polynomials of degree ≤ 2N − 1. The number of points N is a const generic parameter.
+N-point Gauss-Legendre quadrature on `[a, b]`,
+
+$$
+\int_a^b f(x)\,dx \approx \frac{b-a}{2}\sum_{i=1}^{N} w_i\,
+  f\!\left(\frac{b-a}{2}\,\xi_i + \frac{a+b}{2}\right),
+$$
+
+where $\xi_i$ and $w_i$ are the Legendre nodes and weights on $[-1, 1]$. Exact for
+polynomials of degree $\le 2N-1$. The number of points N is a const generic parameter.
 
 Supported orders: N = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20.
 
@@ -89,7 +97,14 @@ assert!((result - 2.0).abs() < 1e-7);
 
 ## Composite Simpson
 
-Composite Simpson's 1/3 rule with `n` subintervals (`n` must be even). Exact for cubic polynomials. Error is O(h⁴).
+Composite Simpson's 1/3 rule with `n` subintervals (`n` even), $h = (b-a)/n$:
+
+$$
+\int_a^b f(x)\,dx \approx \frac{h}{3}\Big(
+  f_0 + 4f_1 + 2f_2 + 4f_3 + \cdots + 4f_{n-1} + f_n \Big).
+$$
+
+Exact for cubic polynomials; error is $O(h^4)$.
 
 ```rust
 use numeris::quad::simpson;
