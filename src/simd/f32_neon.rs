@@ -28,7 +28,11 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
             acc0 = vfmaq_f32(acc0, vld1q_f32(ap.add(off)), vld1q_f32(bp.add(off)));
             acc1 = vfmaq_f32(acc1, vld1q_f32(ap.add(off + 4)), vld1q_f32(bp.add(off + 4)));
             acc2 = vfmaq_f32(acc2, vld1q_f32(ap.add(off + 8)), vld1q_f32(bp.add(off + 8)));
-            acc3 = vfmaq_f32(acc3, vld1q_f32(ap.add(off + 12)), vld1q_f32(bp.add(off + 12)));
+            acc3 = vfmaq_f32(
+                acc3,
+                vld1q_f32(ap.add(off + 12)),
+                vld1q_f32(bp.add(off + 12)),
+            );
         }
 
         acc0 = vaddq_f32(acc0, acc1);
@@ -85,7 +89,9 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
             let j0 = jb * NR;
             for ib in 0..m_full / MR {
                 let i0 = ib * MR;
-                unsafe { microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
         }
 
@@ -94,7 +100,9 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
         while i0 + 4 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
-                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
             i0 += 4;
         }
@@ -143,9 +151,15 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 /// 8 NEON registers across a k-block, writing C only once per block.
 #[inline(always)]
 unsafe fn microkernel_8x4(
-    a: &[f32], b: &[f32], c: &mut [f32],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -187,29 +201,59 @@ unsafe fn microkernel_8x4(
         let c_ptr = c.as_mut_ptr();
 
         let off0 = j0 * m + i0;
-        vst1q_f32(c_ptr.add(off0), vaddq_f32(vld1q_f32(c_ptr.add(off0)), acc00));
-        vst1q_f32(c_ptr.add(off0 + 4), vaddq_f32(vld1q_f32(c_ptr.add(off0 + 4)), acc10));
+        vst1q_f32(
+            c_ptr.add(off0),
+            vaddq_f32(vld1q_f32(c_ptr.add(off0)), acc00),
+        );
+        vst1q_f32(
+            c_ptr.add(off0 + 4),
+            vaddq_f32(vld1q_f32(c_ptr.add(off0 + 4)), acc10),
+        );
 
         let off1 = (j0 + 1) * m + i0;
-        vst1q_f32(c_ptr.add(off1), vaddq_f32(vld1q_f32(c_ptr.add(off1)), acc01));
-        vst1q_f32(c_ptr.add(off1 + 4), vaddq_f32(vld1q_f32(c_ptr.add(off1 + 4)), acc11));
+        vst1q_f32(
+            c_ptr.add(off1),
+            vaddq_f32(vld1q_f32(c_ptr.add(off1)), acc01),
+        );
+        vst1q_f32(
+            c_ptr.add(off1 + 4),
+            vaddq_f32(vld1q_f32(c_ptr.add(off1 + 4)), acc11),
+        );
 
         let off2 = (j0 + 2) * m + i0;
-        vst1q_f32(c_ptr.add(off2), vaddq_f32(vld1q_f32(c_ptr.add(off2)), acc02));
-        vst1q_f32(c_ptr.add(off2 + 4), vaddq_f32(vld1q_f32(c_ptr.add(off2 + 4)), acc12));
+        vst1q_f32(
+            c_ptr.add(off2),
+            vaddq_f32(vld1q_f32(c_ptr.add(off2)), acc02),
+        );
+        vst1q_f32(
+            c_ptr.add(off2 + 4),
+            vaddq_f32(vld1q_f32(c_ptr.add(off2 + 4)), acc12),
+        );
 
         let off3 = (j0 + 3) * m + i0;
-        vst1q_f32(c_ptr.add(off3), vaddq_f32(vld1q_f32(c_ptr.add(off3)), acc03));
-        vst1q_f32(c_ptr.add(off3 + 4), vaddq_f32(vld1q_f32(c_ptr.add(off3 + 4)), acc13));
+        vst1q_f32(
+            c_ptr.add(off3),
+            vaddq_f32(vld1q_f32(c_ptr.add(off3)), acc03),
+        );
+        vst1q_f32(
+            c_ptr.add(off3 + 4),
+            vaddq_f32(vld1q_f32(c_ptr.add(off3 + 4)), acc13),
+        );
     }
 }
 
 /// Register-blocked 4×4 mini-kernel for bottom-edge rows (1 NEON f32 register per col).
 #[inline(always)]
 unsafe fn microkernel_4x4(
-    a: &[f32], b: &[f32], c: &mut [f32],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();

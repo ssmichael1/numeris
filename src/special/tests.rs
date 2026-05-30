@@ -134,7 +134,10 @@ mod tests {
         let x = 50.0_f64;
         let stirling = (x - 0.5) * x.ln() - x + 0.5 * core::f64::consts::TAU.ln();
         let diff = (lgamma(x) - stirling).abs();
-        assert!(diff < 0.002, "Stirling approximation error too large: {diff}");
+        assert!(
+            diff < 0.002,
+            "Stirling approximation error too large: {diff}"
+        );
     }
 
     #[test]
@@ -144,7 +147,10 @@ mod tests {
             let from_lgamma = lgamma(x).exp();
             let from_gamma = gamma(x);
             let rel_err = ((from_lgamma - from_gamma) / from_gamma).abs();
-            assert!(rel_err < 1e-12, "gamma/lgamma inconsistency at x={x}: rel_err={rel_err}");
+            assert!(
+                rel_err < 1e-12,
+                "gamma/lgamma inconsistency at x={x}: rel_err={rel_err}"
+            );
         }
     }
 
@@ -342,7 +348,10 @@ mod tests {
         let mut prev = 0.0;
         for x in [0.5, 1.0, 2.0, 5.0, 10.0] {
             let val = gamma_inc(a, x).unwrap();
-            assert!(val > prev, "P({a},{x}) = {val} should be > P({a},prev) = {prev}");
+            assert!(
+                val > prev,
+                "P({a},{x}) = {val} should be > P({a},prev) = {prev}"
+            );
             prev = val;
         }
     }

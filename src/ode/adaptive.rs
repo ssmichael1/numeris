@@ -1,6 +1,6 @@
+use super::{OdeError, Solution};
 use crate::traits::FloatScalar;
 use crate::Matrix;
-use super::{OdeError, Solution};
 
 /// Settings for adaptive step-size control.
 pub struct AdaptiveSettings<T> {
@@ -143,7 +143,8 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                     floor
                 }
             } else {
-                T::from(10.0).unwrap()
+                T::from(10.0)
+                    .unwrap()
                     .powf(-(T::from(2.0).unwrap() + dmax.log10()) / order_t)
             };
 
@@ -244,13 +245,17 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             let beta2 = T::from(0.4).unwrap() / order_f;
             let beta3 = T::from(0.1).unwrap() / order_f;
             let q = {
-                let raw = enorm.powf(beta1)
-                    / enorm_prev.powf(beta2)
-                    * enorm_prev2.powf(beta3)
+                let raw = enorm.powf(beta1) / enorm_prev.powf(beta2) * enorm_prev2.powf(beta3)
                     / settings.safety;
                 let lo = one / settings.max_factor;
                 let hi = one / settings.min_factor;
-                if raw < lo { lo } else if raw > hi { hi } else { raw }
+                if raw < lo {
+                    lo
+                } else if raw > hi {
+                    hi
+                } else {
+                    raw
+                }
             };
 
             // Check if h_min forces acceptance

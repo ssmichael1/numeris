@@ -1,5 +1,5 @@
-use crate::traits::FloatScalar;
 use super::ControlError;
+use crate::traits::FloatScalar;
 
 /// A single second-order section (biquad) filter using Direct Form II Transposed.
 ///
@@ -227,7 +227,10 @@ pub(super) fn bilinear_lp_real<T: FloatScalar>(sigma: T, wa: T, c: T) -> Biquad<
     //   a0 = 1, a1 = (-c - sigma)/(c - sigma), a2 = 0
     let denom = c - sigma;
     let b0 = wa / denom;
-    Biquad::new([b0, b0, T::zero()], [T::one(), (-c - sigma) / denom, T::zero()])
+    Biquad::new(
+        [b0, b0, T::zero()],
+        [T::one(), (-c - sigma) / denom, T::zero()],
+    )
 }
 
 /// Build a highpass biquad from a single real analog pole `σ` (odd-order case).

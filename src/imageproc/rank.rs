@@ -56,7 +56,10 @@ pub fn rank_filter<T: FloatScalar + crate::par::MaybeSync>(
 
     let k_side = 2 * radius + 1;
     let k_total = k_side * k_side;
-    debug_assert!(rank < k_total, "rank {rank} out of range for window size {k_total}");
+    debug_assert!(
+        rank < k_total,
+        "rank {rank} out of range for window size {k_total}"
+    );
 
     let r = radius as isize;
     // Each output column depends only on the source through `fetch_border_2d`
@@ -80,9 +83,7 @@ pub fn rank_filter<T: FloatScalar + crate::par::MaybeSync>(
                 }
             }
             // Quickselect: partitions the buffer so buf[rank] is the k-th smallest.
-            buf.select_nth_unstable_by(rank, |a, b| {
-                a.partial_cmp(b).unwrap_or(Ordering::Equal)
-            });
+            buf.select_nth_unstable_by(rank, |a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
             *cell = buf[rank];
         }
     });
@@ -201,9 +202,7 @@ fn median_3x3<T: FloatScalar + crate::par::MaybeSync>(
                 col_m[i],     col_c[i],     col_p[i],
                 col_m[i + 1], col_c[i + 1], col_p[i + 1],
             ];
-            w.select_nth_unstable_by(4, |a, b| {
-                a.partial_cmp(b).unwrap_or(Ordering::Equal)
-            });
+            w.select_nth_unstable_by(4, |a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
             dst_col[i] = w[4];
         }
     });
@@ -214,12 +213,8 @@ fn median_3x3<T: FloatScalar + crate::par::MaybeSync>(
         let mut idx = 0;
         for di in -1_isize..=1 {
             for dj in -1_isize..=1 {
-                w[idx] = super::convolve::fetch_border_2d(
-                    src,
-                    i as isize + di,
-                    j as isize + dj,
-                    border,
-                );
+                w[idx] =
+                    super::convolve::fetch_border_2d(src, i as isize + di, j as isize + dj, border);
                 idx += 1;
             }
         }
@@ -281,9 +276,7 @@ fn median_5x5<T: FloatScalar + crate::par::MaybeSync>(
                 c0[i + 1], c1[i + 1], c2[i + 1], c3[i + 1], c4[i + 1],
                 c0[i + 2], c1[i + 2], c2[i + 2], c3[i + 2], c4[i + 2],
             ];
-            w.select_nth_unstable_by(12, |a, b| {
-                a.partial_cmp(b).unwrap_or(Ordering::Equal)
-            });
+            w.select_nth_unstable_by(12, |a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
             dst_col[i] = w[12];
         }
     });
@@ -294,12 +287,8 @@ fn median_5x5<T: FloatScalar + crate::par::MaybeSync>(
         let mut idx = 0;
         for di in -2_isize..=2 {
             for dj in -2_isize..=2 {
-                w[idx] = super::convolve::fetch_border_2d(
-                    src,
-                    i as isize + di,
-                    j as isize + dj,
-                    border,
-                );
+                w[idx] =
+                    super::convolve::fetch_border_2d(src, i as isize + di, j as isize + dj, border);
                 idx += 1;
             }
         }

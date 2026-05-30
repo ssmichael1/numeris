@@ -1,6 +1,6 @@
-use crate::traits::FloatScalar;
 use super::biquad::Biquad;
 use super::ControlError;
+use crate::traits::FloatScalar;
 
 /// Design a lead compensator as a discrete-time biquad.
 ///
@@ -66,8 +66,8 @@ pub fn lead_compensator<T: FloatScalar>(
 
     // Analog: C(s) = gain/α · (Ts + 1) / (αTs + 1)
     // Zero at s = -1/T, pole at s = -1/(αT)
-    let z_freq = one / t_const;            // zero: -z_freq
-    let p_freq = one / (alpha * t_const);  // pole: -p_freq
+    let z_freq = one / t_const; // zero: -z_freq
+    let p_freq = one / (alpha * t_const); // pole: -p_freq
     let k_analog = gain / alpha;
 
     // Bilinear transform: s = c·(z-1)/(z+1), c = 2·fs
@@ -79,10 +79,7 @@ pub fn lead_compensator<T: FloatScalar>(
     let b1 = k_analog * (-c + z_freq) / (c + p_freq);
     let a1 = (-c + p_freq) / (c + p_freq);
 
-    Ok(Biquad::new(
-        [b0, b1, T::zero()],
-        [T::one(), a1, T::zero()],
-    ))
+    Ok(Biquad::new([b0, b1, T::zero()], [T::one(), a1, T::zero()]))
 }
 
 /// Design a lag compensator as a discrete-time biquad.
@@ -140,8 +137,8 @@ pub fn lag_compensator<T: FloatScalar>(
     // C(0) = (1/τ) / (1/(βτ)) = β (DC boost), C(∞) = 1 (unity at HF)
     // Zero at s = -1/τ = -ω, pole at s = -1/(βτ) = -ω/β
     let omega = two * pi * corner_freq;
-    let z_freq = omega;                    // zero: -ω
-    let p_freq = omega / dc_boost;         // pole: -ω/β
+    let z_freq = omega; // zero: -ω
+    let p_freq = omega / dc_boost; // pole: -ω/β
     let k_analog = one;
 
     // Bilinear transform: s = c·(z-1)/(z+1), c = 2·fs
@@ -151,8 +148,5 @@ pub fn lag_compensator<T: FloatScalar>(
     let b1 = k_analog * (-c + z_freq) / (c + p_freq);
     let a1 = (-c + p_freq) / (c + p_freq);
 
-    Ok(Biquad::new(
-        [b0, b1, T::zero()],
-        [T::one(), a1, T::zero()],
-    ))
+    Ok(Biquad::new([b0, b1, T::zero()], [T::one(), a1, T::zero()]))
 }

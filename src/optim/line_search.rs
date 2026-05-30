@@ -76,4 +76,3 @@ pub(crate) fn backtracking_armijo_dyn<T: FloatScalar>(
 
     Err(OptimError::LineSearchFailed)
 }
-

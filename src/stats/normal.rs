@@ -1,6 +1,6 @@
-use crate::FloatScalar;
+use super::{normal_quantile_standard, ContinuousDistribution, StatsError};
 use crate::special::{erf, erfc};
-use super::{ContinuousDistribution, StatsError, normal_quantile_standard};
+use crate::FloatScalar;
 
 /// Normal (Gaussian) distribution N(μ, σ²).
 ///

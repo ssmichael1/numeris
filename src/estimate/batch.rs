@@ -51,19 +51,13 @@ impl<T: FloatScalar, const N: usize> BatchLsq<T, N> {
     ///
     /// Sets `Λ = P₀⁻¹` and `η = P₀⁻¹·x₀`.
     /// Returns `SingularInnovation` if `P0` is singular.
-    pub fn with_prior(
-        x0: &Vector<T, N>,
-        p0: &Matrix<T, N, N>,
-    ) -> Result<Self, EstimateError> {
+    pub fn with_prior(x0: &Vector<T, N>, p0: &Matrix<T, N, N>) -> Result<Self, EstimateError> {
         let p0_inv = p0
             .cholesky()
             .map_err(|_| EstimateError::SingularInnovation)?
             .inverse();
         let eta = p0_inv * *x0;
-        Ok(Self {
-            info: p0_inv,
-            eta,
-        })
+        Ok(Self { info: p0_inv, eta })
     }
 
     /// Accumulate a linear observation `z = H·x + noise`, `noise ~ N(0, R)`.

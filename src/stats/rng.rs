@@ -54,7 +54,9 @@ impl Rng {
         let s1 = splitmix64(&mut sm);
         let s2 = splitmix64(&mut sm);
         let s3 = splitmix64(&mut sm);
-        Self { s: [s0, s1, s2, s3] }
+        Self {
+            s: [s0, s1, s2, s3],
+        }
     }
 
     /// Generate the next `u64` in the sequence.

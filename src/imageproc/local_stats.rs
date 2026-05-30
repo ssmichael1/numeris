@@ -47,11 +47,8 @@ pub fn local_mean<T: FloatScalar + crate::par::MaybeSync>(
     let r = radius;
     // Each output column reads only the shared summed-area table and writes its
     // own column, so the query runs in parallel under `rayon`.
-    let threshold = crate::par::work_col_threshold(
-        h,
-        LOCAL_STATS_WORK_BUDGET,
-        LOCAL_STATS_PAR_MIN_COLS,
-    );
+    let threshold =
+        crate::par::work_col_threshold(h, LOCAL_STATS_WORK_BUDGET, LOCAL_STATS_PAR_MIN_COLS);
     crate::par::for_each_chunk_mut(out.as_mut_slice(), h, threshold, |j, out_col| {
         let c0 = j.saturating_sub(r);
         let c1 = (j + r + 1).min(w);
@@ -93,11 +90,8 @@ pub fn local_variance<T: FloatScalar + crate::par::MaybeSync>(
 
     let mut out = DynMatrix::<T>::zeros(h, w);
     let zero = T::zero();
-    let threshold = crate::par::work_col_threshold(
-        h,
-        LOCAL_STATS_WORK_BUDGET,
-        LOCAL_STATS_PAR_MIN_COLS,
-    );
+    let threshold =
+        crate::par::work_col_threshold(h, LOCAL_STATS_WORK_BUDGET, LOCAL_STATS_PAR_MIN_COLS);
     crate::par::for_each_chunk_mut(out.as_mut_slice(), h, threshold, |j, out_col| {
         let c0 = j.saturating_sub(radius);
         let c1 = (j + radius + 1).min(w);

@@ -1,6 +1,6 @@
 use crate::traits::FloatScalar;
 
-use super::{InterpError, find_interval, validate_sorted};
+use super::{find_interval, validate_sorted, InterpError};
 
 /// Cubic Hermite interpolant (fixed-size, stack-allocated).
 ///
@@ -74,8 +74,10 @@ impl<T: FloatScalar, const N: usize> HermiteInterp<T, N> {
         let h01 = (T::zero() - two) * t3 + three * t2;
         let h11 = t3 - t2;
 
-        let val =
-            h00 * self.ys[i] + h10 * h * self.dys[i] + h01 * self.ys[i + 1] + h11 * h * self.dys[i + 1];
+        let val = h00 * self.ys[i]
+            + h10 * h * self.dys[i]
+            + h01 * self.ys[i + 1]
+            + h11 * h * self.dys[i + 1];
 
         // d/dx = (1/h) d/dt of the basis
         // h00' = 6t² - 6t, h10' = 3t² - 4t + 1
@@ -85,7 +87,9 @@ impl<T: FloatScalar, const N: usize> HermiteInterp<T, N> {
         let dh01 = (T::zero() - six) * t2 + six * t;
         let dh11 = three * t2 - two * t;
 
-        let dval = (dh00 * self.ys[i] + dh10 * h * self.dys[i] + dh01 * self.ys[i + 1]
+        let dval = (dh00 * self.ys[i]
+            + dh10 * h * self.dys[i]
+            + dh01 * self.ys[i + 1]
             + dh11 * h * self.dys[i + 1])
             / h;
 
@@ -182,15 +186,19 @@ impl<T: FloatScalar> DynHermiteInterp<T> {
         let h01 = (T::zero() - two) * t3 + three * t2;
         let h11 = t3 - t2;
 
-        let val =
-            h00 * self.ys[i] + h10 * h * self.dys[i] + h01 * self.ys[i + 1] + h11 * h * self.dys[i + 1];
+        let val = h00 * self.ys[i]
+            + h10 * h * self.dys[i]
+            + h01 * self.ys[i + 1]
+            + h11 * h * self.dys[i + 1];
 
         let dh00 = six * t2 - six * t;
         let dh10 = three * t2 - (two + two) * t + T::one();
         let dh01 = (T::zero() - six) * t2 + six * t;
         let dh11 = three * t2 - two * t;
 
-        let dval = (dh00 * self.ys[i] + dh10 * h * self.dys[i] + dh01 * self.ys[i + 1]
+        let dval = (dh00 * self.ys[i]
+            + dh10 * h * self.dys[i]
+            + dh01 * self.ys[i + 1]
             + dh11 * h * self.dys[i + 1])
             / h;
 

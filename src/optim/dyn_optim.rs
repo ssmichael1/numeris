@@ -452,8 +452,8 @@ pub fn minimize_bfgs_dyn<T: FloatScalar>(
             // H = H + factor * s s^T - rho * (hy s^T + s hy^T)
             for i in 0..n {
                 for j in 0..n {
-                    h[(i, j)] = h[(i, j)] + factor * s[i] * s[j]
-                        - rho * (hy[i] * s[j] + s[i] * hy[j]);
+                    h[(i, j)] =
+                        h[(i, j)] + factor * s[i] * s[j] - rho * (hy[i] * s[j] + s[i] * hy[j]);
                 }
             }
         }
@@ -515,7 +515,11 @@ pub fn least_squares_gn_dyn<T: FloatScalar>(
     for iter in 0..settings.max_iter {
         let j = jacobian(&x);
         j_evals += 1;
-        assert_eq!(j.nrows(), r.len(), "jacobian rows must match residual length");
+        assert_eq!(
+            j.nrows(),
+            r.len(),
+            "jacobian rows must match residual length"
+        );
         assert_eq!(j.ncols(), n, "jacobian cols must match x length");
 
         let g = matt_vec(&j, &r);
@@ -628,7 +632,11 @@ pub fn least_squares_lm_dyn<T: FloatScalar>(
     for iter in 0..settings.max_iter {
         let j = jacobian(&x);
         j_evals += 1;
-        assert_eq!(j.nrows(), r.len(), "jacobian rows must match residual length");
+        assert_eq!(
+            j.nrows(),
+            r.len(),
+            "jacobian rows must match residual length"
+        );
         assert_eq!(j.ncols(), n, "jacobian cols must match x length");
 
         // J^T J (n×n)
@@ -723,4 +731,3 @@ fn solve_damped_dyn<T: FloatScalar>(
     let lu = damped.lu().map_err(|_| OptimError::Singular)?;
     Ok(lu.solve(b))
 }
-

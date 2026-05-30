@@ -1,6 +1,6 @@
-use crate::FloatScalar;
-use crate::special::{lgamma, betainc};
 use super::{DiscreteDistribution, StatsError};
+use crate::special::{betainc, lgamma};
+use crate::FloatScalar;
 
 /// Binomial distribution B(n, p).
 ///

@@ -205,12 +205,7 @@ fn fetch_vertical<T: Scalar>(col: &[T], idx: isize, n: usize, border: BorderMode
 }
 
 #[inline]
-fn fetch_both_axes<T: Scalar>(
-    src: &DynMatrix<T>,
-    i: isize,
-    j: isize,
-    border: BorderMode<T>,
-) -> T {
+fn fetch_both_axes<T: Scalar>(src: &DynMatrix<T>, i: isize, j: isize, border: BorderMode<T>) -> T {
     let h = src.nrows() as isize;
     let w = src.ncols() as isize;
     if i >= 0 && i < h && j >= 0 && j < w {

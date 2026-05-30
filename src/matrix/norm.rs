@@ -1,7 +1,7 @@
 use crate::matrix::vector::Vector;
 use crate::traits::{FloatScalar, LinalgScalar, Scalar};
-use num_traits::{Float, One, Zero};
 use crate::Matrix;
+use num_traits::{Float, One, Zero};
 
 // ── Vector norms ────────────────────────────────────────────────────
 

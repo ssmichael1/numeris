@@ -40,8 +40,8 @@ use crate::Matrix;
 
 // ── Fixed-size Matrix ↔ SMatrix ────────────────────────────────────
 
-impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize>
-    From<Matrix<T, M, N>> for nalgebra::SMatrix<T, M, N>
+impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize> From<Matrix<T, M, N>>
+    for nalgebra::SMatrix<T, M, N>
 where
     nalgebra::Const<M>: nalgebra::DimName,
     nalgebra::Const<N>: nalgebra::DimName,
@@ -52,8 +52,8 @@ where
     }
 }
 
-impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize>
-    From<&Matrix<T, M, N>> for nalgebra::SMatrix<T, M, N>
+impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize> From<&Matrix<T, M, N>>
+    for nalgebra::SMatrix<T, M, N>
 where
     nalgebra::Const<M>: nalgebra::DimName,
     nalgebra::Const<N>: nalgebra::DimName,
@@ -64,8 +64,8 @@ where
     }
 }
 
-impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize>
-    From<nalgebra::SMatrix<T, M, N>> for Matrix<T, M, N>
+impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize> From<nalgebra::SMatrix<T, M, N>>
+    for Matrix<T, M, N>
 where
     nalgebra::Const<M>: nalgebra::DimName,
     nalgebra::Const<N>: nalgebra::DimName,
@@ -76,8 +76,8 @@ where
     }
 }
 
-impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize>
-    From<&nalgebra::SMatrix<T, M, N>> for Matrix<T, M, N>
+impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize> From<&nalgebra::SMatrix<T, M, N>>
+    for Matrix<T, M, N>
 where
     nalgebra::Const<M>: nalgebra::DimName,
     nalgebra::Const<N>: nalgebra::DimName,
@@ -96,8 +96,8 @@ where
 
 // ── MatrixRef / MatrixMut for nalgebra::SMatrix ────────────────────
 
-impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize>
-    MatrixRef<T> for nalgebra::SMatrix<T, M, N>
+impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize> MatrixRef<T>
+    for nalgebra::SMatrix<T, M, N>
 where
     nalgebra::Const<M>: nalgebra::DimName,
     nalgebra::Const<N>: nalgebra::DimName,
@@ -125,8 +125,8 @@ where
     }
 }
 
-impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize>
-    MatrixMut<T> for nalgebra::SMatrix<T, M, N>
+impl<T: Scalar + nalgebra::Scalar, const M: usize, const N: usize> MatrixMut<T>
+    for nalgebra::SMatrix<T, M, N>
 where
     nalgebra::Const<M>: nalgebra::DimName,
     nalgebra::Const<N>: nalgebra::DimName,
@@ -303,11 +303,7 @@ mod tests {
 
     #[test]
     fn smatrix_matrix_ref_trait() {
-        let na = nalgebra::SMatrix::<f64, 3, 3>::new(
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0,
-        );
+        let na = nalgebra::SMatrix::<f64, 3, 3>::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0);
         assert_eq!(na.nrows(), 3);
         assert_eq!(na.ncols(), 3);
         assert_eq!(*MatrixRef::get(&na, 0, 0), 1.0);
@@ -338,11 +334,8 @@ mod tests {
     fn lu_on_nalgebra_smatrix() {
         use crate::linalg::lu::lu_in_place;
 
-        let mut na = nalgebra::SMatrix::<f64, 3, 3>::new(
-            2.0, 1.0, -1.0,
-            -3.0, -1.0, 2.0,
-            -2.0, 1.0, 2.0,
-        );
+        let mut na =
+            nalgebra::SMatrix::<f64, 3, 3>::new(2.0, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0);
         let mut perm = [0usize; 3];
         let result = lu_in_place(&mut na, &mut perm);
         assert!(result.is_ok());
@@ -360,7 +353,11 @@ mod tests {
 
     #[test]
     fn nonsquare_matrix_roundtrip() {
-        let nm = Matrix::new([[1.0_f64, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0]]);
+        let nm = Matrix::new([
+            [1.0_f64, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+        ]);
         let na: nalgebra::SMatrix<f64, 3, 4> = nm.into();
         let back: Matrix<f64, 3, 4> = na.into();
         assert_eq!(back, nm);
@@ -405,10 +402,7 @@ mod tests {
 
         #[test]
         fn dmatrix_matrix_ref_trait() {
-            let na = nalgebra::DMatrix::from_row_slice(2, 3, &[
-                1.0_f64, 2.0, 3.0,
-                4.0, 5.0, 6.0,
-            ]);
+            let na = nalgebra::DMatrix::from_row_slice(2, 3, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]);
             assert_eq!(MatrixRef::nrows(&na), 2);
             assert_eq!(MatrixRef::ncols(&na), 3);
             assert_eq!(*MatrixRef::get(&na, 0, 0), 1.0);
@@ -436,11 +430,11 @@ mod tests {
         fn lu_on_nalgebra_dmatrix() {
             use crate::linalg::lu::lu_in_place;
 
-            let mut na = nalgebra::DMatrix::from_row_slice(3, 3, &[
-                2.0_f64, 1.0, -1.0,
-                -3.0, -1.0, 2.0,
-                -2.0, 1.0, 2.0,
-            ]);
+            let mut na = nalgebra::DMatrix::from_row_slice(
+                3,
+                3,
+                &[2.0_f64, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0],
+            );
             let mut perm = [0usize; 3];
             let result = lu_in_place(&mut na, &mut perm);
             assert!(result.is_ok());

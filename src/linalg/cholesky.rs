@@ -19,7 +19,11 @@ use crate::Matrix;
 #[inline]
 pub fn cholesky_in_place<T: LinalgScalar>(a: &mut impl MatrixMut<T>) -> Result<(), LinalgError> {
     let n = a.nrows();
-    assert_eq!(n, a.ncols(), "Cholesky decomposition requires a square matrix");
+    assert_eq!(
+        n,
+        a.ncols(),
+        "Cholesky decomposition requires a square matrix"
+    );
 
     for j in 0..n {
         for k in 0..j {
@@ -46,11 +50,7 @@ pub fn cholesky_in_place<T: LinalgScalar>(a: &mut impl MatrixMut<T>) -> Result<(
 
 /// Solve L*x = b by forward substitution, where L is lower triangular.
 #[inline]
-pub fn forward_substitute<T: LinalgScalar>(
-    l: &impl MatrixRef<T>,
-    b: &[T],
-    x: &mut [T],
-) {
+pub fn forward_substitute<T: LinalgScalar>(l: &impl MatrixRef<T>, b: &[T], x: &mut [T]) {
     let n = l.nrows();
     for i in 0..n {
         let mut sum = b[i];
@@ -63,11 +63,7 @@ pub fn forward_substitute<T: LinalgScalar>(
 
 /// Solve L^H * x = b by back substitution, where L is lower triangular.
 #[inline]
-pub fn back_substitute_lt<T: LinalgScalar>(
-    l: &impl MatrixRef<T>,
-    b: &[T],
-    x: &mut [T],
-) {
+pub fn back_substitute_lt<T: LinalgScalar>(l: &impl MatrixRef<T>, b: &[T], x: &mut [T]) {
     let n = l.nrows();
     for i in (0..n).rev() {
         let mut sum = b[i];
@@ -247,13 +243,13 @@ fn cholesky_direct<T: LinalgScalar, const N: usize>(
 
 /// 2×2 Cholesky: 1 sqrt, 1 div, 1 mul, 1 sqrt.
 #[inline(always)]
-fn cholesky_2<T: LinalgScalar, const N: usize>(
-    l: &mut Matrix<T, N, N>,
-) -> Result<(), LinalgError> {
+fn cholesky_2<T: LinalgScalar, const N: usize>(l: &mut Matrix<T, N, N>) -> Result<(), LinalgError> {
     let zero_r = <T::Real as num_traits::Zero>::zero();
     // L[0,0] = sqrt(A[0,0])
     let a00 = l.data[0][0];
-    if a00.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if a00.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     let l00 = T::from_real(a00.re().lsqrt());
     l.data[0][0] = l00;
 
@@ -263,7 +259,9 @@ fn cholesky_2<T: LinalgScalar, const N: usize>(
 
     // L[1,1] = sqrt(A[1,1] - L[1,0]²)
     let d11 = l.data[1][1] - l10 * l10.conj();
-    if d11.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if d11.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     l.data[1][1] = T::from_real(d11.re().lsqrt());
 
     Ok(())
@@ -271,13 +269,13 @@ fn cholesky_2<T: LinalgScalar, const N: usize>(
 
 /// 3×3 Cholesky: 3 sqrt, 3 div, ~9 mul/sub.
 #[inline(always)]
-fn cholesky_3<T: LinalgScalar, const N: usize>(
-    l: &mut Matrix<T, N, N>,
-) -> Result<(), LinalgError> {
+fn cholesky_3<T: LinalgScalar, const N: usize>(l: &mut Matrix<T, N, N>) -> Result<(), LinalgError> {
     let zero_r = <T::Real as num_traits::Zero>::zero();
 
     let a00 = l.data[0][0];
-    if a00.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if a00.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     let l00 = T::from_real(a00.re().lsqrt());
     let inv00 = T::one() / l00;
     l.data[0][0] = l00;
@@ -288,7 +286,9 @@ fn cholesky_3<T: LinalgScalar, const N: usize>(
     l.data[0][2] = l20;
 
     let d11 = l.data[1][1] - l10 * l10.conj();
-    if d11.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if d11.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     let l11 = T::from_real(d11.re().lsqrt());
     let inv11 = T::one() / l11;
     l.data[1][1] = l11;
@@ -297,7 +297,9 @@ fn cholesky_3<T: LinalgScalar, const N: usize>(
     l.data[1][2] = l21;
 
     let d22 = l.data[2][2] - l20 * l20.conj() - l21 * l21.conj();
-    if d22.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if d22.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     l.data[2][2] = T::from_real(d22.re().lsqrt());
 
     Ok(())
@@ -305,14 +307,14 @@ fn cholesky_3<T: LinalgScalar, const N: usize>(
 
 /// 4×4 Cholesky: 4 sqrt, 4 div, ~20 mul/sub.
 #[inline(always)]
-fn cholesky_4<T: LinalgScalar, const N: usize>(
-    l: &mut Matrix<T, N, N>,
-) -> Result<(), LinalgError> {
+fn cholesky_4<T: LinalgScalar, const N: usize>(l: &mut Matrix<T, N, N>) -> Result<(), LinalgError> {
     let zero_r = <T::Real as num_traits::Zero>::zero();
 
     // Column 0
     let a00 = l.data[0][0];
-    if a00.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if a00.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     let l00 = T::from_real(a00.re().lsqrt());
     let inv00 = T::one() / l00;
     l.data[0][0] = l00;
@@ -325,7 +327,9 @@ fn cholesky_4<T: LinalgScalar, const N: usize>(
 
     // Column 1
     let d11 = l.data[1][1] - l10 * l10.conj();
-    if d11.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if d11.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     let l11 = T::from_real(d11.re().lsqrt());
     let inv11 = T::one() / l11;
     l.data[1][1] = l11;
@@ -336,7 +340,9 @@ fn cholesky_4<T: LinalgScalar, const N: usize>(
 
     // Column 2
     let d22 = l.data[2][2] - l20 * l20.conj() - l21 * l21.conj();
-    if d22.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if d22.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     let l22 = T::from_real(d22.re().lsqrt());
     let inv22 = T::one() / l22;
     l.data[2][2] = l22;
@@ -345,7 +351,9 @@ fn cholesky_4<T: LinalgScalar, const N: usize>(
 
     // Column 3
     let d33 = l.data[3][3] - l30 * l30.conj() - l31 * l31.conj() - l32 * l32.conj();
-    if d33.re() <= zero_r { return Err(LinalgError::NotPositiveDefinite); }
+    if d33.re() <= zero_r {
+        return Err(LinalgError::NotPositiveDefinite);
+    }
     l.data[3][3] = T::from_real(d33.re().lsqrt());
 
     Ok(())
@@ -619,11 +627,7 @@ mod tests {
     }
 
     fn spd_3x3() -> Matrix<f64, 3, 3> {
-        Matrix::new([
-            [4.0, 2.0, 1.0],
-            [2.0, 10.0, 3.5],
-            [1.0, 3.5, 4.5],
-        ])
+        Matrix::new([[4.0, 2.0, 1.0], [2.0, 10.0, 3.5], [1.0, 3.5, 4.5]])
     }
 
     #[test]
@@ -676,7 +680,12 @@ mod tests {
             for j in 0..2 {
                 sum += a[(i, j)] * x[j];
             }
-            assert!((sum - b[i]).abs() < 1e-12, "residual[{}] = {}", i, sum - b[i]);
+            assert!(
+                (sum - b[i]).abs() < 1e-12,
+                "residual[{}] = {}",
+                i,
+                sum - b[i]
+            );
         }
     }
 
@@ -692,7 +701,12 @@ mod tests {
             for j in 0..3 {
                 sum += a[(i, j)] * x[j];
             }
-            assert!((sum - b[i]).abs() < 1e-10, "residual[{}] = {}", i, sum - b[i]);
+            assert!(
+                (sum - b[i]).abs() < 1e-10,
+                "residual[{}] = {}",
+                i,
+                sum - b[i]
+            );
         }
     }
 
@@ -770,10 +784,10 @@ mod tests {
 
         let p_new = l * l.transpose();
         // Expected: A + v*v^T
-        assert!((p_new[(0, 0)] - 5.0).abs() < 1e-12);   // 4 + 1
-        assert!((p_new[(0, 1)] - 2.5).abs() < 1e-12);   // 2 + 0.5
+        assert!((p_new[(0, 0)] - 5.0).abs() < 1e-12); // 4 + 1
+        assert!((p_new[(0, 1)] - 2.5).abs() < 1e-12); // 2 + 0.5
         assert!((p_new[(1, 0)] - 2.5).abs() < 1e-12);
-        assert!((p_new[(1, 1)] - 3.25).abs() < 1e-12);  // 3 + 0.25
+        assert!((p_new[(1, 1)] - 3.25).abs() < 1e-12); // 3 + 0.25
     }
 
     #[test]
@@ -795,7 +809,10 @@ mod tests {
                 assert!(
                     (recovered[(i, j)] - a[(i, j)]).abs() < 1e-10,
                     "mismatch at ({},{}): {} vs {}",
-                    i, j, recovered[(i, j)], a[(i, j)]
+                    i,
+                    j,
+                    recovered[(i, j)],
+                    a[(i, j)]
                 );
             }
         }
@@ -827,7 +844,8 @@ mod tests {
                 assert!(
                     (p_new[(i, j)] - p_expected[(i, j)]).abs() < 1e-10,
                     "mismatch at ({},{})",
-                    i, j
+                    i,
+                    j
                 );
             }
         }

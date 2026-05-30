@@ -1,6 +1,6 @@
+use super::{quantile_newton, ContinuousDistribution, StatsError};
+use crate::special::{betainc, lbeta};
 use crate::FloatScalar;
-use crate::special::{lbeta, betainc};
-use super::{ContinuousDistribution, StatsError, quantile_newton};
 
 /// Beta distribution with shape parameters α and β on [0, 1].
 ///
@@ -81,14 +81,7 @@ impl<T: FloatScalar> ContinuousDistribution<T> for Beta<T> {
     fn quantile(&self, p: T) -> T {
         let x0 = self.mean();
         let eps = T::epsilon();
-        quantile_newton(
-            |x| self.cdf(x),
-            |x| self.pdf(x),
-            p,
-            x0,
-            eps,
-            T::one() - eps,
-        )
+        quantile_newton(|x| self.cdf(x), |x| self.pdf(x), p, x0, eps, T::one() - eps)
     }
 
     fn mean(&self) -> T {

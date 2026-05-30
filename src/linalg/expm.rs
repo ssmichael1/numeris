@@ -1,7 +1,7 @@
-use crate::Matrix;
-use crate::traits::FloatScalar;
 use super::lu::LuDecomposition;
 use super::LinalgError;
+use crate::traits::FloatScalar;
+use crate::Matrix;
 
 /// Padé [13,13] coefficients (integer values, cast to T at use site).
 const PADE_COEFF: [u64; 14] = [
@@ -186,10 +186,7 @@ mod tests {
         let theta = 0.7_f64;
         let a = Matrix::new([[0.0, -theta], [theta, 0.0]]);
         let result = expm(&a).unwrap();
-        let expected = Matrix::new([
-            [theta.cos(), -theta.sin()],
-            [theta.sin(), theta.cos()],
-        ]);
+        let expected = Matrix::new([[theta.cos(), -theta.sin()], [theta.sin(), theta.cos()]]);
         assert!(mat_approx_eq(&result, &expected, 1e-12));
     }
 
@@ -198,11 +195,7 @@ mod tests {
         // A = [[1, 1, 0], [0, 0, 2], [0, 0, -1]]
         // Upper triangular, eigenvalues 1, 0, -1
         // Verified against scipy.linalg.expm
-        let a = Matrix::new([
-            [1.0_f64, 1.0, 0.0],
-            [0.0, 0.0, 2.0],
-            [0.0, 0.0, -1.0],
-        ]);
+        let a = Matrix::new([[1.0_f64, 1.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, -1.0]]);
         let result = expm(&a).unwrap();
 
         // Expected values (from scipy):
@@ -235,11 +228,7 @@ mod tests {
     #[test]
     fn expm_scaling() {
         // Verify e^((t1+t2)*A) = e^(t1*A) * e^(t2*A)
-        let a = Matrix::new([
-            [0.1_f64, 0.2, -0.1],
-            [-0.3, 0.0, 0.15],
-            [0.05, -0.1, 0.2],
-        ]);
+        let a = Matrix::new([[0.1_f64, 0.2, -0.1], [-0.3, 0.0, 0.15], [0.05, -0.1, 0.2]]);
 
         let t1 = 1.5_f64;
         let t2 = 2.3_f64;

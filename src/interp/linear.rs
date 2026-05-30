@@ -1,6 +1,6 @@
 use crate::traits::FloatScalar;
 
-use super::{InterpError, find_interval, validate_sorted};
+use super::{find_interval, validate_sorted, InterpError};
 
 /// Piecewise linear interpolant (fixed-size, stack-allocated).
 ///

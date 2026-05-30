@@ -72,10 +72,7 @@ pub fn threshold_otsu<T: FloatScalar>(src: &DynMatrix<T>) -> T {
         for i in 0..h {
             let v = src[(i, j)];
             let f = ((v - lo) / range) * bins_m1;
-            let idx = f
-                .to_usize()
-                .unwrap_or(0)
-                .min(BINS - 1);
+            let idx = f.to_usize().unwrap_or(0).min(BINS - 1);
             hist[idx] += 1;
         }
     }
@@ -139,7 +136,11 @@ pub fn adaptive_threshold<T: FloatScalar + crate::par::MaybeSync>(
     let mut out = DynMatrix::<T>::zeros(h, w);
     for j in 0..w {
         for i in 0..h {
-            out[(i, j)] = if src[(i, j)] > mean[(i, j)] + offset { one } else { zero };
+            out[(i, j)] = if src[(i, j)] > mean[(i, j)] + offset {
+                one
+            } else {
+                zero
+            };
         }
     }
     out

@@ -1,6 +1,6 @@
+use super::{normal_quantile_standard, quantile_newton, ContinuousDistribution, StatsError};
+use crate::special::{gamma_inc, lgamma};
 use crate::FloatScalar;
-use crate::special::{lgamma, gamma_inc};
-use super::{ContinuousDistribution, StatsError, quantile_newton, normal_quantile_standard};
 
 /// Chi-squared distribution with k degrees of freedom.
 ///
@@ -81,7 +81,11 @@ impl<T: FloatScalar> ContinuousDistribution<T> for ChiSquared<T> {
         // Wilson-Hilferty approximation
         let z = normal_quantile_standard(p);
         let v = T::one() - two / (nine * self.k) + z * (two / (nine * self.k)).sqrt();
-        let x0 = if v > T::zero() { self.k * v * v * v } else { self.mean() };
+        let x0 = if v > T::zero() {
+            self.k * v * v * v
+        } else {
+            self.mean()
+        };
         let hi = self.mean() + T::from(40.0).unwrap() * self.variance().sqrt();
         quantile_newton(|x| self.cdf(x), |x| self.pdf(x), p, x0, T::zero(), hi)
     }

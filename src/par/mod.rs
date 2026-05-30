@@ -121,8 +121,12 @@ where
 
 #[cfg(not(feature = "rayon"))]
 #[inline]
-pub(crate) fn for_each_chunk_mut<T, F>(data: &mut [T], chunk_len: usize, _threshold: usize, mut f: F)
-where
+pub(crate) fn for_each_chunk_mut<T, F>(
+    data: &mut [T],
+    chunk_len: usize,
+    _threshold: usize,
+    mut f: F,
+) where
     F: FnMut(usize, &mut [T]),
 {
     debug_assert!(chunk_len > 0);

@@ -4,8 +4,8 @@
 //! via our incomplete gamma for accuracy, combined with a small-argument
 //! Taylor series and large-argument asymptotics.
 
-use crate::FloatScalar;
 use super::gamma_fn::lgamma;
+use crate::FloatScalar;
 
 /// Error function erf(x).
 ///
@@ -92,7 +92,11 @@ pub fn erfc<T: FloatScalar>(x: T) -> T {
             }
         }
         None => {
-            if x >= zero { zero } else { two }
+            if x >= zero {
+                zero
+            } else {
+                two
+            }
         }
     }
 }
@@ -166,11 +170,15 @@ fn cf_q<T: FloatScalar>(a: T, x: T, pf: T) -> Option<T> {
         let bn = x + T::from(2 * n + 1).unwrap() - a;
 
         d = bn + an * d;
-        if d.abs() < tiny { d = tiny; }
+        if d.abs() < tiny {
+            d = tiny;
+        }
         d = one / d;
 
         c = bn + an / c;
-        if c.abs() < tiny { c = tiny; }
+        if c.abs() < tiny {
+            c = tiny;
+        }
 
         let delta = c * d;
         f = f * delta;

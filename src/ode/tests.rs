@@ -152,7 +152,10 @@ mod adaptive_tests {
             };
             let sol = RKTS54::integrate(0.0, TAU, &y0, ydot, &settings).unwrap();
             let err = (sol.y[0] - 1.0).abs() + sol.y[1].abs();
-            assert!(err < prev_err, "tol={tol}: error {err} not smaller than previous {prev_err}");
+            assert!(
+                err < prev_err,
+                "tol={tol}: error {err} not smaller than previous {prev_err}"
+            );
             prev_err = err;
         }
     }
@@ -252,17 +255,29 @@ mod adaptive_tests {
         for (i, y_batch) in batch.iter().enumerate() {
             let t = times[i];
             // Check against analytic solution
-            assert!((y_batch[0] - t.cos()).abs() < 1e-9,
-                "batch cos mismatch at t={t}: {} vs {}", y_batch[0], t.cos());
-            assert!((y_batch[1] - (-t.sin())).abs() < 1e-9,
-                "batch sin mismatch at t={t}: {} vs {}", y_batch[1], -t.sin());
+            assert!(
+                (y_batch[0] - t.cos()).abs() < 1e-9,
+                "batch cos mismatch at t={t}: {} vs {}",
+                y_batch[0],
+                t.cos()
+            );
+            assert!(
+                (y_batch[1] - (-t.sin())).abs() < 1e-9,
+                "batch sin mismatch at t={t}: {} vs {}",
+                y_batch[1],
+                -t.sin()
+            );
 
             // Check that batch matches individual interpolate
             let y_single = S::interpolate(t, &sol).unwrap();
-            assert!((y_batch[0] - y_single[0]).abs() < 1e-15,
-                "batch vs single mismatch at t={t}");
-            assert!((y_batch[1] - y_single[1]).abs() < 1e-15,
-                "batch vs single mismatch at t={t}");
+            assert!(
+                (y_batch[0] - y_single[0]).abs() < 1e-15,
+                "batch vs single mismatch at t={t}"
+            );
+            assert!(
+                (y_batch[1] - y_single[1]).abs() < 1e-15,
+                "batch vs single mismatch at t={t}"
+            );
         }
     }
 
@@ -299,7 +314,10 @@ mod adaptive_tests {
             ..tight_settings()
         };
         let sol = RKV98NoInterp::integrate(0.0, PI, &y0, ydot, &settings).unwrap();
-        assert_eq!(RKV98NoInterp::interpolate(0.5, &sol).unwrap_err(), OdeError::InterpNotImplemented);
+        assert_eq!(
+            RKV98NoInterp::interpolate(0.5, &sol).unwrap_err(),
+            OdeError::InterpNotImplemented
+        );
     }
 
     #[test]
@@ -310,7 +328,10 @@ mod adaptive_tests {
             ..tight_settings()
         };
         let sol = RKTS54::integrate(0.0, PI, &y0, ydot, &settings).unwrap();
-        assert_eq!(RKTS54::interpolate(PI + 1.0, &sol).unwrap_err(), OdeError::InterpOutOfBounds);
+        assert_eq!(
+            RKTS54::interpolate(PI + 1.0, &sol).unwrap_err(),
+            OdeError::InterpOutOfBounds
+        );
     }
 
     #[test]
@@ -318,7 +339,10 @@ mod adaptive_tests {
         let y0 = Vector::from_array([1.0_f64, 0.0]);
         let settings = tight_settings();
         let sol = RKTS54::integrate(0.0, PI, &y0, ydot, &settings).unwrap();
-        assert_eq!(RKTS54::interpolate(0.5, &sol).unwrap_err(), OdeError::NoDenseOutput);
+        assert_eq!(
+            RKTS54::interpolate(0.5, &sol).unwrap_err(),
+            OdeError::NoDenseOutput
+        );
     }
 
     #[test]
@@ -350,16 +374,21 @@ mod adaptive_tests {
             ..AdaptiveSettings::default()
         };
         let sol = RODAS4::integrate(
-            0.0, 0.01, &y0,
+            0.0,
+            0.01,
+            &y0,
             |_t, y| Vector::from_array([-1000.0 * y[0]]),
             |_t, _y| crate::Matrix::new([[-1000.0]]),
             &settings,
-        ).unwrap();
+        )
+        .unwrap();
         let exact = (-1000.0_f64 * 0.01).exp();
         assert!(
             (sol.y[0] - exact).abs() < 1e-8,
             "rodas4 stiff decay: y = {}, exact = {}, err = {}",
-            sol.y[0], exact, (sol.y[0] - exact).abs()
+            sol.y[0],
+            exact,
+            (sol.y[0] - exact).abs()
         );
     }
 
@@ -379,22 +408,25 @@ mod adaptive_tests {
         };
 
         let sol = RODAS4::integrate(
-            0.0, 100.0, &y0,
-            |_t, y| Vector::from_array([
-                y[1],
-                mu * ((1.0 - y[0] * y[0]) * y[1] - y[0]),
-            ]),
-            |_t, y| crate::Matrix::new([
-                [0.0, 1.0],
-                [mu * (-2.0 * y[0] * y[1] - 1.0), mu * (1.0 - y[0] * y[0])],
-            ]),
+            0.0,
+            100.0,
+            &y0,
+            |_t, y| Vector::from_array([y[1], mu * ((1.0 - y[0] * y[0]) * y[1] - y[0])]),
+            |_t, y| {
+                crate::Matrix::new([
+                    [0.0, 1.0],
+                    [mu * (-2.0 * y[0] * y[1] - 1.0), mu * (1.0 - y[0] * y[0])],
+                ])
+            },
             &settings,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Solution should stay bounded (|y₁| ≤ ~2.1 for Van der Pol limit cycle)
         assert!(
             sol.y[0].abs() < 3.0,
-            "Van der Pol y[0] = {} exceeds bound", sol.y[0]
+            "Van der Pol y[0] = {} exceeds bound",
+            sol.y[0]
         );
     }
 
@@ -432,7 +464,8 @@ mod adaptive_tests {
         let mass: f64 = sol.y[0] + sol.y[1] + sol.y[2];
         assert!(
             (mass - 1.0).abs() < 1e-6,
-            "Robertson mass conservation violated: sum = {}", mass
+            "Robertson mass conservation violated: sum = {}",
+            mass
         );
 
         // All concentrations should be non-negative
@@ -451,15 +484,20 @@ mod adaptive_tests {
             ..AdaptiveSettings::default()
         };
         let sol = RODAS4::integrate_auto(
-            0.0, 0.01, &y0,
+            0.0,
+            0.01,
+            &y0,
             |_t, y| Vector::from_array([-1000.0 * y[0]]),
             &settings,
-        ).unwrap();
+        )
+        .unwrap();
         let exact = (-1000.0_f64 * 0.01).exp();
         assert!(
             (sol.y[0] - exact).abs() < 1e-6,
             "auto-jac stiff decay: y = {}, exact = {}, err = {}",
-            sol.y[0], exact, (sol.y[0] - exact).abs()
+            sol.y[0],
+            exact,
+            (sol.y[0] - exact).abs()
         );
     }
 
@@ -474,19 +512,25 @@ mod adaptive_tests {
         };
 
         let sol = RODAS4::integrate_auto(
-            0.0, 1e3, &y0,
-            |_t, y| Vector::from_array([
-                -0.04 * y[0] + 1e4 * y[1] * y[2],
-                 0.04 * y[0] - 1e4 * y[1] * y[2] - 3e7 * y[1] * y[1],
-                 3e7 * y[1] * y[1],
-            ]),
+            0.0,
+            1e3,
+            &y0,
+            |_t, y| {
+                Vector::from_array([
+                    -0.04 * y[0] + 1e4 * y[1] * y[2],
+                    0.04 * y[0] - 1e4 * y[1] * y[2] - 3e7 * y[1] * y[1],
+                    3e7 * y[1] * y[1],
+                ])
+            },
             &settings,
-        ).unwrap();
+        )
+        .unwrap();
 
         let mass: f64 = sol.y[0] + sol.y[1] + sol.y[2];
         assert!(
             (mass - 1.0).abs() < 1e-4,
-            "auto-jac Robertson mass conservation: sum = {}", mass
+            "auto-jac Robertson mass conservation: sum = {}",
+            mass
         );
     }
 
@@ -518,7 +562,9 @@ mod adaptive_tests {
             ..AdaptiveSettings::default()
         };
         let result = RODAS4::integrate(
-            0.0, 0.01, &y0,
+            0.0,
+            0.01,
+            &y0,
             |_t, y| Vector::from_array([-1000.0 * y[0]]),
             |_t, _y| crate::Matrix::new([[-1000.0]]),
             &settings,
@@ -570,7 +616,9 @@ mod adaptive_tests {
         let y0 = Vector::from_array([f64::NAN]);
         let settings = AdaptiveSettings::default();
         let result = RODAS4::integrate(
-            0.0, 1.0, &y0,
+            0.0,
+            1.0,
+            &y0,
             |_t, y| *y,
             |_t, _y| crate::Matrix::new([[1.0]]),
             &settings,
@@ -605,10 +653,18 @@ mod adaptive_tests {
             ..AdaptiveSettings::default()
         };
         let sol = RKTS54::integrate(0.0, TAU, &x0, |_t, x| a * *x, &settings).unwrap();
-        assert!((sol.y[(0, 0)] - 1.0).abs() < 1e-8, "x00 = {}", sol.y[(0, 0)]);
+        assert!(
+            (sol.y[(0, 0)] - 1.0).abs() < 1e-8,
+            "x00 = {}",
+            sol.y[(0, 0)]
+        );
         assert!(sol.y[(0, 1)].abs() < 1e-8, "x01 = {}", sol.y[(0, 1)]);
         assert!(sol.y[(1, 0)].abs() < 1e-8, "x10 = {}", sol.y[(1, 0)]);
-        assert!((sol.y[(1, 1)] - 1.0).abs() < 1e-8, "x11 = {}", sol.y[(1, 1)]);
+        assert!(
+            (sol.y[(1, 1)] - 1.0).abs() < 1e-8,
+            "x11 = {}",
+            sol.y[(1, 1)]
+        );
     }
 
     #[test]
@@ -622,18 +678,20 @@ mod adaptive_tests {
             ..AdaptiveSettings::default()
         };
         let sol = RODAS4::integrate(
-            0.0, TAU, &y0,
+            0.0,
+            TAU,
+            &y0,
             ydot,
             |_t, _y| crate::Matrix::new([[0.0, 1.0], [-1.0, 0.0]]),
             &settings,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(
             (sol.y[0] - 1.0).abs() < 1e-6,
-            "harmonic y[0] = {}, err = {}", sol.y[0], (sol.y[0] - 1.0).abs()
+            "harmonic y[0] = {}, err = {}",
+            sol.y[0],
+            (sol.y[0] - 1.0).abs()
         );
-        assert!(
-            sol.y[1].abs() < 1e-6,
-            "harmonic y[1] = {}", sol.y[1]
-        );
+        assert!(sol.y[1].abs() < 1e-6, "harmonic y[1] = {}", sol.y[1]);
     }
 }

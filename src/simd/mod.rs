@@ -34,24 +34,24 @@
 pub(crate) mod scalar;
 
 #[cfg(target_arch = "aarch64")]
-pub(crate) mod f64_neon;
-#[cfg(target_arch = "aarch64")]
 pub(crate) mod f32_neon;
+#[cfg(target_arch = "aarch64")]
+pub(crate) mod f64_neon;
 
-#[cfg(target_arch = "x86_64")]
-pub(crate) mod f64_sse2;
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod f32_sse2;
+#[cfg(target_arch = "x86_64")]
+pub(crate) mod f64_sse2;
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
-pub(crate) mod f64_avx;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
 pub(crate) mod f32_avx;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+pub(crate) mod f64_avx;
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
-pub(crate) mod f64_avx512;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
 pub(crate) mod f32_avx512;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+pub(crate) mod f64_avx512;
 
 use core::any::TypeId;
 
@@ -676,7 +676,11 @@ mod tests {
             let x: Vec<f64> = (0..n).map(|i| (i + 1) as f64).collect();
             let alpha = 2.5_f64;
             let mut y: Vec<f64> = (0..n).map(|i| (i * 10) as f64).collect();
-            let expected: Vec<f64> = y.iter().zip(x.iter()).map(|(yi, xi)| yi - alpha * xi).collect();
+            let expected: Vec<f64> = y
+                .iter()
+                .zip(x.iter())
+                .map(|(yi, xi)| yi - alpha * xi)
+                .collect();
 
             axpy_neg_dispatch(&mut y, alpha, &x);
 
@@ -684,7 +688,8 @@ mod tests {
                 assert!(
                     (y[i] - expected[i]).abs() < 1e-10,
                     "axpy f64 n={n} idx={i}: got {}, expected {}",
-                    y[i], expected[i]
+                    y[i],
+                    expected[i]
                 );
             }
         }
@@ -696,7 +701,11 @@ mod tests {
             let x: Vec<f32> = (0..n).map(|i| (i + 1) as f32).collect();
             let alpha = 2.5_f32;
             let mut y: Vec<f32> = (0..n).map(|i| (i * 10) as f32).collect();
-            let expected: Vec<f32> = y.iter().zip(x.iter()).map(|(yi, xi)| yi - alpha * xi).collect();
+            let expected: Vec<f32> = y
+                .iter()
+                .zip(x.iter())
+                .map(|(yi, xi)| yi - alpha * xi)
+                .collect();
 
             axpy_neg_dispatch(&mut y, alpha, &x);
 
@@ -704,7 +713,8 @@ mod tests {
                 assert!(
                     (y[i] - expected[i]).abs() < 1e-4,
                     "axpy f32 n={n} idx={i}: got {}, expected {}",
-                    y[i], expected[i]
+                    y[i],
+                    expected[i]
                 );
             }
         }
@@ -726,7 +736,11 @@ mod tests {
             let x: Vec<f64> = (0..n).map(|i| (i + 1) as f64).collect();
             let alpha = 2.5_f64;
             let mut y: Vec<f64> = (0..n).map(|i| (i * 10) as f64).collect();
-            let expected: Vec<f64> = y.iter().zip(x.iter()).map(|(yi, xi)| yi + alpha * xi).collect();
+            let expected: Vec<f64> = y
+                .iter()
+                .zip(x.iter())
+                .map(|(yi, xi)| yi + alpha * xi)
+                .collect();
 
             axpy_pos_dispatch(&mut y, alpha, &x);
 
@@ -734,7 +748,8 @@ mod tests {
                 assert!(
                     (y[i] - expected[i]).abs() < 1e-10,
                     "axpy_pos f64 n={n} idx={i}: got {}, expected {}",
-                    y[i], expected[i]
+                    y[i],
+                    expected[i]
                 );
             }
         }
@@ -746,7 +761,11 @@ mod tests {
             let x: Vec<f32> = (0..n).map(|i| (i + 1) as f32).collect();
             let alpha = 2.5_f32;
             let mut y: Vec<f32> = (0..n).map(|i| (i * 10) as f32).collect();
-            let expected: Vec<f32> = y.iter().zip(x.iter()).map(|(yi, xi)| yi + alpha * xi).collect();
+            let expected: Vec<f32> = y
+                .iter()
+                .zip(x.iter())
+                .map(|(yi, xi)| yi + alpha * xi)
+                .collect();
 
             axpy_pos_dispatch(&mut y, alpha, &x);
 
@@ -754,7 +773,8 @@ mod tests {
                 assert!(
                     (y[i] - expected[i]).abs() < 1e-4,
                     "axpy_pos f32 n={n} idx={i}: got {}, expected {}",
-                    y[i], expected[i]
+                    y[i],
+                    expected[i]
                 );
             }
         }

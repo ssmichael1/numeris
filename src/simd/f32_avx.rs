@@ -28,10 +28,31 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
 
         for i in 0..chunks {
             let off = i * 32;
-            acc0 = _mm256_add_ps(acc0, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off)), _mm256_loadu_ps(bp.add(off))));
-            acc1 = _mm256_add_ps(acc1, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off + 8)), _mm256_loadu_ps(bp.add(off + 8))));
-            acc2 = _mm256_add_ps(acc2, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off + 16)), _mm256_loadu_ps(bp.add(off + 16))));
-            acc3 = _mm256_add_ps(acc3, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off + 24)), _mm256_loadu_ps(bp.add(off + 24))));
+            acc0 = _mm256_add_ps(
+                acc0,
+                _mm256_mul_ps(_mm256_loadu_ps(ap.add(off)), _mm256_loadu_ps(bp.add(off))),
+            );
+            acc1 = _mm256_add_ps(
+                acc1,
+                _mm256_mul_ps(
+                    _mm256_loadu_ps(ap.add(off + 8)),
+                    _mm256_loadu_ps(bp.add(off + 8)),
+                ),
+            );
+            acc2 = _mm256_add_ps(
+                acc2,
+                _mm256_mul_ps(
+                    _mm256_loadu_ps(ap.add(off + 16)),
+                    _mm256_loadu_ps(bp.add(off + 16)),
+                ),
+            );
+            acc3 = _mm256_add_ps(
+                acc3,
+                _mm256_mul_ps(
+                    _mm256_loadu_ps(ap.add(off + 24)),
+                    _mm256_loadu_ps(bp.add(off + 24)),
+                ),
+            );
         }
 
         acc0 = _mm256_add_ps(acc0, acc1);
@@ -54,7 +75,10 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
         let mut acc_rem = _mm256_setzero_ps();
         for i in 0..rem_octs {
             let off = tail + i * 8;
-            acc_rem = _mm256_add_ps(acc_rem, _mm256_mul_ps(_mm256_loadu_ps(ap.add(off)), _mm256_loadu_ps(bp.add(off))));
+            acc_rem = _mm256_add_ps(
+                acc_rem,
+                _mm256_mul_ps(_mm256_loadu_ps(ap.add(off)), _mm256_loadu_ps(bp.add(off))),
+            );
         }
         let rhi = _mm256_extractf128_ps(acc_rem, 1);
         let rlo = _mm256_castps256_ps128(acc_rem);
@@ -103,7 +127,9 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
             let j0 = jb * NR;
             for ib in 0..m_full / MR {
                 let i0 = ib * MR;
-                unsafe { microkernel_16x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_16x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
         }
 
@@ -112,14 +138,18 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
         while i0 + 8 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
-                unsafe { microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
             i0 += 8;
         }
         while i0 + 4 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
-                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
             i0 += 4;
         }
@@ -166,9 +196,15 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 /// 8 AVX registers across the k-loop, writing C only once.
 #[inline(always)]
 unsafe fn microkernel_16x4(
-    a: &[f32], b: &[f32], c: &mut [f32],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -210,45 +246,89 @@ unsafe fn microkernel_16x4(
         let c_ptr = c.as_mut_ptr();
 
         let off0 = j0 * m + i0;
-        _mm256_storeu_ps(c_ptr.add(off0), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off0)), acc00));
-        _mm256_storeu_ps(c_ptr.add(off0 + 8), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off0 + 8)), acc10));
+        _mm256_storeu_ps(
+            c_ptr.add(off0),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off0)), acc00),
+        );
+        _mm256_storeu_ps(
+            c_ptr.add(off0 + 8),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off0 + 8)), acc10),
+        );
 
         let off1 = (j0 + 1) * m + i0;
-        _mm256_storeu_ps(c_ptr.add(off1), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off1)), acc01));
-        _mm256_storeu_ps(c_ptr.add(off1 + 8), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off1 + 8)), acc11));
+        _mm256_storeu_ps(
+            c_ptr.add(off1),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off1)), acc01),
+        );
+        _mm256_storeu_ps(
+            c_ptr.add(off1 + 8),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off1 + 8)), acc11),
+        );
 
         let off2 = (j0 + 2) * m + i0;
-        _mm256_storeu_ps(c_ptr.add(off2), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off2)), acc02));
-        _mm256_storeu_ps(c_ptr.add(off2 + 8), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off2 + 8)), acc12));
+        _mm256_storeu_ps(
+            c_ptr.add(off2),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off2)), acc02),
+        );
+        _mm256_storeu_ps(
+            c_ptr.add(off2 + 8),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off2 + 8)), acc12),
+        );
 
         let off3 = (j0 + 3) * m + i0;
-        _mm256_storeu_ps(c_ptr.add(off3), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off3)), acc03));
-        _mm256_storeu_ps(c_ptr.add(off3 + 8), _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off3 + 8)), acc13));
+        _mm256_storeu_ps(
+            c_ptr.add(off3),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off3)), acc03),
+        );
+        _mm256_storeu_ps(
+            c_ptr.add(off3 + 8),
+            _mm256_add_ps(_mm256_loadu_ps(c_ptr.add(off3 + 8)), acc13),
+        );
     }
 }
 
 /// 8×4 mini-kernel (1 __m256 per column, 8 f32 rows).
 #[inline(always)]
 unsafe fn microkernel_8x4(
-    a: &[f32], b: &[f32], c: &mut [f32],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
-        let mut a0 = _mm256_setzero_ps(); let mut a1 = _mm256_setzero_ps();
-        let mut a2 = _mm256_setzero_ps(); let mut a3 = _mm256_setzero_ps();
+        let mut a0 = _mm256_setzero_ps();
+        let mut a1 = _mm256_setzero_ps();
+        let mut a2 = _mm256_setzero_ps();
+        let mut a3 = _mm256_setzero_ps();
         for k in k_start..k_end {
             let av = _mm256_loadu_ps(ap.add(k * m + i0));
             a0 = _mm256_add_ps(a0, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm256_add_ps(a1, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0+1) * n + k))));
-            a2 = _mm256_add_ps(a2, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0+2) * n + k))));
-            a3 = _mm256_add_ps(a3, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0+3) * n + k))));
+            a1 = _mm256_add_ps(
+                a1,
+                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 1) * n + k))),
+            );
+            a2 = _mm256_add_ps(
+                a2,
+                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 2) * n + k))),
+            );
+            a3 = _mm256_add_ps(
+                a3,
+                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 3) * n + k))),
+            );
         }
         let cp = c.as_mut_ptr();
-        for (j, acc) in [(j0, a0), (j0+1, a1), (j0+2, a2), (j0+3, a3)] {
+        for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
             let off = j * m + i0;
-            _mm256_storeu_ps(cp.add(off), _mm256_add_ps(_mm256_loadu_ps(cp.add(off)), acc));
+            _mm256_storeu_ps(
+                cp.add(off),
+                _mm256_add_ps(_mm256_loadu_ps(cp.add(off)), acc),
+            );
         }
     }
 }
@@ -256,23 +336,31 @@ unsafe fn microkernel_8x4(
 /// 4×4 mini-kernel (1 __m128 per column, 4 f32 rows).
 #[inline(always)]
 unsafe fn microkernel_4x4(
-    a: &[f32], b: &[f32], c: &mut [f32],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
-        let mut a0 = _mm_setzero_ps(); let mut a1 = _mm_setzero_ps();
-        let mut a2 = _mm_setzero_ps(); let mut a3 = _mm_setzero_ps();
+        let mut a0 = _mm_setzero_ps();
+        let mut a1 = _mm_setzero_ps();
+        let mut a2 = _mm_setzero_ps();
+        let mut a3 = _mm_setzero_ps();
         for k in k_start..k_end {
             let av = _mm_loadu_ps(ap.add(k * m + i0));
             a0 = _mm_add_ps(a0, _mm_mul_ps(av, _mm_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm_add_ps(a1, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0+1) * n + k))));
-            a2 = _mm_add_ps(a2, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0+2) * n + k))));
-            a3 = _mm_add_ps(a3, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0+3) * n + k))));
+            a1 = _mm_add_ps(a1, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 1) * n + k))));
+            a2 = _mm_add_ps(a2, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 2) * n + k))));
+            a3 = _mm_add_ps(a3, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 3) * n + k))));
         }
         let cp = c.as_mut_ptr();
-        for (j, acc) in [(j0, a0), (j0+1, a1), (j0+2, a2), (j0+3, a3)] {
+        for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
             let off = j * m + i0;
             _mm_storeu_ps(cp.add(off), _mm_add_ps(_mm_loadu_ps(cp.add(off)), acc));
         }

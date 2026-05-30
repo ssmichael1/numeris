@@ -25,15 +25,9 @@ fn bench(c: &mut Criterion) {
         let img = image(n);
         group.throughput(Throughput::Elements((n * n) as u64));
         for radius in [1usize, 2] {
-            group.bench_with_input(
-                BenchmarkId::new(format!("r{radius}"), n),
-                &img,
-                |b, img| {
-                    b.iter(|| {
-                        std::hint::black_box(median_filter(img, radius, BorderMode::Reflect))
-                    });
-                },
-            );
+            group.bench_with_input(BenchmarkId::new(format!("r{radius}"), n), &img, |b, img| {
+                b.iter(|| std::hint::black_box(median_filter(img, radius, BorderMode::Reflect)));
+            });
         }
     }
     group.finish();

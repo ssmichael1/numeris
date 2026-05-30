@@ -137,7 +137,12 @@ impl<T: Scalar, const M: usize, const N: usize, const P: usize> Mul<Matrix<T, N,
             }
         } else {
             crate::simd::matmul_dispatch(
-                self.as_slice(), rhs.as_slice(), out.as_mut_slice(), M, N, P,
+                self.as_slice(),
+                rhs.as_slice(),
+                out.as_mut_slice(),
+                M,
+                N,
+                P,
             );
         }
         out
@@ -297,27 +302,21 @@ impl<T: Scalar, const M: usize, const N: usize> MulAssign<T> for Matrix<T, M, N>
 
 macro_rules! forward_ref_binop {
     ($Op:ident, $method:ident) => {
-        impl<T: Scalar, const M: usize, const N: usize> $Op<Matrix<T, M, N>>
-            for &Matrix<T, M, N>
-        {
+        impl<T: Scalar, const M: usize, const N: usize> $Op<Matrix<T, M, N>> for &Matrix<T, M, N> {
             type Output = Matrix<T, M, N>;
             fn $method(self, rhs: Matrix<T, M, N>) -> Matrix<T, M, N> {
                 (*self).$method(rhs)
             }
         }
 
-        impl<T: Scalar, const M: usize, const N: usize> $Op<&Matrix<T, M, N>>
-            for Matrix<T, M, N>
-        {
+        impl<T: Scalar, const M: usize, const N: usize> $Op<&Matrix<T, M, N>> for Matrix<T, M, N> {
             type Output = Matrix<T, M, N>;
             fn $method(self, rhs: &Matrix<T, M, N>) -> Matrix<T, M, N> {
                 self.$method(*rhs)
             }
         }
 
-        impl<T: Scalar, const M: usize, const N: usize> $Op<&Matrix<T, M, N>>
-            for &Matrix<T, M, N>
-        {
+        impl<T: Scalar, const M: usize, const N: usize> $Op<&Matrix<T, M, N>> for &Matrix<T, M, N> {
             type Output = Matrix<T, M, N>;
             fn $method(self, rhs: &Matrix<T, M, N>) -> Matrix<T, M, N> {
                 (*self).$method(*rhs)
@@ -666,7 +665,7 @@ mod tests {
         let a = Matrix::new([[2.0, 1.0], [5.0, 3.0]]);
         let v = Vector::from_array([1.0, 2.0]);
         let result = a * v;
-        assert_eq!(result[0], 4.0);  // 2*1 + 1*2
+        assert_eq!(result[0], 4.0); // 2*1 + 1*2
         assert_eq!(result[1], 11.0); // 5*1 + 3*2
     }
 
@@ -677,7 +676,7 @@ mod tests {
         let v = Vector::from_array([7.0, 8.0, 9.0]);
         let result = a * v;
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0], 50.0);  // 1*7 + 2*8 + 3*9
+        assert_eq!(result[0], 50.0); // 1*7 + 2*8 + 3*9
         assert_eq!(result[1], 122.0); // 4*7 + 5*8 + 6*9
     }
 

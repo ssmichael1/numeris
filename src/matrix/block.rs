@@ -1,6 +1,6 @@
-use crate::Matrix;
 use crate::matrix::vector::Vector;
 use crate::traits::Scalar;
+use crate::Matrix;
 
 // ── General block extraction & insertion ────────────────────────────
 
@@ -354,11 +354,7 @@ mod tests {
 
     #[test]
     fn block_f64() {
-        let m = Matrix::new([
-            [1.0, 2.0, 3.0],
-            [4.0, 5.0, 6.0],
-            [7.0, 8.0, 9.0],
-        ]);
+        let m = Matrix::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
         let b: Matrix<f64, 2, 2> = m.block(1, 1);
         assert_eq!(b[(0, 0)], 5.0);
         assert_eq!(b[(0, 1)], 6.0);
@@ -372,11 +368,14 @@ mod tests {
         let eye2: Matrix<f64, 2, 2> = Matrix::eye();
         m.set_block(0, 0, &eye2);
         m.set_block(2, 2, &eye2);
-        assert_eq!(m, Matrix::new([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]));
+        assert_eq!(
+            m,
+            Matrix::new([
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ])
+        );
     }
 }

@@ -80,31 +80,31 @@
 //! assert!((x[0] - 1.0).abs() < 0.1);
 //! ```
 
+mod batch;
+mod cholupdate;
+#[cfg(feature = "alloc")]
+mod ckf;
 mod ekf;
 #[cfg(feature = "alloc")]
-mod ukf;
-mod cholupdate;
+mod rts;
 #[cfg(feature = "alloc")]
 mod srukf;
 #[cfg(feature = "alloc")]
-mod ckf;
-#[cfg(feature = "alloc")]
-mod rts;
-mod batch;
+mod ukf;
 
 #[cfg(test)]
 mod tests;
 
+pub use batch::BatchLsq;
+#[cfg(feature = "alloc")]
+pub use ckf::Ckf;
 pub use ekf::Ekf;
 #[cfg(feature = "alloc")]
-pub use ukf::Ukf;
+pub use rts::{rts_smooth, EkfStep};
 #[cfg(feature = "alloc")]
 pub use srukf::SrUkf;
 #[cfg(feature = "alloc")]
-pub use ckf::Ckf;
-#[cfg(feature = "alloc")]
-pub use rts::{EkfStep, rts_smooth};
-pub use batch::BatchLsq;
+pub use ukf::Ukf;
 
 use crate::linalg::CholeskyDecomposition;
 use crate::matrix::vector::Vector;
@@ -166,10 +166,7 @@ pub(crate) fn cholesky_with_jitter<T: FloatScalar, const N: usize>(
 ///
 /// A no-op when `min_var <= 0`. Prevents the covariance from degenerating to
 /// zero or going negative after many updates.
-pub(crate) fn apply_var_floor<T: FloatScalar, const N: usize>(
-    p: &mut Matrix<T, N, N>,
-    min_var: T,
-) {
+pub(crate) fn apply_var_floor<T: FloatScalar, const N: usize>(p: &mut Matrix<T, N, N>, min_var: T) {
     if min_var > T::zero() {
         for i in 0..N {
             if p[(i, i)] < min_var {

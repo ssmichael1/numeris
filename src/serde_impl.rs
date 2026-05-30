@@ -6,13 +6,13 @@
 //! - `DynMatrix<T>` serializes as `{nrows, ncols, data: [[row-major]]}`.
 //! - `DynVector<T>` serializes as flat `[T]`.
 
-use crate::Matrix;
 use crate::traits::Scalar;
+use crate::Matrix;
 
-use serde::ser::{Serialize, SerializeTuple, Serializer};
-use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
 use core::fmt;
 use core::marker::PhantomData;
+use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
+use serde::ser::{Serialize, SerializeTuple, Serializer};
 
 // ── Matrix<T, M, N>: row-major ─────────────────────────────────────
 
@@ -108,9 +108,7 @@ struct RowDeserialize<T, const N: usize> {
     data: [T; N],
 }
 
-impl<'de, T: Scalar + Deserialize<'de>, const N: usize> Deserialize<'de>
-    for RowDeserialize<T, N>
-{
+impl<'de, T: Scalar + Deserialize<'de>, const N: usize> Deserialize<'de> for RowDeserialize<T, N> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct RowVisitor<T, const N: usize>(PhantomData<T>);
 
@@ -145,10 +143,10 @@ mod dyn_serde {
 
     use alloc::format;
     use alloc::vec::Vec;
-    use serde::ser::{Serialize, SerializeSeq, SerializeStruct, Serializer};
-    use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
     use core::fmt;
     use core::marker::PhantomData;
+    use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
+    use serde::ser::{Serialize, SerializeSeq, SerializeStruct, Serializer};
 
     impl<T: Serialize + Scalar> Serialize for DynMatrix<T> {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -248,8 +246,8 @@ mod dyn_serde {
 
 #[cfg(test)]
 mod tests {
-    use crate::Matrix;
     use crate::matrix::vector::Vector;
+    use crate::Matrix;
 
     #[test]
     fn matrix_roundtrip_json() {

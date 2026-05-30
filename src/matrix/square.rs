@@ -1,5 +1,5 @@
-use crate::traits::{LinalgScalar, Scalar};
 use crate::matrix::vector::Vector;
+use crate::traits::{LinalgScalar, Scalar};
 use crate::Matrix;
 
 impl<T: Scalar, const N: usize> Matrix<T, N, N> {
@@ -117,21 +117,35 @@ impl<T: LinalgScalar, const N: usize> Matrix<T, N, N> {
             return self.data[0][0] * self.data[1][1] - self.data[1][0] * self.data[0][1];
         }
         if N == 3 {
-            let a = self.data[0][0]; let b = self.data[1][0]; let c = self.data[2][0];
-            let d = self.data[0][1]; let e = self.data[1][1]; let f = self.data[2][1];
-            let g = self.data[0][2]; let h = self.data[1][2]; let i = self.data[2][2];
+            let a = self.data[0][0];
+            let b = self.data[1][0];
+            let c = self.data[2][0];
+            let d = self.data[0][1];
+            let e = self.data[1][1];
+            let f = self.data[2][1];
+            let g = self.data[0][2];
+            let h = self.data[1][2];
+            let i = self.data[2][2];
             return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
         }
         if N == 4 {
             // Sub-determinants from rows 0-1
-            let a00 = self.data[0][0]; let a01 = self.data[1][0];
-            let a02 = self.data[2][0]; let a03 = self.data[3][0];
-            let a10 = self.data[0][1]; let a11 = self.data[1][1];
-            let a12 = self.data[2][1]; let a13 = self.data[3][1];
-            let a20 = self.data[0][2]; let a21 = self.data[1][2];
-            let a22 = self.data[2][2]; let a23 = self.data[3][2];
-            let a30 = self.data[0][3]; let a31 = self.data[1][3];
-            let a32 = self.data[2][3]; let a33 = self.data[3][3];
+            let a00 = self.data[0][0];
+            let a01 = self.data[1][0];
+            let a02 = self.data[2][0];
+            let a03 = self.data[3][0];
+            let a10 = self.data[0][1];
+            let a11 = self.data[1][1];
+            let a12 = self.data[2][1];
+            let a13 = self.data[3][1];
+            let a20 = self.data[0][2];
+            let a21 = self.data[1][2];
+            let a22 = self.data[2][2];
+            let a23 = self.data[3][2];
+            let a30 = self.data[0][3];
+            let a31 = self.data[1][3];
+            let a32 = self.data[2][3];
+            let a33 = self.data[3][3];
 
             let s0 = a00 * a11 - a01 * a10;
             let s1 = a00 * a12 - a02 * a10;

@@ -114,8 +114,7 @@ pub fn tridiagonalize<T: LinalgScalar>(
                 let row = k + 1 + i;
                 let col = k + 1 + j;
                 let vj = if j == 0 { v0 } else { w[(k + 1 + j) * n + k] };
-                w[row * n + col] =
-                    w[row * n + col] - vi * q_vec[j].conj() - q_vec[i] * vj.conj();
+                w[row * n + col] = w[row * n + col] - vi * q_vec[j].conj() - q_vec[i] * vj.conj();
             }
         }
 
@@ -134,20 +133,12 @@ pub fn tridiagonalize<T: LinalgScalar>(
         let mut s_vec = alloc_work_vec::<T>(n);
 
         // s = v0 * Q[:, k+1]
-        crate::simd::scale_slices_dispatch(
-            q.col_as_slice(k + 1, 0),
-            v0,
-            &mut s_vec[..n],
-        );
+        crate::simd::scale_slices_dispatch(q.col_as_slice(k + 1, 0), v0, &mut s_vec[..n]);
         // s += v[m] * Q[:, k+1+m] for m = 1..sub_n
         // axpy_neg does y -= alpha*x, so negate vm to get y += vm*x
         for m in 1..sub_n {
             let neg_vm = T::zero() - w[(k + 1 + m) * n + k];
-            crate::simd::axpy_neg_dispatch(
-                &mut s_vec[..n],
-                neg_vm,
-                q.col_as_slice(k + 1 + m, 0),
-            );
+            crate::simd::axpy_neg_dispatch(&mut s_vec[..n], neg_vm, q.col_as_slice(k + 1 + m, 0));
         }
 
         // s *= tau
@@ -373,7 +364,11 @@ pub(crate) fn givens<R: Float + Zero>(a: R, b: R) -> (R, R, R) {
     if b == R::zero() {
         (R::one(), R::zero(), a)
     } else if a == R::zero() {
-        let s = if b >= R::zero() { R::one() } else { R::zero() - R::one() };
+        let s = if b >= R::zero() {
+            R::one()
+        } else {
+            R::zero() - R::one()
+        };
         (R::zero(), s, b.abs())
     } else {
         let r = a.hypot(b);
@@ -382,10 +377,7 @@ pub(crate) fn givens<R: Float + Zero>(a: R, b: R) -> (R, R, R) {
 }
 
 /// Sort eigenvalues ascending and permute eigenvector columns.
-fn sort_eigen_with_vecs<T: LinalgScalar>(
-    diag: &mut [T::Real],
-    q: &mut impl MatrixMut<T>,
-) {
+fn sort_eigen_with_vecs<T: LinalgScalar>(diag: &mut [T::Real], q: &mut impl MatrixMut<T>) {
     let n = diag.len();
     for i in 0..n {
         let mut min_idx = i;
@@ -534,8 +526,8 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
             let bb = a[(0, 1)].re(); // off-diagonal (symmetric: a01 == a10)
             let dd = a[(1, 1)].re();
 
-            let half = <T::Real as One>::one()
-                / (<T::Real as One>::one() + <T::Real as One>::one());
+            let half =
+                <T::Real as One>::one() / (<T::Real as One>::one() + <T::Real as One>::one());
             let p = (aa + dd) * half;
             let diff_half = (aa - dd) * half;
             let disc = diff_half.hypot(bb);
@@ -598,8 +590,8 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
             let b00 = a00 - qq;
             let b11 = a11 - qq;
             let b22 = a22 - qq;
-            let frob_sq = b00 * b00 + b11 * b11 + b22 * b22
-                + two * (a01 * a01 + a02 * a02 + a12 * a12);
+            let frob_sq =
+                b00 * b00 + b11 * b11 + b22 * b22 + two * (a01 * a01 + a02 * a02 + a12 * a12);
 
             let p = (frob_sq / six).sqrt();
 
@@ -619,8 +611,7 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
             }
 
             // det(B) for symmetric 3×3
-            let det_b = b00 * (b11 * b22 - a12 * a12)
-                - a01 * (a01 * b22 - a12 * a02)
+            let det_b = b00 * (b11 * b22 - a12 * a12) - a01 * (a01 * b22 - a12 * a02)
                 + a02 * (a01 * a12 - b11 * a02);
 
             let r = det_b / (two * p * p * p);
@@ -771,8 +762,8 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
             let bb = a[(0, 1)].re();
             let dd = a[(1, 1)].re();
 
-            let half = <T::Real as One>::one()
-                / (<T::Real as One>::one() + <T::Real as One>::one());
+            let half =
+                <T::Real as One>::one() / (<T::Real as One>::one() + <T::Real as One>::one());
             let p = (aa + dd) * half;
             let diff_half = (aa - dd) * half;
             let disc = diff_half.hypot(bb);
@@ -802,8 +793,8 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
             let b00 = a00 - qq;
             let b11 = a11 - qq;
             let b22 = a22 - qq;
-            let frob_sq = b00 * b00 + b11 * b11 + b22 * b22
-                + two * (a01 * a01 + a02 * a02 + a12 * a12);
+            let frob_sq =
+                b00 * b00 + b11 * b11 + b22 * b22 + two * (a01 * a01 + a02 * a02 + a12 * a12);
 
             let p = (frob_sq / six).sqrt();
 
@@ -814,8 +805,7 @@ impl<T: LinalgScalar, const N: usize> SymmetricEigen<T, N> {
                 return Ok(diag);
             }
 
-            let det_b = b00 * (b11 * b22 - a12 * a12)
-                - a01 * (a01 * b22 - a12 * a02)
+            let det_b = b00 * (b11 * b22 - a12 * a12) - a01 * (a01 * b22 - a12 * a02)
                 + a02 * (a01 * a12 - b11 * a02);
 
             let r = det_b / (two * p * p * p);
@@ -945,11 +935,7 @@ mod tests {
 
     #[test]
     fn diagonal_matrix() {
-        let a = Matrix::new([
-            [3.0_f64, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 2.0],
-        ]);
+        let a = Matrix::new([[3.0_f64, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 2.0]]);
         let eig = a.eig_symmetric().unwrap();
         assert_near(eig.eigenvalues()[0], 1.0, TOL, "λ[0]");
         assert_near(eig.eigenvalues()[1], 2.0, TOL, "λ[1]");
@@ -966,11 +952,7 @@ mod tests {
 
     #[test]
     fn known_3x3_eigenvectors() {
-        let a = Matrix::new([
-            [2.0_f64, 1.0, 0.0],
-            [1.0, 3.0, 1.0],
-            [0.0, 1.0, 2.0],
-        ]);
+        let a = Matrix::new([[2.0_f64, 1.0, 0.0], [1.0, 3.0, 1.0], [0.0, 1.0, 2.0]]);
         let eig = a.eig_symmetric().unwrap();
         let q = eig.eigenvectors();
 
@@ -993,11 +975,7 @@ mod tests {
 
     #[test]
     fn reconstruction() {
-        let a = Matrix::new([
-            [4.0_f64, 1.0, -1.0],
-            [1.0, 3.0, 2.0],
-            [-1.0, 2.0, 5.0],
-        ]);
+        let a = Matrix::new([[4.0_f64, 1.0, -1.0], [1.0, 3.0, 2.0], [-1.0, 2.0, 5.0]]);
         let eig = a.eig_symmetric().unwrap();
         let q = eig.eigenvectors();
         let vals = eig.eigenvalues();
@@ -1015,11 +993,7 @@ mod tests {
 
     #[test]
     fn orthogonality() {
-        let a = Matrix::new([
-            [4.0_f64, 1.0, -1.0],
-            [1.0, 3.0, 2.0],
-            [-1.0, 2.0, 5.0],
-        ]);
+        let a = Matrix::new([[4.0_f64, 1.0, -1.0], [1.0, 3.0, 2.0], [-1.0, 2.0, 5.0]]);
         let eig = a.eig_symmetric().unwrap();
         let q = eig.eigenvectors();
         let qtq = q.transpose() * *q;
@@ -1055,11 +1029,7 @@ mod tests {
 
     #[test]
     fn repeated_eigenvalues() {
-        let a = Matrix::new([
-            [2.0_f64, 0.0, 0.0],
-            [0.0, 2.0, 0.0],
-            [0.0, 0.0, 2.0],
-        ]);
+        let a = Matrix::new([[2.0_f64, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 2.0]]);
         let eig = a.eig_symmetric().unwrap();
         for i in 0..3 {
             assert_near(eig.eigenvalues()[i], 2.0, TOL, &format!("λ[{}]", i));

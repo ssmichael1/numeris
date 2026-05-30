@@ -38,9 +38,7 @@ impl<T: Scalar, const N: usize> Vector<T, N> {
     /// Create a vector filled with a single value.
     #[inline]
     pub fn fill(value: T) -> Self {
-        Self {
-            data: [[value; N]],
-        }
+        Self { data: [[value; N]] }
     }
 
     /// Number of elements.
@@ -121,11 +119,15 @@ impl<T: Copy, const N: usize> Vector<T, N> {
     /// assert_eq!(v.x(), 1.0);
     /// ```
     #[inline]
-    pub fn x(&self) -> T { self[0] }
+    pub fn x(&self) -> T {
+        self[0]
+    }
 
     /// Set first component.
     #[inline]
-    pub fn set_x(&mut self, val: T) { self[0] = val; }
+    pub fn set_x(&mut self, val: T) {
+        self[0] = val;
+    }
 
     /// Second component.
     ///
@@ -135,11 +137,15 @@ impl<T: Copy, const N: usize> Vector<T, N> {
     /// assert_eq!(v.y(), 2.0);
     /// ```
     #[inline]
-    pub fn y(&self) -> T { self[1] }
+    pub fn y(&self) -> T {
+        self[1]
+    }
 
     /// Set second component.
     #[inline]
-    pub fn set_y(&mut self, val: T) { self[1] = val; }
+    pub fn set_y(&mut self, val: T) {
+        self[1] = val;
+    }
 }
 
 impl<T: Copy> Vector3<T> {
@@ -151,11 +157,15 @@ impl<T: Copy> Vector3<T> {
     /// assert_eq!(v.z(), 3.0);
     /// ```
     #[inline]
-    pub fn z(&self) -> T { self[2] }
+    pub fn z(&self) -> T {
+        self[2]
+    }
 
     /// Set third component.
     #[inline]
-    pub fn set_z(&mut self, val: T) { self[2] = val; }
+    pub fn set_z(&mut self, val: T) {
+        self[2] = val;
+    }
 }
 
 // Single-index access: v[i] instead of v[(i, 0)]
@@ -318,9 +328,9 @@ mod tests {
         let m = a.outer(&b);
         assert_eq!(m.nrows(), 3);
         assert_eq!(m.ncols(), 2);
-        assert_eq!(m[(0, 0)], 4.0);  // 1*4
-        assert_eq!(m[(0, 1)], 5.0);  // 1*5
-        assert_eq!(m[(1, 0)], 8.0);  // 2*4
+        assert_eq!(m[(0, 0)], 4.0); // 1*4
+        assert_eq!(m[(0, 1)], 5.0); // 1*5
+        assert_eq!(m[(1, 0)], 8.0); // 2*4
         assert_eq!(m[(2, 1)], 15.0); // 3*5
     }
 
@@ -346,7 +356,7 @@ mod tests {
         let result = m * v;
         assert_eq!(result.nrows(), 2);
         assert_eq!(result.ncols(), 1);
-        assert_eq!(result[0], 50.0);  // 1*7 + 2*8 + 3*9
+        assert_eq!(result[0], 50.0); // 1*7 + 2*8 + 3*9
         assert_eq!(result[1], 122.0); // 4*7 + 5*8 + 6*9
     }
 
@@ -356,7 +366,7 @@ mod tests {
         let a = Matrix::new([[2.0, 1.0], [5.0, 3.0]]);
         let x = Vector::from_array([1.0, 2.0]);
         let b = a * x;
-        assert_eq!(b[0], 4.0);  // 2*1 + 1*2
+        assert_eq!(b[0], 4.0); // 2*1 + 1*2
         assert_eq!(b[1], 11.0); // 5*1 + 3*2
     }
 

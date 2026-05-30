@@ -134,12 +134,11 @@ pub fn rts_smooth<T: FloatScalar, const N: usize>(
         let g = steps[k].p_updated * f_next.transpose() * p_pred_next_inv;
 
         // Smoothed state
-        let x_smooth = steps[k].x_updated
-            + g * (smoothed[k + 1].0 - steps[k + 1].x_predicted);
+        let x_smooth = steps[k].x_updated + g * (smoothed[k + 1].0 - steps[k + 1].x_predicted);
 
         // Smoothed covariance
-        let p_smooth = steps[k].p_updated
-            + g * (smoothed[k + 1].1 - steps[k + 1].p_predicted) * g.transpose();
+        let p_smooth =
+            steps[k].p_updated + g * (smoothed[k + 1].1 - steps[k + 1].p_predicted) * g.transpose();
 
         smoothed[k] = (x_smooth, p_smooth);
     }

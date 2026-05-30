@@ -1,7 +1,7 @@
 //! Beta function and log-beta via lgamma.
 
-use crate::FloatScalar;
 use super::gamma_fn::lgamma;
+use crate::FloatScalar;
 
 /// Beta function B(a, b) = Γ(a)·Γ(b) / Γ(a+b).
 ///

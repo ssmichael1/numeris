@@ -4,8 +4,7 @@ use super::*;
 
 #[test]
 fn linear_basic() {
-    let interp =
-        LinearInterp::new([0.0_f64, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]).unwrap();
+    let interp = LinearInterp::new([0.0_f64, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]).unwrap();
     assert!((interp.eval(0.0) - 0.0).abs() < 1e-14);
     assert!((interp.eval(1.0) - 1.0).abs() < 1e-14);
     assert!((interp.eval(2.0) - 0.0).abs() < 1e-14);
@@ -73,12 +72,7 @@ fn linear_two_points() {
 #[test]
 fn hermite_basic() {
     // y = x, dy = 1 everywhere
-    let interp = HermiteInterp::new(
-        [0.0_f64, 1.0, 2.0],
-        [0.0, 1.0, 2.0],
-        [1.0, 1.0, 1.0],
-    )
-    .unwrap();
+    let interp = HermiteInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 2.0], [1.0, 1.0, 1.0]).unwrap();
     assert!((interp.eval(0.5) - 0.5).abs() < 1e-14);
     assert!((interp.eval(1.5) - 1.5).abs() < 1e-14);
 }
@@ -114,12 +108,7 @@ fn hermite_derivative() {
 
 #[test]
 fn hermite_endpoints() {
-    let interp = HermiteInterp::new(
-        [0.0_f64, 1.0, 2.0],
-        [1.0, 2.0, 0.0],
-        [0.0, 0.0, 0.0],
-    )
-    .unwrap();
+    let interp = HermiteInterp::new([0.0_f64, 1.0, 2.0], [1.0, 2.0, 0.0], [0.0, 0.0, 0.0]).unwrap();
     assert!((interp.eval(0.0) - 1.0).abs() < 1e-14);
     assert!((interp.eval(2.0) - 0.0).abs() < 1e-14);
 }
@@ -132,12 +121,8 @@ fn hermite_too_few() {
 
 #[test]
 fn hermite_f32() {
-    let interp = HermiteInterp::new(
-        [0.0_f32, 1.0, 2.0],
-        [0.0, 1.0, 0.0],
-        [1.0, 0.0, -1.0],
-    )
-    .unwrap();
+    let interp =
+        HermiteInterp::new([0.0_f32, 1.0, 2.0], [0.0, 1.0, 0.0], [1.0, 0.0, -1.0]).unwrap();
     assert!((interp.eval(0.5) - 0.625).abs() < 1e-6);
 }
 
@@ -146,8 +131,7 @@ fn hermite_f32() {
 #[test]
 fn lagrange_linear_data() {
     // Should reproduce linear function exactly
-    let interp =
-        LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 2.0]).unwrap();
+    let interp = LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 2.0]).unwrap();
     assert!((interp.eval(0.5) - 0.5).abs() < 1e-13);
     assert!((interp.eval(1.5) - 1.5).abs() < 1e-13);
 }
@@ -155,8 +139,7 @@ fn lagrange_linear_data() {
 #[test]
 fn lagrange_quadratic() {
     // y = x² — exact through 3 points
-    let interp =
-        LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
+    let interp = LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
     assert!((interp.eval(0.5) - 0.25).abs() < 1e-12);
     assert!((interp.eval(1.5) - 2.25).abs() < 1e-12);
     assert!((interp.eval(0.75) - 0.5625).abs() < 1e-12);
@@ -165,22 +148,14 @@ fn lagrange_quadratic() {
 #[test]
 fn lagrange_cubic() {
     // y = x³ — exact through 4 points
-    let interp = LagrangeInterp::new(
-        [0.0_f64, 1.0, 2.0, 3.0],
-        [0.0, 1.0, 8.0, 27.0],
-    )
-    .unwrap();
+    let interp = LagrangeInterp::new([0.0_f64, 1.0, 2.0, 3.0], [0.0, 1.0, 8.0, 27.0]).unwrap();
     assert!((interp.eval(0.5) - 0.125).abs() < 1e-11);
     assert!((interp.eval(2.5) - 15.625).abs() < 1e-10);
 }
 
 #[test]
 fn lagrange_at_knots() {
-    let interp = LagrangeInterp::new(
-        [0.0_f64, 1.0, 2.0, 3.0],
-        [5.0, 3.0, 7.0, 1.0],
-    )
-    .unwrap();
+    let interp = LagrangeInterp::new([0.0_f64, 1.0, 2.0, 3.0], [5.0, 3.0, 7.0, 1.0]).unwrap();
     for i in 0..4 {
         let x = i as f64;
         let expected = [5.0, 3.0, 7.0, 1.0][i];
@@ -195,8 +170,7 @@ fn lagrange_at_knots() {
 #[test]
 fn lagrange_derivative() {
     // y = x² → dy/dx = 2x
-    let interp =
-        LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
+    let interp = LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
     let (v, d) = interp.eval_derivative(1.5);
     assert!((v - 2.25).abs() < 1e-12);
     assert!((d - 3.0).abs() < 1e-11);
@@ -205,8 +179,7 @@ fn lagrange_derivative() {
 #[test]
 fn lagrange_derivative_at_knot() {
     // y = x² → dy/dx = 2x, at x=1 should be 2
-    let interp =
-        LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
+    let interp = LagrangeInterp::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
     let (v, d) = interp.eval_derivative(1.0);
     assert!((v - 1.0).abs() < 1e-12);
     assert!((d - 2.0).abs() < 1e-10);
@@ -220,8 +193,7 @@ fn lagrange_too_few() {
 
 #[test]
 fn lagrange_f32() {
-    let interp =
-        LagrangeInterp::new([0.0_f32, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
+    let interp = LagrangeInterp::new([0.0_f32, 1.0, 2.0], [0.0, 1.0, 4.0]).unwrap();
     assert!((interp.eval(1.5) - 2.25).abs() < 1e-5);
 }
 
@@ -321,8 +293,7 @@ fn spline_derivative_continuity() {
 
 #[test]
 fn spline_extrapolation() {
-    let spline =
-        CubicSpline::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 0.0]).unwrap();
+    let spline = CubicSpline::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 0.0]).unwrap();
     let _ = spline.eval(-1.0);
     let _ = spline.eval(3.0);
 }
@@ -335,8 +306,7 @@ fn spline_too_few() {
 
 #[test]
 fn spline_three_points() {
-    let spline =
-        CubicSpline::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 0.0]).unwrap();
+    let spline = CubicSpline::new([0.0_f64, 1.0, 2.0], [0.0, 1.0, 0.0]).unwrap();
     assert!((spline.eval(0.0) - 0.0).abs() < 1e-14);
     assert!((spline.eval(1.0) - 1.0).abs() < 1e-14);
     assert!((spline.eval(2.0) - 0.0).abs() < 1e-14);
@@ -344,8 +314,7 @@ fn spline_three_points() {
 
 #[test]
 fn spline_f32() {
-    let spline =
-        CubicSpline::new([0.0_f32, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]).unwrap();
+    let spline = CubicSpline::new([0.0_f32, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]).unwrap();
     assert!((spline.eval(0.0) - 0.0).abs() < 1e-6);
     assert!((spline.eval(1.0) - 1.0).abs() < 1e-6);
 }
@@ -402,7 +371,7 @@ fn find_interval_basic() {
     assert_eq!(find_interval(&xs, 0.0), 0);
     assert_eq!(find_interval(&xs, 1.0), 1);
     assert_eq!(find_interval(&xs, 4.0), 3); // clamped to last segment
-    // Out of bounds
+                                            // Out of bounds
     assert_eq!(find_interval(&xs, -1.0), 0);
     assert_eq!(find_interval(&xs, 5.0), 3);
 }
@@ -445,7 +414,10 @@ fn bilinear_midpoint() {
     let interp = BilinearInterp::new(xs, ys, zs).unwrap();
     let mid = interp.eval(0.5, 0.5);
     let expected = (1.0 + 3.0 + 5.0 + 7.0) / 4.0;
-    assert!((mid - expected).abs() < 1e-14, "midpoint: {mid} vs {expected}");
+    assert!(
+        (mid - expected).abs() < 1e-14,
+        "midpoint: {mid} vs {expected}"
+    );
 }
 
 #[test]
@@ -530,11 +502,7 @@ fn bilinear_sorted_error_x() {
 
 #[test]
 fn bilinear_sorted_error_y() {
-    let r = BilinearInterp::new(
-        [0.0_f64, 1.0],
-        [1.0, 0.0],
-        [[0.0, 0.0], [0.0, 0.0]],
-    );
+    let r = BilinearInterp::new([0.0_f64, 1.0], [1.0, 0.0], [[0.0, 0.0], [0.0, 0.0]]);
     assert_eq!(r.unwrap_err(), InterpError::NotSorted);
 }
 
@@ -583,11 +551,9 @@ mod dyn_tests {
 
     #[test]
     fn dyn_linear_basic() {
-        let interp = DynLinearInterp::new(
-            alloc::vec![0.0_f64, 1.0, 2.0],
-            alloc::vec![0.0, 2.0, 1.0],
-        )
-        .unwrap();
+        let interp =
+            DynLinearInterp::new(alloc::vec![0.0_f64, 1.0, 2.0], alloc::vec![0.0, 2.0, 1.0])
+                .unwrap();
         assert!((interp.eval(0.5) - 1.0).abs() < 1e-14);
         assert!((interp.eval(1.5) - 1.5).abs() < 1e-14);
     }
@@ -597,8 +563,7 @@ mod dyn_tests {
         let xs = [0.0_f64, 1.0, 2.0, 3.0];
         let ys = [1.0, 3.0, 2.0, 5.0];
         let fixed = LinearInterp::new(xs, ys).unwrap();
-        let dyn_interp =
-            DynLinearInterp::new(xs.to_vec(), ys.to_vec()).unwrap();
+        let dyn_interp = DynLinearInterp::new(xs.to_vec(), ys.to_vec()).unwrap();
         for &x in &[0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0] {
             assert!(
                 (fixed.eval(x) - dyn_interp.eval(x)).abs() < 1e-14,
@@ -609,20 +574,15 @@ mod dyn_tests {
 
     #[test]
     fn dyn_linear_length_mismatch() {
-        let r = DynLinearInterp::new(
-            alloc::vec![0.0_f64, 1.0],
-            alloc::vec![0.0],
-        );
+        let r = DynLinearInterp::new(alloc::vec![0.0_f64, 1.0], alloc::vec![0.0]);
         assert_eq!(r.unwrap_err(), InterpError::LengthMismatch);
     }
 
     #[test]
     fn dyn_linear_derivative() {
-        let interp = DynLinearInterp::new(
-            alloc::vec![0.0_f64, 1.0, 3.0],
-            alloc::vec![0.0, 2.0, 2.0],
-        )
-        .unwrap();
+        let interp =
+            DynLinearInterp::new(alloc::vec![0.0_f64, 1.0, 3.0], alloc::vec![0.0, 2.0, 2.0])
+                .unwrap();
         let (v, d) = interp.eval_derivative(0.5);
         assert!((v - 1.0).abs() < 1e-14);
         assert!((d - 2.0).abs() < 1e-14);
@@ -666,30 +626,23 @@ mod dyn_tests {
 
     #[test]
     fn dyn_lagrange_basic() {
-        let interp = DynLagrangeInterp::new(
-            alloc::vec![0.0_f64, 1.0, 2.0],
-            alloc::vec![0.0, 1.0, 4.0],
-        )
-        .unwrap();
+        let interp =
+            DynLagrangeInterp::new(alloc::vec![0.0_f64, 1.0, 2.0], alloc::vec![0.0, 1.0, 4.0])
+                .unwrap();
         assert!((interp.eval(1.5) - 2.25).abs() < 1e-12);
     }
 
     #[test]
     fn dyn_lagrange_length_mismatch() {
-        let r = DynLagrangeInterp::new(
-            alloc::vec![0.0_f64, 1.0, 2.0],
-            alloc::vec![0.0, 1.0],
-        );
+        let r = DynLagrangeInterp::new(alloc::vec![0.0_f64, 1.0, 2.0], alloc::vec![0.0, 1.0]);
         assert_eq!(r.unwrap_err(), InterpError::LengthMismatch);
     }
 
     #[test]
     fn dyn_lagrange_derivative() {
-        let interp = DynLagrangeInterp::new(
-            alloc::vec![0.0_f64, 1.0, 2.0],
-            alloc::vec![0.0, 1.0, 4.0],
-        )
-        .unwrap();
+        let interp =
+            DynLagrangeInterp::new(alloc::vec![0.0_f64, 1.0, 2.0], alloc::vec![0.0, 1.0, 4.0])
+                .unwrap();
         let (v, d) = interp.eval_derivative(1.5);
         assert!((v - 2.25).abs() < 1e-12);
         assert!((d - 3.0).abs() < 1e-11);
@@ -712,8 +665,7 @@ mod dyn_tests {
         let xs = [0.0_f64, 1.0, 2.0, 3.0, 4.0];
         let ys = [0.0, 1.0, 0.0, 2.0, 1.0];
         let fixed = CubicSpline::new(xs, ys).unwrap();
-        let dyn_spl =
-            DynCubicSpline::new(xs.to_vec(), ys.to_vec()).unwrap();
+        let dyn_spl = DynCubicSpline::new(xs.to_vec(), ys.to_vec()).unwrap();
         for &x in &[0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0] {
             assert!(
                 (fixed.eval(x) - dyn_spl.eval(x)).abs() < 1e-13,
@@ -724,10 +676,7 @@ mod dyn_tests {
 
     #[test]
     fn dyn_spline_length_mismatch() {
-        let r = DynCubicSpline::new(
-            alloc::vec![0.0_f64, 1.0, 2.0],
-            alloc::vec![0.0, 1.0],
-        );
+        let r = DynCubicSpline::new(alloc::vec![0.0_f64, 1.0, 2.0], alloc::vec![0.0, 1.0]);
         assert_eq!(r.unwrap_err(), InterpError::LengthMismatch);
     }
 
@@ -768,11 +717,7 @@ mod dyn_tests {
     fn dyn_bilinear_matches_fixed() {
         let xs = [0.0_f64, 1.0, 2.0];
         let ys = [0.0, 1.0, 2.0];
-        let zs = [
-            [1.0, 2.0, 3.0],
-            [4.0, 5.0, 6.0],
-            [7.0, 8.0, 9.0],
-        ];
+        let zs = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]];
         let fixed = BilinearInterp::new(xs, ys, zs).unwrap();
         let dyn_interp = DynBilinearInterp::new(
             xs.to_vec(),
@@ -844,11 +789,7 @@ mod dyn_tests {
     fn lagrange_near_node_no_nan() {
         // Evaluate at a point extremely close to a knot — should return knot value,
         // not NaN/Inf from division by near-zero.
-        let interp = LagrangeInterp::new(
-            [0.0_f64, 1.0, 2.0, 3.0],
-            [5.0, 3.0, 7.0, 1.0],
-        )
-        .unwrap();
+        let interp = LagrangeInterp::new([0.0_f64, 1.0, 2.0, 3.0], [5.0, 3.0, 7.0, 1.0]).unwrap();
 
         let tiny = 1e-300;
         for (i, &y_expected) in [5.0, 3.0, 7.0, 1.0].iter().enumerate() {

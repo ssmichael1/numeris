@@ -121,10 +121,7 @@ pub fn scharr_gradients<T: FloatScalar>(
 /// # Panics
 ///
 /// Panics if `gx` and `gy` have different dimensions.
-pub fn gradient_magnitude<T: FloatScalar>(
-    gx: &DynMatrix<T>,
-    gy: &DynMatrix<T>,
-) -> DynMatrix<T> {
+pub fn gradient_magnitude<T: FloatScalar>(gx: &DynMatrix<T>, gy: &DynMatrix<T>) -> DynMatrix<T> {
     assert_eq!(
         (gx.nrows(), gx.ncols()),
         (gy.nrows(), gy.ncols()),

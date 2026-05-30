@@ -212,51 +212,47 @@ mod par;
 #[cfg(feature = "imageproc")]
 #[doc(hidden)]
 pub use par::MaybeSync;
-#[cfg(feature = "ode")]
-pub mod ode;
 #[cfg(feature = "control")]
 pub mod control;
 #[cfg(feature = "estimate")]
 pub mod estimate;
-#[cfg(feature = "interp")]
-pub mod interp;
 #[cfg(feature = "imageproc")]
 pub mod imageproc;
+#[cfg(feature = "interp")]
+pub mod interp;
+#[cfg(feature = "nalgebra")]
+mod nalgebra_interop;
+#[cfg(feature = "ode")]
+pub mod ode;
 #[cfg(feature = "optim")]
 pub mod optim;
 #[cfg(feature = "quad")]
 pub mod quad;
+pub mod quaternion;
+#[cfg(feature = "serde")]
+mod serde_impl;
 #[cfg(feature = "special")]
 pub mod special;
 #[cfg(feature = "stats")]
 pub mod stats;
-#[cfg(feature = "nalgebra")]
-mod nalgebra_interop;
-#[cfg(feature = "serde")]
-mod serde_impl;
-pub mod quaternion;
 pub mod traits;
 
-pub use matrix::vector::{Vector, Vector3};
-pub use matrix::Matrix;
-pub use matrix::aliases::{
-    Matrix1, Matrix2, Matrix3, Matrix4, Matrix5, Matrix6,
-    Matrix1x2, Matrix1x3, Matrix1x4, Matrix1x5, Matrix1x6,
-    Matrix2x1, Matrix2x3, Matrix2x4, Matrix2x5, Matrix2x6,
-    Matrix3x1, Matrix3x2, Matrix3x4, Matrix3x5, Matrix3x6,
-    Matrix4x1, Matrix4x2, Matrix4x3, Matrix4x5, Matrix4x6,
-    Matrix5x1, Matrix5x2, Matrix5x3, Matrix5x4, Matrix5x6,
-    Matrix6x1, Matrix6x2, Matrix6x3, Matrix6x4, Matrix6x5,
-    Vector1, Vector2, Vector4, Vector5, Vector6,
-};
 #[cfg(feature = "alloc")]
 pub use dynmatrix::{
-    DynMatrix, DynVector,
-    DynMatrixf32, DynMatrixf64, DynMatrixi32, DynMatrixi64, DynMatrixu32, DynMatrixu64,
-    DynVectorf32, DynVectorf64, DynVectori32, DynVectori64, DynVectoru32, DynVectoru64,
+    DynMatrix, DynMatrixf32, DynMatrixf64, DynMatrixi32, DynMatrixi64, DynMatrixu32, DynMatrixu64,
+    DynVector, DynVectorf32, DynVectorf64, DynVectori32, DynVectori64, DynVectoru32, DynVectoru64,
 };
 #[cfg(all(feature = "alloc", feature = "complex"))]
 pub use dynmatrix::{DynMatrixz32, DynMatrixz64, DynVectorz32, DynVectorz64};
+pub use matrix::aliases::{
+    Matrix1, Matrix1x2, Matrix1x3, Matrix1x4, Matrix1x5, Matrix1x6, Matrix2, Matrix2x1, Matrix2x3,
+    Matrix2x4, Matrix2x5, Matrix2x6, Matrix3, Matrix3x1, Matrix3x2, Matrix3x4, Matrix3x5,
+    Matrix3x6, Matrix4, Matrix4x1, Matrix4x2, Matrix4x3, Matrix4x5, Matrix4x6, Matrix5, Matrix5x1,
+    Matrix5x2, Matrix5x3, Matrix5x4, Matrix5x6, Matrix6, Matrix6x1, Matrix6x2, Matrix6x3,
+    Matrix6x4, Matrix6x5, Vector1, Vector2, Vector4, Vector5, Vector6,
+};
+pub use matrix::vector::{Vector, Vector3};
+pub use matrix::Matrix;
 pub use quaternion::Quaternion;
 pub use traits::{FloatScalar, LinalgScalar, MatrixMut, MatrixRef, Scalar};
 

@@ -2,7 +2,7 @@
 //!
 //! Delegates to the generic implementations in [`crate::linalg`].
 
-use crate::linalg::{cholesky_rank1_update, cholesky_rank1_downdate};
+use crate::linalg::{cholesky_rank1_downdate, cholesky_rank1_update};
 use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;

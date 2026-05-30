@@ -69,13 +69,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     /// These defaults yield non-negative sigma-point weights for all state dimensions.
     /// For tighter sigma point spread, use `with_params` to reduce `alpha`.
     pub fn new(x0: Vector<T, N>, p0: Matrix<T, N, N>) -> Self {
-        Self::with_params(
-            x0,
-            p0,
-            T::one(),
-            T::from(2.0).unwrap(),
-            T::zero(),
-        )
+        Self::with_params(x0, p0, T::one(), T::from(2.0).unwrap(), T::zero())
     }
 
     /// Create a new UKF with custom scaling parameters.
@@ -84,13 +78,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
     ///   values < ~0.52 give negative central weight `wc_0`)
     /// - `beta` — prior distribution knowledge (2.0 optimal for Gaussian)
     /// - `kappa` — secondary scaling (0 or 3-N)
-    pub fn with_params(
-        x0: Vector<T, N>,
-        p0: Matrix<T, N, N>,
-        alpha: T,
-        beta: T,
-        kappa: T,
-    ) -> Self {
+    pub fn with_params(x0: Vector<T, N>, p0: Matrix<T, N, N>, alpha: T, beta: T, kappa: T) -> Self {
         Self {
             x: x0,
             p: p0,
@@ -195,8 +183,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         }
         for i in 0..N {
             for r in 0..N {
-                x_mean[r] =
-                    x_mean[r] + w_i * (sigmas[2 * i + 1][r] + sigmas[2 * i + 2][r]);
+                x_mean[r] = x_mean[r] + w_i * (sigmas[2 * i + 1][r] + sigmas[2 * i + 2][r]);
             }
         }
 
@@ -213,8 +200,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             let dm = sigmas[2 * i + 2] - x_mean;
             for r in 0..N {
                 for c in 0..N {
-                    p_new[(r, c)] = p_new[(r, c)]
-                        + w_i * (dp[r] * dp[c] + dm[r] * dm[c]);
+                    p_new[(r, c)] = p_new[(r, c)] + w_i * (dp[r] * dp[c] + dm[r] * dm[c]);
                 }
             }
         }
@@ -277,8 +263,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         }
         for i in 0..N {
             for r in 0..M {
-                z_mean[r] = z_mean[r]
-                    + w_i * (sigmas_z[2 * i + 1][r] + sigmas_z[2 * i + 2][r]);
+                z_mean[r] = z_mean[r] + w_i * (sigmas_z[2 * i + 1][r] + sigmas_z[2 * i + 2][r]);
             }
         }
 
@@ -295,8 +280,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             let dzm = sigmas_z[2 * i + 2] - z_mean;
             for r in 0..M {
                 for c in 0..M {
-                    s[(r, c)] = s[(r, c)]
-                        + w_i * (dzp[r] * dzp[c] + dzm[r] * dzm[c]);
+                    s[(r, c)] = s[(r, c)] + w_i * (dzp[r] * dzp[c] + dzm[r] * dzm[c]);
                 }
             }
         }
@@ -317,8 +301,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             let dzm = sigmas_z[2 * i + 2] - z_mean;
             for ri in 0..N {
                 for ci in 0..M {
-                    pxz[(ri, ci)] = pxz[(ri, ci)]
-                        + w_i * (dxp[ri] * dzp[ci] + dxm[ri] * dzm[ci]);
+                    pxz[(ri, ci)] = pxz[(ri, ci)] + w_i * (dxp[ri] * dzp[ci] + dxm[ri] * dzm[ci]);
                 }
             }
         }
@@ -381,8 +364,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         }
         for i in 0..N {
             for r_i in 0..M {
-                z_mean[r_i] = z_mean[r_i]
-                    + w_i * (sigmas_z[2 * i + 1][r_i] + sigmas_z[2 * i + 2][r_i]);
+                z_mean[r_i] =
+                    z_mean[r_i] + w_i * (sigmas_z[2 * i + 1][r_i] + sigmas_z[2 * i + 2][r_i]);
             }
         }
 
@@ -398,8 +381,8 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
             let dzm = sigmas_z[2 * i + 2] - z_mean;
             for r_i in 0..M {
                 for ci in 0..M {
-                    s_mat[(r_i, ci)] = s_mat[(r_i, ci)]
-                        + w_i * (dzp[r_i] * dzp[ci] + dzm[r_i] * dzm[ci]);
+                    s_mat[(r_i, ci)] =
+                        s_mat[(r_i, ci)] + w_i * (dzp[r_i] * dzp[ci] + dzm[r_i] * dzm[ci]);
                 }
             }
         }

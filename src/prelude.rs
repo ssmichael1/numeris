@@ -9,12 +9,12 @@
 //! let r = m * v;
 //! ```
 
-pub use crate::Matrix;
-pub use crate::matrix::vector::{Vector, Vector3};
-pub use crate::matrix::aliases::{
-    Matrix1, Matrix2, Matrix3, Matrix4, Matrix5, Matrix6,
-    Vector1, Vector2, Vector4, Vector5, Vector6,
-};
-pub use crate::traits::{FloatScalar, LinalgScalar, Scalar};
 pub use crate::linalg::LinalgError;
+pub use crate::matrix::aliases::{
+    Matrix1, Matrix2, Matrix3, Matrix4, Matrix5, Matrix6, Vector1, Vector2, Vector4, Vector5,
+    Vector6,
+};
+pub use crate::matrix::vector::{Vector, Vector3};
 pub use crate::quaternion::Quaternion;
+pub use crate::traits::{FloatScalar, LinalgScalar, Scalar};
+pub use crate::Matrix;

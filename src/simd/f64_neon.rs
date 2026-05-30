@@ -95,7 +95,9 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
             let j0 = jb * NR;
             for ib in 0..m_full / MR {
                 let i0 = ib * MR;
-                unsafe { microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
         }
 
@@ -104,14 +106,18 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         while i0 + 4 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
-                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
             i0 += 4;
         }
         while i0 + 2 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
-                unsafe { microkernel_2x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_2x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
             i0 += 2;
         }
@@ -192,11 +198,15 @@ fn matmul_packed(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usi
             // Bottom edge rows
             let mut i0 = m_full;
             while i0 + 4 <= m {
-                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
                 i0 += 4;
             }
             while i0 + 2 <= m {
-                unsafe { microkernel_2x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_2x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
                 i0 += 2;
             }
             if i0 < m {
@@ -253,8 +263,14 @@ fn pack_b(b: &[f64], b_pack: &mut [f64], j0: usize, kb: usize, k_len: usize, n: 
 /// B is read from contiguous b_pack, A from original column-major storage.
 #[inline(always)]
 unsafe fn microkernel_8x4_bpacked(
-    a: &[f64], b_pack: &[f64], c: &mut [f64],
-    m: usize, i0: usize, j0: usize, kb: usize, k_len: usize,
+    a: &[f64],
+    b_pack: &[f64],
+    c: &mut [f64],
+    m: usize,
+    i0: usize,
+    j0: usize,
+    kb: usize,
+    k_len: usize,
 ) {
     unsafe {
         let ap = a.as_ptr();
@@ -314,28 +330,76 @@ unsafe fn microkernel_8x4_bpacked(
         let c_ptr = c.as_mut_ptr();
 
         let off0 = j0 * m + i0;
-        vst1q_f64(c_ptr.add(off0), vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc00));
-        vst1q_f64(c_ptr.add(off0 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 2)), acc10));
-        vst1q_f64(c_ptr.add(off0 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 4)), acc20));
-        vst1q_f64(c_ptr.add(off0 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 6)), acc30));
+        vst1q_f64(
+            c_ptr.add(off0),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc00),
+        );
+        vst1q_f64(
+            c_ptr.add(off0 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0 + 2)), acc10),
+        );
+        vst1q_f64(
+            c_ptr.add(off0 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0 + 4)), acc20),
+        );
+        vst1q_f64(
+            c_ptr.add(off0 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0 + 6)), acc30),
+        );
 
         let off1 = (j0 + 1) * m + i0;
-        vst1q_f64(c_ptr.add(off1), vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc01));
-        vst1q_f64(c_ptr.add(off1 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 2)), acc11));
-        vst1q_f64(c_ptr.add(off1 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 4)), acc21));
-        vst1q_f64(c_ptr.add(off1 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 6)), acc31));
+        vst1q_f64(
+            c_ptr.add(off1),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc01),
+        );
+        vst1q_f64(
+            c_ptr.add(off1 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1 + 2)), acc11),
+        );
+        vst1q_f64(
+            c_ptr.add(off1 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1 + 4)), acc21),
+        );
+        vst1q_f64(
+            c_ptr.add(off1 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1 + 6)), acc31),
+        );
 
         let off2 = (j0 + 2) * m + i0;
-        vst1q_f64(c_ptr.add(off2), vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc02));
-        vst1q_f64(c_ptr.add(off2 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 2)), acc12));
-        vst1q_f64(c_ptr.add(off2 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 4)), acc22));
-        vst1q_f64(c_ptr.add(off2 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 6)), acc32));
+        vst1q_f64(
+            c_ptr.add(off2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc02),
+        );
+        vst1q_f64(
+            c_ptr.add(off2 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2 + 2)), acc12),
+        );
+        vst1q_f64(
+            c_ptr.add(off2 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2 + 4)), acc22),
+        );
+        vst1q_f64(
+            c_ptr.add(off2 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2 + 6)), acc32),
+        );
 
         let off3 = (j0 + 3) * m + i0;
-        vst1q_f64(c_ptr.add(off3), vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03));
-        vst1q_f64(c_ptr.add(off3 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13));
-        vst1q_f64(c_ptr.add(off3 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 4)), acc23));
-        vst1q_f64(c_ptr.add(off3 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 6)), acc33));
+        vst1q_f64(
+            c_ptr.add(off3),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03),
+        );
+        vst1q_f64(
+            c_ptr.add(off3 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13),
+        );
+        vst1q_f64(
+            c_ptr.add(off3 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3 + 4)), acc23),
+        );
+        vst1q_f64(
+            c_ptr.add(off3 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3 + 6)), acc33),
+        );
     }
 }
 
@@ -344,9 +408,15 @@ unsafe fn microkernel_8x4_bpacked(
 /// Uses 4 NEON f64 vectors (8 elements) × 4 columns = 16 accumulators.
 #[inline(always)]
 unsafe fn microkernel_8x4(
-    a: &[f64], b: &[f64], c: &mut [f64],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f64],
+    b: &[f64],
+    c: &mut [f64],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -406,28 +476,76 @@ unsafe fn microkernel_8x4(
         let c_ptr = c.as_mut_ptr();
 
         let off0 = j0 * m + i0;
-        vst1q_f64(c_ptr.add(off0), vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc00));
-        vst1q_f64(c_ptr.add(off0 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 2)), acc10));
-        vst1q_f64(c_ptr.add(off0 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 4)), acc20));
-        vst1q_f64(c_ptr.add(off0 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 6)), acc30));
+        vst1q_f64(
+            c_ptr.add(off0),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc00),
+        );
+        vst1q_f64(
+            c_ptr.add(off0 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0 + 2)), acc10),
+        );
+        vst1q_f64(
+            c_ptr.add(off0 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0 + 4)), acc20),
+        );
+        vst1q_f64(
+            c_ptr.add(off0 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0 + 6)), acc30),
+        );
 
         let off1 = (j0 + 1) * m + i0;
-        vst1q_f64(c_ptr.add(off1), vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc01));
-        vst1q_f64(c_ptr.add(off1 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 2)), acc11));
-        vst1q_f64(c_ptr.add(off1 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 4)), acc21));
-        vst1q_f64(c_ptr.add(off1 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 6)), acc31));
+        vst1q_f64(
+            c_ptr.add(off1),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc01),
+        );
+        vst1q_f64(
+            c_ptr.add(off1 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1 + 2)), acc11),
+        );
+        vst1q_f64(
+            c_ptr.add(off1 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1 + 4)), acc21),
+        );
+        vst1q_f64(
+            c_ptr.add(off1 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1 + 6)), acc31),
+        );
 
         let off2 = (j0 + 2) * m + i0;
-        vst1q_f64(c_ptr.add(off2), vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc02));
-        vst1q_f64(c_ptr.add(off2 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 2)), acc12));
-        vst1q_f64(c_ptr.add(off2 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 4)), acc22));
-        vst1q_f64(c_ptr.add(off2 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 6)), acc32));
+        vst1q_f64(
+            c_ptr.add(off2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc02),
+        );
+        vst1q_f64(
+            c_ptr.add(off2 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2 + 2)), acc12),
+        );
+        vst1q_f64(
+            c_ptr.add(off2 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2 + 4)), acc22),
+        );
+        vst1q_f64(
+            c_ptr.add(off2 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2 + 6)), acc32),
+        );
 
         let off3 = (j0 + 3) * m + i0;
-        vst1q_f64(c_ptr.add(off3), vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03));
-        vst1q_f64(c_ptr.add(off3 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13));
-        vst1q_f64(c_ptr.add(off3 + 4), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 4)), acc23));
-        vst1q_f64(c_ptr.add(off3 + 6), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 6)), acc33));
+        vst1q_f64(
+            c_ptr.add(off3),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03),
+        );
+        vst1q_f64(
+            c_ptr.add(off3 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13),
+        );
+        vst1q_f64(
+            c_ptr.add(off3 + 4),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3 + 4)), acc23),
+        );
+        vst1q_f64(
+            c_ptr.add(off3 + 6),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3 + 6)), acc33),
+        );
     }
 }
 
@@ -435,9 +553,15 @@ unsafe fn microkernel_8x4(
 /// 8 NEON registers across a k-block, writing C only once per block.
 #[inline(always)]
 unsafe fn microkernel_4x4(
-    a: &[f64], b: &[f64], c: &mut [f64],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f64],
+    b: &[f64],
+    c: &mut [f64],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -479,20 +603,44 @@ unsafe fn microkernel_4x4(
         let c_ptr = c.as_mut_ptr();
 
         let off0 = j0 * m + i0;
-        vst1q_f64(c_ptr.add(off0), vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc00));
-        vst1q_f64(c_ptr.add(off0 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off0 + 2)), acc10));
+        vst1q_f64(
+            c_ptr.add(off0),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0)), acc00),
+        );
+        vst1q_f64(
+            c_ptr.add(off0 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off0 + 2)), acc10),
+        );
 
         let off1 = (j0 + 1) * m + i0;
-        vst1q_f64(c_ptr.add(off1), vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc01));
-        vst1q_f64(c_ptr.add(off1 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off1 + 2)), acc11));
+        vst1q_f64(
+            c_ptr.add(off1),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1)), acc01),
+        );
+        vst1q_f64(
+            c_ptr.add(off1 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off1 + 2)), acc11),
+        );
 
         let off2 = (j0 + 2) * m + i0;
-        vst1q_f64(c_ptr.add(off2), vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc02));
-        vst1q_f64(c_ptr.add(off2 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off2 + 2)), acc12));
+        vst1q_f64(
+            c_ptr.add(off2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2)), acc02),
+        );
+        vst1q_f64(
+            c_ptr.add(off2 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off2 + 2)), acc12),
+        );
 
         let off3 = (j0 + 3) * m + i0;
-        vst1q_f64(c_ptr.add(off3), vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03));
-        vst1q_f64(c_ptr.add(off3 + 2), vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13));
+        vst1q_f64(
+            c_ptr.add(off3),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3)), acc03),
+        );
+        vst1q_f64(
+            c_ptr.add(off3 + 2),
+            vaddq_f64(vld1q_f64(c_ptr.add(off3 + 2)), acc13),
+        );
     }
 }
 
@@ -500,9 +648,15 @@ unsafe fn microkernel_4x4(
 /// C[i0..i0+2, j0..j0+4] in 4 NEON registers across a k-block.
 #[inline(always)]
 unsafe fn microkernel_2x4(
-    a: &[f64], b: &[f64], c: &mut [f64],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f64],
+    b: &[f64],
+    c: &mut [f64],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();

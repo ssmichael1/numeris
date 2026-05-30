@@ -90,10 +90,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
     }
 
     /// Generate 2N cubature points from state and Cholesky factor.
-    fn cubature_points(
-        x: &Vector<T, N>,
-        l: &Matrix<T, N, N>,
-    ) -> Vec<Vector<T, N>> {
+    fn cubature_points(x: &Vector<T, N>, l: &Matrix<T, N, N>) -> Vec<Vector<T, N>> {
         let sqrt_n = T::from(N).unwrap().sqrt();
         let mut points = Vec::with_capacity(2 * N);
 

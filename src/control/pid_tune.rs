@@ -1,5 +1,5 @@
-use crate::traits::FloatScalar;
 use super::ControlError;
+use crate::traits::FloatScalar;
 
 /// PID gains computed by a tuning rule.
 ///
@@ -73,17 +73,27 @@ impl<T: FloatScalar> FopdtModel<T> {
         if delay < zero || !delay.is_finite() {
             return Err(ControlError::InvalidFrequency);
         }
-        Ok(Self { k: gain, tau, l: delay })
+        Ok(Self {
+            k: gain,
+            tau,
+            l: delay,
+        })
     }
 
     /// Static process gain `K`.
-    pub fn gain(&self) -> T { self.k }
+    pub fn gain(&self) -> T {
+        self.k
+    }
 
     /// Time constant `τ`.
-    pub fn tau(&self) -> T { self.tau }
+    pub fn tau(&self) -> T {
+        self.tau
+    }
 
     /// Dead time (transport delay) `L`.
-    pub fn delay(&self) -> T { self.l }
+    pub fn delay(&self) -> T {
+        self.l
+    }
 
     /// Ziegler-Nichols open-loop tuning (reaction curve method).
     ///
@@ -106,7 +116,10 @@ impl<T: FloatScalar> FopdtModel<T> {
     /// ```
     pub fn ziegler_nichols(&self) -> PidGains<T> {
         let two = T::one() + T::one();
-        assert!(self.l > T::zero(), "Ziegler-Nichols requires non-zero dead time");
+        assert!(
+            self.l > T::zero(),
+            "Ziegler-Nichols requires non-zero dead time"
+        );
 
         let r = self.tau / (self.k * self.l);
         let kp = T::from(1.2).unwrap() * r;
@@ -193,7 +206,10 @@ impl<T: FloatScalar> FopdtModel<T> {
     /// assert!(gains.kp > 0.0);
     /// ```
     pub fn simc(&self, tau_c: T) -> PidGains<T> {
-        assert!(tau_c > T::zero(), "closed-loop time constant must be positive");
+        assert!(
+            tau_c > T::zero(),
+            "closed-loop time constant must be positive"
+        );
 
         let two = T::one() + T::one();
 
@@ -203,7 +219,11 @@ impl<T: FloatScalar> FopdtModel<T> {
         // Ti = min(τ, 4·(tau_c + L))
         let four = two + two;
         let ti_candidate = four * (tau_c + self.l);
-        let ti = if self.tau < ti_candidate { self.tau } else { ti_candidate };
+        let ti = if self.tau < ti_candidate {
+            self.tau
+        } else {
+            ti_candidate
+        };
 
         // Td = 0 for first-order process (PID only adds D for second-order)
         // But we include it as: Td = L/2 when L > 0, for dead-time compensation
@@ -240,10 +260,7 @@ impl<T: FloatScalar> FopdtModel<T> {
 /// // Kp = 0.6·Ku, Ti = Tu/2, Td = Tu/8
 /// assert!((gains.kp - 6.0).abs() < 1e-10);
 /// ```
-pub fn ziegler_nichols_ultimate<T: FloatScalar>(
-    ku: T,
-    tu: T,
-) -> Result<PidGains<T>, ControlError> {
+pub fn ziegler_nichols_ultimate<T: FloatScalar>(ku: T, tu: T) -> Result<PidGains<T>, ControlError> {
     let zero = T::zero();
     if ku <= zero || !ku.is_finite() {
         return Err(ControlError::InvalidFrequency);

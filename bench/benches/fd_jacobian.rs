@@ -41,10 +41,7 @@ fn make_f(work: usize) -> impl Fn(&DynVector<f64>) -> DynVector<f64> + Sync + Se
 
 /// Faithful sequential re-implementation of `finite_difference_jacobian_dyn`,
 /// used as the baseline (matches the algorithm in `src/optim/dyn_optim.rs`).
-fn fd_jacobian_seq<F: Fn(&DynVector<f64>) -> DynVector<f64>>(
-    f: F,
-    x: &DynVector<f64>,
-) -> Vec<f64> {
+fn fd_jacobian_seq<F: Fn(&DynVector<f64>) -> DynVector<f64>>(f: F, x: &DynVector<f64>) -> Vec<f64> {
     let sqrt_eps = f64::EPSILON.sqrt();
     let f0 = f(x);
     let m = f0.len();

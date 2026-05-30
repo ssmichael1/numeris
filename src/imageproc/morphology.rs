@@ -244,7 +244,17 @@ fn filter_separable_seq<T: FloatScalar>(
     for j in 0..ncols {
         let src_col = src.col_as_slice(j, 0);
         let tmp_col = tmp.col_as_mut_slice(j, 0);
-        van_herk_1d(src_col, tmp_col, radius, k, border, combine, &mut padded, &mut g, &mut h);
+        van_herk_1d(
+            src_col,
+            tmp_col,
+            radius,
+            k,
+            border,
+            combine,
+            &mut padded,
+            &mut g,
+            &mut h,
+        );
     }
 
     // Pass 2 — horizontal (strided row access, copy to/from row buffer).
@@ -255,7 +265,17 @@ fn filter_separable_seq<T: FloatScalar>(
         for j in 0..ncols {
             row_in[j] = tmp[(i, j)];
         }
-        van_herk_1d(&row_in, &mut row_out, radius, k, border, combine, &mut padded, &mut g, &mut h);
+        van_herk_1d(
+            &row_in,
+            &mut row_out,
+            radius,
+            k,
+            border,
+            combine,
+            &mut padded,
+            &mut g,
+            &mut h,
+        );
         for j in 0..ncols {
             out[(i, j)] = row_out[j];
         }
@@ -303,7 +323,17 @@ fn van_herk_vertical<T: FloatScalar + crate::par::MaybeSync>(
         let mut g: Vec<T> = vec![T::zero(); cap];
         let mut h: Vec<T> = vec![T::zero(); cap];
         let src_col = src.col_as_slice(j, 0);
-        van_herk_1d(src_col, out_col, radius, k, border, combine, &mut padded, &mut g, &mut h);
+        van_herk_1d(
+            src_col,
+            out_col,
+            radius,
+            k,
+            border,
+            combine,
+            &mut padded,
+            &mut g,
+            &mut h,
+        );
     });
     out
 }

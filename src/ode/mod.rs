@@ -54,36 +54,36 @@
 //! assert!((sol.y[1]).abs() < 1e-6);        // sin(2π) ≈ 0
 //! ```
 
-mod rk4;
 mod adaptive;
+mod rk4;
 mod rkf45;
 mod rkts54;
 mod rkv65;
 mod rkv87;
 mod rkv98;
-mod rkv98_nointerp;
 mod rkv98_efficient;
-mod rosenbrock;
+mod rkv98_nointerp;
 mod rodas4;
+mod rosenbrock;
 
-use core::fmt;
 use crate::traits::FloatScalar;
 use crate::Matrix;
+use core::fmt;
 
 #[cfg(test)]
 mod tests;
 
-pub use rk4::{rk4_step, rk4};
-pub use adaptive::{RKAdaptive, AdaptiveSettings};
+pub use adaptive::{AdaptiveSettings, RKAdaptive};
+pub use rk4::{rk4, rk4_step};
 pub use rkf45::RKF45;
 pub use rkts54::RKTS54;
 pub use rkv65::RKV65;
 pub use rkv87::RKV87;
 pub use rkv98::RKV98;
-pub use rkv98_nointerp::RKV98NoInterp;
 pub use rkv98_efficient::RKV98Efficient;
-pub use rosenbrock::Rosenbrock;
+pub use rkv98_nointerp::RKV98NoInterp;
 pub use rodas4::RODAS4;
+pub use rosenbrock::Rosenbrock;
 
 /// Errors from ODE integration.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -111,7 +111,9 @@ impl fmt::Display for OdeError {
             Self::MaxStepsExceeded => write!(f, "maximum number of steps exceeded"),
             Self::NoDenseOutput => write!(f, "no dense output in solution"),
             Self::InterpOutOfBounds => write!(f, "interpolation point out of bounds"),
-            Self::InterpNotImplemented => write!(f, "interpolation not implemented for this solver"),
+            Self::InterpNotImplemented => {
+                write!(f, "interpolation not implemented for this solver")
+            }
             Self::SingularJacobian => write!(f, "Jacobian matrix is singular"),
             Self::TooManyRejections => write!(f, "too many consecutive step rejections"),
         }

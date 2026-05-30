@@ -297,13 +297,7 @@ fn adaptive_reversed_limits() {
 #[test]
 fn adaptive_cos() {
     // Integral of cos(x) from 0 to pi/2 = 1
-    let r = adaptive_simpson(
-        |x: f64| x.cos(),
-        0.0,
-        core::f64::consts::FRAC_PI_2,
-        1e-14,
-    )
-    .unwrap();
+    let r = adaptive_simpson(|x: f64| x.cos(), 0.0, core::f64::consts::FRAC_PI_2, 1e-14).unwrap();
     assert!(approx_eq(r, 1.0, 1e-14));
 }
 

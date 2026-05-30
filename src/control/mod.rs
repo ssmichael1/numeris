@@ -47,9 +47,9 @@ mod tests;
 pub use biquad::{Biquad, BiquadCascade};
 pub use butterworth::{butterworth_highpass, butterworth_lowpass};
 pub use chebyshev::{chebyshev1_highpass, chebyshev1_lowpass};
-pub use lead_lag::{lead_compensator, lag_compensator};
+pub use lead_lag::{lag_compensator, lead_compensator};
 pub use pid::Pid;
-pub use pid_tune::{FopdtModel, PidGains, ziegler_nichols_ultimate};
+pub use pid_tune::{ziegler_nichols_ultimate, FopdtModel, PidGains};
 
 use crate::traits::FloatScalar;
 

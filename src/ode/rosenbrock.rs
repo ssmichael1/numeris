@@ -3,11 +3,11 @@
 //   E. Hairer, rodas.f — http://www.unige.ch/~hairer/prog/stiff/rodas.f
 //   OrdinaryDiffEq.jl (SciML/Julia) — Rosenbrock integrators
 
-use crate::linalg::lu::{lu_in_place, lu_solve};
-use crate::traits::FloatScalar;
-use crate::matrix::vector::Vector;
-use crate::Matrix;
 use super::{AdaptiveSettings, OdeError};
+use crate::linalg::lu::{lu_in_place, lu_solve};
+use crate::matrix::vector::Vector;
+use crate::traits::FloatScalar;
+use crate::Matrix;
 
 /// Type alias for Rosenbrock solutions (always vector state).
 pub type RosenbrockSolution<T, const S: usize> = super::Solution<T, S, 1>;
@@ -140,7 +140,10 @@ pub trait Rosenbrock<const STAGES: usize> {
         settings: &AdaptiveSettings<T>,
     ) -> Result<RosenbrockSolution<T, S>, OdeError> {
         rosenbrock_step_loop::<Self, T, S, STAGES>(
-            t0, tf, y0, f,
+            t0,
+            tf,
+            y0,
+            f,
             JacSource::<T, S, fn(T, &Vector<T, S>) -> Matrix<T, S, S>>::Auto,
             settings,
         )
@@ -354,13 +357,17 @@ where
         let beta2 = T::from(0.4).unwrap() / order_f;
         let beta3 = T::from(0.1).unwrap() / order_f;
         let q = {
-            let raw = enorm.powf(beta1)
-                / enorm_prev.powf(beta2)
-                * enorm_prev2.powf(beta3)
+            let raw = enorm.powf(beta1) / enorm_prev.powf(beta2) * enorm_prev2.powf(beta3)
                 / settings.safety;
             let lo = one / settings.max_factor;
             let hi = one / settings.min_factor;
-            if raw < lo { lo } else if raw > hi { hi } else { raw }
+            if raw < lo {
+                lo
+            } else if raw > hi {
+                hi
+            } else {
+                raw
+            }
         };
 
         // Check if h_min forces acceptance

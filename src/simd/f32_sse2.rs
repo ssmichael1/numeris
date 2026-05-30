@@ -26,10 +26,25 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
 
         for i in 0..chunks {
             let off = i * 16;
-            acc0 = _mm_add_ps(acc0, _mm_mul_ps(_mm_loadu_ps(ap.add(off)), _mm_loadu_ps(bp.add(off))));
-            acc1 = _mm_add_ps(acc1, _mm_mul_ps(_mm_loadu_ps(ap.add(off + 4)), _mm_loadu_ps(bp.add(off + 4))));
-            acc2 = _mm_add_ps(acc2, _mm_mul_ps(_mm_loadu_ps(ap.add(off + 8)), _mm_loadu_ps(bp.add(off + 8))));
-            acc3 = _mm_add_ps(acc3, _mm_mul_ps(_mm_loadu_ps(ap.add(off + 12)), _mm_loadu_ps(bp.add(off + 12))));
+            acc0 = _mm_add_ps(
+                acc0,
+                _mm_mul_ps(_mm_loadu_ps(ap.add(off)), _mm_loadu_ps(bp.add(off))),
+            );
+            acc1 = _mm_add_ps(
+                acc1,
+                _mm_mul_ps(_mm_loadu_ps(ap.add(off + 4)), _mm_loadu_ps(bp.add(off + 4))),
+            );
+            acc2 = _mm_add_ps(
+                acc2,
+                _mm_mul_ps(_mm_loadu_ps(ap.add(off + 8)), _mm_loadu_ps(bp.add(off + 8))),
+            );
+            acc3 = _mm_add_ps(
+                acc3,
+                _mm_mul_ps(
+                    _mm_loadu_ps(ap.add(off + 12)),
+                    _mm_loadu_ps(bp.add(off + 12)),
+                ),
+            );
         }
 
         acc0 = _mm_add_ps(acc0, acc1);
@@ -49,7 +64,10 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
         let mut acc_rem = _mm_setzero_ps();
         for i in 0..rem_quads {
             let off = tail + i * 4;
-            acc_rem = _mm_add_ps(acc_rem, _mm_mul_ps(_mm_loadu_ps(ap.add(off)), _mm_loadu_ps(bp.add(off))));
+            acc_rem = _mm_add_ps(
+                acc_rem,
+                _mm_mul_ps(_mm_loadu_ps(ap.add(off)), _mm_loadu_ps(bp.add(off))),
+            );
         }
         let rs = _mm_movehl_ps(acc_rem, acc_rem);
         let rs2 = _mm_add_ps(acc_rem, rs);
@@ -95,7 +113,9 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
             let j0 = jb * NR;
             for ib in 0..m_full / MR {
                 let i0 = ib * MR;
-                unsafe { microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
         }
 
@@ -104,7 +124,9 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
         while i0 + 4 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
-                unsafe { microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end); }
+                unsafe {
+                    microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end);
+                }
             }
             i0 += 4;
         }
@@ -135,7 +157,10 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
                         let offset = i * 4;
                         let vc = _mm_loadu_ps(c.as_ptr().add(c_col + offset));
                         let va = _mm_loadu_ps(a.as_ptr().add(a_col + offset));
-                        _mm_storeu_ps(c.as_mut_ptr().add(c_col + offset), _mm_add_ps(vc, _mm_mul_ps(va, vb)));
+                        _mm_storeu_ps(
+                            c.as_mut_ptr().add(c_col + offset),
+                            _mm_add_ps(vc, _mm_mul_ps(va, vb)),
+                        );
                     }
                 }
                 for i in i_tail..m {
@@ -152,9 +177,15 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 /// 8 SSE2 registers across the full k-loop, writing C only once.
 #[inline(always)]
 unsafe fn microkernel_8x4(
-    a: &[f32], b: &[f32], c: &mut [f32],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -196,29 +227,59 @@ unsafe fn microkernel_8x4(
         let c_ptr = c.as_mut_ptr();
 
         let off0 = j0 * m + i0;
-        _mm_storeu_ps(c_ptr.add(off0), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off0)), acc00));
-        _mm_storeu_ps(c_ptr.add(off0 + 4), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off0 + 4)), acc10));
+        _mm_storeu_ps(
+            c_ptr.add(off0),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off0)), acc00),
+        );
+        _mm_storeu_ps(
+            c_ptr.add(off0 + 4),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off0 + 4)), acc10),
+        );
 
         let off1 = (j0 + 1) * m + i0;
-        _mm_storeu_ps(c_ptr.add(off1), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off1)), acc01));
-        _mm_storeu_ps(c_ptr.add(off1 + 4), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off1 + 4)), acc11));
+        _mm_storeu_ps(
+            c_ptr.add(off1),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off1)), acc01),
+        );
+        _mm_storeu_ps(
+            c_ptr.add(off1 + 4),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off1 + 4)), acc11),
+        );
 
         let off2 = (j0 + 2) * m + i0;
-        _mm_storeu_ps(c_ptr.add(off2), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off2)), acc02));
-        _mm_storeu_ps(c_ptr.add(off2 + 4), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off2 + 4)), acc12));
+        _mm_storeu_ps(
+            c_ptr.add(off2),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off2)), acc02),
+        );
+        _mm_storeu_ps(
+            c_ptr.add(off2 + 4),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off2 + 4)), acc12),
+        );
 
         let off3 = (j0 + 3) * m + i0;
-        _mm_storeu_ps(c_ptr.add(off3), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off3)), acc03));
-        _mm_storeu_ps(c_ptr.add(off3 + 4), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off3 + 4)), acc13));
+        _mm_storeu_ps(
+            c_ptr.add(off3),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off3)), acc03),
+        );
+        _mm_storeu_ps(
+            c_ptr.add(off3 + 4),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off3 + 4)), acc13),
+        );
     }
 }
 
 /// Register-blocked 4×4 mini-kernel for bottom-edge rows (1 __m128 per col).
 #[inline(always)]
 unsafe fn microkernel_4x4(
-    a: &[f32], b: &[f32], c: &mut [f32],
-    m: usize, n: usize, i0: usize, j0: usize,
-    k_start: usize, k_end: usize,
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    n: usize,
+    i0: usize,
+    j0: usize,
+    k_start: usize,
+    k_end: usize,
 ) {
     unsafe {
         let a_ptr = a.as_ptr();
@@ -233,20 +294,41 @@ unsafe fn microkernel_4x4(
             let a0 = _mm_loadu_ps(a_ptr.add(k * m + i0));
 
             acc0 = _mm_add_ps(acc0, _mm_mul_ps(a0, _mm_set1_ps(*b_ptr.add(j0 * n + k))));
-            acc1 = _mm_add_ps(acc1, _mm_mul_ps(a0, _mm_set1_ps(*b_ptr.add((j0 + 1) * n + k))));
-            acc2 = _mm_add_ps(acc2, _mm_mul_ps(a0, _mm_set1_ps(*b_ptr.add((j0 + 2) * n + k))));
-            acc3 = _mm_add_ps(acc3, _mm_mul_ps(a0, _mm_set1_ps(*b_ptr.add((j0 + 3) * n + k))));
+            acc1 = _mm_add_ps(
+                acc1,
+                _mm_mul_ps(a0, _mm_set1_ps(*b_ptr.add((j0 + 1) * n + k))),
+            );
+            acc2 = _mm_add_ps(
+                acc2,
+                _mm_mul_ps(a0, _mm_set1_ps(*b_ptr.add((j0 + 2) * n + k))),
+            );
+            acc3 = _mm_add_ps(
+                acc3,
+                _mm_mul_ps(a0, _mm_set1_ps(*b_ptr.add((j0 + 3) * n + k))),
+            );
         }
 
         let c_ptr = c.as_mut_ptr();
         let off0 = j0 * m + i0;
-        _mm_storeu_ps(c_ptr.add(off0), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off0)), acc0));
+        _mm_storeu_ps(
+            c_ptr.add(off0),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off0)), acc0),
+        );
         let off1 = (j0 + 1) * m + i0;
-        _mm_storeu_ps(c_ptr.add(off1), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off1)), acc1));
+        _mm_storeu_ps(
+            c_ptr.add(off1),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off1)), acc1),
+        );
         let off2 = (j0 + 2) * m + i0;
-        _mm_storeu_ps(c_ptr.add(off2), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off2)), acc2));
+        _mm_storeu_ps(
+            c_ptr.add(off2),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off2)), acc2),
+        );
         let off3 = (j0 + 3) * m + i0;
-        _mm_storeu_ps(c_ptr.add(off3), _mm_add_ps(_mm_loadu_ps(c_ptr.add(off3)), acc3));
+        _mm_storeu_ps(
+            c_ptr.add(off3),
+            _mm_add_ps(_mm_loadu_ps(c_ptr.add(off3)), acc3),
+        );
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::traits::FloatScalar;
 
-use super::{InterpError, find_interval, validate_sorted};
+use super::{find_interval, validate_sorted, InterpError};
 
 /// Bilinear interpolant on a rectangular grid (fixed-size, stack-allocated).
 ///
@@ -142,11 +142,7 @@ impl<T: FloatScalar> DynBilinearInterp<T> {
     /// Returns `InterpError::TooFewPoints` if `xs.len() < 2` or `ys.len() < 2`,
     /// `InterpError::NotSorted` if `xs` or `ys` is not strictly increasing,
     /// `InterpError::LengthMismatch` if `zs_rows` dimensions don't match.
-    pub fn new(
-        xs: Vec<T>,
-        ys: Vec<T>,
-        zs_rows: Vec<Vec<T>>,
-    ) -> Result<Self, InterpError> {
+    pub fn new(xs: Vec<T>, ys: Vec<T>, zs_rows: Vec<Vec<T>>) -> Result<Self, InterpError> {
         let nx = xs.len();
         let ny = ys.len();
         if nx < 2 || ny < 2 {
@@ -176,11 +172,7 @@ impl<T: FloatScalar> DynBilinearInterp<T> {
     /// Construct from pre-flattened column-major data.
     ///
     /// `zs_col_major[ix * ny + iy]` is the value at `(xs[ix], ys[iy])`.
-    pub fn from_slice(
-        xs: Vec<T>,
-        ys: Vec<T>,
-        zs_col_major: Vec<T>,
-    ) -> Result<Self, InterpError> {
+    pub fn from_slice(xs: Vec<T>, ys: Vec<T>, zs_col_major: Vec<T>) -> Result<Self, InterpError> {
         let nx = xs.len();
         let ny = ys.len();
         if nx < 2 || ny < 2 {

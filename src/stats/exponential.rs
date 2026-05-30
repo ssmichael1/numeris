@@ -1,5 +1,5 @@
-use crate::FloatScalar;
 use super::{ContinuousDistribution, StatsError};
+use crate::FloatScalar;
 
 /// Exponential distribution with rate λ.
 ///

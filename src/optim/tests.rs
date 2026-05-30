@@ -29,7 +29,13 @@ fn brent_sqrt2() {
 #[test]
 fn brent_negative_bracket() {
     // f(x) = x^3 - x - 2, root near 1.5214
-    let r = brent(|x: f64| x * x * x - x - 2.0, 1.0, 2.0, &RootSettings::default()).unwrap();
+    let r = brent(
+        |x: f64| x * x * x - x - 2.0,
+        1.0,
+        2.0,
+        &RootSettings::default(),
+    )
+    .unwrap();
     assert!(r.fx.abs() < 1e-10, "brent cubic");
 }
 
@@ -50,25 +56,13 @@ fn brent_f32() {
 #[test]
 fn brent_sin() {
     // Root of sin(x) near π
-    let r = brent(
-        |x: f64| x.sin(),
-        3.0,
-        4.0,
-        &RootSettings::default(),
-    )
-    .unwrap();
+    let r = brent(|x: f64| x.sin(), 3.0, 4.0, &RootSettings::default()).unwrap();
     assert_near(r.x, core::f64::consts::PI, 1e-12, "brent sin root");
 }
 
 #[test]
 fn newton_1d_sqrt2() {
-    let r = newton_1d(
-        |x| x * x - 2.0,
-        |x| 2.0 * x,
-        1.0,
-        &RootSettings::default(),
-    )
-    .unwrap();
+    let r = newton_1d(|x| x * x - 2.0, |x| 2.0 * x, 1.0, &RootSettings::default()).unwrap();
     assert_near(r.x, core::f64::consts::SQRT_2, 1e-12, "newton √2");
 }
 
@@ -114,10 +108,7 @@ fn newton_1d_exponential() {
 fn finite_diff_gradient_quadratic() {
     // f(x) = x0^2 + 3*x1^2, grad = [2*x0, 6*x1]
     let x = Vector::from_array([2.0_f64, 3.0]);
-    let g = finite_difference_gradient(
-        |x: &Vector<f64, 2>| x[0] * x[0] + 3.0 * x[1] * x[1],
-        &x,
-    );
+    let g = finite_difference_gradient(|x: &Vector<f64, 2>| x[0] * x[0] + 3.0 * x[1] * x[1], &x);
     assert_near(g[0], 4.0, 1e-5, "grad[0]");
     assert_near(g[1], 18.0, 1e-5, "grad[1]");
 }
@@ -175,9 +166,7 @@ fn bfgs_simple_quadratic() {
 fn bfgs_rosenbrock() {
     // Rosenbrock: f(x) = (1-x0)^2 + 100*(x1 - x0^2)^2
     let r = minimize_bfgs(
-        |x: &Vector<f64, 2>| {
-            (1.0 - x[0]).powi(2) + 100.0 * (x[1] - x[0] * x[0]).powi(2)
-        },
+        |x: &Vector<f64, 2>| (1.0 - x[0]).powi(2) + 100.0 * (x[1] - x[0] * x[0]).powi(2),
         |x: &Vector<f64, 2>| {
             Vector::from_array([
                 -2.0 * (1.0 - x[0]) + 200.0 * (x[1] - x[0] * x[0]) * (-2.0 * x[0]),
@@ -203,14 +192,12 @@ fn bfgs_3d() {
     let r = minimize_bfgs(
         |x: &Vector<f64, 3>| {
             x[0] * x[0] + 2.0 * x[1] * x[1] + 3.0 * x[2] * x[2]
-                - 2.0 * x[0] - 4.0 * x[1] - 6.0 * x[2]
+                - 2.0 * x[0]
+                - 4.0 * x[1]
+                - 6.0 * x[2]
         },
         |x: &Vector<f64, 3>| {
-            Vector::from_array([
-                2.0 * x[0] - 2.0,
-                4.0 * x[1] - 4.0,
-                6.0 * x[2] - 6.0,
-            ])
+            Vector::from_array([2.0 * x[0] - 2.0, 4.0 * x[1] - 4.0, 6.0 * x[2] - 6.0])
         },
         &Vector::from_array([0.0, 0.0, 0.0]),
         &BfgsSettings::default(),
@@ -436,7 +423,10 @@ fn error_display() {
     let e = OptimError::MaxIterations;
     assert_eq!(format!("{}", e), "maximum iterations exceeded");
     let e = OptimError::BracketInvalid;
-    assert_eq!(format!("{}", e), "bracket endpoints must have opposite signs");
+    assert_eq!(
+        format!("{}", e),
+        "bracket endpoints must have opposite signs"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -488,7 +478,9 @@ mod dynamic {
         let j = finite_difference_jacobian_dyn(
             |x: &DynVector<f64>| {
                 DynVector::from_slice(
-                    &(0..x.len()).map(|i| i as f64 * x[i] * x[i]).collect::<Vec<_>>(),
+                    &(0..x.len())
+                        .map(|i| i as f64 * x[i] * x[i])
+                        .collect::<Vec<_>>(),
                 )
             },
             &x,
@@ -511,7 +503,9 @@ mod dynamic {
         let x = DynVector::from_slice(&(0..n).map(|k| 0.3 + 0.7 * k as f64).collect::<Vec<_>>());
         let f = |x: &DynVector<f64>| {
             DynVector::from_slice(
-                &(0..x.len()).map(|i| (i as f64 + 1.0) * x[i].sin()).collect::<Vec<_>>(),
+                &(0..x.len())
+                    .map(|i| (i as f64 + 1.0) * x[i].sin())
+                    .collect::<Vec<_>>(),
             )
         };
         let seq = finite_difference_jacobian_dyn(f, &x);
@@ -527,9 +521,7 @@ mod dynamic {
     fn bfgs_dyn_simple_quadratic() {
         let r = minimize_bfgs_dyn(
             |x: &DynVector<f64>| (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2),
-            |x: &DynVector<f64>| {
-                DynVector::from_slice(&[2.0 * (x[0] - 1.0), 2.0 * (x[1] - 2.0)])
-            },
+            |x: &DynVector<f64>| DynVector::from_slice(&[2.0 * (x[0] - 1.0), 2.0 * (x[1] - 2.0)]),
             &DynVector::from_slice(&[0.0, 0.0]),
             &BfgsSettings::default(),
         )
@@ -544,9 +536,7 @@ mod dynamic {
     #[test]
     fn bfgs_dyn_rosenbrock() {
         let r = minimize_bfgs_dyn(
-            |x: &DynVector<f64>| {
-                (1.0 - x[0]).powi(2) + 100.0 * (x[1] - x[0] * x[0]).powi(2)
-            },
+            |x: &DynVector<f64>| (1.0 - x[0]).powi(2) + 100.0 * (x[1] - x[0] * x[0]).powi(2),
             |x: &DynVector<f64>| {
                 DynVector::from_slice(&[
                     -2.0 * (1.0 - x[0]) + 200.0 * (x[1] - x[0] * x[0]) * (-2.0 * x[0]),
@@ -724,15 +714,9 @@ mod dynamic {
         use crate::Vector;
 
         let fixed = minimize_bfgs(
+            |x: &Vector<f64, 3>| (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2) + (x[2] + 3.0).powi(2),
             |x: &Vector<f64, 3>| {
-                (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2) + (x[2] + 3.0).powi(2)
-            },
-            |x: &Vector<f64, 3>| {
-                Vector::from_array([
-                    2.0 * (x[0] - 1.0),
-                    2.0 * (x[1] - 2.0),
-                    2.0 * (x[2] + 3.0),
-                ])
+                Vector::from_array([2.0 * (x[0] - 1.0), 2.0 * (x[1] - 2.0), 2.0 * (x[2] + 3.0)])
             },
             &Vector::from_array([0.0, 0.0, 0.0]),
             &BfgsSettings::default(),
@@ -740,15 +724,9 @@ mod dynamic {
         .unwrap();
 
         let dyn_res = minimize_bfgs_dyn(
+            |x: &DynVector<f64>| (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2) + (x[2] + 3.0).powi(2),
             |x: &DynVector<f64>| {
-                (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2) + (x[2] + 3.0).powi(2)
-            },
-            |x: &DynVector<f64>| {
-                DynVector::from_slice(&[
-                    2.0 * (x[0] - 1.0),
-                    2.0 * (x[1] - 2.0),
-                    2.0 * (x[2] + 3.0),
-                ])
+                DynVector::from_slice(&[2.0 * (x[0] - 1.0), 2.0 * (x[1] - 2.0), 2.0 * (x[2] + 3.0)])
             },
             &DynVector::from_slice(&[0.0, 0.0, 0.0]),
             &BfgsSettings::default(),

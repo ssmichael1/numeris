@@ -193,8 +193,8 @@ pub fn minimize_bfgs<T: FloatScalar, const N: usize>(
             // Since H is symmetric, H^T y = H y = hy, and y^T H = hy^T
             for i in 0..N {
                 for j in 0..N {
-                    h[(i, j)] = h[(i, j)] + factor * s[i] * s[j]
-                        - rho * (hy[i] * s[j] + s[i] * hy[j]);
+                    h[(i, j)] =
+                        h[(i, j)] + factor * s[i] * s[j] - rho * (hy[i] * s[j] + s[i] * hy[j]);
                 }
             }
         }
