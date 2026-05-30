@@ -10,7 +10,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 **[Documentation & examples](https://numeris-rs.dev/)**
 
 > [!NOTE]
-> **Alpha software** — APIs are unstable and may change without notice.
+> **Pre-1.0** — the API is stabilizing. Minor breaking changes may still land before 1.0 and are noted in the [changelog](CHANGELOG.md).
 
 ## Features
 

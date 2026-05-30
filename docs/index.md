@@ -6,8 +6,8 @@ numeris is suitable for use on **embedded microprocessors** with no operating sy
 
 Numeris API reference is [here](https://docs.rs/numeris/)
 
-!!! warning "Alpha software"
-    APIs are unstable and may change without notice before 1.0.
+!!! note "Pre-1.0"
+    The API is stabilizing. Minor breaking changes may still land before 1.0 and are noted in the changelog.
 
 ## Feature Highlights
 
