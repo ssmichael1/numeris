@@ -37,9 +37,12 @@
     built on them). The median quickselect is the most expensive per-pixel work
     in imageproc — ~3.4–3.7× at 256² (see `bench/rank`). Fan-out is gated on
     per-pass work scaled by window area, and a shared `par::work_col_threshold`
-    helper now backs all the imageproc gates. The summed-area-table build under
-    the local-stats queries stays sequential (it is a prefix-sum scan, a separate
-    decomposition).
+    helper now backs all the imageproc gates. That helper also scales the work
+    budget by `rayon::current_num_threads()` (normalized to the 8-core tuning
+    machine), so the fan-out crossover adapts to the host core count — smaller
+    inputs parallelize on a 2-core laptop, larger ones are required on a
+    many-core server. The summed-area-table build under the local-stats queries
+    stays sequential (it is a prefix-sum scan, a separate decomposition).
   - Fourth slice: morphology (`max_filter`/`min_filter`, `dilate`/`erode`,
     `opening`/`closing`, `morphology_gradient`, `top_hat`, `black_hat`). Under
     `rayon` the separable Van Herk filter runs the horizontal direction as a

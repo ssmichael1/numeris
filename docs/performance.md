@@ -131,6 +131,7 @@ The `optim` parallel routines are **separate `_par` functions** (e.g. `finite_di
 
 - **Deterministic results.** Each worker writes a disjoint slice of the output, so the result is identical regardless of thread count. (Parallel *reductions*, where summation order would change the floating-point answer, are intentionally not used.)
 - **Work-aware gating.** Each routine decides whether to fan out based on *total work* (e.g. `nrows · ncols · kernel_size`), not raw column count — so a small image, or a cheap operation on a medium image, stays sequential and never pays thread-dispatch overhead. The crossover that matters is the cost of the work, not its shape.
+- **Core-count aware.** The work threshold scales with `rayon::current_num_threads()`: more cores need more total work to amortize the extra coordination (and more chunks to feed), so a 2-core laptop parallelizes smaller inputs than a 64-core server. The budget constants are tuned on an 8-core reference and normalized to it, so this is a coarse machine-independent *guard* — not a per-machine optimum (the cost band around the crossover is wide). For the finite-difference Jacobian, where the dominant cost is your own `f` rather than the machine, the tuning signal is simply *which function you call* — the opt-in `_par` variant.
 
 ### Measured speedups
 

@@ -57,11 +57,33 @@ impl<T> MaybeSync for T {}
 /// returned threshold is `budget / per_col_work`, floored at `min_cols` so a
 /// few very heavy columns still spread across cores without splitting into
 /// uselessly tiny pieces. Pass the result as `for_each_chunk_mut`'s `threshold`.
+///
+/// The `budget` constants are tuned on an 8-logical-core machine; under `rayon`
+/// the budget is scaled by the actual thread-pool size relative to that
+/// reference ([`TUNED_THREADS`]). The crossover work scales roughly linearly
+/// with the thread count (more threads → more coordination overhead to amortize,
+/// and more chunks needed to feed them), so a 2-core machine parallelizes
+/// smaller inputs and a 64-core machine demands more work before bothering. This
+/// is still a coarse machine-independent *guard*, not a per-machine optimum —
+/// the cost band around the crossover is wide and forgiving. On the reference
+/// 8-thread machine the scale factor is exactly 1, leaving the tuned behavior
+/// unchanged.
 #[cfg(feature = "imageproc")]
 #[inline]
 pub(crate) fn work_col_threshold(per_col_work: usize, budget: usize, min_cols: usize) -> usize {
+    #[cfg(feature = "rayon")]
+    let budget = {
+        let threads = rayon::current_num_threads().max(1);
+        budget.saturating_mul(threads) / TUNED_THREADS
+    };
     (budget / per_col_work.max(1)).max(min_cols)
 }
+
+/// Logical-core count of the machine the `*_WORK_BUDGET` constants were tuned on
+/// (Apple M3, 8 logical cores). Used to normalize [`work_col_threshold`]'s
+/// thread-count scaling so the reference machine's behavior is unchanged.
+#[cfg(all(feature = "imageproc", feature = "rayon"))]
+const TUNED_THREADS: usize = 8;
 
 /// Apply `f(j, chunk)` to each disjoint `chunk_len`-sized chunk of `data`.
 ///
