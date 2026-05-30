@@ -100,3 +100,23 @@ The gate is on per-pass *work* (`nrows · ncols · klen`), not column count: an
 early flat 64-column threshold parallelized 128² and lost 26% to thread
 overhead. Gating on work (`CONV_PAR_WORK_BUDGET`) keeps 128² sequential while
 512² — and tall/narrow or large-kernel images of similar total work — fan out.
+
+## Parallel rank / median filter (`rayon` feature)
+
+Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench rank`
+(seq via `--no-default-features`). `median_filter`, square f64 images, radius 1
+(3×3) and 2 (5×5).
+
+| case | seq | par | Result |
+|---|---|---|---|
+| r1 / 64²  | 53 µs   | 57 µs   | sequential (work < budget) |
+| r2 / 64²  | 162 µs  | 159 µs  | sequential (~tie) |
+| r1 / 128² | 212 µs  | 205 µs  | ~tie (just below gate) |
+| r2 / 128² | 589 µs  | 255 µs  | **par 2.3×** |
+| r1 / 256² | 797 µs  | 214 µs  | **par 3.7×** |
+| r2 / 256² | 2.26 ms | 667 µs  | **par 3.4×** |
+
+Quickselect per pixel is the most expensive per-pixel work in imageproc, so the
+work gate (`RANK_WORK_BUDGET`, scaled by window area `k_total`) engages
+parallelism at smaller sizes than the cheap separable blur — and the larger
+5×5 window crosses the gate sooner than 3×3, as intended.

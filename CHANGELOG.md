@@ -26,6 +26,18 @@
     not column count, so it accounts for image height and kernel size — a small
     image stays sequential, a large one parallelizes (~2.6× at 512² for a small
     Gaussian; see `bench/convolve`).
+  - Third slice: more `imageproc` per-column kernels — the rank / median filters
+    (`rank_filter`, `percentile_filter`, `median_filter` and its 3×3/5×5 fast
+    paths), `resize_bilinear`, and the local-statistics queries (`local_mean`,
+    `local_variance`, `local_stddev`, and `adaptive_threshold` / `median_pool_upsampled`
+    built on them). The median quickselect is the most expensive per-pixel work
+    in imageproc — ~3.4–3.7× at 256² (see `bench/rank`). Fan-out is gated on
+    per-pass work scaled by window area, and a shared `par::work_col_threshold`
+    helper now backs all the imageproc gates. The summed-area-table build under
+    the local-stats queries stays sequential (it is a prefix-sum scan, a separate
+    decomposition). Morphology is deferred: its second (horizontal) Van Herk pass
+    writes strided rows in column-major storage and needs a transpose-based
+    approach.
   - The `Send + Sync` requirement these parallel paths place on the element type
     is expressed through a hidden `MaybeSync` marker bound that is empty (a
     blanket impl for all types) unless `rayon` is enabled, so non-`rayon`

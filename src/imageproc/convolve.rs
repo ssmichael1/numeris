@@ -25,8 +25,7 @@ const CONV_PAR_MIN_COLS: usize = 8;
 /// floored at [`CONV_PAR_MIN_COLS`].
 #[inline]
 fn conv_par_col_threshold(nrows: usize, klen: usize) -> usize {
-    let per_col = nrows.saturating_mul(klen).max(1);
-    (CONV_PAR_WORK_BUDGET / per_col).max(CONV_PAR_MIN_COLS)
+    crate::par::work_col_threshold(nrows.saturating_mul(klen), CONV_PAR_WORK_BUDGET, CONV_PAR_MIN_COLS)
 }
 
 /// 2D convolution (correlation convention: the kernel is **not** flipped).

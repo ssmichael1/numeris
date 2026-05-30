@@ -126,7 +126,7 @@ pub fn threshold_otsu<T: FloatScalar>(src: &DynMatrix<T>) -> T {
 ///
 /// Useful for uneven-illumination scenes where a single global threshold
 /// fails. Local mean is computed via the integral image (O(1) per pixel).
-pub fn adaptive_threshold<T: FloatScalar>(
+pub fn adaptive_threshold<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     radius: usize,
     offset: T,

@@ -2,9 +2,19 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use crate::dynmatrix::DynMatrix;
-use crate::traits::{FloatScalar, MatrixMut, MatrixRef};
+use crate::traits::{FloatScalar, MatrixRef};
 
 use super::border::BorderMode;
+
+/// Approximate per-pass work (`nrows · ncols · k_total`) above which the rank /
+/// median filters fan their output columns out across threads under the `rayon`
+/// feature. Quickselect per pixel is costly, so the budget is lower than the
+/// convolution one — modest images already benefit. Tuned against `bench/rank`.
+const RANK_WORK_BUDGET: usize = 150_000;
+
+/// Floor on the number of parallel column chunks (see
+/// [`crate::par::work_col_threshold`]).
+const RANK_PAR_MIN_COLS: usize = 8;
 
 /// Sliding rank filter: each output pixel is the `rank`-th smallest value in
 /// the `(2·radius + 1) × (2·radius + 1)` window centered on it.
@@ -15,8 +25,9 @@ use super::border::BorderMode;
 /// - `rank = K / 2` — median
 ///
 /// Implemented with `slice::select_nth_unstable_by` (expected `O(K)` per
-/// pixel), not a full sort. A single heap buffer is reused across all output
-/// pixels, so there is no per-pixel allocation.
+/// pixel), not a full sort. One heap buffer is reused across every pixel in a
+/// column (one per worker thread under `rayon`), so there is no per-pixel
+/// allocation.
 ///
 /// Median is **not separable**, so unlike Gaussian blur this cannot be
 /// decomposed into 1D passes. Expect `O(H · W · K)` cost; large radii are
@@ -27,7 +38,7 @@ use super::border::BorderMode;
 /// Panics (debug) if `rank ≥ (2·radius + 1)²`.
 /// Any NaN in a window will panic via `partial_cmp().unwrap()`; if your input
 /// may contain NaNs, clean them up first.
-pub fn rank_filter<T: FloatScalar>(
+pub fn rank_filter<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     radius: usize,
     rank: usize,
@@ -48,10 +59,18 @@ pub fn rank_filter<T: FloatScalar>(
     debug_assert!(rank < k_total, "rank {rank} out of range for window size {k_total}");
 
     let r = radius as isize;
-    let mut buf: Vec<T> = Vec::with_capacity(k_total);
-
-    for j in 0..ncols {
-        for i in 0..nrows {
+    // Each output column depends only on the source through `fetch_border_2d`
+    // (read-only) and writes its own disjoint output column, so the columns run
+    // in parallel under `rayon`. The quickselect buffer is allocated per column
+    // (per worker thread), not per pixel.
+    let threshold = crate::par::work_col_threshold(
+        nrows.saturating_mul(k_total),
+        RANK_WORK_BUDGET,
+        RANK_PAR_MIN_COLS,
+    );
+    crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, threshold, |j, dst_col| {
+        let mut buf: Vec<T> = Vec::with_capacity(k_total);
+        for (i, cell) in dst_col.iter_mut().enumerate() {
             buf.clear();
             for dj in -r..=r {
                 let sj = j as isize + dj;
@@ -64,9 +83,9 @@ pub fn rank_filter<T: FloatScalar>(
             buf.select_nth_unstable_by(rank, |a, b| {
                 a.partial_cmp(b).unwrap_or(Ordering::Equal)
             });
-            dst[(i, j)] = buf[rank];
+            *cell = buf[rank];
         }
-    }
+    });
     dst
 }
 
@@ -87,7 +106,7 @@ pub fn rank_filter<T: FloatScalar>(
 /// let bg = percentile_filter(&img, 2, 0.25, BorderMode::Replicate);
 /// assert_eq!(bg.nrows(), 16);
 /// ```
-pub fn percentile_filter<T: FloatScalar>(
+pub fn percentile_filter<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     radius: usize,
     percentile: T,
@@ -123,7 +142,7 @@ pub fn percentile_filter<T: FloatScalar>(
 ///
 /// Excellent for salt-and-pepper noise removal; preserves edges unlike
 /// Gaussian blur.
-pub fn median_filter<T: FloatScalar>(
+pub fn median_filter<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     radius: usize,
     border: BorderMode<T>,
@@ -142,7 +161,10 @@ pub fn median_filter<T: FloatScalar>(
 /// 3×3 median filter (radius = 1), with split interior/border loops and a
 /// stack-allocated 9-element window buffer. ~2–3× faster than the generic
 /// quickselect path on large images.
-fn median_3x3<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> DynMatrix<T> {
+fn median_3x3<T: FloatScalar + crate::par::MaybeSync>(
+    src: &DynMatrix<T>,
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
     let nrows = src.nrows();
     let ncols = src.ncols();
     let mut dst = DynMatrix::<T>::zeros(nrows, ncols);
@@ -157,12 +179,21 @@ fn median_3x3<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> DynM
         return rank_filter(src, r, k_total / 2, border);
     }
 
-    // Interior: [1, nrows-1) × [1, ncols-1).
-    for j in 1..ncols - 1 {
+    // Interior: [1, nrows-1) × [1, ncols-1). Each interior column writes only
+    // its own (disjoint) rows 1..nrows-1; the edge columns and edge rows are
+    // filled by the sequential border pass below. Parallel under `rayon`.
+    let threshold = crate::par::work_col_threshold(
+        nrows.saturating_mul(9),
+        RANK_WORK_BUDGET,
+        RANK_PAR_MIN_COLS,
+    );
+    crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, threshold, |j, dst_col| {
+        if j == 0 || j + 1 >= ncols {
+            return; // edge column: handled by the border pass
+        }
         let col_m = src.col_as_slice(j - 1, 0);
         let col_c = src.col_as_slice(j, 0);
         let col_p = src.col_as_slice(j + 1, 0);
-        let dst_col = dst.col_as_mut_slice(j, 0);
         for i in 1..nrows - 1 {
             let mut w: [T; 9] = [
                 col_m[i - 1], col_c[i - 1], col_p[i - 1],
@@ -174,7 +205,7 @@ fn median_3x3<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> DynM
             });
             dst_col[i] = w[4];
         }
-    }
+    });
 
     // Border: every pixel outside the interior rectangle, via fetch_border.
     let border_pixel = |i: usize, j: usize| -> T {
@@ -207,7 +238,10 @@ fn median_3x3<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> DynM
 
 /// 5×5 median filter (radius = 2) — same interior/border split as
 /// [`median_3x3`] with a 25-element stack window.
-fn median_5x5<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> DynMatrix<T> {
+fn median_5x5<T: FloatScalar + crate::par::MaybeSync>(
+    src: &DynMatrix<T>,
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
     let nrows = src.nrows();
     let ncols = src.ncols();
     let mut dst = DynMatrix::<T>::zeros(nrows, ncols);
@@ -220,13 +254,23 @@ fn median_5x5<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> DynM
         return rank_filter(src, r, k_total / 2, border);
     }
 
-    for j in 2..ncols - 2 {
+    // Interior [2, nrows-2) × [2, ncols-2): each interior column writes its own
+    // disjoint rows; edges are filled by the sequential border pass. Parallel
+    // under `rayon`.
+    let threshold = crate::par::work_col_threshold(
+        nrows.saturating_mul(25),
+        RANK_WORK_BUDGET,
+        RANK_PAR_MIN_COLS,
+    );
+    crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, threshold, |j, dst_col| {
+        if j < 2 || j + 2 >= ncols {
+            return; // edge column: handled by the border pass
+        }
         let c0 = src.col_as_slice(j - 2, 0);
         let c1 = src.col_as_slice(j - 1, 0);
         let c2 = src.col_as_slice(j, 0);
         let c3 = src.col_as_slice(j + 1, 0);
         let c4 = src.col_as_slice(j + 2, 0);
-        let dst_col = dst.col_as_mut_slice(j, 0);
         for i in 2..nrows - 2 {
             let mut w: [T; 25] = [
                 c0[i - 2], c1[i - 2], c2[i - 2], c3[i - 2], c4[i - 2],
@@ -240,7 +284,7 @@ fn median_5x5<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> DynM
             });
             dst_col[i] = w[12];
         }
-    }
+    });
 
     // Border rows/columns: generic border-aware gather.
     let border_pixel = |i: usize, j: usize| -> T {

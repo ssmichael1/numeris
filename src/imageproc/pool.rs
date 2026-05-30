@@ -82,7 +82,7 @@ pub fn median_pool<T: FloatScalar>(src: &DynMatrix<T>, block_size: usize) -> Dyn
 /// assert_eq!(bg.nrows(), 64);
 /// assert_eq!(bg.ncols(), 64);
 /// ```
-pub fn median_pool_upsampled<T: FloatScalar>(
+pub fn median_pool_upsampled<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     block_size: usize,
 ) -> DynMatrix<T> {

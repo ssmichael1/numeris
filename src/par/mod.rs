@@ -47,6 +47,20 @@ pub trait MaybeSync {}
 #[cfg(not(feature = "rayon"))]
 impl<T> MaybeSync for T {}
 
+/// Column-count threshold for [`for_each_chunk_mut`] derived from a work budget.
+///
+/// Parallelizing pays only when there is enough total work to amortize thread
+/// dispatch. Gating on *work* rather than raw column count lets the decision
+/// account for per-column cost (image height, window size, kernel length): the
+/// returned threshold is `budget / per_col_work`, floored at `min_cols` so a
+/// few very heavy columns still spread across cores without splitting into
+/// uselessly tiny pieces. Pass the result as `for_each_chunk_mut`'s `threshold`.
+#[cfg(feature = "imageproc")]
+#[inline]
+pub(crate) fn work_col_threshold(per_col_work: usize, budget: usize, min_cols: usize) -> usize {
+    (budget / per_col_work.max(1)).max(min_cols)
+}
+
 /// Apply `f(j, chunk)` to each disjoint `chunk_len`-sized chunk of `data`.
 ///
 /// Chunk `j` is `data[j*chunk_len .. (j+1)*chunk_len]`. `data.len()` must be a

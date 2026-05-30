@@ -2,7 +2,16 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::dynmatrix::DynMatrix;
-use crate::traits::{FloatScalar, MatrixMut, MatrixRef};
+use crate::traits::{FloatScalar, MatrixRef};
+
+/// Approximate output-pixel work above which `resize_bilinear` fans its output
+/// columns out across threads under `rayon`. Per output pixel is a cheap
+/// bilinear FMA, so this is a coarse pixel-count gate; small resizes stay
+/// sequential.
+const RESIZE_WORK_BUDGET: usize = 250_000;
+
+/// Floor on parallel column chunks (see [`crate::par::work_col_threshold`]).
+const RESIZE_PAR_MIN_COLS: usize = 8;
 
 /// Resize `src` to `(new_rows, new_cols)` using bilinear interpolation.
 ///
@@ -31,7 +40,7 @@ use crate::traits::{FloatScalar, MatrixMut, MatrixRef};
 /// assert_eq!(up.nrows(), 4);
 /// assert_eq!(up.ncols(), 4);
 /// ```
-pub fn resize_bilinear<T: FloatScalar>(
+pub fn resize_bilinear<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     new_rows: usize,
     new_cols: usize,
@@ -77,17 +86,20 @@ pub fn resize_bilinear<T: FloatScalar>(
 
     // Outer over output columns (each written contiguously in column-major
     // storage); inner over output rows. Source columns j0 and j1 are fetched
-    // once as contiguous slices.
-    for j_out in 0..new_cols {
+    // once as contiguous slices. Each output column is independent (reads only
+    // the shared tables and source), so the columns run in parallel under
+    // `rayon` above the work threshold.
+    let threshold =
+        crate::par::work_col_threshold(new_rows, RESIZE_WORK_BUDGET, RESIZE_PAR_MIN_COLS);
+    crate::par::for_each_chunk_mut(dst.as_mut_slice(), new_rows, threshold, |j_out, dst_col| {
         let j0 = j0s[j_out];
         let j1 = j1s[j_out];
         let tx = txs[j_out];
         let src_j0 = src.col_as_slice(j0, 0);
         let src_j1 = src.col_as_slice(j1, 0);
-        let dst_col = dst.col_as_mut_slice(j_out, 0);
 
         // Tight inner loop — pure indexed loads + FMA. Compiler auto-vectorizes.
-        for i_out in 0..new_rows {
+        for (i_out, cell) in dst_col.iter_mut().enumerate() {
             let i0 = i0s[i_out];
             let i1 = i1s[i_out];
             let ty = tys[i_out];
@@ -97,9 +109,9 @@ pub fn resize_bilinear<T: FloatScalar>(
             let d = src_j1[i1];
             let top = a + (b - a) * tx;
             let bot = c + (d - c) * tx;
-            dst_col[i_out] = top + (bot - top) * ty;
+            *cell = top + (bot - top) * ty;
         }
-    }
+    });
     dst
 }
 
