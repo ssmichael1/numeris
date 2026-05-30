@@ -6,3 +6,14 @@ img[src$=".svg"] {
     display: block;
     margin: 1.5em auto;
 }
+
+/* KaTeX: tone down the default 1.21em so inline math sits at body size and does
+   not break the line rhythm; give display equations a little breathing room. */
+.katex {
+    font-size: 1.05em;
+}
+.katex-display {
+    margin: 1em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}

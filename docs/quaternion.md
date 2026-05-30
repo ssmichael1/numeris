@@ -6,11 +6,18 @@ Unit quaternion 3D rotations with scalar-first convention `[w, x, y, z]`.
 
 ## Convention
 
-numeris uses the **scalar-first** (Hamilton) convention:
+numeris uses the **scalar-first** (Hamilton) convention,
 
-```
-q = w + xi + yj + zk    where w = cos(θ/2), [x,y,z] = sin(θ/2)·axis
-```
+$$
+q = w + x\,\mathbf{i} + y\,\mathbf{j} + z\,\mathbf{k},
+\qquad
+w = \cos\frac{\theta}{2}, \quad
+[x,\,y,\,z] = \sin\frac{\theta}{2}\,\hat{\mathbf{n}},
+$$
+
+where $\hat{\mathbf{n}}$ is the unit rotation axis and $\theta$ the rotation
+angle. The basis units satisfy the Hamilton relations
+$\mathbf{i}^2 = \mathbf{j}^2 = \mathbf{k}^2 = \mathbf{i}\mathbf{j}\mathbf{k} = -1$.
 
 - `q * p` composes rotation `q` applied *after* rotation `p`
 - `q * v` rotates vector `v` by the rotation represented by `q`
@@ -23,7 +30,14 @@ numeris uses **ZYX intrinsic** (Tait-Bryan) Euler angles, the standard aerospace
 2. **Pitch** θ — rotate about the new **Y'** axis (nose up/down)
 3. **Roll** φ — rotate about the final **X''** axis (bank)
 
-The equivalent rotation matrix is **R = R_x(φ) · R_y(θ) · R_z(ψ)** (rightmost applied first). The quaternion composition follows the same order: **q = q_x(φ) ⊗ q_y(θ) ⊗ q_z(ψ)**.
+The equivalent rotation matrix (rightmost applied first) and the matching
+quaternion composition are
+
+$$
+R = R_x(\varphi)\,R_y(\theta)\,R_z(\psi),
+\qquad
+q = q_x(\varphi) \otimes q_y(\theta) \otimes q_z(\psi).
+$$
 
 `to_euler()` returns `(roll, pitch, yaw)` in radians. Pitch is clamped to ±π/2 at gimbal lock (pitch = ±90°), where roll and yaw become degenerate.
 
