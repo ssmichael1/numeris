@@ -439,7 +439,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `complex` | no | Adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. |
 | `nalgebra` | no | Conversions between numeris and nalgebra types (`From`/`Into`, `MatrixRef`/`MatrixMut`). |
 | `serde` | no | Serialize/deserialize all types via [serde](https://serde.rs). Row-major JSON format. |
-| `rayon` | no | Multi-threaded parallelism on runtime-sized paths via [rayon](https://docs.rs/rayon) (e.g. dynamic finite-difference Jacobians). Purely additive; implies `std`. |
+| `rayon` | no | Multi-threaded parallelism on runtime-sized paths via [rayon](https://docs.rs/rayon) (dynamic finite-difference Jacobians, most `imageproc` filters). Purely additive; implies `std`; requires Rust ≥ 1.80. |
 | `all` | no | All features. |
 
 ```bash
@@ -728,7 +728,7 @@ numeris is designed for two use cases: no-std embedded systems and high-performa
 
 SSE2 and NEON are always-on baselines. AVX and AVX-512 are compile-time opt-in via `-C target-cpu=native`; dispatch selects the widest available ISA.
 
-**Multi-threading** is opt-in via the `rayon` feature (it requires `std`, so it is never part of the no-std baseline). Where SIMD parallelizes within a core, `rayon` parallelizes across cores — the two compose, since each worker thread still runs the SIMD kernels. Only heap-backed, runtime-sized paths with independent, disjoint output columns are parallelized — dynamic finite-difference Jacobians (each column an independent function evaluation) and most `imageproc` filters (convolution/blur, rank & median, morphology, resize, local statistics) — never small fixed-size matrices or order-sensitive reductions. Each routine gates on *total work*, so small inputs stay sequential, and writes are to disjoint slices, so results are identical regardless of thread count. The feature is purely additive: builds without it are unchanged. Measured speedups range ~2.5–4× on large images (512²–1024²) on an 8-core Apple M3 (4 performance + 4 efficiency cores). See the [Parallelism docs](https://ssmichael1.github.io/numeris/performance/#parallelism-rayon).
+**Multi-threading** is opt-in via the `rayon` feature (it requires `std` and Rust ≥ 1.80, so it is never part of the no-std baseline). Where SIMD parallelizes within a core, `rayon` parallelizes across cores — the two compose, since each worker thread still runs the SIMD kernels. Only heap-backed, runtime-sized paths with independent, disjoint output columns are parallelized — dynamic finite-difference Jacobians (the separate `finite_difference_jacobian_dyn_par` / `_gradient_dyn_par` functions, each column an independent evaluation) and most `imageproc` filters (convolution/blur, rank & median, morphology, resize, local statistics) — never small fixed-size matrices or order-sensitive reductions. Each routine gates on *total work*, so small inputs stay sequential, and writes are to disjoint slices, so results are identical regardless of thread count. The feature is **purely additive**: builds without it are unchanged, and enabling it never alters an existing signature (the parallel optim routines are new `_par` functions; the sequential ones keep their `FnMut` bound). Measured speedups range ~2.5–4× on large images (512²–1024²) on an 8-core Apple M3 (4 performance + 4 efficiency cores). See the [Parallelism docs](https://ssmichael1.github.io/numeris/performance/#parallelism-rayon).
 
 | Architecture | ISA | f64 tile (MR×NR) | f32 tile (MR×NR) |
 |---|---|---|---|

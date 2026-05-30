@@ -15,7 +15,8 @@
 //! thread-dispatch overhead — large `n` and/or an expensive `f`.
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use numeris::optim::finite_difference_jacobian_dyn;
+#[cfg(feature = "par")]
+use numeris::optim::finite_difference_jacobian_dyn_par;
 use numeris::DynVector;
 
 /// Synthetic residual `f: R^n -> R^n` with a tunable per-element cost.
@@ -76,9 +77,12 @@ fn bench(c: &mut Criterion) {
             b.iter(|| std::hint::black_box(fd_jacobian_seq(&f, x)));
         });
 
+        // The parallel variant only exists when numeris's `rayon` feature is on
+        // (selected via this bench crate's `par` feature).
+        #[cfg(feature = "par")]
         group.bench_with_input(BenchmarkId::new("par", &label), &x, |b, x| {
             let f = make_f(work);
-            b.iter(|| std::hint::black_box(finite_difference_jacobian_dyn(&f, x)));
+            b.iter(|| std::hint::black_box(finite_difference_jacobian_dyn_par(&f, x)));
         });
     }
     group.finish();

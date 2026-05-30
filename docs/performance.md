@@ -108,6 +108,9 @@ SIMD parallelizes *within* a core (vector lanes); the optional **`rayon`** featu
 numeris = { version = "0.5", features = ["rayon"] }   # implies std
 ```
 
+!!! note "MSRV"
+    The base crate supports Rust 1.77, but the `rayon` feature pulls in rayon, which requires **Rust ≥ 1.80**. Without the feature the 1.77 MSRV is unchanged.
+
 The feature is **purely additive**: builds without it are byte-for-byte unchanged, and the signatures are unconstrained (the `Send + Sync` element requirement is carried by a marker bound that is empty unless `rayon` is enabled, and is satisfied automatically by `f32` / `f64`).
 
 ### What is parallelized
@@ -116,16 +119,19 @@ Only heap-backed, runtime-sized paths with **independent, disjoint output column
 
 | Area | Routines | Axis |
 |---|---|---|
-| `optim` | `finite_difference_jacobian_dyn`, `finite_difference_gradient_dyn` | columns = independent function evaluations |
+| `optim` | `finite_difference_jacobian_dyn_par`, `finite_difference_gradient_dyn_par` | columns = independent function evaluations |
 | `imageproc` convolution | `gaussian_blur`, `box_blur`, `unsharp_mask`, `laplacian_of_gaussian`, `canny`, Harris / Shi-Tomasi corners, DoG, Gaussian pyramid | output columns |
 | `imageproc` rank/median | `rank_filter`, `percentile_filter`, `median_filter` | output columns (quickselect per pixel) |
 | `imageproc` geometric/stats | `resize_bilinear`, `local_mean` / `local_variance` / `local_stddev`, `adaptive_threshold` | output columns |
 | `imageproc` morphology | `dilate` / `erode`, `opening` / `closing`, `max`/`min_filter`, gradient, top-hat, black-hat | output columns (horizontal pass via transpose) |
 
+The `optim` parallel routines are **separate `_par` functions** (e.g. `finite_difference_jacobian_dyn_par`) requiring `Fn + Sync + Send`, rather than a feature-gated change to the sequential `finite_difference_jacobian_dyn` (which keeps its `FnMut` signature). This keeps the feature purely additive — enabling `rayon` anywhere in a dependency tree never alters an existing signature. The `imageproc` routines take no user closure, so they parallelize in place (the element-type `Send + Sync` requirement is invisible for `f32`/`f64`).
+
 ### Determinism and gating
 
 - **Deterministic results.** Each worker writes a disjoint slice of the output, so the result is identical regardless of thread count. (Parallel *reductions*, where summation order would change the floating-point answer, are intentionally not used.)
 - **Work-aware gating.** Each routine decides whether to fan out based on *total work* (e.g. `nrows · ncols · kernel_size`), not raw column count — so a small image, or a cheap operation on a medium image, stays sequential and never pays thread-dispatch overhead. The crossover that matters is the cost of the work, not its shape.
+- **Core-count aware.** The work threshold scales with `rayon::current_num_threads()`: more cores need more total work to amortize the extra coordination (and more chunks to feed), so a 2-core laptop parallelizes smaller inputs than a 64-core server. The budget constants are tuned on an 8-core reference and normalized to it, so this is a coarse machine-independent *guard* — not a per-machine optimum (the cost band around the crossover is wide). For the finite-difference Jacobian, where the dominant cost is your own `f` rather than the machine, the tuning signal is simply *which function you call* — the opt-in `_par` variant.
 
 ### Measured speedups
 
