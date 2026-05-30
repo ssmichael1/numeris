@@ -7,10 +7,14 @@ img[src$=".svg"] {
     margin: 1.5em auto;
 }
 
-/* KaTeX: tone down the default 1.21em so inline math sits at body size and does
-   not break the line rhythm; give display equations a little breathing room. */
+/* KaTeX: match inline math to the surrounding body size (the default 1.21em and
+   KaTeX's larger-x-height serif font otherwise read oversized in prose). Display
+   equations get a touch more size plus breathing room and overflow scroll. */
 .katex {
-    font-size: 1.05em;
+    font-size: 1em;
+}
+.katex-display > .katex {
+    font-size: 1.1em;
 }
 .katex-display {
     margin: 1em 0;
