@@ -66,6 +66,8 @@ markdown_extensions:
       alternate_style: true
   - pymdownx.snippets:
       base_path: docs
+  - pymdownx.arithmatex:
+      generic: true
   - tables
   - attr_list
   - def_list
@@ -77,5 +79,9 @@ plugins:
 
 extra_css:
   - stylesheets/extra.css
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css
 
-extra_javascript: []
+extra_javascript:
+  - javascripts/katex.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js

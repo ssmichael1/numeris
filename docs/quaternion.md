@@ -77,6 +77,22 @@ assert!((rotated[1] - 1.0).abs() < 1e-14);
 assert!((rotated[2] - 0.0).abs() < 1e-14);
 ```
 
+`q * v` embeds `v` as a pure quaternion $(0, \mathbf{v})$ and forms the
+conjugation $q\,\mathbf{v}\,q^{-1}$. For a unit quaternion the inverse equals the
+conjugate ($q^{-1} = q^{*} = (w,\,-x,\,-y,\,-z)$), so
+
+$$
+\mathbf{v}' = q\,\mathbf{v}\,q^{-1} = q\,\mathbf{v}\,q^{*}.
+$$
+
+numeris evaluates this with the algebraically equivalent, allocation-free form
+(writing $q = (w, \mathbf{u})$ with vector part $\mathbf{u} = [x, y, z]$):
+
+$$
+\mathbf{v}' = \mathbf{v} + 2w\,(\mathbf{u} \times \mathbf{v})
+             + 2\,\mathbf{u} \times (\mathbf{u} \times \mathbf{v}).
+$$
+
 ## Composition
 
 ```rust
@@ -94,6 +110,39 @@ let r1 = q2 * (q1 * v);   // step by step
 let r2 = combined * v;     // combined rotation
 // r1 ≈ r2
 ```
+
+**Hamilton product.** With $q = (w_1, \mathbf{u}_1)$ and $p = (w_2, \mathbf{u}_2)$
+(vector parts $\mathbf{u} = [x, y, z]$), the product `q * p` is
+
+$$
+q \otimes p = \bigl(\,
+  w_1 w_2 - \mathbf{u}_1 \cdot \mathbf{u}_2,\;\;
+  w_1 \mathbf{u}_2 + w_2 \mathbf{u}_1 + \mathbf{u}_1 \times \mathbf{u}_2
+\,\bigr).
+$$
+
+Componentwise, in scalar-first $[w, x, y, z]$ storage:
+
+$$
+\begin{aligned}
+w &= w_1 w_2 - x_1 x_2 - y_1 y_2 - z_1 z_2 \\
+x &= w_1 x_2 + x_1 w_2 + y_1 z_2 - z_1 y_2 \\
+y &= w_1 y_2 - x_1 z_2 + y_1 w_2 + z_1 x_2 \\
+z &= w_1 z_2 + x_1 y_2 - y_1 x_2 + z_1 w_2
+\end{aligned}
+$$
+
+**Order of operations.** `q_total = q2 * q1` applies `q1` first, then `q2`,
+because the conjugation nests right-to-left:
+
+$$
+(q_2 q_1)\,\mathbf{v}\,(q_2 q_1)^{-1}
+  = q_2 \bigl( q_1\,\mathbf{v}\,q_1^{-1} \bigr) q_2^{-1}.
+$$
+
+The product is associative but **not** commutative
+($q_2 \otimes q_1 \neq q_1 \otimes q_2$ in general) — the cross term
+$\mathbf{u}_1 \times \mathbf{u}_2$ changes sign when the operands are swapped.
 
 ## Inverse and Conjugate
 
@@ -162,6 +211,24 @@ let z = q.z();
 // Normalize (in case of accumulated numerical drift)
 let q_norm = q.normalize();
 ```
+
+**Direction cosine matrix.** For a unit quaternion $q = [w, x, y, z]$,
+`to_rotation_matrix()` returns the $R$ that performs the same rotation as `q * v`
+(that is, $R\,\mathbf{v} = q\,\mathbf{v}\,q^{-1}$):
+
+$$
+R = \begin{bmatrix}
+1 - 2(y^2 + z^2) & 2(xy - wz)       & 2(xz + wy)       \\
+2(xy + wz)       & 1 - 2(x^2 + z^2) & 2(yz - wx)       \\
+2(xz - wy)       & 2(yz + wx)       & 1 - 2(x^2 + y^2)
+\end{bmatrix}.
+$$
+
+$R$ is orthogonal with $\det R = +1$; its rows are the direction cosines of the
+rotated axes. `from_rotation_matrix` inverts this (Shepperd's method, branching on
+the largest of the trace and diagonal entries for numerical robustness). Since
+$R\,\mathbf{v}$ and `q * v` realize the same rotation, `q2 * q1` corresponds to the
+matrix product $R(q_2)\,R(q_1)$.
 
 ## Operations
 
