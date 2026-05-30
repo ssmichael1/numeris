@@ -44,6 +44,8 @@ pub use dyn_optim::{
     finite_difference_gradient_dyn, finite_difference_jacobian_dyn, least_squares_gn_dyn,
     least_squares_lm_dyn, minimize_bfgs_dyn, LeastSquaresResultDyn, MinimizeResultDyn,
 };
+#[cfg(all(feature = "alloc", feature = "rayon"))]
+pub use dyn_optim::{finite_difference_gradient_dyn_par, finite_difference_jacobian_dyn_par};
 pub use gauss_newton::{least_squares_gn, GaussNewtonSettings};
 pub use jacobian::{finite_difference_gradient, finite_difference_jacobian};
 pub use levenberg_marquardt::{least_squares_lm, LmSettings};

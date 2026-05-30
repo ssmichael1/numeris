@@ -108,6 +108,9 @@ SIMD parallelizes *within* a core (vector lanes); the optional **`rayon`** featu
 numeris = { version = "0.5", features = ["rayon"] }   # implies std
 ```
 
+!!! note "MSRV"
+    The base crate supports Rust 1.77, but the `rayon` feature pulls in rayon, which requires **Rust ≥ 1.80**. Without the feature the 1.77 MSRV is unchanged.
+
 The feature is **purely additive**: builds without it are byte-for-byte unchanged, and the signatures are unconstrained (the `Send + Sync` element requirement is carried by a marker bound that is empty unless `rayon` is enabled, and is satisfied automatically by `f32` / `f64`).
 
 ### What is parallelized
@@ -116,11 +119,13 @@ Only heap-backed, runtime-sized paths with **independent, disjoint output column
 
 | Area | Routines | Axis |
 |---|---|---|
-| `optim` | `finite_difference_jacobian_dyn`, `finite_difference_gradient_dyn` | columns = independent function evaluations |
+| `optim` | `finite_difference_jacobian_dyn_par`, `finite_difference_gradient_dyn_par` | columns = independent function evaluations |
 | `imageproc` convolution | `gaussian_blur`, `box_blur`, `unsharp_mask`, `laplacian_of_gaussian`, `canny`, Harris / Shi-Tomasi corners, DoG, Gaussian pyramid | output columns |
 | `imageproc` rank/median | `rank_filter`, `percentile_filter`, `median_filter` | output columns (quickselect per pixel) |
 | `imageproc` geometric/stats | `resize_bilinear`, `local_mean` / `local_variance` / `local_stddev`, `adaptive_threshold` | output columns |
 | `imageproc` morphology | `dilate` / `erode`, `opening` / `closing`, `max`/`min_filter`, gradient, top-hat, black-hat | output columns (horizontal pass via transpose) |
+
+The `optim` parallel routines are **separate `_par` functions** (e.g. `finite_difference_jacobian_dyn_par`) requiring `Fn + Sync + Send`, rather than a feature-gated change to the sequential `finite_difference_jacobian_dyn` (which keeps its `FnMut` signature). This keeps the feature purely additive — enabling `rayon` anywhere in a dependency tree never alters an existing signature. The `imageproc` routines take no user closure, so they parallelize in place (the element-type `Send + Sync` requirement is invisible for `f32`/`f64`).
 
 ### Determinism and gating
 

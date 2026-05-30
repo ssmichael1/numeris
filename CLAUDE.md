@@ -82,13 +82,15 @@ Checked items are implemented; unchecked are potential future work.
 - **`serde`** — serialize/deserialize `Matrix`, `Vector`, `Quaternion`, `DynMatrix`, `DynVector`, `Solution`.
   Row-major format for matrices (matches `Matrix::new()`), flat arrays for vectors.
 - **`rayon`** — opt-in multi-threaded parallelism on runtime-sized paths (heap-backed `DynMatrix` /
-  `imageproc` / `_dyn` routines). Implies `std` (rayon needs threads); purely additive, so no-std
-  builds are unaffected. Dispatch lives in the private `par` module (mirrors `simd`): a single
-  algorithm body compiles to sequential `chunks_mut` by default and `par_chunks_mut` under the
-  feature, the bound tightening from `FnMut` to `Fn + Sync + Send`. Only disjoint-output operations
-  (Jacobian columns, image rows) are parallelized — never order-sensitive reductions. Users so far:
-  `optim::finite_difference_jacobian_dyn` / `finite_difference_gradient_dyn` (parallel over columns),
-  and many `imageproc` per-column kernels — separable convolution (`convolve2d_separable` →
+  `imageproc` / `_dyn` routines). Implies `std` (rayon needs threads); **requires Rust ≥ 1.80** (base
+  crate MSRV stays 1.77). Purely additive: no-std builds are unaffected and enabling it never changes
+  an existing signature. Dispatch lives in the private `par` module (mirrors `simd`), gated on
+  `any(imageproc, all(optim, alloc, rayon))`. Only disjoint-output operations (Jacobian columns, image
+  columns) are parallelized — never order-sensitive reductions. Users so far:
+  `optim::finite_difference_jacobian_dyn_par` / `finite_difference_gradient_dyn_par` — **separate
+  `_par` functions** requiring `Fn + Sync + Send`, so the sequential `_dyn` routines keep their
+  `FnMut` signatures (additive, no feature-unification footgun) — plus many `imageproc` per-column
+  kernels: separable convolution (`convolve2d_separable` →
   `gaussian_blur`/`box_blur` and all filters built on them: `unsharp_mask`, `laplacian_of_gaussian`,
   `canny`, Harris/Shi-Tomasi corners, DoG, Gaussian pyramid), rank/median filters (`rank_filter`,
   `percentile_filter`, `median_filter`), `resize_bilinear`, local-statistics queries
@@ -98,9 +100,9 @@ Checked items are implemented; unchecked are potential future work.
   helper. Morphology's horizontal Van Herk pass is run as a transposed vertical pass under `rayon`
   (`out = (V(T(V(src))))ᵀ`), `cfg`-split so the no-`rayon` build keeps the lean two-buffer sequential
   pass. Not yet parallel: the integral-image scan (prefix sum; needs a two-pass decomposition).
-  The `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker bound (empty
-  blanket impl without `rayon`, `Send + Sync` with it), so a single signature serves both builds
-  without `cfg`-split twins.
+  The `imageproc` `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker
+  bound (empty blanket impl without `rayon`, `Send + Sync` with it; gated on `imageproc`), so a single
+  signature serves both builds without `cfg`-split twins — invisible for `f32`/`f64`, hence additive.
 - **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.

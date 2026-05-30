@@ -482,8 +482,7 @@ mod dynamic {
 
     #[test]
     fn fd_jacobian_dyn_large_matches_analytic() {
-        // Large enough to cross FD_PAR_MIN_COLS so the `rayon` build exercises the
-        // parallel branch. f_i(x) = i * x_i^2  ->  J = diag(2 i x_i), off-diagonals 0.
+        // f_i(x) = i * x_i^2  ->  J = diag(2 i x_i), off-diagonals 0.
         let n = 32;
         let x = DynVector::from_slice(&(0..n).map(|k| 0.5 + k as f64).collect::<Vec<_>>());
         let j = finite_difference_jacobian_dyn(
@@ -498,6 +497,28 @@ mod dynamic {
             for c in 0..n {
                 let expected = if r == c { 2.0 * r as f64 * x[r] } else { 0.0 };
                 assert_near(j[(r, c)], expected, 1e-4, "large dyn J");
+            }
+        }
+    }
+
+    #[cfg(feature = "rayon")]
+    #[test]
+    fn fd_jacobian_dyn_par_matches_sequential() {
+        // The parallel variant must produce exactly the same Jacobian as the
+        // sequential one. Large enough (n > FD_PAR_MIN_COLS) to exercise fan-out.
+        use crate::optim::finite_difference_jacobian_dyn_par;
+        let n = 40;
+        let x = DynVector::from_slice(&(0..n).map(|k| 0.3 + 0.7 * k as f64).collect::<Vec<_>>());
+        let f = |x: &DynVector<f64>| {
+            DynVector::from_slice(
+                &(0..x.len()).map(|i| (i as f64 + 1.0) * x[i].sin()).collect::<Vec<_>>(),
+            )
+        };
+        let seq = finite_difference_jacobian_dyn(f, &x);
+        let par = finite_difference_jacobian_dyn_par(f, &x);
+        for r in 0..n {
+            for c in 0..n {
+                assert_eq!(seq[(r, c)], par[(r, c)], "par vs seq at ({r},{c})");
             }
         }
     }

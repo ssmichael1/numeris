@@ -161,7 +161,7 @@
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
 //! | `nalgebra`| no       | Conversions between numeris and nalgebra types |
 //! | `serde`   | no       | Serialize/deserialize all types via serde |
-//! | `rayon`   | no       | Multi-threaded parallelism on runtime-sized paths (e.g. dynamic finite-difference Jacobians). Implies `std` |
+//! | `rayon`   | no       | Multi-threaded parallelism on runtime-sized paths (e.g. dynamic finite-difference Jacobians, most `imageproc` filters). Implies `std`; requires Rust ≥ 1.80 |
 //! | `all`     | no       | All features |
 //!
 //! ## Parallelism
@@ -171,13 +171,19 @@
 //! (rayon needs `std`, so it is never part of the no-std baseline) and purely
 //! additive — builds without it are unchanged. Only heap-backed, runtime-sized
 //! paths with independent, disjoint output columns are parallelized: dynamic
-//! finite-difference Jacobians ([`optim::finite_difference_jacobian_dyn`],
-//! [`optim::finite_difference_gradient_dyn`]) and most `imageproc` filters
+//! finite-difference Jacobians (the separate `_par` routines
+//! [`optim::finite_difference_jacobian_dyn_par`],
+//! [`optim::finite_difference_gradient_dyn_par`]) and most `imageproc` filters
 //! (convolution/blur, rank & median, morphology, resize, local statistics).
 //! Small fixed-size [`Matrix`] operations and order-sensitive reductions are
 //! never parallelized. Each routine gates on total work (so small inputs stay
 //! sequential) and writes to disjoint slices, so results are identical
 //! regardless of thread count. Speedups run ~2.5–4× on large images.
+//!
+//! The feature is purely additive — it never changes an existing signature
+//! (the parallel optim routines are *new* `_par` functions; the sequential ones
+//! keep their `FnMut` bound). Note the `rayon` feature requires Rust ≥ 1.80,
+//! though the base crate's MSRV stays at 1.77.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -194,11 +200,16 @@ pub mod dynmatrix;
 pub mod linalg;
 pub mod matrix;
 mod simd;
-#[cfg(any(all(feature = "optim", feature = "alloc"), feature = "imageproc"))]
+// The `par` module backs the parallel paths: `imageproc` (always, sequential or
+// parallel) and the `optim` `_par` routines (only under `rayon`).
+#[cfg(any(
+    feature = "imageproc",
+    all(feature = "optim", feature = "alloc", feature = "rayon")
+))]
 mod par;
-// Marker trait used in public signatures of parallelized routines; an
-// implementation detail of the `rayon` feature, hidden from the docs.
-#[cfg(any(all(feature = "optim", feature = "alloc"), feature = "imageproc"))]
+// Marker trait used in public `imageproc` signatures; an implementation detail
+// of the `rayon` feature, hidden from the docs.
+#[cfg(feature = "imageproc")]
 #[doc(hidden)]
 pub use par::MaybeSync;
 #[cfg(feature = "ode")]

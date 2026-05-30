@@ -5,18 +5,22 @@
 - **`rayon` feature (opt-in parallelism)** — a new `rayon` Cargo feature adds
   multi-threaded parallelism on runtime-sized paths without disturbing the
   no-std-first baseline. It implies `std` and is purely additive: builds without
-  it are byte-for-byte unchanged. Dispatch is hidden behind a private `par`
-  module (mirroring `simd`), so each algorithm has a single source with the
-  feature flag in one place.
-  - First slice: `finite_difference_jacobian_dyn` and
-    `finite_difference_gradient_dyn` compute their columns in parallel (each is
-    an independent evaluation of `f`). Columns write into disjoint slices, so the
-    result is identical regardless of thread count. With `rayon` the closure
-    bound tightens from `FnMut` to `Fn + Sync + Send`; without it the signature
-    is unchanged. Parallelism engages only above a column threshold, biased
-    toward the regime it helps (an expensive `f`); see `bench/fd_jacobian` and
-    `bench/results.md` for the measured crossover (≈2.4× at n=64, ≈4× at n=256
-    with a moderately expensive evaluation).
+  it are byte-for-byte unchanged, and enabling it never alters an existing
+  signature. (Note: rayon requires **Rust ≥ 1.80**, so the feature raises the
+  effective MSRV; the base crate stays at 1.77.) Dispatch is hidden behind a
+  private `par` module (mirroring `simd`).
+  - First slice: new parallel finite-difference routines
+    `finite_difference_jacobian_dyn_par` and `finite_difference_gradient_dyn_par`
+    compute their columns across threads (each an independent evaluation of `f`),
+    writing into disjoint slices so the result is identical regardless of thread
+    count and equal to the sequential version. They require `Fn + Sync + Send`.
+    Kept as *separate* functions (not a feature-gated change to the sequential
+    `finite_difference_jacobian_dyn` / `_gradient_dyn`, which keep their `FnMut`
+    signatures) so that enabling `rayon` — possibly transitively, via another
+    crate — can never break a caller passing a `FnMut` closure. Parallelism
+    engages only above a column threshold, biased toward the regime it helps (an
+    expensive `f`); see `bench/fd_jacobian` and `bench/results.md` for the
+    measured crossover (≈4× at n=256 with a moderately expensive evaluation).
   - Second slice: separable convolution (`convolve2d_separable`, and thus
     `gaussian_blur` / `box_blur` and everything built on them — `unsharp_mask`,
     `laplacian_of_gaussian`, `canny`, `harris_corners`, `shi_tomasi_corners`,

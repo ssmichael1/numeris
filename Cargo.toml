@@ -47,6 +47,8 @@ quad = []
 special = []
 stats = ["special"]
 std = ["alloc", "num-traits/std", "num-complex?/std"]
+# `rayon` implies std and raises the effective MSRV to 1.80 (rayon's requirement);
+# the base crate's rust-version stays 1.77.
 rayon = ["std", "dep:rayon"]
 libm = ["num-traits/libm", "num-complex?/libm"]
 complex = ["dep:num-complex"]

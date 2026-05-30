@@ -34,17 +34,19 @@
 /// signature serve both configurations: the bound vanishes unless parallelism
 /// is actually compiled in, and for the real element types (`f32`/`f64`) it is
 /// satisfied automatically when it does apply. This avoids duplicating every
-/// parallelized routine into `cfg`-gated twins.
-#[cfg(feature = "rayon")]
+/// parallelized routine into `cfg`-gated twins. Only `imageproc` uses it (the
+/// `optim` parallel routines name `Fn + Sync + Send` directly), so it is gated
+/// on that feature.
+#[cfg(all(feature = "imageproc", feature = "rayon"))]
 #[doc(hidden)]
 pub trait MaybeSync: Send + Sync {}
-#[cfg(feature = "rayon")]
+#[cfg(all(feature = "imageproc", feature = "rayon"))]
 impl<T: Send + Sync> MaybeSync for T {}
 
-#[cfg(not(feature = "rayon"))]
+#[cfg(all(feature = "imageproc", not(feature = "rayon")))]
 #[doc(hidden)]
 pub trait MaybeSync {}
-#[cfg(not(feature = "rayon"))]
+#[cfg(all(feature = "imageproc", not(feature = "rayon")))]
 impl<T> MaybeSync for T {}
 
 /// Column-count threshold for [`for_each_chunk_mut`] derived from a work budget.
