@@ -195,6 +195,7 @@ fn median_3x3<T: FloatScalar + crate::par::MaybeSync>(
         let col_c = src.col_as_slice(j, 0);
         let col_p = src.col_as_slice(j + 1, 0);
         for i in 1..nrows - 1 {
+            #[rustfmt::skip]
             let mut w: [T; 9] = [
                 col_m[i - 1], col_c[i - 1], col_p[i - 1],
                 col_m[i],     col_c[i],     col_p[i],
@@ -272,6 +273,7 @@ fn median_5x5<T: FloatScalar + crate::par::MaybeSync>(
         let c3 = src.col_as_slice(j + 1, 0);
         let c4 = src.col_as_slice(j + 2, 0);
         for i in 2..nrows - 2 {
+            #[rustfmt::skip]
             let mut w: [T; 25] = [
                 c0[i - 2], c1[i - 2], c2[i - 2], c3[i - 2], c4[i - 2],
                 c0[i - 1], c1[i - 1], c2[i - 1], c3[i - 1], c4[i - 1],

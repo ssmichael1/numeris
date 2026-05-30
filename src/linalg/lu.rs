@@ -725,6 +725,7 @@ mod tests {
     #[test]
     fn solve_refined_improves_accuracy() {
         // Ill-conditioned 3x3 system (condition number ~3200)
+        #[rustfmt::skip]
         let a = Matrix::new([
             [1.0_f64,    1.0,      1.0     ],
             [1.0,        1.0001,   1.0001  ],
@@ -749,6 +750,7 @@ mod tests {
 
     #[test]
     fn solve_refined_convenience() {
+        #[rustfmt::skip]
         let a = Matrix::new([
             [1.0_f64,    1.0,      1.0     ],
             [1.0,        1.0001,   1.0001  ],

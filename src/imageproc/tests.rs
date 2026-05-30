@@ -1333,6 +1333,7 @@ fn cc_with_label_buffer_matches_labeled_variant() {
 #[test]
 fn cc_works_on_float_input_with_custom_background() {
     // Use f64 with background = -1.0 (distinct from 0.0 in the image).
+    #[rustfmt::skip]
     let img = DynMatrix::<f64>::from_rows(
         3, 3,
         &[-1.0,  0.0, -1.0,

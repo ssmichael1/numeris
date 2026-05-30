@@ -412,6 +412,7 @@ mod adaptive_tests {
             ..AdaptiveSettings::default()
         };
 
+        #[rustfmt::skip]
         let sol = RODAS4::integrate(
             0.0, 1e3, &y0,
             |_t, y| Vector::from_array([
