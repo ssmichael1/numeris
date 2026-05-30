@@ -129,7 +129,7 @@ Only heap-backed, runtime-sized paths with **independent, disjoint output column
 
 ### Measured speedups
 
-Apple Silicon (aarch64), `f64`, parallel vs. the same build with `rayon` off:
+Apple M3 — 8 cores (4 performance + 4 efficiency), aarch64, `f64`. Rayon uses its default thread pool (all 8 logical cores), so the heterogeneous P+E cores cap practical scaling below 8×. Parallel vs. the same build with `rayon` off:
 
 | Workload | Size | Speedup |
 |---|---|---|
