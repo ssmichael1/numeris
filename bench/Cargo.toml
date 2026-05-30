@@ -4,11 +4,19 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+# The `par` feature (on by default) enables numeris's `rayon` feature. To compare
+# parallel vs. sequential, run a bench twice and let Criterion diff the baselines:
+#   cargo bench -p numeris-bench --bench convolve -- --save-baseline par
+#   cargo bench -p numeris-bench --bench convolve --no-default-features -- --baseline par
+[features]
+default = ["par"]
+par = ["numeris/rayon"]
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 nalgebra = "0.34"
 faer = "0.24"
-numeris = { path = "..", features = ["all"] }
+numeris = { path = "..", features = ["std", "imageproc", "optim"] }
 
 [[bench]]
 name = "comparison"
@@ -16,4 +24,8 @@ harness = false
 
 [[bench]]
 name = "fd_jacobian"
+harness = false
+
+[[bench]]
+name = "convolve"
 harness = false

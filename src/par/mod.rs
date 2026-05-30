@@ -23,6 +23,30 @@
 //! floating-point result, are intentionally not provided here; add them with a
 //! fixed-block decomposition so they stay bit-for-bit reproducible.)
 
+/// Element bound required to use a type in the parallel kernels here.
+///
+/// With the `rayon` feature this is `Send + Sync` — element data and the shared
+/// immutable inputs (e.g. the source image) are read from multiple worker
+/// threads. Without the feature it is an empty bound implemented for *every*
+/// type, so non-`rayon` builds carry no extra restriction at all.
+///
+/// Bounding an algorithm by `T: FloatScalar + MaybeSync` lets a single public
+/// signature serve both configurations: the bound vanishes unless parallelism
+/// is actually compiled in, and for the real element types (`f32`/`f64`) it is
+/// satisfied automatically when it does apply. This avoids duplicating every
+/// parallelized routine into `cfg`-gated twins.
+#[cfg(feature = "rayon")]
+#[doc(hidden)]
+pub trait MaybeSync: Send + Sync {}
+#[cfg(feature = "rayon")]
+impl<T: Send + Sync> MaybeSync for T {}
+
+#[cfg(not(feature = "rayon"))]
+#[doc(hidden)]
+pub trait MaybeSync {}
+#[cfg(not(feature = "rayon"))]
+impl<T> MaybeSync for T {}
+
 /// Apply `f(j, chunk)` to each disjoint `chunk_len`-sized chunk of `data`.
 ///
 /// Chunk `j` is `data[j*chunk_len .. (j+1)*chunk_len]`. `data.len()` must be a

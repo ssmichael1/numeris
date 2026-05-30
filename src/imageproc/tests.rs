@@ -145,6 +145,34 @@ fn separable_matches_direct() {
 }
 
 #[test]
+fn separable_matches_direct_large() {
+    // Image wider than CONV_PAR_MIN_COLS (64) so the `rayon` build runs the
+    // parallel per-column branch; the separable result must still equal the
+    // dense convolution exactly (parallel writes disjoint columns).
+    let ky = [1.0_f64, 2.0, 3.0];
+    let kx = [1.0_f64, 4.0, 1.0];
+    let dense = Matrix::<f64, 3, 3>::new([
+        [ky[0] * kx[0], ky[0] * kx[1], ky[0] * kx[2]],
+        [ky[1] * kx[0], ky[1] * kx[1], ky[1] * kx[2]],
+        [ky[2] * kx[0], ky[2] * kx[1], ky[2] * kx[2]],
+    ]);
+    let (h, w) = (50, 130);
+    let img = ramp(h, w);
+    let a = convolve2d_separable(&img, &ky, &kx, BorderMode::Reflect);
+    let b = convolve2d(&img, &dense, BorderMode::Reflect);
+    for i in 0..h {
+        for j in 0..w {
+            assert!(
+                (a[(i, j)] - b[(i, j)]).abs() < 1e-9,
+                "mismatch at ({i},{j}): sep={} dense={}",
+                a[(i, j)],
+                b[(i, j)]
+            );
+        }
+    }
+}
+
+#[test]
 fn delta_impulse_gives_kernel_response() {
     // A one-hot image centered at (3, 3) convolved with a kernel should
     // produce the kernel itself (correlation flips the location but since

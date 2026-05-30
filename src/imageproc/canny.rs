@@ -34,7 +34,7 @@ use super::filters::{gaussian_blur, sobel_gradients};
 /// let centre_has_edge = edges[(8, 7)] > 0.0 || edges[(8, 8)] > 0.0;
 /// assert!(centre_has_edge);
 /// ```
-pub fn canny<T: FloatScalar>(
+pub fn canny<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     low_threshold: T,

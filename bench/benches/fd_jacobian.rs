@@ -1,12 +1,12 @@
 //! Finite-difference Jacobian: parallel (`rayon`) vs. sequential.
 //!
-//! The bench crate depends on `numeris` with `features = ["all"]`, which enables
-//! `rayon`, so `numeris::optim::finite_difference_jacobian_dyn` runs in parallel
-//! above its internal column threshold. Cargo feature-unifies a crate referenced
-//! twice, so a seq-vs-par comparison cannot live in two `numeris` builds in one
-//! binary — instead the sequential baseline is a faithful re-implementation of
-//! the exact same algorithm, kept in this file. Both call an identical synthetic
-//! `f` so the only difference measured is the parallel column fan-out.
+//! The bench crate's `par` feature (default on) enables numeris's `rayon`, so
+//! `numeris::optim::finite_difference_jacobian_dyn` runs in parallel above its
+//! internal column threshold. This file also keeps a faithful sequential
+//! re-implementation of the exact same algorithm as an in-binary baseline, so a
+//! single `cargo bench` run shows seq vs. par side by side. Both call an
+//! identical synthetic `f`, so the only difference measured is the column
+//! fan-out. (The convolve bench instead compares via the feature toggle.)
 //!
 //! Run: `cargo bench -p numeris-bench --bench fd_jacobian`
 //!

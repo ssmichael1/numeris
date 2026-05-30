@@ -15,7 +15,7 @@ use super::kernels::{
 ///
 /// A non-positive or non-finite `sigma` is clamped to returning the input
 /// unchanged.
-pub fn gaussian_blur<T: FloatScalar>(
+pub fn gaussian_blur<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     border: BorderMode<T>,
@@ -35,7 +35,7 @@ pub fn gaussian_blur<T: FloatScalar>(
 ///
 /// Equivalent to averaging every pixel over a `(2r+1) × (2r+1)` window via
 /// two separable 1D box filters.
-pub fn box_blur<T: FloatScalar>(
+pub fn box_blur<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     radius: usize,
     border: BorderMode<T>,
@@ -65,7 +65,7 @@ pub fn laplacian<T: FloatScalar>(src: &DynMatrix<T>, border: BorderMode<T>) -> D
 ///
 /// Pre-smoothing suppresses the noise amplification inherent to raw
 /// Laplacians. Zero-crossings of the result localize edges at scale `sigma`.
-pub fn laplacian_of_gaussian<T: FloatScalar>(
+pub fn laplacian_of_gaussian<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     border: BorderMode<T>,
@@ -79,7 +79,7 @@ pub fn laplacian_of_gaussian<T: FloatScalar>(
 /// `amount = 1.0` doubles the high-frequency content; typical values range
 /// from 0.5 (subtle) to 2.0 (aggressive). A non-positive `sigma` returns the
 /// input unchanged.
-pub fn unsharp_mask<T: FloatScalar>(
+pub fn unsharp_mask<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     amount: T,

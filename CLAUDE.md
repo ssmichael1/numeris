@@ -86,8 +86,14 @@ Checked items are implemented; unchecked are potential future work.
   builds are unaffected. Dispatch lives in the private `par` module (mirrors `simd`): a single
   algorithm body compiles to sequential `chunks_mut` by default and `par_chunks_mut` under the
   feature, the bound tightening from `FnMut` to `Fn + Sync + Send`. Only disjoint-output operations
-  (Jacobian columns, image rows) are parallelized — never order-sensitive reductions. First user:
-  `finite_difference_jacobian_dyn` / `finite_difference_gradient_dyn`.
+  (Jacobian columns, image rows) are parallelized — never order-sensitive reductions. Users so far:
+  `optim::finite_difference_jacobian_dyn` / `finite_difference_gradient_dyn` (parallel over columns),
+  and `imageproc` separable convolution (`convolve2d_separable` → `gaussian_blur`/`box_blur` and all
+  filters built on them: `unsharp_mask`, `laplacian_of_gaussian`, `canny`, Harris/Shi-Tomasi corners,
+  DoG, Gaussian pyramid) — parallel over output columns, gated on per-pass work (`nrows·ncols·klen`).
+  The `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker bound (empty
+  blanket impl without `rayon`, `Send + Sync` with it), so a single signature serves both builds
+  without `cfg`-split twins.
 - **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
@@ -154,7 +160,7 @@ src/
 │   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide, compile-time opt-in)
 │   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide, compile-time opt-in)
 ├── par/                # private parallelism dispatch (requires `rayon` feature to multi-thread)
-│   └── mod.rs          # for_each_chunk_mut: sequential chunks_mut / rayon par_chunks_mut over disjoint output chunks
+│   └── mod.rs          # for_each_chunk_mut (sequential chunks_mut / rayon par_chunks_mut over disjoint output chunks); MaybeSync marker bound
 ├── nalgebra_interop.rs # (requires `nalgebra` feature) From/Into, MatrixRef/MatrixMut for nalgebra types
 ├── interp/             # (requires `interp` feature)
 │   ├── mod.rs          # InterpError, find_interval, validate_sorted helpers, re-exports

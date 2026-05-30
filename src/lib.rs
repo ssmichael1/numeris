@@ -181,6 +181,11 @@ pub mod matrix;
 mod simd;
 #[cfg(any(all(feature = "optim", feature = "alloc"), feature = "imageproc"))]
 mod par;
+// Marker trait used in public signatures of parallelized routines; an
+// implementation detail of the `rayon` feature, hidden from the docs.
+#[cfg(any(all(feature = "optim", feature = "alloc"), feature = "imageproc"))]
+#[doc(hidden)]
+pub use par::MaybeSync;
 #[cfg(feature = "ode")]
 pub mod ode;
 #[cfg(feature = "control")]

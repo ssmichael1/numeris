@@ -17,6 +17,20 @@
     toward the regime it helps (an expensive `f`); see `bench/fd_jacobian` and
     `bench/results.md` for the measured crossover (≈2.4× at n=64, ≈4× at n=256
     with a moderately expensive evaluation).
+  - Second slice: separable convolution (`convolve2d_separable`, and thus
+    `gaussian_blur` / `box_blur` and everything built on them — `unsharp_mask`,
+    `laplacian_of_gaussian`, `canny`, `harris_corners`, `shi_tomasi_corners`,
+    `difference_of_gaussians`, `gaussian_pyramid`) computes its output columns in
+    parallel. Each output column is a disjoint write, so results are unchanged.
+    The fan-out decision is gated on per-pass *work* (`nrows · ncols · klen`),
+    not column count, so it accounts for image height and kernel size — a small
+    image stays sequential, a large one parallelizes (~2.6× at 512² for a small
+    Gaussian; see `bench/convolve`).
+  - The `Send + Sync` requirement these parallel paths place on the element type
+    is expressed through a hidden `MaybeSync` marker bound that is empty (a
+    blanket impl for all types) unless `rayon` is enabled, so non-`rayon`
+    signatures are unconstrained and `f32`/`f64` satisfy it automatically when it
+    applies.
   - Fixed-size `Matrix` Jacobians and other small stack-allocated paths stay
     sequential by design.
 

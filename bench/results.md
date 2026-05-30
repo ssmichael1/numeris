@@ -83,3 +83,20 @@ evaluation is trivially cheap. The `FD_PAR_MIN_COLS = 8` guard is intentionally 
 it favors the regime parallelism is *for* (expensive `f` — ODE steps, measurement
 models — where even small N wins big), accepting a few-µs absolute regression on
 cheap-`f` mid-N cases that are already fast in absolute terms.
+
+## Parallel separable convolution (`rayon` feature)
+
+Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench convolve`
+(seq via `--no-default-features`). `gaussian_blur`, sigma=2 (≈13-tap kernel),
+square `n×n` f64 images.
+
+| n×n | seq | par | Result |
+|---|---|---|---|
+| 32²  | 9.2 µs  | 9.9 µs  | runs sequential (work < budget) |
+| 128² | 71.9 µs | 73.7 µs | runs sequential (work < budget) — no regression |
+| 512² | 838 µs  | 326 µs  | **par 2.56×** |
+
+The gate is on per-pass *work* (`nrows · ncols · klen`), not column count: an
+early flat 64-column threshold parallelized 128² and lost 26% to thread
+overhead. Gating on work (`CONV_PAR_WORK_BUDGET`) keeps 128² sequential while
+512² — and tall/narrow or large-kernel images of similar total work — fan out.

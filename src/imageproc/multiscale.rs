@@ -26,7 +26,7 @@ use super::resize::resize_bilinear;
 /// // A uniform image has zero DoG response everywhere.
 /// for i in 0..32 { for j in 0..32 { assert!(dog[(i, j)].abs() < 1e-10); } }
 /// ```
-pub fn difference_of_gaussians<T: FloatScalar>(
+pub fn difference_of_gaussians<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma_small: T,
     sigma_large: T,
@@ -71,7 +71,7 @@ pub fn difference_of_gaussians<T: FloatScalar>(
 /// assert_eq!(pyr[2].nrows(), 32);
 /// assert_eq!(pyr[3].nrows(), 16);
 /// ```
-pub fn gaussian_pyramid<T: FloatScalar>(
+pub fn gaussian_pyramid<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     levels: usize,
     sigma: T,
