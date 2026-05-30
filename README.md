@@ -29,6 +29,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
 - **Norms** — L1, L2, Frobenius, infinity, one norms
 - **SIMD acceleration** — NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
+- **Multi-threading (optional)** — the `rayon` feature parallelizes runtime-sized paths (dynamic finite-difference Jacobians and most `imageproc` filters) across cores, ~2.5–4× on large inputs; purely additive and orthogonal to SIMD
 - **No-std / embedded** — runs without `std` or heap; float math falls back to software `libm`
 
 ## Quick start
@@ -726,6 +727,8 @@ numeris is designed for two use cases: no-std embedded systems and high-performa
 **SIMD acceleration** is always-on for f32/f64 — no feature flag needed. On aarch64 (NEON) and x86_64 (SSE2/AVX/AVX-512), matrix multiply, dot products, and element-wise operations use hardware SIMD intrinsics via `core::arch`. Matrix multiply uses register-blocked micro-kernels (inspired by [nano-gemm](https://github.com/sarah-quinones/nano-gemm) by Sarah Quinones) that accumulate MR×NR tiles in SIMD registers with k-blocking (KC=256) for cache locality, writing C only once per tile — reducing memory traffic by up to O(n) vs. naive implementations. Small matrices (4x4 and below) use direct formulas for inverse and determinant, bypassing LU decomposition entirely. Integer and complex types fall back to scalar loops at zero cost (dead-code eliminated at monomorphization via `TypeId` dispatch).
 
 SSE2 and NEON are always-on baselines. AVX and AVX-512 are compile-time opt-in via `-C target-cpu=native`; dispatch selects the widest available ISA.
+
+**Multi-threading** is opt-in via the `rayon` feature (it requires `std`, so it is never part of the no-std baseline). Where SIMD parallelizes within a core, `rayon` parallelizes across cores — the two compose, since each worker thread still runs the SIMD kernels. Only heap-backed, runtime-sized paths with independent, disjoint output columns are parallelized — dynamic finite-difference Jacobians (each column an independent function evaluation) and most `imageproc` filters (convolution/blur, rank & median, morphology, resize, local statistics) — never small fixed-size matrices or order-sensitive reductions. Each routine gates on *total work*, so small inputs stay sequential, and writes are to disjoint slices, so results are identical regardless of thread count. The feature is purely additive: builds without it are unchanged. Measured speedups range ~2.5–4× on large images (512²–1024²). See the [Parallelism docs](https://ssmichael1.github.io/numeris/performance/#parallelism-rayon).
 
 | Architecture | ISA | f64 tile (MR×NR) | f32 tile (MR×NR) |
 |---|---|---|---|

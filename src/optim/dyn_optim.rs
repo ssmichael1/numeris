@@ -145,7 +145,7 @@ const FD_PAR_MIN_COLS: usize = 8;
 ///
 /// With the `rayon` feature the `n` columns are computed in parallel (each is an
 /// independent evaluation of `f`), and the closure bound tightens from `FnMut`
-/// to `Fn + Sync + Send`. Parallelism engages only above [`FD_PAR_MIN_COLS`]
+/// to `Fn + Sync + Send`. Parallelism engages only above `FD_PAR_MIN_COLS`
 /// columns; the columns write into disjoint slices of the result, so the value
 /// is identical regardless of thread count.
 ///
@@ -194,7 +194,7 @@ pub fn finite_difference_jacobian_dyn<T: FloatScalar>(
 ///
 /// With the `rayon` feature the `n` columns are computed in parallel (each is an
 /// independent evaluation of `f`), and the closure bound tightens from `FnMut`
-/// to `Fn + Sync + Send`. Parallelism engages only above [`FD_PAR_MIN_COLS`]
+/// to `Fn + Sync + Send`. Parallelism engages only above `FD_PAR_MIN_COLS`
 /// columns; the columns write into disjoint slices of the result, so the value
 /// is identical regardless of thread count.
 ///
@@ -243,7 +243,7 @@ pub fn finite_difference_jacobian_dyn<T: FloatScalar + Send + Sync>(
 ///
 /// With the `rayon` feature the `n` components are computed in parallel and the
 /// closure bound tightens from `FnMut` to `Fn + Sync + Send`, engaging above
-/// [`FD_PAR_MIN_COLS`] components. Each component writes a disjoint element, so
+/// `FD_PAR_MIN_COLS` components. Each component writes a disjoint element, so
 /// the result is identical regardless of thread count.
 ///
 /// # Example
@@ -286,7 +286,7 @@ pub fn finite_difference_gradient_dyn<T: FloatScalar>(
 ///
 /// With the `rayon` feature the `n` components are computed in parallel and the
 /// closure bound tightens from `FnMut` to `Fn + Sync + Send`, engaging above
-/// [`FD_PAR_MIN_COLS`] components. Each component writes a disjoint element, so
+/// `FD_PAR_MIN_COLS` components. Each component writes a disjoint element, so
 /// the result is identical regardless of thread count.
 ///
 /// # Example

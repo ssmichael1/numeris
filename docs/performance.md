@@ -99,3 +99,44 @@ Compared against nalgebra 0.34 and faer 0.24. All benchmarks run with `cargo ben
 ## No-std Performance
 
 On embedded targets with no hardware FPU, float operations fall back to the `libm` software implementation. Performance in this mode is entirely determined by the target's ALU throughput — SIMD code paths are not compiled for targets without SIMD (the `TypeId` dispatch compiles down to scalar loops).
+
+## Parallelism (`rayon`)
+
+SIMD parallelizes *within* a core (vector lanes); the optional **`rayon`** feature parallelizes *across* cores (threads). The two are orthogonal and compose — each worker thread still runs the SIMD kernels. Parallelism is **opt-in** because [rayon](https://docs.rs/rayon) requires `std` and a thread pool, which the no-std / embedded baseline cannot assume:
+
+```toml
+numeris = { version = "0.5", features = ["rayon"] }   # implies std
+```
+
+The feature is **purely additive**: builds without it are byte-for-byte unchanged, and the signatures are unconstrained (the `Send + Sync` element requirement is carried by a marker bound that is empty unless `rayon` is enabled, and is satisfied automatically by `f32` / `f64`).
+
+### What is parallelized
+
+Only heap-backed, runtime-sized paths with **independent, disjoint output columns** — never small fixed-size `Matrix` ops (thread dispatch would dwarf the work) and never order-sensitive reductions (which would sacrifice reproducibility):
+
+| Area | Routines | Axis |
+|---|---|---|
+| `optim` | `finite_difference_jacobian_dyn`, `finite_difference_gradient_dyn` | columns = independent function evaluations |
+| `imageproc` convolution | `gaussian_blur`, `box_blur`, `unsharp_mask`, `laplacian_of_gaussian`, `canny`, Harris / Shi-Tomasi corners, DoG, Gaussian pyramid | output columns |
+| `imageproc` rank/median | `rank_filter`, `percentile_filter`, `median_filter` | output columns (quickselect per pixel) |
+| `imageproc` geometric/stats | `resize_bilinear`, `local_mean` / `local_variance` / `local_stddev`, `adaptive_threshold` | output columns |
+| `imageproc` morphology | `dilate` / `erode`, `opening` / `closing`, `max`/`min_filter`, gradient, top-hat, black-hat | output columns (horizontal pass via transpose) |
+
+### Determinism and gating
+
+- **Deterministic results.** Each worker writes a disjoint slice of the output, so the result is identical regardless of thread count. (Parallel *reductions*, where summation order would change the floating-point answer, are intentionally not used.)
+- **Work-aware gating.** Each routine decides whether to fan out based on *total work* (e.g. `nrows · ncols · kernel_size`), not raw column count — so a small image, or a cheap operation on a medium image, stays sequential and never pays thread-dispatch overhead. The crossover that matters is the cost of the work, not its shape.
+
+### Measured speedups
+
+Apple Silicon (aarch64), `f64`, parallel vs. the same build with `rayon` off:
+
+| Workload | Size | Speedup |
+|---|---|---|
+| Separable Gaussian blur | 512² | ~2.6× |
+| Median filter (5×5) | 256² | ~3.4× |
+| Median filter (3×3) | 256² | ~3.7× |
+| Morphological dilation (r=3) | 1024² | ~4.1× |
+| Finite-difference Jacobian | n=256, expensive `f` | ~4× |
+
+Wins scale with total work; below each routine's gate the parallel build matches the sequential one (no regression). See `bench/` for the harnesses — each is feature-toggled (`--no-default-features` flips `rayon` off) so Criterion can diff the two baselines.
