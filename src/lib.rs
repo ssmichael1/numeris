@@ -161,7 +161,7 @@
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
 //! | `nalgebra`| no       | Conversions between numeris and nalgebra types |
 //! | `serde`   | no       | Serialize/deserialize all types via serde |
-//! | `rayon`   | no       | Multi-threaded parallelism on runtime-sized paths (e.g. dynamic finite-difference Jacobians, most `imageproc` filters). Implies `std`; requires Rust ≥ 1.80 |
+//! | `rayon`   | no       | Multi-threaded parallelism on runtime-sized paths (e.g. dynamic finite-difference Jacobians, most `imageproc` filters). Implies `std` |
 //! | `all`     | no       | All features |
 //!
 //! ## Parallelism
@@ -182,8 +182,7 @@
 //!
 //! The feature is purely additive — it never changes an existing signature
 //! (the parallel optim routines are *new* `_par` functions; the sequential ones
-//! keep their `FnMut` bound). Note the `rayon` feature requires Rust ≥ 1.80,
-//! though the base crate's MSRV stays at 1.77.
+//! keep their `FnMut` bound).
 
 #![cfg_attr(not(feature = "std"), no_std)]
 

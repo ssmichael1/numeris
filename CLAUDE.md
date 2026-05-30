@@ -82,9 +82,9 @@ Checked items are implemented; unchecked are potential future work.
 - **`serde`** — serialize/deserialize `Matrix`, `Vector`, `Quaternion`, `DynMatrix`, `DynVector`, `Solution`.
   Row-major format for matrices (matches `Matrix::new()`), flat arrays for vectors.
 - **`rayon`** — opt-in multi-threaded parallelism on runtime-sized paths (heap-backed `DynMatrix` /
-  `imageproc` / `_dyn` routines). Implies `std` (rayon needs threads); **requires Rust ≥ 1.80** (base
-  crate MSRV stays 1.77). Purely additive: no-std builds are unaffected and enabling it never changes
-  an existing signature. Dispatch lives in the private `par` module (mirrors `simd`), gated on
+  `imageproc` / `_dyn` routines). Implies `std` (rayon needs threads). The crate MSRV is 1.80 (the
+  floor for `[T]::as_flattened` in core matrix code, and for rayon). Purely additive: no-std builds are
+  unaffected and enabling it never changes an existing signature. Dispatch lives in the private `par` module (mirrors `simd`), gated on
   `any(imageproc, all(optim, alloc, rayon))`. Only disjoint-output operations (Jacobian columns, image
   columns) are parallelized — never order-sensitive reductions. Users so far:
   `optim::finite_difference_jacobian_dyn_par` / `finite_difference_gradient_dyn_par` — **separate
