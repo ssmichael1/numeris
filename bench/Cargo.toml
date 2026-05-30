@@ -13,3 +13,7 @@ numeris = { path = "..", features = ["all"] }
 [[bench]]
 name = "comparison"
 harness = false
+
+[[bench]]
+name = "fd_jacobian"
+harness = false

@@ -438,6 +438,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `complex` | no | Adds `Complex<f32>` / `Complex<f64>` support via `num-complex`. |
 | `nalgebra` | no | Conversions between numeris and nalgebra types (`From`/`Into`, `MatrixRef`/`MatrixMut`). |
 | `serde` | no | Serialize/deserialize all types via [serde](https://serde.rs). Row-major JSON format. |
+| `rayon` | no | Multi-threaded parallelism on runtime-sized paths via [rayon](https://docs.rs/rayon) (e.g. dynamic finite-difference Jacobians). Purely additive; implies `std`. |
 | `all` | no | All features. |
 
 ```bash

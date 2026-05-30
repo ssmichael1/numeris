@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.12
+
+- **`rayon` feature (opt-in parallelism)** — a new `rayon` Cargo feature adds
+  multi-threaded parallelism on runtime-sized paths without disturbing the
+  no-std-first baseline. It implies `std` and is purely additive: builds without
+  it are byte-for-byte unchanged. Dispatch is hidden behind a private `par`
+  module (mirroring `simd`), so each algorithm has a single source with the
+  feature flag in one place.
+  - First slice: `finite_difference_jacobian_dyn` and
+    `finite_difference_gradient_dyn` compute their columns in parallel (each is
+    an independent evaluation of `f`). Columns write into disjoint slices, so the
+    result is identical regardless of thread count. With `rayon` the closure
+    bound tightens from `FnMut` to `Fn + Sync + Send`; without it the signature
+    is unchanged. Parallelism engages only above a column threshold, biased
+    toward the regime it helps (an expensive `f`); see `bench/fd_jacobian` and
+    `bench/results.md` for the measured crossover (≈2.4× at n=64, ≈4× at n=256
+    with a moderately expensive evaluation).
+  - Fixed-size `Matrix` Jacobians and other small stack-allocated paths stay
+    sequential by design.
+
 ## 0.5.11
 
 - **Dynamic-dimension `optim` routines** — `minimize_bfgs_dyn`,

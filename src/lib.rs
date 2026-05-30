@@ -161,6 +161,7 @@
 //! | `complex` | no       | `Complex<f32>` / `Complex<f64>` support via `num-complex` |
 //! | `nalgebra`| no       | Conversions between numeris and nalgebra types |
 //! | `serde`   | no       | Serialize/deserialize all types via serde |
+//! | `rayon`   | no       | Multi-threaded parallelism on runtime-sized paths (e.g. dynamic finite-difference Jacobians). Implies `std` |
 //! | `all`     | no       | All features |
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -178,6 +179,8 @@ pub mod dynmatrix;
 pub mod linalg;
 pub mod matrix;
 mod simd;
+#[cfg(any(all(feature = "optim", feature = "alloc"), feature = "imageproc"))]
+mod par;
 #[cfg(feature = "ode")]
 pub mod ode;
 #[cfg(feature = "control")]

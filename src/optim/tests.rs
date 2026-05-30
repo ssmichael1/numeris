@@ -481,6 +481,28 @@ mod dynamic {
     }
 
     #[test]
+    fn fd_jacobian_dyn_large_matches_analytic() {
+        // Large enough to cross FD_PAR_MIN_COLS so the `rayon` build exercises the
+        // parallel branch. f_i(x) = i * x_i^2  ->  J = diag(2 i x_i), off-diagonals 0.
+        let n = 32;
+        let x = DynVector::from_slice(&(0..n).map(|k| 0.5 + k as f64).collect::<Vec<_>>());
+        let j = finite_difference_jacobian_dyn(
+            |x: &DynVector<f64>| {
+                DynVector::from_slice(
+                    &(0..x.len()).map(|i| i as f64 * x[i] * x[i]).collect::<Vec<_>>(),
+                )
+            },
+            &x,
+        );
+        for r in 0..n {
+            for c in 0..n {
+                let expected = if r == c { 2.0 * r as f64 * x[r] } else { 0.0 };
+                assert_near(j[(r, c)], expected, 1e-4, "large dyn J");
+            }
+        }
+    }
+
+    #[test]
     fn bfgs_dyn_simple_quadratic() {
         let r = minimize_bfgs_dyn(
             |x: &DynVector<f64>| (x[0] - 1.0).powi(2) + (x[1] - 2.0).powi(2),

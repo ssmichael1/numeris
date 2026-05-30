@@ -81,7 +81,14 @@ Checked items are implemented; unchecked are potential future work.
   Enables `nalgebra/std`. `nalgebra::SMatrix` and `DMatrix` can be used directly with numeris linalg free functions.
 - **`serde`** — serialize/deserialize `Matrix`, `Vector`, `Quaternion`, `DynMatrix`, `DynVector`, `Solution`.
   Row-major format for matrices (matches `Matrix::new()`), flat arrays for vectors.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`, `serde`.
+- **`rayon`** — opt-in multi-threaded parallelism on runtime-sized paths (heap-backed `DynMatrix` /
+  `imageproc` / `_dyn` routines). Implies `std` (rayon needs threads); purely additive, so no-std
+  builds are unaffected. Dispatch lives in the private `par` module (mirrors `simd`): a single
+  algorithm body compiles to sequential `chunks_mut` by default and `par_chunks_mut` under the
+  feature, the bound tightening from `FnMut` to `Fn + Sync + Send`. Only disjoint-output operations
+  (Jacobian columns, image rows) are parallelized — never order-sensitive reductions. First user:
+  `finite_difference_jacobian_dyn` / `finite_difference_gradient_dyn`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -146,6 +153,8 @@ src/
 │   ├── f32_avx.rs      # x86_64 AVX f32 kernels (8-wide, compile-time opt-in)
 │   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide, compile-time opt-in)
 │   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide, compile-time opt-in)
+├── par/                # private parallelism dispatch (requires `rayon` feature to multi-thread)
+│   └── mod.rs          # for_each_chunk_mut: sequential chunks_mut / rayon par_chunks_mut over disjoint output chunks
 ├── nalgebra_interop.rs # (requires `nalgebra` feature) From/Into, MatrixRef/MatrixMut for nalgebra types
 ├── interp/             # (requires `interp` feature)
 │   ├── mod.rs          # InterpError, find_interval, validate_sorted helpers, re-exports

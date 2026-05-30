@@ -62,3 +62,24 @@ Optimizations applied (cumulative):
 |---|---|---|
 | **matmul 4x4** | 1.4x behind nalgebra | Hand-unrolled 4x4, skip micro-kernel dispatch |
 | **matmul 200x200** | 1.8x behind faer | A-panel packing + larger MC/NC tile sizes |
+
+## Parallel finite-difference Jacobian (`rayon` feature)
+
+Platform: Apple Silicon (aarch64), `cargo bench -p numeris-bench --bench fd_jacobian`.
+`seq` = sequential baseline (faithful re-impl), `par` = `finite_difference_jacobian_dyn`
+with `rayon`. `nN_wW` = N columns, W extra transcendental ops per output element
+(synthetic eval cost). Total FD work scales as O(N² · W).
+
+| Case | seq | par | Result |
+|---|---|---|---|
+| n4, w0   | 195 ns  | 202 ns  | tie (N<8 → runs sequential anyway) |
+| n16, w4  | 8.78 µs | 20.1 µs | seq 2.3× — eval too cheap, dispatch dominates |
+| n64, w4  | 123 µs  | 52 µs   | **par 2.4×** |
+| n256, w8 | 5.29 ms | ~1.3 ms | **par ~4×** |
+
+Takeaway: the win tracks total work (`N · cost(f)`), not column count alone — at
+n16/w4 the parallel path is above the column threshold yet still loses because each
+evaluation is trivially cheap. The `FD_PAR_MIN_COLS = 8` guard is intentionally low:
+it favors the regime parallelism is *for* (expensive `f` — ODE steps, measurement
+models — where even small N wins big), accepting a few-µs absolute regression on
+cheap-`f` mid-N cases that are already fast in absolute terms.
