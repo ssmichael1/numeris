@@ -19,7 +19,13 @@ numeris provides six matrix decompositions, each available as:
 
 ## LU Decomposition
 
-Partial pivoting LU: `P A = L U`.
+Partial pivoting LU:
+
+$$
+P A = L U,
+$$
+
+with `P` a row-permutation matrix, `L` unit lower-triangular, and `U` upper-triangular.
 
 ```rust
 use numeris::{Matrix, Vector};
@@ -49,9 +55,14 @@ let x2 = a.solve(&b).unwrap();
 
 ## Cholesky Decomposition
 
-For symmetric positive-definite (SPD) matrices: `A = L Lᴴ`.
+For symmetric positive-definite (SPD) matrices:
 
-Works with both real and complex (Hermitian positive-definite) matrices.
+$$
+A = L L^{\mathsf{H}},
+$$
+
+with `L` lower-triangular ($L^{\mathsf{H}} = L^{\top}$ in the real case). Works
+with both real and complex (Hermitian positive-definite) matrices.
 
 ```rust
 use numeris::Matrix;
@@ -75,7 +86,13 @@ let ln_det = chol.ln_det();    // log-determinant (stable for large matrices)
 
 ## QR Decomposition
 
-Householder QR: `A = Q R`.
+Householder QR:
+
+$$
+A = Q R,
+$$
+
+with `Q` orthogonal ($Q^{\mathsf{H}} Q = I$) and `R` upper-triangular.
 
 ```rust
 use numeris::{Matrix, Vector};
@@ -103,7 +120,12 @@ let det = a.qr().unwrap().det();
 
 Golub-Kahan implicit-shift QR on a bidiagonal form.
 
-`A = U Σ Vᵀ`, where `A` is `M × N` with `M ≥ N`.
+$$
+A = U \Sigma V^{\top},
+$$
+
+where `A` is $M \times N$ ($M \ge N$), `U` and `V` are orthogonal, and
+$\Sigma = \operatorname{diag}(\sigma_0 \ge \sigma_1 \ge \cdots \ge 0)$.
 
 ```rust
 use numeris::Matrix;
@@ -131,7 +153,14 @@ let sigma_only = a.singular_values_only().unwrap();
 
 ### SVD Solve (Least-Squares)
 
-SVD-based solve computes the minimum-norm least-squares solution `x = V Σ⁺ Uᴴ b`, automatically handling rank-deficient systems:
+SVD-based solve computes the minimum-norm least-squares solution
+
+$$
+x = V \Sigma^{+} U^{\mathsf{H}} b,
+$$
+
+automatically handling rank-deficient systems ($\Sigma^{+}$ inverts only the
+nonzero singular values):
 
 ```rust
 use numeris::{Matrix, Vector};
@@ -173,7 +202,13 @@ let a_pinv = a.pinv().unwrap();  // 2×3 pseudo-inverse
 
 ## Matrix Exponential
 
-Computes `e^A` for square matrices using [13,13] Padé approximation with scaling and squaring (Higham 2005).
+Computes the matrix exponential
+
+$$
+e^{A} = \sum_{k=0}^{\infty} \frac{A^{k}}{k!}
+$$
+
+for square matrices using a [13/13] Padé approximation with scaling and squaring (Higham 2005).
 
 ```rust
 use numeris::Matrix;
@@ -198,7 +233,14 @@ Also available as a free function: `numeris::linalg::expm(&a)`.
 
 Householder tridiagonalization + implicit QR with Wilkinson shift.
 
-For real symmetric (or Hermitian) matrices only. Produces real eigenvalues.
+For real symmetric (or Hermitian) matrices only. Produces real eigenvalues:
+
+$$
+A = Q \Lambda Q^{\top},
+\qquad \Lambda = \operatorname{diag}(\lambda_0 \le \lambda_1 \le \cdots),
+$$
+
+with `Q` orthogonal — its columns are the orthonormal eigenvectors.
 
 ```rust
 use numeris::Matrix;
@@ -223,7 +265,11 @@ let vals_only = a.eigenvalues_symmetric().unwrap();
 
 Francis double-shift QR on the upper Hessenberg form.
 
-Produces quasi-upper-triangular `S` with 1×1 (real eigenvalue) and 2×2 (conjugate complex pair) diagonal blocks, and orthogonal `Q` such that `A = Q S Qᵀ`.
+Produces quasi-upper-triangular `S` with 1×1 (real eigenvalue) and 2×2 (conjugate complex pair) diagonal blocks, and orthogonal `Q` such that
+
+$$
+A = Q S Q^{\top}.
+$$
 
 ```rust
 use numeris::Matrix;
