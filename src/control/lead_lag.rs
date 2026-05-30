@@ -89,10 +89,13 @@ pub fn lead_compensator<T: FloatScalar>(
 /// The continuous-time transfer function is:
 ///
 /// ```text
-/// C(s) = β · (s + ω/β) / (s + ω)
+/// C(s) = (s + ω) / (s + ω/β)
 /// ```
 ///
-/// where `β` is the DC gain boost ratio and `ω = 2π·f_corner`.
+/// where `β` is the DC gain boost ratio and `ω = 2π·f_corner`. Equivalently,
+/// the textbook form `β · (τs + 1) / (βτs + 1)` with `τ = 1/ω`. The zero sits at
+/// `-ω` and the (lower-frequency) pole at `-ω/β`, giving DC gain `β` and unity
+/// high-frequency gain: `C(0) = β`, `C(∞) = 1`.
 ///
 /// # Parameters
 ///
