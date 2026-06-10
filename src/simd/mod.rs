@@ -109,9 +109,29 @@ pub(crate) fn dot_dispatch<T: Scalar>(a: &[T], b: &[T]) -> T {
     scalar::dot(a, b)
 }
 
-/// Dispatch matrix multiply to SIMD or scalar fallback.
+/// Dispatch conjugated dot product `Σ conj(a[i]) · b[i]` to SIMD or scalar fallback.
 ///
-/// `c` must be zero-initialized. Computes `C += A * B` in-place.
+/// For real floats `conj` is the identity, so `f32`/`f64` forward to the SIMD
+/// [`dot_dispatch`]; all other element types (e.g. complex) use a scalar
+/// conjugating loop. Slices shorter than `DOTC_SIMD_CUTOFF` also take the
+/// scalar loop: the out-of-line SIMD kernel call costs more than an inlined
+/// few-iteration loop (measured: 4×4 QR regressed ~33% without the cutoff).
+#[inline]
+pub(crate) fn dotc_dispatch<T: crate::traits::LinalgScalar>(a: &[T], b: &[T]) -> T {
+    const DOTC_SIMD_CUTOFF: usize = 8;
+    if a.len() >= DOTC_SIMD_CUTOFF
+        && (TypeId::of::<T>() == TypeId::of::<f64>() || TypeId::of::<T>() == TypeId::of::<f32>())
+    {
+        return dot_dispatch(a, b);
+    }
+    let mut acc = T::zero();
+    for i in 0..a.len() {
+        acc = acc + a[i].conj() * b[i];
+    }
+    acc
+}
+
+/// Dispatch matrix multiply to SIMD or scalar fallback.
 ///
 /// `c` must be zero-initialized. Computes `C += A * B` in-place.
 #[inline]

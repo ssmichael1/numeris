@@ -75,21 +75,19 @@ pub fn qr_in_place<T: LinalgScalar>(
         // where v = [1, a[col+1,col], ..., a[m-1,col]] (stored values)
         // v^H * A uses conj(v_i) for complex.
         //
-        // Column-major: v sub-column and A[:,j] sub-column are contiguous.
-        // The AXPY step (no conjugation) uses SIMD dispatch on the slices.
+        // Column-major: v sub-column and A[:,j] sub-column are contiguous, so
+        // both the conjugated dot and the AXPY use SIMD dispatch on the slices.
         for j in (col + 1)..n {
             // Compute v^H * A[:, j] over rows col..m (needs conj for complex)
             let mut dot = *a.get(col, j); // conj(1) * A[col,j] = A[col,j]
-            let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
-            for idx in 0..v_slice.len() {
-                dot = dot + v_slice[idx].conj() * a_j_slice[idx];
-            }
-            dot = dot * tau_val;
+            {
+                let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
+                dot = (dot + crate::simd::dotc_dispatch(v_slice, a_j_slice)) * tau_val;
 
-            // A[:, j] -= dot * v (no conjugation — uses SIMD AXPY dispatch)
+                // A[col+1:m, j] -= dot * v (no conjugation)
+                crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
+            }
             *a.get_mut(col, j) = *a.get(col, j) - dot; // v[0] = 1
-            let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
-            crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
         }
 
         // Store -sigma (the R diagonal entry) in a[col, col]
@@ -190,15 +188,12 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
             let v_slice = self.qr.col_as_slice(col, col + 1);
             for j in col..N {
                 let mut dot = q[(col, j)]; // conj(1) * q[col,j]
-                let q_j_slice = q.col_as_slice(j, col + 1);
-                for idx in 0..v_slice.len() {
-                    dot = dot + v_slice[idx].conj() * q_j_slice[idx];
+                {
+                    let q_j_slice = q.col_as_mut_slice(j, col + 1);
+                    dot = (dot + crate::simd::dotc_dispatch(v_slice, q_j_slice)) * tau_val;
+                    crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
                 }
-                dot = dot * tau_val;
-
                 q[(col, j)] = q[(col, j)] - dot;
-                let q_j_slice = q.col_as_mut_slice(j, col + 1);
-                crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
             }
         }
 
@@ -247,10 +242,7 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
             // v = [1, qr[col+1,col], ..., qr[M-1,col]]
             let v_slice = self.qr.col_as_slice(col, col + 1);
             let mut dot = qtb[col]; // conj(1) * qtb[col]
-            for idx in 0..v_slice.len() {
-                dot = dot + v_slice[idx].conj() * qtb[col + 1 + idx];
-            }
-            dot = dot * tau_val;
+            dot = (dot + crate::simd::dotc_dispatch(v_slice, &qtb[col + 1..])) * tau_val;
 
             qtb[col] = qtb[col] - dot;
             crate::simd::axpy_neg_dispatch(&mut qtb[col + 1..], dot, v_slice);
@@ -396,15 +388,12 @@ pub fn qr_col_pivot_in_place<T: LinalgScalar>(
         for j in (col + 1)..n {
             // v^H * A[:, j]
             let mut dot = *a.get(col, j);
-            let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
-            for idx in 0..v_slice.len() {
-                dot = dot + v_slice[idx].conj() * a_j_slice[idx];
+            {
+                let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
+                dot = (dot + crate::simd::dotc_dispatch(v_slice, a_j_slice)) * tau_val;
+                crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
             }
-            dot = dot * tau_val;
-
             *a.get_mut(col, j) = *a.get(col, j) - dot;
-            let (v_slice, a_j_slice) = split_two_col_slices(a, col, j, col + 1);
-            crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
 
             // Incremental norm update: subtract eliminated component
             let _eliminated = (*a.get(col, j) * (*a.get(col, j)).conj()).re();
@@ -505,15 +494,12 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrPivotDecomposition<T, M,
             let v_slice = self.qr.col_as_slice(col, col + 1);
             for j in col..N {
                 let mut dot = q[(col, j)];
-                let q_j_slice = q.col_as_slice(j, col + 1);
-                for idx in 0..v_slice.len() {
-                    dot = dot + v_slice[idx].conj() * q_j_slice[idx];
+                {
+                    let q_j_slice = q.col_as_mut_slice(j, col + 1);
+                    dot = (dot + crate::simd::dotc_dispatch(v_slice, q_j_slice)) * tau_val;
+                    crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
                 }
-                dot = dot * tau_val;
-
                 q[(col, j)] = q[(col, j)] - dot;
-                let q_j_slice = q.col_as_mut_slice(j, col + 1);
-                crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
             }
         }
 

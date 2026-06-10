@@ -81,18 +81,16 @@ pub(crate) fn bidiagonalize<T: LinalgScalar>(
             let tau = v0 / sigma;
 
             // Apply to trailing columns: A[k:m, k+1:n] -= tau * v * (v^H * A)
-            // Column-major: v sub-column and A[:,j] sub-column are contiguous.
+            // Column-major: v sub-column and A[:,j] sub-column are contiguous,
+            // so both the conjugated dot and the AXPY use SIMD dispatch.
             for j in (k + 1)..n {
                 let mut dot = *a.get(k, j); // v[0] = 1 (implicit)
-                let (v_slice, a_j_slice) = split_two_col_slices(a, k, j, k + 1);
-                for idx in 0..v_slice.len() {
-                    dot = dot + v_slice[idx].conj() * a_j_slice[idx];
+                {
+                    let (v_slice, a_j_slice) = split_two_col_slices(a, k, j, k + 1);
+                    dot = (dot + crate::simd::dotc_dispatch(v_slice, a_j_slice)) * tau;
+                    crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
                 }
-                dot = dot * tau;
-
                 *a.get_mut(k, j) = *a.get(k, j) - dot;
-                let (v_slice, a_j_slice) = split_two_col_slices(a, k, j, k + 1);
-                crate::simd::axpy_neg_dispatch(a_j_slice, dot, v_slice);
             }
 
             // Accumulate U: U = U * H_L = U * (I - tau * v * v^H)
