@@ -2,6 +2,55 @@ use crate::traits::FloatScalar;
 
 use super::{find_interval, validate_sorted, InterpError};
 
+/// Evaluate the cubic Hermite segment at parameter `t ∈ [0, 1]`.
+///
+/// `h` is the segment width, `y0`/`y1` the endpoint values, `dy0`/`dy1` the
+/// endpoint derivatives. Shared by the fixed-size and dynamic interpolants.
+fn hermite_segment<T: FloatScalar>(t: T, h: T, y0: T, dy0: T, y1: T, dy1: T) -> T {
+    let t2 = t * t;
+    let t3 = t2 * t;
+    let two = T::one() + T::one();
+    let three = two + T::one();
+
+    // Hermite basis: h00 = 2t³ - 3t² + 1, h10 = t³ - 2t² + t
+    //                h01 = -2t³ + 3t², h11 = t³ - t²
+    let h00 = two * t3 - three * t2 + T::one();
+    let h10 = t3 - two * t2 + t;
+    let h01 = (T::zero() - two) * t3 + three * t2;
+    let h11 = t3 - t2;
+
+    h00 * y0 + h10 * h * dy0 + h01 * y1 + h11 * h * dy1
+}
+
+/// Evaluate the cubic Hermite segment and its derivative at `t ∈ [0, 1]`.
+fn hermite_segment_with_derivative<T: FloatScalar>(
+    t: T,
+    h: T,
+    y0: T,
+    dy0: T,
+    y1: T,
+    dy1: T,
+) -> (T, T) {
+    let t2 = t * t;
+    let two = T::one() + T::one();
+    let three = two + T::one();
+    let six = three + three;
+
+    let val = hermite_segment(t, h, y0, dy0, y1, dy1);
+
+    // d/dx = (1/h) d/dt of the basis
+    // h00' = 6t² - 6t, h10' = 3t² - 4t + 1
+    // h01' = -6t² + 6t, h11' = 3t² - 2t
+    let dh00 = six * t2 - six * t;
+    let dh10 = three * t2 - (two + two) * t + T::one();
+    let dh01 = (T::zero() - six) * t2 + six * t;
+    let dh11 = three * t2 - two * t;
+
+    let dval = (dh00 * y0 + dh10 * h * dy0 + dh01 * y1 + dh11 * h * dy1) / h;
+
+    (val, dval)
+}
+
 /// Cubic Hermite interpolant (fixed-size, stack-allocated).
 ///
 /// Uses user-supplied derivatives at each knot. Each segment is a cubic
@@ -43,19 +92,14 @@ impl<T: FloatScalar, const N: usize> HermiteInterp<T, N> {
         let i = find_interval(&self.xs, x);
         let h = self.xs[i + 1] - self.xs[i];
         let t = (x - self.xs[i]) / h;
-        let t2 = t * t;
-        let t3 = t2 * t;
-        let two = T::one() + T::one();
-        let three = two + T::one();
-
-        // Hermite basis: h00 = 2t³ - 3t² + 1, h10 = t³ - 2t² + t
-        //                h01 = -2t³ + 3t², h11 = t³ - t²
-        let h00 = two * t3 - three * t2 + T::one();
-        let h10 = t3 - two * t2 + t;
-        let h01 = (T::zero() - two) * t3 + three * t2;
-        let h11 = t3 - t2;
-
-        h00 * self.ys[i] + h10 * h * self.dys[i] + h01 * self.ys[i + 1] + h11 * h * self.dys[i + 1]
+        hermite_segment(
+            t,
+            h,
+            self.ys[i],
+            self.dys[i],
+            self.ys[i + 1],
+            self.dys[i + 1],
+        )
     }
 
     /// Evaluate the interpolant and its derivative at `x`.
@@ -63,37 +107,14 @@ impl<T: FloatScalar, const N: usize> HermiteInterp<T, N> {
         let i = find_interval(&self.xs, x);
         let h = self.xs[i + 1] - self.xs[i];
         let t = (x - self.xs[i]) / h;
-        let t2 = t * t;
-        let t3 = t2 * t;
-        let two = T::one() + T::one();
-        let three = two + T::one();
-        let six = three + three;
-
-        let h00 = two * t3 - three * t2 + T::one();
-        let h10 = t3 - two * t2 + t;
-        let h01 = (T::zero() - two) * t3 + three * t2;
-        let h11 = t3 - t2;
-
-        let val = h00 * self.ys[i]
-            + h10 * h * self.dys[i]
-            + h01 * self.ys[i + 1]
-            + h11 * h * self.dys[i + 1];
-
-        // d/dx = (1/h) d/dt of the basis
-        // h00' = 6t² - 6t, h10' = 3t² - 4t + 1
-        // h01' = -6t² + 6t, h11' = 3t² - 2t
-        let dh00 = six * t2 - six * t;
-        let dh10 = three * t2 - (two + two) * t + T::one();
-        let dh01 = (T::zero() - six) * t2 + six * t;
-        let dh11 = three * t2 - two * t;
-
-        let dval = (dh00 * self.ys[i]
-            + dh10 * h * self.dys[i]
-            + dh01 * self.ys[i + 1]
-            + dh11 * h * self.dys[i + 1])
-            / h;
-
-        (val, dval)
+        hermite_segment_with_derivative(
+            t,
+            h,
+            self.ys[i],
+            self.dys[i],
+            self.ys[i + 1],
+            self.dys[i + 1],
+        )
     }
 
     /// The knot x-values.
@@ -157,17 +178,14 @@ impl<T: FloatScalar> DynHermiteInterp<T> {
         let i = find_interval(&self.xs, x);
         let h = self.xs[i + 1] - self.xs[i];
         let t = (x - self.xs[i]) / h;
-        let t2 = t * t;
-        let t3 = t2 * t;
-        let two = T::one() + T::one();
-        let three = two + T::one();
-
-        let h00 = two * t3 - three * t2 + T::one();
-        let h10 = t3 - two * t2 + t;
-        let h01 = (T::zero() - two) * t3 + three * t2;
-        let h11 = t3 - t2;
-
-        h00 * self.ys[i] + h10 * h * self.dys[i] + h01 * self.ys[i + 1] + h11 * h * self.dys[i + 1]
+        hermite_segment(
+            t,
+            h,
+            self.ys[i],
+            self.dys[i],
+            self.ys[i + 1],
+            self.dys[i + 1],
+        )
     }
 
     /// Evaluate the interpolant and its derivative at `x`.
@@ -175,34 +193,14 @@ impl<T: FloatScalar> DynHermiteInterp<T> {
         let i = find_interval(&self.xs, x);
         let h = self.xs[i + 1] - self.xs[i];
         let t = (x - self.xs[i]) / h;
-        let t2 = t * t;
-        let t3 = t2 * t;
-        let two = T::one() + T::one();
-        let three = two + T::one();
-        let six = three + three;
-
-        let h00 = two * t3 - three * t2 + T::one();
-        let h10 = t3 - two * t2 + t;
-        let h01 = (T::zero() - two) * t3 + three * t2;
-        let h11 = t3 - t2;
-
-        let val = h00 * self.ys[i]
-            + h10 * h * self.dys[i]
-            + h01 * self.ys[i + 1]
-            + h11 * h * self.dys[i + 1];
-
-        let dh00 = six * t2 - six * t;
-        let dh10 = three * t2 - (two + two) * t + T::one();
-        let dh01 = (T::zero() - six) * t2 + six * t;
-        let dh11 = three * t2 - two * t;
-
-        let dval = (dh00 * self.ys[i]
-            + dh10 * h * self.dys[i]
-            + dh01 * self.ys[i + 1]
-            + dh11 * h * self.dys[i + 1])
-            / h;
-
-        (val, dval)
+        hermite_segment_with_derivative(
+            t,
+            h,
+            self.ys[i],
+            self.dys[i],
+            self.ys[i + 1],
+            self.dys[i + 1],
+        )
     }
 
     /// The knot x-values.

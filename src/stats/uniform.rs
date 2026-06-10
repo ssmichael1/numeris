@@ -34,14 +34,7 @@ impl<T: FloatScalar> Uniform<T> {
         self.a + (self.b - self.a) * rng.next_float::<T>()
     }
 
-    /// Fill a fixed-size array with independent samples.
-    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [T; K] {
-        let mut out = [T::zero(); K];
-        for v in out.iter_mut() {
-            *v = self.sample(rng);
-        }
-        out
-    }
+    impl_sample_array!(T, T::zero());
 }
 
 impl<T: FloatScalar> ContinuousDistribution<T> for Uniform<T> {

@@ -41,14 +41,7 @@ impl<T: FloatScalar> Bernoulli<T> {
         }
     }
 
-    /// Fill a fixed-size array with independent samples.
-    pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [u64; K] {
-        let mut out = [0u64; K];
-        for v in out.iter_mut() {
-            *v = self.sample(rng);
-        }
-        out
-    }
+    impl_sample_array!(u64, 0u64);
 }
 
 impl<T: FloatScalar> DiscreteDistribution<T> for Bernoulli<T> {
