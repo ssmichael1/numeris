@@ -177,6 +177,30 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
+        let (s_mat, s_inv, pxz, innovation, nis) = self.measurement_transform(z, &h, r)?;
+        self.apply_update(&s_mat, &s_inv, &pxz, &innovation);
+        Ok(nis)
+    }
+
+    /// Cubature measurement transform shared by `update` and `update_gated`.
+    ///
+    /// Returns `(S, S⁻¹, Pxz, innovation, NIS)` without modifying the state.
+    #[allow(clippy::type_complexity)]
+    fn measurement_transform(
+        &self,
+        z: &Vector<T, M>,
+        h: &impl Fn(&Vector<T, N>) -> Vector<T, M>,
+        r: &Matrix<T, M, M>,
+    ) -> Result<
+        (
+            Matrix<T, M, M>,
+            Matrix<T, M, M>,
+            Matrix<T, N, M>,
+            Vector<T, M>,
+            T,
+        ),
+        EstimateError,
+    > {
         let chol = cholesky_with_jitter(&self.p)?;
         let l = chol.l_full();
 
@@ -219,24 +243,32 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
             }
         }
 
-        // Kalman gain: K = Pxz · S⁻¹
         let s_inv = cholesky_with_jitter(&s_mat)
             .map_err(|_| EstimateError::SingularInnovation)?
             .inverse();
-        let k = pxz * s_inv;
-
-        // Innovation and NIS = yᵀ S⁻¹ y
         let innovation = *z - z_mean;
         let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
 
+        Ok((s_mat, s_inv, pxz, innovation, nis))
+    }
+
+    /// Apply the Kalman gain and covariance update from a measurement transform.
+    fn apply_update(
+        &mut self,
+        s_mat: &Matrix<T, M, M>,
+        s_inv: &Matrix<T, M, M>,
+        pxz: &Matrix<T, N, M>,
+        innovation: &Vector<T, M>,
+    ) {
+        // Kalman gain: K = Pxz · S⁻¹
+        let k = *pxz * *s_inv;
+
         // Update state and covariance: P = P - K·S·Kᵀ (symmetric, manifestly PSD-subtracted)
-        self.x += k * innovation;
-        self.p -= k * s_mat * k.transpose();
+        self.x += k * *innovation;
+        self.p -= k * *s_mat * k.transpose();
         let half = T::from(0.5).unwrap();
         self.p = (self.p + self.p.transpose()) * half;
         apply_var_floor(&mut self.p, self.min_variance);
-
-        Ok(nis)
     }
 
     /// Update with innovation gating — skips state update if NIS exceeds `gate`.
@@ -251,45 +283,11 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ckf<T, N, M> {
         r: &Matrix<T, M, M>,
         gate: T,
     ) -> Result<Option<T>, EstimateError> {
-        // Compute NIS without modifying state.
-        let chol = cholesky_with_jitter(&self.p)?;
-        let l = chol.l_full();
-
-        let points = Self::cubature_points(&self.x, &l);
-        let w = T::one() / T::from(2 * N).unwrap();
-
-        let mut z_points: Vec<Vector<T, M>> = Vec::with_capacity(2 * N);
-        let mut z_mean = Vector::<T, M>::zeros();
-
-        for pt in &points {
-            let zp = h(pt);
-            for r_i in 0..M {
-                z_mean[r_i] = z_mean[r_i] + w * zp[r_i];
-            }
-            z_points.push(zp);
-        }
-
-        let mut s_mat = Matrix::<T, M, M>::zeros();
-        for zp in &z_points {
-            let dz = *zp - z_mean;
-            for ri in 0..M {
-                for ci in 0..M {
-                    s_mat[(ri, ci)] = s_mat[(ri, ci)] + w * dz[ri] * dz[ci];
-                }
-            }
-        }
-        s_mat += *r;
-
-        let s_inv = cholesky_with_jitter(&s_mat)
-            .map_err(|_| EstimateError::SingularInnovation)?
-            .inverse();
-        let innovation = *z - z_mean;
-        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
-
+        let (s_mat, s_inv, pxz, innovation, nis) = self.measurement_transform(z, &h, r)?;
         if nis > gate {
             return Ok(None);
         }
-        let nis = self.update(z, h, r)?;
+        self.apply_update(&s_mat, &s_inv, &pxz, &innovation);
         Ok(Some(nis))
     }
 }

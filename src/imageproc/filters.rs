@@ -88,14 +88,11 @@ pub fn unsharp_mask<T: FloatScalar + crate::par::MaybeSync>(
     if !sigma.is_finite() || sigma <= T::zero() {
         return src.clone();
     }
-    let blurred = gaussian_blur(src, sigma, border);
-    let mut out = DynMatrix::<T>::zeros(src.nrows(), src.ncols());
-    for j in 0..src.ncols() {
-        for i in 0..src.nrows() {
-            let s = src[(i, j)];
-            let b = blurred[(i, j)];
-            out[(i, j)] = s + amount * (s - b);
-        }
+    // Reuse the blurred buffer: out = src + amount·(src − blurred)
+    let mut out = gaussian_blur(src, sigma, border);
+    for (o, &s) in out.as_mut_slice().iter_mut().zip(src.as_slice()) {
+        let b = *o;
+        *o = s + amount * (s - b);
     }
     out
 }
