@@ -2,6 +2,19 @@
 
 ## 0.5.13
 
+- **SIMD conjugated dot in linalg Householder loops** — internal-only. A new
+  private `simd::dotc_dispatch` computes `Σ conj(aᵢ)·bᵢ`, forwarding to the
+  SIMD `dot_dispatch` for `f32`/`f64` (where `conj` is the identity) with a
+  scalar conjugating loop for complex elements. The column-oriented Householder
+  reflection loops in QR (`qr_in_place`, `qr_col_pivot_in_place`, `q()`,
+  `solve`), SVD bidiagonalization, and Hessenberg reduction previously computed
+  `vᴴ·A[:,j]` with a scalar loop right next to a SIMD-dispatched AXPY; they now
+  use the dispatched dot, and the redundant second `split_two_col_slices` call
+  per column was removed by reordering the diagonal-element update after the
+  AXPY. Slices shorter than 8 elements keep the inlined scalar loop — the
+  out-of-line SIMD kernel call costs more than it saves there (a 4×4 QR
+  regressed ~33% without the cutoff; with it, benchmarks show ~2× on 80×80
+  dynamic QR and parity at 4×4/6×6).
 - **Hot-loop performance cleanups** — internal-only; no API or behavior changes.
   - `estimate`: `Ukf`, `SrUkf`, and `Ckf` `update_gated` previously ran the full
     sigma-point measurement transform (Cholesky of P, sigma points, measurement

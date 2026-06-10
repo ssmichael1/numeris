@@ -269,4 +269,8 @@ API impact) — in that case, still consider whether the `CHANGELOG` deserves a 
 
 ## Current Focus
 
-Next candidates: SIMD extension to remaining linalg inner loops (QR, Cholesky, SVD Householder loops via col_as_slice + dot/AXPY dispatch).
+Next candidates: SIMD extension to remaining linalg inner loops. The column-oriented
+Householder dot products in QR / SVD / Hessenberg now go through `simd::dotc_dispatch`
+(conjugated dot; forwards to `dot_dispatch` for real floats). Remaining: Cholesky inner
+loops, and the row-oriented (right-side) Householder applications in SVD / Hessenberg
+U/V/Q accumulation, which would need the reflector cached in a contiguous buffer first.
