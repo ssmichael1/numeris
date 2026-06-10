@@ -140,13 +140,11 @@ impl<T: Scalar> SubAssign<&DynMatrix<T>> for DynMatrix<T> {
 impl<T: Scalar> Neg for DynMatrix<T> {
     type Output = Self;
 
-    fn neg(self) -> Self {
-        let data = self.data.iter().map(|&x| T::zero() - x).collect();
-        DynMatrix {
-            data,
-            nrows: self.nrows,
-            ncols: self.ncols,
+    fn neg(mut self) -> Self {
+        for x in self.data.iter_mut() {
+            *x = T::zero() - *x;
         }
+        self
     }
 }
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.13
+
+- **Hot-loop performance cleanups** — internal-only; no API or behavior changes.
+  - `estimate`: `Ukf`, `SrUkf`, and `Ckf` `update_gated` previously ran the full
+    sigma-point measurement transform (Cholesky of P, sigma points, measurement
+    transform, innovation covariance, Cholesky of S) to compute the NIS, then
+    called `update`, which recomputed all of it from scratch. The transform is
+    now factored into a shared private `measurement_transform` /
+    `apply_update` pair used by both paths, roughly halving the cost of every
+    accepted gated update (and deleting ~60 duplicated lines per filter).
+    `predict` also reuses the new shared sigma-point generation.
+  - `optim`: `least_squares_lm` computed `j.transpose()` twice per iteration
+    (for `JᵀJ` and `Jᵀr`); it is now computed once.
+    `finite_difference_jacobian_dyn` / `finite_difference_gradient_dyn` cloned
+    the full state vector once per column; they now clone once and
+    perturb/restore in place.
+  - `ode`: the PID step-size controller coefficients (β₁, β₂, β₃) were rebuilt
+    from `T::from(...)` conversions and divisions on every step in both the
+    adaptive RK loop and the Rosenbrock loop; they are now hoisted above the
+    step loop (along with `GAMMA_DIAG` in the Rosenbrock loop).
+  - `imageproc`: `morphology_gradient`, `top_hat`, and `black_hat` replaced
+    their per-element bounds-checked subtraction loops with the SIMD-dispatched
+    slice subtraction already used by `DynMatrix` operators; `unsharp_mask`
+    reuses the blurred buffer and iterates flat slices instead of per-element
+    indexing (one less full-image allocation).
+  - `dynmatrix`: by-value `Neg` negates in place instead of allocating a new
+    backing vector.
+
 ## 0.5.12
 
 - **`rayon` feature (opt-in parallelism)** — a new `rayon` Cargo feature adds

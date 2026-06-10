@@ -144,6 +144,28 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         (wm_0, wc_0, w_i)
     }
 
+    /// Cholesky factor scaled by `sqrt(N + lambda)` for sigma point generation.
+    fn scaled_cholesky(&self) -> Matrix<T, N, N> {
+        let n = T::from(N).unwrap();
+        let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
+        self.s * (n + lambda).sqrt()
+    }
+
+    /// Generate the `2N+1` sigma points `[x, x ± scaled_S[:,i]]` from the current state.
+    fn sigma_points(&self, scaled_s: &Matrix<T, N, N>) -> Vec<Vector<T, N>> {
+        let mut sigmas: Vec<Vector<T, N>> = Vec::with_capacity(2 * N + 1);
+        sigmas.push(self.x);
+        for i in 0..N {
+            let mut col = Vector::<T, N>::zeros();
+            for r in 0..N {
+                col[r] = scaled_s[(r, i)];
+            }
+            sigmas.push(self.x + col);
+            sigmas.push(self.x - col);
+        }
+        sigmas
+    }
+
     /// Predict step.
     ///
     /// - `f` — state transition: `x_{k+1} = f(x_k)`
@@ -153,25 +175,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         f: impl Fn(&Vector<T, N>) -> Vector<T, N>,
         q: Option<&Matrix<T, N, N>>,
     ) -> Result<(), EstimateError> {
-        let n = T::from(N).unwrap();
-        let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
-        let scale = (n + lambda).sqrt();
         let (wm_0, wc_0, w_i) = self.weights();
+        let scaled_s = self.scaled_cholesky();
 
-        // Scaled Cholesky columns
-        let scaled_s = self.s * scale;
-
-        // Generate and propagate sigma points
-        let mut sigmas: Vec<Vector<T, N>> = Vec::with_capacity(2 * N + 1);
-        sigmas.push(f(&self.x));
-
-        for i in 0..N {
-            let mut col = Vector::<T, N>::zeros();
-            for r in 0..N {
-                col[r] = scaled_s[(r, i)];
-            }
-            sigmas.push(f(&(self.x + col)));
-            sigmas.push(f(&(self.x - col)));
+        // Generate sigma points and propagate in place
+        let mut sigmas = self.sigma_points(&scaled_s);
+        for s in sigmas.iter_mut() {
+            *s = f(s);
         }
 
         // Weighted mean
@@ -241,26 +251,35 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
-        let n = T::from(N).unwrap();
-        let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
-        let scale = (n + lambda).sqrt();
+        let (s_mat, s_inv, pxz, innovation, nis) = self.measurement_transform(z, &h, r)?;
+        self.apply_update(&s_mat, &s_inv, &pxz, &innovation)?;
+        Ok(nis)
+    }
+
+    /// Sigma-point measurement transform shared by `update` and `update_gated`.
+    ///
+    /// Returns `(S, S⁻¹, Pxz, innovation, NIS)` without modifying the state.
+    #[allow(clippy::type_complexity)]
+    fn measurement_transform(
+        &self,
+        z: &Vector<T, M>,
+        h: &impl Fn(&Vector<T, N>) -> Vector<T, M>,
+        r: &Matrix<T, M, M>,
+    ) -> Result<
+        (
+            Matrix<T, M, M>,
+            Matrix<T, M, M>,
+            Matrix<T, N, M>,
+            Vector<T, M>,
+            T,
+        ),
+        EstimateError,
+    > {
         let (wm_0, wc_0, w_i) = self.weights();
+        let scaled_s = self.scaled_cholesky();
 
-        let scaled_s = self.s * scale;
-
-        // Generate state sigma points
-        let mut sigmas_x: Vec<Vector<T, N>> = Vec::with_capacity(2 * N + 1);
-        sigmas_x.push(self.x);
-        for i in 0..N {
-            let mut col = Vector::<T, N>::zeros();
-            for r in 0..N {
-                col[r] = scaled_s[(r, i)];
-            }
-            sigmas_x.push(self.x + col);
-            sigmas_x.push(self.x - col);
-        }
-
-        // Transform through measurement model
+        // Generate state sigma points and transform through the measurement model
+        let sigmas_x = self.sigma_points(&scaled_s);
         let mut sigmas_z: Vec<Vector<T, M>> = Vec::with_capacity(2 * N + 1);
         for sx in &sigmas_x {
             sigmas_z.push(h(sx));
@@ -316,28 +335,38 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
             }
         }
 
-        // Kalman gain: K = Pxz · S⁻¹
         let s_inv = cholesky_with_jitter(&s_mat)
             .map_err(|_| EstimateError::SingularInnovation)?
             .inverse();
-        let k = pxz * s_inv;
-
-        // Innovation and NIS = yᵀ S⁻¹ y
         let innovation = *z - z_mean;
         let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
 
+        Ok((s_mat, s_inv, pxz, innovation, nis))
+    }
+
+    /// Apply the Kalman gain, covariance update, and re-Cholesky from a measurement transform.
+    fn apply_update(
+        &mut self,
+        s_mat: &Matrix<T, M, M>,
+        s_inv: &Matrix<T, M, M>,
+        pxz: &Matrix<T, N, M>,
+        innovation: &Vector<T, M>,
+    ) -> Result<(), EstimateError> {
+        // Kalman gain: K = Pxz · S⁻¹
+        let k = *pxz * *s_inv;
+
         // State update
-        self.x += k * innovation;
+        self.x += k * *innovation;
 
         // Covariance update: P_new = P - K·S·Kᵀ, then re-Cholesky.
-        let mut p_new = self.covariance() - k * s_mat * k.transpose();
+        let mut p_new = self.covariance() - k * *s_mat * k.transpose();
         let half = T::from(0.5).unwrap();
         p_new = (p_new + p_new.transpose()) * half;
         apply_var_floor(&mut p_new, self.min_variance);
         let chol = cholesky_with_jitter(&p_new)?;
         self.s = chol.l_full();
 
-        Ok(nis)
+        Ok(())
     }
 
     /// Update with innovation gating — skips state update if NIS exceeds `gate`.
@@ -352,69 +381,11 @@ impl<T: FloatScalar, const N: usize, const M: usize> SrUkf<T, N, M> {
         r: &Matrix<T, M, M>,
         gate: T,
     ) -> Result<Option<T>, EstimateError> {
-        let n = T::from(N).unwrap();
-        let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
-        let scale = (n + lambda).sqrt();
-        let (wm_0, wc_0, w_i) = self.weights();
-
-        let scaled_s = self.s * scale;
-
-        let mut sigmas_x: Vec<Vector<T, N>> = Vec::with_capacity(2 * N + 1);
-        sigmas_x.push(self.x);
-        for i in 0..N {
-            let mut col = Vector::<T, N>::zeros();
-            for r_i in 0..N {
-                col[r_i] = scaled_s[(r_i, i)];
-            }
-            sigmas_x.push(self.x + col);
-            sigmas_x.push(self.x - col);
-        }
-
-        let mut sigmas_z: Vec<Vector<T, M>> = Vec::with_capacity(2 * N + 1);
-        for sx in &sigmas_x {
-            sigmas_z.push(h(sx));
-        }
-
-        let mut z_mean = Vector::<T, M>::zeros();
-        for r_i in 0..M {
-            z_mean[r_i] = wm_0 * sigmas_z[0][r_i];
-        }
-        for i in 0..N {
-            for r_i in 0..M {
-                z_mean[r_i] =
-                    z_mean[r_i] + w_i * (sigmas_z[2 * i + 1][r_i] + sigmas_z[2 * i + 2][r_i]);
-            }
-        }
-
-        let mut s_mat = Matrix::<T, M, M>::zeros();
-        let dz0 = sigmas_z[0] - z_mean;
-        for r_i in 0..M {
-            for ci in 0..M {
-                s_mat[(r_i, ci)] = s_mat[(r_i, ci)] + wc_0 * dz0[r_i] * dz0[ci];
-            }
-        }
-        for i in 0..N {
-            let dzp = sigmas_z[2 * i + 1] - z_mean;
-            let dzm = sigmas_z[2 * i + 2] - z_mean;
-            for r_i in 0..M {
-                for ci in 0..M {
-                    s_mat[(r_i, ci)] =
-                        s_mat[(r_i, ci)] + w_i * (dzp[r_i] * dzp[ci] + dzm[r_i] * dzm[ci]);
-                }
-            }
-        }
-        s_mat += *r;
-
-        let s_inv = cholesky_with_jitter(&s_mat)
-            .map_err(|_| EstimateError::SingularInnovation)?
-            .inverse();
-        let innovation = *z - z_mean;
-        let nis = (innovation.transpose() * s_inv * innovation)[(0, 0)];
-
+        let (s_mat, s_inv, pxz, innovation, nis) = self.measurement_transform(z, &h, r)?;
         if nis > gate {
             return Ok(None);
         }
-        let nis = self.update(z, h, r)?;
+        self.apply_update(&s_mat, &s_inv, &pxz, &innovation)?;
         Ok(Some(nis))
     }
 }

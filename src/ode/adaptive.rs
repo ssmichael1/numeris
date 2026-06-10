@@ -153,6 +153,21 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             (if h0_100 < h1_abs { h0_100 } else { h1_abs }) * tdir
         };
 
+        // PID step-size controller coefficients (Söderlind & Wang 2006, §4)
+        //
+        // The step-size ratio is: h_{n+1}/h_n = 1/q, where
+        //   q = (e_n)^β₁ · (e_{n-1})^β₂ · (e_{n-2})^β₃ / safety
+        //
+        // Coefficients from Söderlind's H211b controller:
+        //   β₁ = 1/p + α/p,  β₂ = -α/p,  β₃ ≈ 0  (with α = 1/4)
+        // which for the full PID becomes:
+        //   β₁ = 0.7/p,  β₂ = -0.4/p,  β₃ = 0
+        // We extend to PID with a small β₃ for additional smoothing.
+        let order_f = T::from(Self::ORDER).unwrap();
+        let beta1 = T::from(0.7).unwrap() / order_f;
+        let beta2 = T::from(0.4).unwrap() / order_f;
+        let beta3 = T::from(0.1).unwrap() / order_f;
+
         // For FSAL methods, cache the last k evaluation
         let mut k_last: Option<Matrix<T, M, N>> = None;
 
@@ -230,20 +245,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                 return Err(OdeError::StepNotFinite);
             }
 
-            // PID step-size controller (Söderlind & Wang 2006, §4)
-            //
-            // The step-size ratio is: h_{n+1}/h_n = 1/q, where
-            //   q = (e_n)^β₁ · (e_{n-1})^β₂ · (e_{n-2})^β₃ / safety
-            //
-            // Coefficients from Söderlind's H211b controller:
-            //   β₁ = 1/p + α/p,  β₂ = -α/p,  β₃ ≈ 0  (with α = 1/4)
-            // which for the full PID becomes:
-            //   β₁ = 0.7/p,  β₂ = -0.4/p,  β₃ = 0
-            // We extend to PID with a small β₃ for additional smoothing.
-            let order_f = T::from(Self::ORDER).unwrap();
-            let beta1 = T::from(0.7).unwrap() / order_f;
-            let beta2 = T::from(0.4).unwrap() / order_f;
-            let beta3 = T::from(0.1).unwrap() / order_f;
+            // PID step-size controller (coefficients precomputed above the loop)
             let q = {
                 let raw = enorm.powf(beta1) / enorm_prev.powf(beta2) * enorm_prev2.powf(beta3)
                     / settings.safety;

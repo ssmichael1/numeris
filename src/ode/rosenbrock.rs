@@ -237,13 +237,20 @@ where
         None
     };
 
+    let gamma = T::from(R::GAMMA_DIAG).unwrap();
+
+    // PID step-size controller coefficients (Söderlind & Wang 2006)
+    let order_f = T::from(R::ORDER).unwrap();
+    let beta1 = T::from(0.7).unwrap() / order_f;
+    let beta2 = T::from(0.4).unwrap() / order_f;
+    let beta3 = T::from(0.1).unwrap() / order_f;
+
     loop {
         // Clamp step to not overshoot end
         if (tdir > zero && (t + h) >= tf) || (tdir < zero && (t + h) <= tf) {
             h = tf - t;
         }
 
-        let gamma = T::from(R::GAMMA_DIAG).unwrap();
         let inv_hgamma = one / (h * gamma);
 
         // Evaluate f at current point
@@ -351,11 +358,7 @@ where
             return Err(OdeError::StepNotFinite);
         }
 
-        // PID step-size controller (Söderlind & Wang 2006)
-        let order_f = T::from(R::ORDER).unwrap();
-        let beta1 = T::from(0.7).unwrap() / order_f;
-        let beta2 = T::from(0.4).unwrap() / order_f;
-        let beta3 = T::from(0.1).unwrap() / order_f;
+        // PID step-size controller (coefficients precomputed above the loop)
         let q = {
             let raw = enorm.powf(beta1) / enorm_prev.powf(beta2) * enorm_prev2.powf(beta3)
                 / settings.safety;

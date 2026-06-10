@@ -156,11 +156,12 @@ pub fn finite_difference_jacobian_dyn<T: FloatScalar>(
     let m = f0.len();
     let mut jac = DynMatrix::zeros(m, n);
 
+    let mut x_pert = x.clone();
     for j in 0..n {
         let h = sqrt_eps * x[j].abs().max(T::one());
-        let mut x_pert = x.clone();
-        x_pert[j] = x_pert[j] + h;
+        x_pert[j] = x[j] + h;
         let f_pert = f(&x_pert);
+        x_pert[j] = x[j];
         for i in 0..m {
             jac[(i, j)] = (f_pert[i] - f0[i]) / h;
         }
@@ -199,11 +200,12 @@ pub fn finite_difference_gradient_dyn<T: FloatScalar>(
     let n = x.len();
     let mut grad = DynVector::zeros(n);
 
+    let mut x_pert = x.clone();
     for j in 0..n {
         let h = sqrt_eps * x[j].abs().max(T::one());
-        let mut x_pert = x.clone();
-        x_pert[j] = x_pert[j] + h;
+        x_pert[j] = x[j] + h;
         grad[j] = (f(&x_pert) - f0) / h;
+        x_pert[j] = x[j];
     }
 
     grad

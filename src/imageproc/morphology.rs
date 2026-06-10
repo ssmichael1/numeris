@@ -102,6 +102,13 @@ pub fn closing<T: FloatScalar + crate::par::MaybeSync>(
 /// Morphological **gradient**: `dilate(src) − erode(src)`. Highlights
 /// boundaries — the width of the response scales with the structuring
 /// element radius.
+/// Element-wise `a - b` into a fresh matrix via the SIMD subtraction dispatch.
+fn element_sub<T: FloatScalar>(a: &DynMatrix<T>, b: &DynMatrix<T>) -> DynMatrix<T> {
+    let mut out = DynMatrix::<T>::zeros(a.nrows(), a.ncols());
+    crate::simd::sub_slices_dispatch(a.as_slice(), b.as_slice(), out.as_mut_slice());
+    out
+}
+
 pub fn morphology_gradient<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     radius: usize,
@@ -109,15 +116,7 @@ pub fn morphology_gradient<T: FloatScalar + crate::par::MaybeSync>(
 ) -> DynMatrix<T> {
     let d = dilate(src, radius, border);
     let e = erode(src, radius, border);
-    let nrows = src.nrows();
-    let ncols = src.ncols();
-    let mut out = DynMatrix::<T>::zeros(nrows, ncols);
-    for j in 0..ncols {
-        for i in 0..nrows {
-            out[(i, j)] = d[(i, j)] - e[(i, j)];
-        }
-    }
-    out
+    element_sub(&d, &e)
 }
 
 /// **Top-hat** transform: `src − opening(src)`. Isolates bright features
@@ -129,15 +128,7 @@ pub fn top_hat<T: FloatScalar + crate::par::MaybeSync>(
     border: BorderMode<T>,
 ) -> DynMatrix<T> {
     let op = opening(src, radius, border);
-    let nrows = src.nrows();
-    let ncols = src.ncols();
-    let mut out = DynMatrix::<T>::zeros(nrows, ncols);
-    for j in 0..ncols {
-        for i in 0..nrows {
-            out[(i, j)] = src[(i, j)] - op[(i, j)];
-        }
-    }
-    out
+    element_sub(src, &op)
 }
 
 /// **Black-hat** transform: `closing(src) − src`. Isolates dark features
@@ -148,15 +139,7 @@ pub fn black_hat<T: FloatScalar + crate::par::MaybeSync>(
     border: BorderMode<T>,
 ) -> DynMatrix<T> {
     let cl = closing(src, radius, border);
-    let nrows = src.nrows();
-    let ncols = src.ncols();
-    let mut out = DynMatrix::<T>::zeros(nrows, ncols);
-    for j in 0..ncols {
-        for i in 0..nrows {
-            out[(i, j)] = cl[(i, j)] - src[(i, j)];
-        }
-    }
-    out
+    element_sub(&cl, src)
 }
 
 // ── internal ──────────────────────────────────────────────────────────
