@@ -15,7 +15,8 @@ use crate::FloatScalar;
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct StudentT<T> {
-    df: T, // ν > 0
+    df: T,      // ν > 0
+    ln_norm: T, // lgamma((ν+1)/2) − lgamma(ν/2) − ½·ln(νπ), cached at construction
 }
 
 impl<T: FloatScalar> StudentT<T> {
@@ -24,7 +25,11 @@ impl<T: FloatScalar> StudentT<T> {
         if df <= T::zero() {
             return Err(StatsError::InvalidParameter);
         }
-        Ok(Self { df })
+        let one = T::one();
+        let half = one / (one + one);
+        let pi = T::from(core::f64::consts::PI).unwrap();
+        let ln_norm = lgamma((df + one) * half) - lgamma(df * half) - half * (df * pi).ln();
+        Ok(Self { df, ln_norm })
     }
 }
 
@@ -56,14 +61,9 @@ impl<T: FloatScalar> ContinuousDistribution<T> for StudentT<T> {
 
     fn ln_pdf(&self, x: T) -> T {
         let one = T::one();
-        let two = one + one;
-        let half = one / two;
-        let pi = T::from(core::f64::consts::PI).unwrap();
+        let half = one / (one + one);
         let v = self.df;
-        lgamma((v + one) * half)
-            - lgamma(v * half)
-            - half * (v * pi).ln()
-            - (v + one) * half * (one + x * x / v).ln()
+        self.ln_norm - (v + one) * half * (one + x * x / v).ln()
     }
 
     fn cdf(&self, x: T) -> T {

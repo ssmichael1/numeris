@@ -4,7 +4,7 @@
 //! via our incomplete gamma for accuracy, combined with a small-argument
 //! Taylor series and large-argument asymptotics.
 
-use super::gamma_fn::lgamma;
+use super::incgamma::gamma_inc_pair_core;
 use crate::FloatScalar;
 
 /// Error function erf(x).
@@ -43,10 +43,9 @@ pub fn erf<T: FloatScalar>(x: T) -> T {
     let a = T::from(0.5).unwrap();
     let x2 = ax * ax;
 
-    // Compute P(0.5, x²) using the same series/CF as gamma_inc
-    // but inline here to avoid Result overhead
-    match inc_gamma_p(a, x2) {
-        Some(p) => sign * p,
+    // Compute P(0.5, x²) via the shared incomplete-gamma core
+    match gamma_inc_pair_core(a, x2) {
+        Some((p, _)) => sign * p,
         None => sign, // convergence issue at extreme x; erf ≈ ±1
     }
 }
@@ -83,7 +82,7 @@ pub fn erfc<T: FloatScalar>(x: T) -> T {
 
     // For x > 0: erfc(x) = Q(0.5, x²) = 1 - P(0.5, x²)
     // For x < 0: erfc(x) = 1 + P(0.5, x²)
-    match inc_gamma_pair(a, x2) {
+    match gamma_inc_pair_core(a, x2) {
         Some((p, q)) => {
             if x >= zero {
                 q
@@ -99,93 +98,4 @@ pub fn erfc<T: FloatScalar>(x: T) -> T {
             }
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Internal: regularized incomplete gamma P(a, x) and Q(a, x)
-// Duplicates the logic from incgamma.rs but returns Option instead of Result
-// and avoids circular dependency issues with re-exporting.
-// ---------------------------------------------------------------------------
-
-const MAX_ITER: usize = 200;
-
-/// Compute P(a, x) only.
-fn inc_gamma_p<T: FloatScalar>(a: T, x: T) -> Option<T> {
-    let (p, _) = inc_gamma_pair(a, x)?;
-    Some(p)
-}
-
-/// Compute both (P, Q).
-fn inc_gamma_pair<T: FloatScalar>(a: T, x: T) -> Option<(T, T)> {
-    let zero = T::zero();
-    let one = T::one();
-
-    if x == zero {
-        return Some((zero, one));
-    }
-
-    // Log prefactor: exp(-x + a·ln(x) - lgamma(a))
-    let log_pf = -x + a * x.ln() - lgamma(a);
-    let pf = log_pf.exp();
-
-    if x < a + one {
-        let p = series_p(a, x, pf)?;
-        Some((p, one - p))
-    } else {
-        let q = cf_q(a, x, pf)?;
-        Some((one - q, q))
-    }
-}
-
-fn series_p<T: FloatScalar>(a: T, x: T, pf: T) -> Option<T> {
-    let one = T::one();
-    let eps = T::epsilon();
-    let mut term = one / a;
-    let mut sum = term;
-    let mut ap = a;
-    for _ in 0..MAX_ITER {
-        ap = ap + one;
-        term = term * x / ap;
-        sum = sum + term;
-        if term.abs() < sum.abs() * eps {
-            return Some(pf * sum);
-        }
-    }
-    None
-}
-
-fn cf_q<T: FloatScalar>(a: T, x: T, pf: T) -> Option<T> {
-    let one = T::one();
-    let eps = T::epsilon();
-    let tiny = T::from(1e-30).unwrap();
-
-    let b0 = x + one - a;
-    let mut f = if b0.abs() < tiny { tiny } else { b0 };
-    let mut c = f;
-    let mut d = T::zero();
-
-    for n in 1..=MAX_ITER {
-        let nf = T::from(n).unwrap();
-        let an = nf * (a - nf);
-        let bn = x + T::from(2 * n + 1).unwrap() - a;
-
-        d = bn + an * d;
-        if d.abs() < tiny {
-            d = tiny;
-        }
-        d = one / d;
-
-        c = bn + an / c;
-        if c.abs() < tiny {
-            c = tiny;
-        }
-
-        let delta = c * d;
-        f = f * delta;
-
-        if (delta - one).abs() < eps {
-            return Some(pf * f.recip());
-        }
-    }
-    None
 }

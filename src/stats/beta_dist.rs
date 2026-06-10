@@ -18,6 +18,7 @@ use crate::FloatScalar;
 pub struct Beta<T> {
     alpha: T,
     beta: T,
+    ln_beta_fn: T, // lbeta(α, β), cached at construction
 }
 
 impl<T: FloatScalar> Beta<T> {
@@ -27,7 +28,12 @@ impl<T: FloatScalar> Beta<T> {
         if alpha <= T::zero() || beta <= T::zero() {
             return Err(StatsError::InvalidParameter);
         }
-        Ok(Self { alpha, beta })
+        let ln_beta_fn = lbeta(alpha, beta);
+        Ok(Self {
+            alpha,
+            beta,
+            ln_beta_fn,
+        })
     }
 }
 
@@ -64,8 +70,7 @@ impl<T: FloatScalar> ContinuousDistribution<T> for Beta<T> {
             return T::neg_infinity();
         }
         let one = T::one();
-        (self.alpha - one) * x.ln() + (self.beta - one) * (one - x).ln()
-            - lbeta(self.alpha, self.beta)
+        (self.alpha - one) * x.ln() + (self.beta - one) * (one - x).ln() - self.ln_beta_fn
     }
 
     fn cdf(&self, x: T) -> T {

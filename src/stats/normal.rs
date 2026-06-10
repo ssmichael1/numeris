@@ -17,6 +17,8 @@ use crate::FloatScalar;
 pub struct Normal<T> {
     mu: T,
     sigma: T,
+    sigma_sqrt_two_pi: T, // σ·√(2π), cached at construction
+    ln_norm: T,           // −ln σ − ln(2π)/2, cached at construction
 }
 
 impl<T: FloatScalar> Normal<T> {
@@ -27,7 +29,14 @@ impl<T: FloatScalar> Normal<T> {
         if sigma <= T::zero() {
             return Err(StatsError::InvalidParameter);
         }
-        Ok(Self { mu, sigma })
+        let two = T::one() + T::one();
+        let pi = T::from(core::f64::consts::PI).unwrap();
+        Ok(Self {
+            mu,
+            sigma,
+            sigma_sqrt_two_pi: sigma * (two * pi).sqrt(),
+            ln_norm: -sigma.ln() - (two * pi).ln() / two,
+        })
     }
 }
 
@@ -61,16 +70,14 @@ impl<T: FloatScalar> Normal<T> {
 impl<T: FloatScalar> ContinuousDistribution<T> for Normal<T> {
     fn pdf(&self, x: T) -> T {
         let two = T::one() + T::one();
-        let pi = T::from(core::f64::consts::PI).unwrap();
         let z = (x - self.mu) / self.sigma;
-        (-(z * z) / two).exp() / (self.sigma * (two * pi).sqrt())
+        (-(z * z) / two).exp() / self.sigma_sqrt_two_pi
     }
 
     fn ln_pdf(&self, x: T) -> T {
         let two = T::one() + T::one();
-        let pi = T::from(core::f64::consts::PI).unwrap();
         let z = (x - self.mu) / self.sigma;
-        -self.sigma.ln() - (two * pi).ln() / two - z * z / two
+        self.ln_norm - z * z / two
     }
 
     fn cdf(&self, x: T) -> T {

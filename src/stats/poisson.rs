@@ -18,6 +18,7 @@ use crate::FloatScalar;
 #[derive(Debug, Clone, Copy)]
 pub struct Poisson<T> {
     lambda: T,
+    ln_lambda: T, // ln(λ), cached at construction
 }
 
 impl<T: FloatScalar> Poisson<T> {
@@ -26,7 +27,10 @@ impl<T: FloatScalar> Poisson<T> {
         if lambda <= T::zero() {
             return Err(StatsError::InvalidParameter);
         }
-        Ok(Self { lambda })
+        Ok(Self {
+            lambda,
+            ln_lambda: lambda.ln(),
+        })
     }
 }
 
@@ -79,7 +83,7 @@ impl<T: FloatScalar> DiscreteDistribution<T> for Poisson<T> {
     fn ln_pmf(&self, k: u64) -> T {
         let one = T::one();
         let kf = T::from(k).unwrap();
-        kf * self.lambda.ln() - self.lambda - lgamma(kf + one)
+        kf * self.ln_lambda - self.lambda - lgamma(kf + one)
     }
 
     fn cdf(&self, k: u64) -> T {

@@ -99,9 +99,11 @@ impl Rng {
             let u1 = self.next_f64();
             let u2 = self.next_f64();
             if u1 > 0.0 {
-                let r = (-2.0 * u1.ln()).sqrt();
+                // Fully-qualified Float calls: inherent f64 math methods are
+                // unavailable in no-std builds (libm backs the trait there).
+                let r = num_traits::Float::sqrt(-2.0 * num_traits::Float::ln(u1));
                 let theta = 2.0 * core::f64::consts::PI * u2;
-                return r * theta.cos();
+                return r * num_traits::Float::cos(theta);
             }
         }
     }

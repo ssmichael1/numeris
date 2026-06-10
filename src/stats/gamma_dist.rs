@@ -19,8 +19,9 @@ use crate::FloatScalar;
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct Gamma<T> {
-    shape: T, // α > 0
-    rate: T,  // β > 0
+    shape: T,   // α > 0
+    rate: T,    // β > 0
+    ln_norm: T, // α·ln β − lgamma(α), cached at construction
 }
 
 impl<T: FloatScalar> Gamma<T> {
@@ -30,7 +31,12 @@ impl<T: FloatScalar> Gamma<T> {
         if shape <= T::zero() || rate <= T::zero() {
             return Err(StatsError::InvalidParameter);
         }
-        Ok(Self { shape, rate })
+        let ln_norm = shape * rate.ln() - lgamma(shape);
+        Ok(Self {
+            shape,
+            rate,
+            ln_norm,
+        })
     }
 }
 
@@ -77,8 +83,7 @@ impl<T: FloatScalar> ContinuousDistribution<T> for Gamma<T> {
             return self.pdf(x).ln();
         }
         let one = T::one();
-        self.shape * self.rate.ln() - lgamma(self.shape) + (self.shape - one) * x.ln()
-            - self.rate * x
+        self.ln_norm + (self.shape - one) * x.ln() - self.rate * x
     }
 
     fn cdf(&self, x: T) -> T {
