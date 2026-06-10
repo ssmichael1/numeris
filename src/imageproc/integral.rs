@@ -47,6 +47,34 @@ pub fn integral_image<T: FloatScalar>(src: &DynMatrix<T>) -> DynMatrix<T> {
     sat
 }
 
+/// Summed-area tables of `src` and of `src²`, built in a single pass.
+///
+/// Fuses the squaring into the SAT construction so callers (e.g.
+/// `local_variance`) do not materialize a full squared copy of the image
+/// first. Produces the same tables as `integral_image(src)` and
+/// `integral_image(&src²)`, term for term.
+pub(crate) fn integral_image_with_squares<T: FloatScalar>(
+    src: &DynMatrix<T>,
+) -> (DynMatrix<T>, DynMatrix<T>) {
+    let h = src.nrows();
+    let w = src.ncols();
+    let mut sat = DynMatrix::<T>::zeros(h + 1, w + 1);
+    let mut sat2 = DynMatrix::<T>::zeros(h + 1, w + 1);
+
+    for i in 0..h {
+        let mut row_sum = T::zero();
+        let mut row_sum2 = T::zero();
+        for j in 0..w {
+            let v = *src.get(i, j);
+            row_sum = row_sum + v;
+            row_sum2 = row_sum2 + v * v;
+            sat[(i + 1, j + 1)] = sat[(i, j + 1)] + row_sum;
+            sat2[(i + 1, j + 1)] = sat2[(i, j + 1)] + row_sum2;
+        }
+    }
+    (sat, sat2)
+}
+
 /// Sum over the half-open rectangle `[r0, r1) × [c0, c1)` of the original
 /// image, in O(1), using the SAT produced by [`integral_image`].
 ///

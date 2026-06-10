@@ -1,7 +1,7 @@
 use crate::dynmatrix::DynMatrix;
 use crate::traits::FloatScalar;
 
-use super::integral::{integral_image, integral_rect_sum};
+use super::integral::{integral_image, integral_image_with_squares, integral_rect_sum};
 
 /// Approximate per-pixel-query work (`h · w`) above which the local-statistics
 /// query loops fan their output columns out across threads under `rayon`. Each
@@ -80,13 +80,8 @@ pub fn local_variance<T: FloatScalar + crate::par::MaybeSync>(
     if h == 0 || w == 0 {
         return DynMatrix::<T>::zeros(h, w);
     }
-    // Integral of x, and of x².
-    let sat = integral_image(src);
-    let squared = DynMatrix::from_fn(h, w, |i, j| {
-        let v = src[(i, j)];
-        v * v
-    });
-    let sat2 = integral_image(&squared);
+    // Integral of x and of x², fused into one pass over the image.
+    let (sat, sat2) = integral_image_with_squares(src);
 
     let mut out = DynMatrix::<T>::zeros(h, w);
     let zero = T::zero();

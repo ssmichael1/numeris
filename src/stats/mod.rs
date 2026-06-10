@@ -33,6 +33,23 @@
 //! assert!((n.mean()).abs() < 1e-14);
 //! ```
 
+/// Generates the `sample_array` convenience method shared by every
+/// distribution: `$elem` is the sample type and `$zero` its fill value
+/// (`T, T::zero()` for continuous, `u64, 0u64` for discrete counts).
+/// Defined before the submodule declarations so it is in scope inside them.
+macro_rules! impl_sample_array {
+    ($elem:ty, $zero:expr) => {
+        /// Fill a fixed-size array with independent samples.
+        pub fn sample_array<const K: usize>(&self, rng: &mut super::Rng) -> [$elem; K] {
+            let mut out = [$zero; K];
+            for v in out.iter_mut() {
+                *v = self.sample(rng);
+            }
+            out
+        }
+    };
+}
+
 mod bernoulli;
 mod beta_dist;
 mod binomial;
