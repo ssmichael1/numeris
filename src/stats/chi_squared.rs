@@ -17,7 +17,8 @@ use crate::FloatScalar;
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct ChiSquared<T> {
-    k: T, // degrees of freedom
+    k: T,       // degrees of freedom
+    ln_norm: T, // −(k/2)·ln 2 − lgamma(k/2), cached at construction
 }
 
 impl<T: FloatScalar> ChiSquared<T> {
@@ -26,7 +27,10 @@ impl<T: FloatScalar> ChiSquared<T> {
         if k <= T::zero() {
             return Err(StatsError::InvalidParameter);
         }
-        Ok(Self { k })
+        let two = T::one() + T::one();
+        let half_k = k / two;
+        let ln_norm = T::zero() - half_k * two.ln() - lgamma(half_k);
+        Ok(Self { k, ln_norm })
     }
 }
 
@@ -64,7 +68,7 @@ impl<T: FloatScalar> ContinuousDistribution<T> for ChiSquared<T> {
         let one = T::one();
         let two = one + one;
         let half_k = self.k / two;
-        (half_k - one) * x.ln() - x / two - half_k * two.ln() - lgamma(half_k)
+        (half_k - one) * x.ln() - x / two + self.ln_norm
     }
 
     fn cdf(&self, x: T) -> T {

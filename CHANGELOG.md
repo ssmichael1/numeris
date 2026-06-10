@@ -2,6 +2,29 @@
 
 ## 0.5.13
 
+- **stats: parameter-only constants cached at construction** — internal-only;
+  results are arithmetically identical. Distribution structs now precompute the
+  parts of their (log-)density that depend only on the immutable parameters,
+  instead of recomputing them on every `pdf` / `ln_pdf` / `pmf` call (which
+  multiplies inside the Newton-based `quantile` solvers): `Gamma` caches
+  `α·ln β − lgamma(α)`, `ChiSquared` caches `−(k/2)·ln 2 − lgamma(k/2)`,
+  `StudentT` caches `lgamma((ν+1)/2) − lgamma(ν/2) − ½·ln(νπ)`, `Beta` caches
+  `lbeta(α, β)`, `Binomial` caches `lgamma(n+1)`, `ln p`, `ln(1−p)`, `Poisson`
+  caches `ln λ`, and `Normal` caches `σ·√(2π)` and `−ln σ − ½·ln(2π)`.
+- **special: deduplicated incomplete-gamma core** — `erf`/`erfc` previously
+  carried a ~85-line copy of the `incgamma` series/continued-fraction
+  implementation (Option-returning instead of Result-returning). The core is
+  now a single `pub(crate)` Option-based routine in `incgamma.rs`; the public
+  `gamma_inc` / `gamma_inc_upper` wrap it with domain checks, and `erf`/`erfc`
+  call it directly.
+- **Fixed: `special`/`stats` now actually build under no-std** —
+  `gamma_fn.rs` and the Box-Muller sampler called inherent `f64` math methods
+  (`TAU.sqrt()`, `.ln()`, `.cos()`), which only exist with `std`, so
+  `--no-default-features --features special,stats` failed to compile. The
+  derived constants √(2π) and ½·ln(2π) are now precomputed literals (also
+  removing a per-call recomputation in `gamma`/`lgamma`), and the sampler uses
+  fully-qualified `num_traits::Float` calls (libm-backed in no-std, identical
+  inherent methods with `std`).
 - **SIMD conjugated dot in linalg Householder loops** — internal-only. A new
   private `simd::dotc_dispatch` computes `Σ conj(aᵢ)·bᵢ`, forwarding to the
   SIMD `dot_dispatch` for `f32`/`f64` (where `conj` is the identity) with a

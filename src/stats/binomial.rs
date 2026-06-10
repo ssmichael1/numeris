@@ -19,6 +19,9 @@ use crate::FloatScalar;
 pub struct Binomial<T> {
     n: u64,
     p: T,
+    lgamma_n1: T, // lgamma(n + 1), cached at construction
+    ln_p: T,      // ln(p), cached at construction
+    ln_q: T,      // ln(1 − p), cached at construction
 }
 
 impl<T: FloatScalar> Binomial<T> {
@@ -28,7 +31,14 @@ impl<T: FloatScalar> Binomial<T> {
         if p < T::zero() || p > T::one() {
             return Err(StatsError::InvalidParameter);
         }
-        Ok(Self { n, p })
+        let one = T::one();
+        Ok(Self {
+            n,
+            p,
+            lgamma_n1: lgamma(T::from(n).unwrap() + one),
+            ln_p: p.ln(),
+            ln_q: (one - p).ln(),
+        })
     }
 }
 
@@ -87,9 +97,9 @@ impl<T: FloatScalar> DiscreteDistribution<T> for Binomial<T> {
         let one = T::one();
         let nf = T::from(self.n).unwrap();
         let kf = T::from(k).unwrap();
-        lgamma(nf + one) - lgamma(kf + one) - lgamma(nf - kf + one)
-            + kf * self.p.ln()
-            + (nf - kf) * (one - self.p).ln()
+        self.lgamma_n1 - lgamma(kf + one) - lgamma(nf - kf + one)
+            + kf * self.ln_p
+            + (nf - kf) * self.ln_q
     }
 
     fn cdf(&self, k: u64) -> T {

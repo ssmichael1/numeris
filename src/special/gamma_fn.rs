@@ -3,6 +3,13 @@
 use super::{lanczos_sum, LANCZOS_G};
 use crate::FloatScalar;
 
+/// √(2π), precomputed: inherent `f64::sqrt` is unavailable in no-std builds,
+/// and this avoids recomputing the constant on every call.
+const SQRT_TAU: f64 = 2.506_628_274_631_000_2;
+
+/// ½·ln(2π), precomputed (same rationale as [`SQRT_TAU`]).
+const LN_SQRT_TAU: f64 = 0.918_938_533_204_672_7;
+
 /// Factorial lookup table for small positive integers: FACTORIAL[n] = n!
 /// Valid for n = 0..=20 (20! < 2^64, fits in f64 exactly up to 18!).
 const FACTORIAL: [f64; 21] = [
@@ -86,7 +93,7 @@ pub fn gamma<T: FloatScalar>(x: T) -> T {
     let z = x - one;
     let g = T::from(LANCZOS_G).unwrap();
     let t = z + g + half;
-    let sqrt_2pi = T::from(core::f64::consts::TAU.sqrt()).unwrap();
+    let sqrt_2pi = T::from(SQRT_TAU).unwrap();
 
     sqrt_2pi * t.powf(z + half) * (-t).exp() * lanczos_sum(z)
 }
@@ -139,7 +146,7 @@ pub fn lgamma<T: FloatScalar>(x: T) -> T {
     // lgamma(x) ≈ (x - 0.5)·ln(x) - x + 0.5·ln(2π) + 1/(12x) - 1/(360x³) + 1/(1260x⁵) - 1/(1680x⁷)
     let large_threshold = T::from(1e6).unwrap();
     if x > large_threshold {
-        let ln_sqrt_2pi = T::from(0.5 * core::f64::consts::TAU.ln()).unwrap();
+        let ln_sqrt_2pi = T::from(LN_SQRT_TAU).unwrap();
         let inv_x = one / x;
         let inv_x2 = inv_x * inv_x;
         // Stirling series coefficients: 1/12, -1/360, 1/1260, -1/1680
@@ -155,7 +162,7 @@ pub fn lgamma<T: FloatScalar>(x: T) -> T {
     let z = x - one;
     let g = T::from(LANCZOS_G).unwrap();
     let t = z + g + half;
-    let ln_sqrt_2pi = T::from(0.5 * core::f64::consts::TAU.ln()).unwrap();
+    let ln_sqrt_2pi = T::from(LN_SQRT_TAU).unwrap();
 
     ln_sqrt_2pi + (z + half) * t.ln() - t + lanczos_sum(z).ln()
 }

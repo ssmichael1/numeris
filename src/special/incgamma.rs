@@ -55,17 +55,24 @@ pub fn gamma_inc_upper<T: FloatScalar>(a: T, x: T) -> Result<T, SpecialError> {
 /// Uses series expansion when x < a + 1, continued fraction otherwise.
 /// This avoids cancellation when computing the complement.
 fn gamma_inc_pair<T: FloatScalar>(a: T, x: T) -> Result<(T, T), SpecialError> {
+    // Domain checks
+    if a <= T::zero() || x < T::zero() {
+        return Err(SpecialError::DomainError);
+    }
+    gamma_inc_pair_core(a, x).ok_or(SpecialError::ConvergenceFailure)
+}
+
+/// Core evaluation of `(P(a, x), Q(a, x))` without domain checks.
+///
+/// Shared with `erf` / `erfc` (which call it with `a = 1/2`, `x = x²`, both
+/// always in-domain). Returns `None` on convergence failure.
+pub(crate) fn gamma_inc_pair_core<T: FloatScalar>(a: T, x: T) -> Option<(T, T)> {
     let zero = T::zero();
     let one = T::one();
 
-    // Domain checks
-    if a <= zero || x < zero {
-        return Err(SpecialError::DomainError);
-    }
-
     // Trivial case
     if x == zero {
-        return Ok((zero, one));
+        return Some((zero, one));
     }
 
     // Log prefactor: exp(-x + a·ln(x) - lgamma(a))
@@ -75,17 +82,17 @@ fn gamma_inc_pair<T: FloatScalar>(a: T, x: T) -> Result<(T, T), SpecialError> {
     if x < a + one {
         // Series expansion for P(a, x)
         let p = series_p(a, x, prefactor)?;
-        Ok((p, one - p))
+        Some((p, one - p))
     } else {
         // Continued fraction for Q(a, x) via Lentz's method
         let q = cf_q(a, x, prefactor)?;
-        Ok((one - q, q))
+        Some((one - q, q))
     }
 }
 
 /// Series expansion for P(a, x):
 /// P(a, x) = prefactor · Σ_{n=0}^∞ x^n / (a·(a+1)·…·(a+n))
-fn series_p<T: FloatScalar>(a: T, x: T, prefactor: T) -> Result<T, SpecialError> {
+fn series_p<T: FloatScalar>(a: T, x: T, prefactor: T) -> Option<T> {
     let one = T::one();
     let eps = T::epsilon();
 
@@ -98,17 +105,17 @@ fn series_p<T: FloatScalar>(a: T, x: T, prefactor: T) -> Result<T, SpecialError>
         term = term * x / ap;
         sum = sum + term;
         if term.abs() < sum.abs() * eps {
-            return Ok(prefactor * sum);
+            return Some(prefactor * sum);
         }
     }
-    Err(SpecialError::ConvergenceFailure)
+    None
 }
 
 /// Lentz continued fraction for Q(a, x):
 /// Q(a, x) = prefactor · 1/(x + 1−a − 1·(1−a)/(x+3−a− 2·(2−a)/(x+5−a−…)))
 ///
 /// Using the modified Lentz algorithm (Thompson & Barnett).
-fn cf_q<T: FloatScalar>(a: T, x: T, prefactor: T) -> Result<T, SpecialError> {
+fn cf_q<T: FloatScalar>(a: T, x: T, prefactor: T) -> Option<T> {
     let one = T::one();
     let eps = T::epsilon();
     let tiny = T::from(1e-30).unwrap();
@@ -141,8 +148,8 @@ fn cf_q<T: FloatScalar>(a: T, x: T, prefactor: T) -> Result<T, SpecialError> {
         f = f * delta;
 
         if (delta - one).abs() < eps {
-            return Ok(prefactor * f.recip());
+            return Some(prefactor * f.recip());
         }
     }
-    Err(SpecialError::ConvergenceFailure)
+    None
 }
