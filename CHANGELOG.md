@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.14
+
+- **SIMD kernels de-duplicated via macros (~790 fewer lines)** — internal-only;
+  no API change and results are bit-for-bit identical. The element-wise
+  `add_slices` / `sub_slices` / `scale_slices` and the `axpy_neg` / `axpy_pos`
+  kernels were hand-written near-identically in all eight per-ISA files
+  (f32/f64 × NEON/SSE2/AVX/AVX-512) — the bodies differ only in vector width
+  and intrinsic names. They are now generated from three shared macros
+  (`simd_elementwise_kernels`, `simd_axpy_kernels_muladd` for x86's separate
+  multiply+add, `simd_axpy_kernels_fma` for NEON's fused multiply-add), each
+  invoked once per file. The seven repetitive `*_dispatch` arch/type cascades in
+  `simd/mod.rs` likewise collapse into one `simd_dispatch!` macro. `dot` and
+  `matmul` keep their bespoke per-ISA kernels (their reductions / micro-kernels
+  genuinely diverge). Adding a new ISA or element-wise op is now a one-line
+  change instead of an eight-file edit. Verified: full suite on aarch64 (NEON)
+  and the x86 SSE2 path executed under Rosetta both pass; AVX / AVX-512 paths
+  type-check and lint clean.
+- **Docs: corrected drift for the shipped `quad` module and the `ode` feature
+  default** — the `quad` module (Gauss-Legendre, adaptive Simpson, composite
+  rules) has been implemented and feature-gated for some time but was still
+  listed as unchecked/future work in `CLAUDE.md` and `README.md` and omitted
+  from the `CLAUDE.md` file layout and Cargo-feature list; it (and the
+  previously-undocumented `macros.rs`, `prelude.rs`, `serde_impl.rs`,
+  `control/lead_lag.rs`, `control/pid_tune.rs`, `stats/rng.rs`, and the `all`
+  feature's `quad` + `imageproc` members) are now documented. The crate-level
+  Cargo-features table also incorrectly marked `ode` as a default feature; it is
+  opt-in (only `std` is default), matching `Cargo.toml` and the README.
+
 ## 0.5.13
 
 - **Review follow-ups: one less image pass and ~190 lines of duplication
