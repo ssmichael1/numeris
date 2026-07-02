@@ -17,7 +17,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **imageproc** — 2D image processing (filters, morphology, integral image/local stats, multi-scale, thresholding, Canny, corners, connected components, geometric)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt; `_dyn` variants on `DynVector`/`DynMatrix`)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
-- [ ] **quad** — Numerical quadrature / integration
+- [x] **quad** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson)
 - [ ] **fft** — Fast Fourier Transform
 - [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
 - [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
@@ -71,6 +71,7 @@ Checked items are implemented; unchecked are potential future work.
 - **`estimate`** — State estimation (EKF, UKF, SR-UKF, CKF, RTS smoother, batch LSQ). Implies `alloc` (sigma-point filters need temporary storage).
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
 - **`imageproc`** — 2D image processing on `DynMatrix` (convolution, filters, morphology, integral image / local stats, thresholding, Canny, Harris/Shi-Tomasi corners, DoG / Gaussian pyramid, connected components, geometric ops, `BorderMode`). Implies `alloc`.
+- **`quad`** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson). All no-alloc.
 - **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
 - **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
@@ -103,7 +104,7 @@ Checked items are implemented; unchecked are potential future work.
   The `imageproc` `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker
   bound (empty blanket impl without `rayon`, `Send + Sync` with it; gated on `imageproc`), so a single
   signature serves both builds without `cfg`-split twins — invisible for `f32`/`f64`, hence additive.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `control`, `estimate`, `interp`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `quad`, `control`, `estimate`, `interp`, `imageproc`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -113,6 +114,9 @@ Checked items are implemented; unchecked are potential future work.
 src/
 ├── lib.rs              # crate root, re-exports
 ├── traits.rs           # Scalar, FloatScalar, LinalgScalar, MatrixRef, MatrixMut
+├── macros.rs           # matrix! / vector! constructor macros
+├── prelude.rs          # convenience re-exports (Matrix, Vector, Quaternion, traits)
+├── serde_impl.rs       # (requires `serde` feature) Serialize/Deserialize for all types
 ├── matrix/
 │   ├── mod.rs          # Matrix struct, constructors, Index, trait impls
 │   ├── aliases.rs      # Size aliases: Matrix1–Matrix6, Matrix2x3, Vector1–6, etc.
@@ -204,6 +208,8 @@ src/
 │   ├── butterworth.rs  # butterworth_lowpass, butterworth_highpass
 │   ├── chebyshev.rs    # chebyshev1_lowpass, chebyshev1_highpass
 │   ├── pid.rs          # Pid<T> discrete-time PID controller with anti-windup and derivative filter
+│   ├── lead_lag.rs     # lead_compensator, lag_compensator (bilinear-transform design)
+│   ├── pid_tune.rs     # FopdtModel PID tuning (Ziegler-Nichols, Cohen-Coon, SIMC), ziegler_nichols_ultimate
 │   └── tests.rs        # comprehensive tests
 ├── estimate/           # (requires `estimate` feature, implies `alloc`)
 │   ├── mod.rs          # EstimateError, fd_jacobian, cholesky_with_jitter, apply_var_floor, re-exports
@@ -246,6 +252,10 @@ src/
 │   ├── bernoulli.rs    # Bernoulli<T> — Bernoulli with probability p
 │   ├── binomial.rs     # Binomial<T> — binomial with n trials, probability p
 │   ├── poisson.rs      # Poisson<T> — Poisson with rate λ
+│   ├── rng.rs          # Rng (xoshiro256++) — sample()/sample_array() backing for all distributions
+│   └── tests.rs        # comprehensive tests
+├── quad/               # (requires `quad` feature)
+│   ├── mod.rs          # gauss_legendre (N=1..10,15,20), adaptive_simpson, trapezoid, simpson (all no-alloc)
 │   └── tests.rs        # comprehensive tests
 └── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle
 ```

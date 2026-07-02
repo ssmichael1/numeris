@@ -148,7 +148,7 @@
 //! |-----------|----------|-------------|
 //! | `std`     | yes      | Implies `alloc`. Hardware FPU via system libm |
 //! | `alloc`   | via std  | `DynMatrix` / `DynVector` (heap-allocated, runtime-sized) |
-//! | `ode`     | yes      | ODE integration (RK4, adaptive solvers) |
+//! | `ode`     | no       | ODE integration (RK4, adaptive solvers) |
 //! | `optim`   | no       | Optimization (root finding, BFGS, Gauss-Newton, LM) |
 //! | `control` | no       | Digital IIR filters, PID, lead/lag compensators, PID tuning |
 //! | `estimate`| no       | State estimation (EKF, UKF). Implies `alloc` |
