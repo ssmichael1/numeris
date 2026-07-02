@@ -369,5 +369,23 @@ unsafe fn microkernel_4x4(
 
 // Element-wise add/sub/scale and AXPY kernels are generated from the shared
 // macros in `super` (identical across ISAs bar width + intrinsic names).
-simd_elementwise_kernels!(f32, 8, _mm256_loadu_ps, _mm256_storeu_ps, _mm256_add_ps, _mm256_sub_ps, _mm256_mul_ps, _mm256_set1_ps);
-simd_axpy_kernels_muladd!(f32, 8, _mm256_loadu_ps, _mm256_storeu_ps, _mm256_add_ps, _mm256_sub_ps, _mm256_mul_ps, _mm256_set1_ps);
+simd_elementwise_kernels!(
+    f32,
+    8,
+    _mm256_loadu_ps,
+    _mm256_storeu_ps,
+    _mm256_add_ps,
+    _mm256_sub_ps,
+    _mm256_mul_ps,
+    _mm256_set1_ps
+);
+simd_axpy_kernels_muladd!(
+    f32,
+    8,
+    _mm256_loadu_ps,
+    _mm256_storeu_ps,
+    _mm256_add_ps,
+    _mm256_sub_ps,
+    _mm256_mul_ps,
+    _mm256_set1_ps
+);

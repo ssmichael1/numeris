@@ -287,5 +287,22 @@ unsafe fn microkernel_4x4(
 
 // Element-wise add/sub/scale and AXPY kernels are generated from the shared
 // macros in `super` (identical across ISAs bar width + intrinsic names).
-simd_elementwise_kernels!(f32, 4, vld1q_f32, vst1q_f32, vaddq_f32, vsubq_f32, vmulq_f32, vdupq_n_f32);
-simd_axpy_kernels_fma!(f32, 4, vld1q_f32, vst1q_f32, vfmaq_f32, vfmsq_f32, vdupq_n_f32);
+simd_elementwise_kernels!(
+    f32,
+    4,
+    vld1q_f32,
+    vst1q_f32,
+    vaddq_f32,
+    vsubq_f32,
+    vmulq_f32,
+    vdupq_n_f32
+);
+simd_axpy_kernels_fma!(
+    f32,
+    4,
+    vld1q_f32,
+    vst1q_f32,
+    vfmaq_f32,
+    vfmsq_f32,
+    vdupq_n_f32
+);
