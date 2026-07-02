@@ -1,0 +1,20 @@
+#!/bin/sh
+# Pre-commit: keep Rust sources rustfmt-clean so no unformatted code is committed
+# (mirrors the CI `cargo fmt --check` gate). Formats the staged .rs files and
+# re-stages them. Enable in a fresh clone with:  git config core.hooksPath .githooks
+set -eu
+
+files=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs')
+[ -z "$files" ] && exit 0
+
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "pre-commit: cargo not found; skipping rustfmt" >&2
+    exit 0
+fi
+
+# rustfmt operates on the whole crate; re-stage the files we had staged so the
+# commit captures their formatted versions.
+cargo fmt
+printf '%s\n' "$files" | while IFS= read -r f; do
+    [ -n "$f" ] && [ -f "$f" ] && git add -- "$f"
+done

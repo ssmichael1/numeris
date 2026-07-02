@@ -283,6 +283,16 @@ A PR that only updates source code without touching these surfaces is incomplete
 exception is internal-only changes (private helpers, test refactors, SIMD kernel swaps with no
 API impact) — in that case, still consider whether the `CHANGELOG` deserves a line.
 
+## Git Hooks
+
+The repo ships a `pre-commit` hook in `.githooks/` that runs `cargo fmt` on the staged Rust files
+and re-stages them, so unformatted code can never be committed (this mirrors the CI
+`cargo fmt --check` gate). Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Current Focus
 
 Next candidates: SIMD extension to remaining linalg inner loops. The column-oriented
