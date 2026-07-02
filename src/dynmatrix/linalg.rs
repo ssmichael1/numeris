@@ -7,7 +7,9 @@ use crate::linalg::cholesky::{
 };
 use crate::linalg::hessenberg::hessenberg;
 use crate::linalg::lu::{lu_in_place, lu_solve};
-use crate::linalg::qr::{qr_col_pivot_in_place, qr_in_place};
+use crate::linalg::qr::{
+    apply_qh_inplace, copy_r, diag_product, form_q, qr_col_pivot_in_place, qr_in_place,
+};
 use crate::linalg::schur::francis_qr;
 use crate::linalg::svd::{bidiagonal_qr, bidiagonalize};
 use crate::linalg::symmetric_eigen::{
@@ -415,11 +417,7 @@ impl<T: LinalgScalar> DynQr<T> {
     pub fn r(&self) -> DynMatrix<T> {
         let n = self.qr.ncols();
         let mut r = DynMatrix::zeros(n, n);
-        for i in 0..n {
-            for j in i..n {
-                r[(i, j)] = self.qr[(i, j)];
-            }
-        }
+        copy_r(&self.qr, &mut r);
         r
     }
 
@@ -427,29 +425,8 @@ impl<T: LinalgScalar> DynQr<T> {
     pub fn q(&self) -> DynMatrix<T> {
         let m = self.qr.nrows();
         let n = self.qr.ncols();
-
         let mut q = DynMatrix::zeros(m, n);
-        for i in 0..n {
-            q[(i, i)] = T::one();
-        }
-
-        for col in (0..n).rev() {
-            let tau_val = self.tau[col];
-
-            for j in col..n {
-                let mut dot = q[(col, j)];
-                for i in (col + 1)..m {
-                    dot = dot + self.qr[(i, col)].conj() * q[(i, j)];
-                }
-                dot = dot * tau_val;
-
-                q[(col, j)] = q[(col, j)] - dot;
-                for i in (col + 1)..m {
-                    q[(i, j)] = q[(i, j)] - dot * self.qr[(i, col)];
-                }
-            }
-        }
-
+        form_q(&self.qr, &self.tau, &mut q);
         q
     }
 
@@ -460,20 +437,7 @@ impl<T: LinalgScalar> DynQr<T> {
         assert_eq!(b.len(), m, "rhs length mismatch");
 
         let mut qtb: Vec<T> = (0..m).map(|i| b[i]).collect();
-
-        for col in 0..n {
-            let tau_val = self.tau[col];
-            let mut dot = qtb[col];
-            for i in (col + 1)..m {
-                dot = dot + self.qr[(i, col)].conj() * qtb[i];
-            }
-            dot = dot * tau_val;
-
-            qtb[col] = qtb[col] - dot;
-            for i in (col + 1)..m {
-                qtb[i] = qtb[i] - dot * self.qr[(i, col)];
-            }
-        }
+        apply_qh_inplace(&self.qr, &self.tau, &mut qtb);
 
         let mut x = vec![T::zero(); n];
         for i in (0..n).rev() {
@@ -492,11 +456,7 @@ impl<T: LinalgScalar> DynQr<T> {
         let m = self.qr.nrows();
         let n = self.qr.ncols();
         assert_eq!(m, n, "determinant requires a square matrix");
-        let mut d = T::one();
-        for i in 0..n {
-            d = d * self.qr[(i, i)];
-        }
-        d
+        diag_product(&self.qr)
     }
 }
 
@@ -546,11 +506,7 @@ impl<T: LinalgScalar> DynQrPivot<T> {
     pub fn r(&self) -> DynMatrix<T> {
         let n = self.qr.ncols();
         let mut r = DynMatrix::zeros(n, n);
-        for i in 0..n {
-            for j in i..n {
-                r[(i, j)] = self.qr[(i, j)];
-            }
-        }
+        copy_r(&self.qr, &mut r);
         r
     }
 
@@ -558,32 +514,8 @@ impl<T: LinalgScalar> DynQrPivot<T> {
     pub fn q(&self) -> DynMatrix<T> {
         let m = self.qr.nrows();
         let n = self.qr.ncols();
-
         let mut q = DynMatrix::zeros(m, n);
-        for i in 0..n {
-            q[(i, i)] = T::one();
-        }
-
-        for col in (0..n).rev() {
-            let tau_val = self.tau[col];
-            if tau_val == T::zero() {
-                continue;
-            }
-
-            for j in col..n {
-                let mut dot = q[(col, j)];
-                for i in (col + 1)..m {
-                    dot = dot + self.qr[(i, col)].conj() * q[(i, j)];
-                }
-                dot = dot * tau_val;
-
-                q[(col, j)] = q[(col, j)] - dot;
-                for i in (col + 1)..m {
-                    q[(i, j)] = q[(i, j)] - dot * self.qr[(i, col)];
-                }
-            }
-        }
-
+        form_q(&self.qr, &self.tau, &mut q);
         q
     }
 

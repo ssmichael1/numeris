@@ -27,6 +27,16 @@
   feature's `quad` + `imageproc` members) are now documented. The crate-level
   Cargo-features table also incorrectly marked `ode` as a default feature; it is
   opt-in (only `std` is default), matching `Cargo.toml` and the README.
+- **QR: shared Q / Qᴴ / R / det between the fixed-size and `Dyn` wrappers —
+  fixes a lost-SIMD regression in dynamic QR** — internal-only; results are
+  bit-for-bit identical, but dynamic QR is now faster. `DynQr::q` /
+  `DynQrPivot::q` and `DynQr::solve` reconstructed Q and applied Qᴴ with scalar
+  inner loops, silently forgoing the SIMD-dispatched conjugated-dot / AXPY that
+  the fixed-size `QrDecomposition` already used. The Householder-application math
+  now lives in four `pub(crate)` free functions over `MatrixRef` / `MatrixMut`
+  in `linalg::qr` — `form_q`, `apply_qh_inplace`, `copy_r`, `diag_product` —
+  called by both the fixed-size and `Dyn` wrappers, so dynamic QR gets the
+  vectorized path and the Q / Qᴴ / R / det logic has a single source of truth.
 
 ## 0.5.13
 
