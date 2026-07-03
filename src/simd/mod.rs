@@ -55,6 +55,7 @@
 /// trailing idents are this ISA's load / store / add / sub / mul / broadcast
 /// intrinsics (uniform call shape: `load(ptr)`, `store(ptr, v)`, `op(v, v)`,
 /// `set1(scalar)`).
+#[allow(unused_macros)] // unused on non-SIMD targets (e.g. thumbv7em)
 macro_rules! simd_elementwise_kernels {
     ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
         /// Element-wise addition: out[i] = a[i] + b[i].
