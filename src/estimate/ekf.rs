@@ -137,15 +137,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         f: impl Fn(&Vector<T, N>) -> Vector<T, N>,
         q: Option<&Matrix<T, N, N>>,
     ) {
-        let big_f = fd_jacobian(&f, &self.x);
-        self.x = f(&self.x);
-        self.p = big_f * self.p * big_f.transpose() * self.gamma;
-        if let Some(q) = q {
-            self.p += *q;
-        }
-        let half = T::from(0.5).unwrap();
-        self.p = (self.p + self.p.transpose()) * half;
-        apply_var_floor(&mut self.p, self.min_variance);
+        self.predict(&f, |xj: &Vector<T, N>| fd_jacobian(&f, xj), q);
     }
 
     /// Update step with explicit measurement Jacobian.
@@ -203,28 +195,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         h: impl Fn(&Vector<T, N>) -> Vector<T, M>,
         r: &Matrix<T, M, M>,
     ) -> Result<T, EstimateError> {
-        let big_h = fd_jacobian(&h, &self.x);
-        let y = *z - h(&self.x);
-        let s = big_h * self.p * big_h.transpose() + *r;
-
-        let s_inv = cholesky_with_jitter(&s)
-            .map_err(|_| EstimateError::SingularInnovation)?
-            .inverse();
-        let k = self.p * big_h.transpose() * s_inv;
-
-        // NIS = yᵀ S⁻¹ y
-        let nis = (y.transpose() * s_inv * y)[(0, 0)];
-
-        self.x += k * y;
-
-        let eye: Matrix<T, N, N> = Matrix::eye();
-        let i_kh = eye - k * big_h;
-        self.p = i_kh * self.p * i_kh.transpose() + k * *r * k.transpose();
-        let half = T::from(0.5).unwrap();
-        self.p = (self.p + self.p.transpose()) * half;
-        apply_var_floor(&mut self.p, self.min_variance);
-
-        Ok(nis)
+        self.update(z, &h, |xj: &Vector<T, N>| fd_jacobian(&h, xj), r)
     }
 
     /// Update with innovation gating — skips state update if NIS exceeds `gate`.
@@ -267,18 +238,7 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         r: &Matrix<T, M, M>,
         gate: T,
     ) -> Result<Option<T>, EstimateError> {
-        let big_h = fd_jacobian(&h, &self.x);
-        let y = *z - h(&self.x);
-        let s = big_h * self.p * big_h.transpose() + *r;
-        let s_inv = cholesky_with_jitter(&s)
-            .map_err(|_| EstimateError::SingularInnovation)?
-            .inverse();
-        let nis = (y.transpose() * s_inv * y)[(0, 0)];
-        if nis > gate {
-            return Ok(None);
-        }
-        let nis = self.update_fd(z, h, r)?;
-        Ok(Some(nis))
+        self.update_gated(z, &h, |xj: &Vector<T, N>| fd_jacobian(&h, xj), r, gate)
     }
 
     /// Iterated EKF update — re-linearizes at the current iterate until convergence.
@@ -360,48 +320,13 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ekf<T, N, M> {
         max_iter: usize,
         tol: T,
     ) -> Result<T, EstimateError> {
-        let x_pred = self.x;
-        let p_pred = self.p;
-        let tol_sq = tol * tol;
-
-        let mut x_iter = x_pred;
-        for _ in 0..max_iter {
-            let big_h = fd_jacobian(&h, &x_iter);
-            let y = *z - h(&x_iter) + big_h * (x_iter - x_pred);
-            let s = big_h * p_pred * big_h.transpose() + *r;
-            let s_inv = cholesky_with_jitter(&s)
-                .map_err(|_| EstimateError::SingularInnovation)?
-                .inverse();
-            let k = p_pred * big_h.transpose() * s_inv;
-            let x_new = x_pred + k * y;
-
-            let delta = x_new - x_iter;
-            let sq_norm = delta.frobenius_norm_squared();
-            x_iter = x_new;
-            if sq_norm < tol_sq {
-                break;
-            }
-        }
-
-        // Final covariance update at converged point.
-        let big_h = fd_jacobian(&h, &x_iter);
-        let s = big_h * p_pred * big_h.transpose() + *r;
-        let s_inv = cholesky_with_jitter(&s)
-            .map_err(|_| EstimateError::SingularInnovation)?
-            .inverse();
-        let k = p_pred * big_h.transpose() * s_inv;
-
-        let y_final = *z - h(&x_iter);
-        let nis = (y_final.transpose() * s_inv * y_final)[(0, 0)];
-
-        self.x = x_iter;
-        let eye: Matrix<T, N, N> = Matrix::eye();
-        let i_kh = eye - k * big_h;
-        self.p = i_kh * p_pred * i_kh.transpose() + k * *r * k.transpose();
-        let half = T::from(0.5).unwrap();
-        self.p = (self.p + self.p.transpose()) * half;
-        apply_var_floor(&mut self.p, self.min_variance);
-
-        Ok(nis)
+        self.update_iterated(
+            z,
+            &h,
+            |xj: &Vector<T, N>| fd_jacobian(&h, xj),
+            r,
+            max_iter,
+            tol,
+        )
     }
 }
