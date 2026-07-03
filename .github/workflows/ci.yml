@@ -64,18 +64,27 @@ jobs:
       - run: cargo test ${{ matrix.features.flags }}
 
   # Verify the crate truly builds for a bare-metal no_std target (catches
-  # accidental `std` usage that a std host would not). Build-only: the default
-  # test harness needs `std`.
+  # accidental `std` usage that a std host would not, e.g. `f64::powi`).
+  # Build-only: the default test harness needs `std`. Two feature sets: the bare
+  # core-only baseline, and the full no_std-compatible surface (everything except
+  # `rayon`/`nalgebra`, which pull in `std`) so the higher-level modules
+  # (estimate, control, stats, …) are exercised without `std`, not just matrix.
   no-std:
-    name: no_std (thumbv7em-none-eabi)
+    name: no_std (thumbv7em) / ${{ matrix.features.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - { name: core, flags: "--no-default-features" }
+          - { name: full, flags: "--no-default-features --features libm,alloc,ode,optim,quad,control,estimate,interp,imageproc,special,stats,complex" }
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: thumbv7em-none-eabi
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --no-default-features --target thumbv7em-none-eabi
+      - run: cargo build ${{ matrix.features.flags }} --target thumbv7em-none-eabi
 
   # Guard the declared MSRV (1.80 — the floor required by `[T]::as_flattened`
   # in core matrix code, and by rayon). Build everything on the floor toolchain.
