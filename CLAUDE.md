@@ -34,6 +34,12 @@ Checked items are implemented; unchecked are potential future work.
   SSE2 (x86_64) and NEON (aarch64) are always-on baseline. AVX and AVX-512 are compile-time
   opt-in via `-C target-cpu=native` or `-C target-feature=+avx2,+avx512f`. Dispatch selects
   the widest available ISA: AVX-512 > AVX > SSE2.
+  These flags are **not** committed to a repo `.cargo/config.toml` (a blanket `target-cpu=native`
+  is non-portable and makes virtualized CI runners `SIGILL` on AVX-512 the host detects but can't
+  run). To build with wide SIMD locally, opt in per-shell, e.g.
+  `RUSTFLAGS="-C target-cpu=native" cargo bench`. CI sets `target-cpu=x86-64-v3` for the x86_64
+  target only (via `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`) to exercise the AVX path
+  deterministically; aarch64 runners test NEON on the baseline.
 - **`num-traits`** for generic numeric bounds (`Zero`, `One`, `Num`, `Float`), with `default-features = false`.
 - **Matrix storage** — `[[T; M]; N]` (N columns of M rows), column-major. Stack-allocated, contiguous
   in memory. Column-major matches LAPACK conventions and makes column-oriented linalg inner loops

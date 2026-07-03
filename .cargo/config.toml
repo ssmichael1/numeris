@@ -1,6 +1,0 @@
-# Enable native CPU features (AVX/AVX-512 on x86_64, full NEON on aarch64) for
-# local builds on those host architectures. Scoped via cfg() so it is NOT
-# applied when cross-compiling to other targets (e.g. embedded `thumbv*`), where
-# `target-cpu=native` is meaningless and breaks the libm float build.
-[target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))']
-rustflags = ["-C", "target-cpu=native"]

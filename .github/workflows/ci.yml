@@ -7,6 +7,14 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Exercise the x86 AVX SIMD dispatch path deterministically. Scoped to the
+  # x86_64 Linux target only (per-target env, not blanket RUSTFLAGS) so it never
+  # touches the aarch64 macOS runner or the thumbv7em no_std cross-build. We use
+  # the portable `x86-64-v3` microarch level (SSE2..AVX2+FMA) rather than
+  # `target-cpu=native`: `native` lets LLVM enable AVX-512 that some virtualized
+  # runners then trap at runtime (SIGILL, even in dependency build scripts).
+  # AVX-512 kernels are compile-checked locally, not run in CI.
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C target-cpu=x86-64-v3"
 
 jobs:
   fmt:
