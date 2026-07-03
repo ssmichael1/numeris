@@ -881,3 +881,43 @@ mod tests {
         }
     }
 }
+
+// Property-based tests over random SPD matrices. We construct A = MᵀM + 3·I so
+// every draw is symmetric positive-definite and reasonably conditioned (the
+// +3·I floor keeps the smallest eigenvalue away from zero), avoiding the false
+// failures that raw random matrices would produce. Two invariants: the
+// factorization reconstructs (L·Lᵀ = A) and a solve round-trips (A·(A⁻¹b) = b).
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    // A 3×3 SPD matrix: MᵀM + 3·I with M drawn from bounded entries.
+    fn spd_3x3() -> impl Strategy<Value = Matrix<f64, 3, 3>> {
+        prop::collection::vec(-5.0_f64..5.0, 9).prop_map(|v| {
+            let m: Matrix<f64, 3, 3> = Matrix::from_fn(|i, j| v[j * 3 + i]);
+            m.transpose() * m + Matrix::<f64, 3, 3>::eye() * 3.0
+        })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+
+        #[test]
+        fn cholesky_reconstructs_spd(a in spd_3x3()) {
+            let chol = a.cholesky().expect("SPD by construction");
+            let l = chol.l_full();
+            let recon: Matrix<f64, 3, 3> = l * l.transpose();
+            prop_assert!((recon - a).frobenius_norm() <= 1e-9 * a.frobenius_norm().max(1.0), "L·Lᵀ != A");
+        }
+
+        #[test]
+        fn cholesky_solve_round_trips(a in spd_3x3(), b in prop::collection::vec(-5.0_f64..5.0, 3)) {
+            let rhs = Vector::<f64, 3>::from_fn(|i, _| b[i]);
+            let chol = a.cholesky().expect("SPD by construction");
+            let x = chol.solve(&rhs);
+            let recon: Vector<f64, 3> = a * x;
+            prop_assert!((recon - rhs).norm() <= 1e-8 * rhs.norm().max(1.0), "A·x != b");
+        }
+    }
+}

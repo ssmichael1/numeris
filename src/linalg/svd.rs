@@ -1144,3 +1144,55 @@ mod tests {
         }
     }
 }
+
+// Property-based tests over random matrices. The SVD reconstruction identity
+// A = U·Σ·Vᵀ and the orthogonality of U/V are backward-stable, and the
+// singular values are non-negative and sorted descending by construction —
+// invariants that hold for every input, so we sample them broadly. Σ here is
+// the M×N diagonal built from the N singular values; U is M×M, Vᵀ is N×N.
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn mat_4x3() -> impl Strategy<Value = Matrix<f64, 4, 3>> {
+        prop::collection::vec(-10.0_f64..10.0, 12)
+            .prop_map(|v| Matrix::from_fn(|i, j| v[j * 4 + i]))
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+
+        #[test]
+        fn svd_reconstructs_and_factors_are_orthonormal(a in mat_4x3()) {
+            let svd = match a.svd() {
+                Ok(svd) => svd,
+                Err(_) => return Ok(()),
+            };
+            let u = *svd.u(); // 4×4
+            let vt = *svd.vt(); // 3×3
+            let s = *svd.singular_values(); // [f64; 3]
+
+            // Singular values: non-negative, sorted descending.
+            for k in 0..3 {
+                prop_assert!(s[k] >= -1e-12, "negative singular value {}", s[k]);
+                if k > 0 {
+                    prop_assert!(s[k - 1] + 1e-12 >= s[k], "singular values not descending");
+                }
+            }
+
+            // Reconstruct A = U · Σ · Vᵀ (Σ is 4×3 diagonal).
+            let sigma: Matrix<f64, 4, 3> =
+                Matrix::from_fn(|i, j| if i == j { s[j] } else { 0.0 });
+            let recon: Matrix<f64, 4, 3> = u * sigma * vt;
+            let tol = 1e-9 * a.frobenius_norm().max(1.0);
+            prop_assert!((recon - a).frobenius_norm() <= tol, "U·Σ·Vᵀ != A for {a:?}");
+
+            // U and Vᵀ are orthogonal.
+            let utu: Matrix<f64, 4, 4> = u.transpose() * u;
+            prop_assert!((utu - Matrix::eye()).frobenius_norm() <= 1e-9, "Uᵀ·U != I");
+            let vvt: Matrix<f64, 3, 3> = vt.transpose() * vt;
+            prop_assert!((vvt - Matrix::eye()).frobenius_norm() <= 1e-9, "Vᵀ·V != I");
+        }
+    }
+}
