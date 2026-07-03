@@ -97,6 +97,86 @@ pub fn qr_in_place<T: LinalgScalar>(
     Ok(())
 }
 
+/// Form the thin Q factor from a packed Householder QR factorization.
+///
+/// `qr` holds the packed reflectors (as left by [`qr_in_place`] /
+/// `qr_col_pivot_in_place`), `tau` the Householder scalars, and `out` must be an
+/// M×N buffer pre-filled with zeros; on return it holds Q (orthonormal columns,
+/// unitary for complex). Applying the reflections in reverse order to the thin
+/// identity, the inner loop uses the SIMD-dispatched conjugated dot and AXPY on
+/// contiguous column slices — shared by the fixed-size and `Dyn` QR wrappers so
+/// both get the vectorized path.
+pub(crate) fn form_q<T: LinalgScalar>(
+    qr: &impl MatrixRef<T>,
+    tau: &[T],
+    out: &mut impl MatrixMut<T>,
+) {
+    let n = qr.ncols();
+    // Start from the M×N "thin identity": e_0..e_{N-1}
+    for i in 0..n {
+        *out.get_mut(i, i) = T::one();
+    }
+    // Apply reflections H_col in reverse order to Q[col:M, col:N].
+    for col in (0..n).rev() {
+        let tau_val = tau[col];
+        // A zero reflector (possible after column pivoting) is the identity.
+        if tau_val == T::zero() {
+            continue;
+        }
+        // v = [1, qr[col+1,col], ..., qr[M-1,col]]; H = I - tau * v * v^H
+        let v_slice = qr.col_as_slice(col, col + 1);
+        for j in col..n {
+            let mut dot = *out.get(col, j); // conj(1) * q[col,j]
+            {
+                let q_j_slice = out.col_as_mut_slice(j, col + 1);
+                dot = (dot + crate::simd::dotc_dispatch(v_slice, q_j_slice)) * tau_val;
+                crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
+            }
+            *out.get_mut(col, j) = *out.get(col, j) - dot;
+        }
+    }
+}
+
+/// Apply `Qᴴ` in place to a length-M vector: `b ← Qᴴ b`.
+///
+/// Applies each Householder reflection from the packed factorization in `qr`
+/// (with scalars `tau`) in forward order. The conjugated dot and AXPY over each
+/// contiguous sub-column go through SIMD dispatch. Shared by the fixed-size and
+/// `Dyn` QR least-squares solves.
+pub(crate) fn apply_qh_inplace<T: LinalgScalar>(qr: &impl MatrixRef<T>, tau: &[T], b: &mut [T]) {
+    let n = qr.ncols();
+    for col in 0..n {
+        let tau_val = tau[col];
+        let v_slice = qr.col_as_slice(col, col + 1);
+        let mut dot = b[col]; // conj(1) * b[col]
+        dot = (dot + crate::simd::dotc_dispatch(v_slice, &b[col + 1..])) * tau_val;
+        b[col] = b[col] - dot;
+        crate::simd::axpy_neg_dispatch(&mut b[col + 1..], dot, v_slice);
+    }
+}
+
+/// Copy the upper triangle (the R factor) of a packed QR into `out`, an N×N
+/// buffer pre-filled with zeros. Shared by the fixed-size and `Dyn` `r()`.
+pub(crate) fn copy_r<T: LinalgScalar>(qr: &impl MatrixRef<T>, out: &mut impl MatrixMut<T>) {
+    let n = qr.ncols();
+    for i in 0..n {
+        for j in i..n {
+            *out.get_mut(i, j) = *qr.get(i, j);
+        }
+    }
+}
+
+/// Product of the diagonal entries of a packed QR (the determinant of R, which
+/// the square-matrix `det()` returns). Shared by the fixed-size and `Dyn` `det()`.
+pub(crate) fn diag_product<T: LinalgScalar>(qr: &impl MatrixRef<T>) -> T {
+    let n = qr.ncols();
+    let mut d = T::one();
+    for i in 0..n {
+        d = d * *qr.get(i, i);
+    }
+    d
+}
+
 /// QR decomposition of a fixed-size matrix (M >= N).
 ///
 /// Stores the packed Householder vectors, R, and tau scalars.
@@ -146,11 +226,7 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
     /// ```
     pub fn r(&self) -> Matrix<T, N, N> {
         let mut r = Matrix::<T, N, N>::zeros();
-        for i in 0..N {
-            for j in i..N {
-                r[(i, j)] = self.qr[(i, j)];
-            }
-        }
+        copy_r(&self.qr, &mut r);
         r
     }
 
@@ -172,31 +248,8 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
     /// assert!((qtq[(0, 1)]).abs() < 1e-10);
     /// ```
     pub fn q(&self) -> Matrix<T, M, N> {
-        // Start with the M×N "thin identity": e_0..e_{N-1}
         let mut q = Matrix::<T, M, N>::zeros();
-        for i in 0..N {
-            q[(i, i)] = T::one();
-        }
-
-        // Apply reflections in reverse order
-        for col in (0..N).rev() {
-            let tau_val = self.tau[col];
-
-            // Apply H_col to Q[col:M, col:N]
-            // v = [1, qr[col+1,col], ..., qr[M-1,col]]
-            // H = I - tau * v * v^H
-            let v_slice = self.qr.col_as_slice(col, col + 1);
-            for j in col..N {
-                let mut dot = q[(col, j)]; // conj(1) * q[col,j]
-                {
-                    let q_j_slice = q.col_as_mut_slice(j, col + 1);
-                    dot = (dot + crate::simd::dotc_dispatch(v_slice, q_j_slice)) * tau_val;
-                    crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
-                }
-                q[(col, j)] = q[(col, j)] - dot;
-            }
-        }
-
+        form_q(&self.qr, &self.tau, &mut q);
         q
     }
 
@@ -230,23 +283,12 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
     ///
     /// Computes x = R^{-1} Q^H b via Householder application + back substitution.
     pub fn solve(&self, b: &Vector<T, M>) -> Vector<T, N> {
-        // Apply Q^H to b by applying each Householder reflection in order.
-        // Work with a copy of b as a flat array of length M.
+        // Apply Q^H to b (in place on a length-M copy).
         let mut qtb = [T::zero(); M];
         for i in 0..M {
             qtb[i] = b[i];
         }
-
-        for col in 0..N {
-            let tau_val = self.tau[col];
-            // v = [1, qr[col+1,col], ..., qr[M-1,col]]
-            let v_slice = self.qr.col_as_slice(col, col + 1);
-            let mut dot = qtb[col]; // conj(1) * qtb[col]
-            dot = (dot + crate::simd::dotc_dispatch(v_slice, &qtb[col + 1..])) * tau_val;
-
-            qtb[col] = qtb[col] - dot;
-            crate::simd::axpy_neg_dispatch(&mut qtb[col + 1..], dot, v_slice);
-        }
+        apply_qh_inplace(&self.qr, &self.tau, &mut qtb);
 
         // Back substitution with R (upper triangle of qr, first N rows)
         let mut x = [T::zero(); N];
@@ -266,11 +308,7 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrDecomposition<T, M, N> {
     /// Panics at runtime if M != N.
     pub fn det(&self) -> T {
         assert_eq!(M, N, "determinant requires a square matrix");
-        let mut d = T::one();
-        for i in 0..N {
-            d = d * self.qr[(i, i)];
-        }
-        d
+        diag_product(&self.qr)
     }
 }
 
@@ -470,39 +508,14 @@ impl<T: LinalgScalar, const M: usize, const N: usize> QrPivotDecomposition<T, M,
     /// Extract the upper-triangular R factor (N x N).
     pub fn r(&self) -> Matrix<T, N, N> {
         let mut r = Matrix::<T, N, N>::zeros();
-        for i in 0..N {
-            for j in i..N {
-                r[(i, j)] = self.qr[(i, j)];
-            }
-        }
+        copy_r(&self.qr, &mut r);
         r
     }
 
     /// Compute the thin Q factor (M x N, orthonormal columns).
     pub fn q(&self) -> Matrix<T, M, N> {
         let mut q = Matrix::<T, M, N>::zeros();
-        for i in 0..N {
-            q[(i, i)] = T::one();
-        }
-
-        for col in (0..N).rev() {
-            let tau_val = self.tau[col];
-            if tau_val == T::zero() {
-                continue;
-            }
-
-            let v_slice = self.qr.col_as_slice(col, col + 1);
-            for j in col..N {
-                let mut dot = q[(col, j)];
-                {
-                    let q_j_slice = q.col_as_mut_slice(j, col + 1);
-                    dot = (dot + crate::simd::dotc_dispatch(v_slice, q_j_slice)) * tau_val;
-                    crate::simd::axpy_neg_dispatch(q_j_slice, dot, v_slice);
-                }
-                q[(col, j)] = q[(col, j)] - dot;
-            }
-        }
-
+        form_q(&self.qr, &self.tau, &mut q);
         q
     }
 
