@@ -414,118 +414,25 @@ unsafe fn microkernel_2x4(
     }
 }
 
-/// Element-wise addition: out[i] = a[i] + b[i].
-#[inline]
-pub fn add_slices(a: &[f64], b: &[f64], out: &mut [f64]) {
-    debug_assert_eq!(a.len(), b.len());
-    debug_assert_eq!(a.len(), out.len());
-    let n = a.len();
-    let chunks = n / 4;
-
-    unsafe {
-        for i in 0..chunks {
-            let offset = i * 4;
-            let va = _mm256_loadu_pd(a.as_ptr().add(offset));
-            let vb = _mm256_loadu_pd(b.as_ptr().add(offset));
-            _mm256_storeu_pd(out.as_mut_ptr().add(offset), _mm256_add_pd(va, vb));
-        }
-    }
-
-    let tail = chunks * 4;
-    for i in tail..n {
-        out[i] = a[i] + b[i];
-    }
-}
-
-/// Element-wise subtraction: out[i] = a[i] - b[i].
-#[inline]
-pub fn sub_slices(a: &[f64], b: &[f64], out: &mut [f64]) {
-    debug_assert_eq!(a.len(), b.len());
-    debug_assert_eq!(a.len(), out.len());
-    let n = a.len();
-    let chunks = n / 4;
-
-    unsafe {
-        for i in 0..chunks {
-            let offset = i * 4;
-            let va = _mm256_loadu_pd(a.as_ptr().add(offset));
-            let vb = _mm256_loadu_pd(b.as_ptr().add(offset));
-            _mm256_storeu_pd(out.as_mut_ptr().add(offset), _mm256_sub_pd(va, vb));
-        }
-    }
-
-    let tail = chunks * 4;
-    for i in tail..n {
-        out[i] = a[i] - b[i];
-    }
-}
-
-/// Scalar multiplication: out[i] = a[i] * scalar.
-#[inline]
-pub fn scale_slices(a: &[f64], scalar: f64, out: &mut [f64]) {
-    debug_assert_eq!(a.len(), out.len());
-    let n = a.len();
-    let chunks = n / 4;
-
-    unsafe {
-        let vs = _mm256_set1_pd(scalar);
-        for i in 0..chunks {
-            let offset = i * 4;
-            let va = _mm256_loadu_pd(a.as_ptr().add(offset));
-            _mm256_storeu_pd(out.as_mut_ptr().add(offset), _mm256_mul_pd(va, vs));
-        }
-    }
-
-    let tail = chunks * 4;
-    for i in tail..n {
-        out[i] = a[i] * scalar;
-    }
-}
-
-/// AXPY: y[i] -= alpha * x[i].
-#[inline]
-pub fn axpy_neg(y: &mut [f64], alpha: f64, x: &[f64]) {
-    debug_assert_eq!(y.len(), x.len());
-    let n = y.len();
-    let chunks = n / 4;
-
-    unsafe {
-        let va = _mm256_set1_pd(alpha);
-        for i in 0..chunks {
-            let offset = i * 4;
-            let vy = _mm256_loadu_pd(y.as_ptr().add(offset));
-            let vx = _mm256_loadu_pd(x.as_ptr().add(offset));
-            let result = _mm256_sub_pd(vy, _mm256_mul_pd(va, vx));
-            _mm256_storeu_pd(y.as_mut_ptr().add(offset), result);
-        }
-    }
-
-    let tail = chunks * 4;
-    for i in tail..n {
-        y[i] -= alpha * x[i];
-    }
-}
-
-/// AXPY: y[i] += alpha * x[i].
-#[inline]
-pub fn axpy_pos(y: &mut [f64], alpha: f64, x: &[f64]) {
-    debug_assert_eq!(y.len(), x.len());
-    let n = y.len();
-    let chunks = n / 4;
-
-    unsafe {
-        let va = _mm256_set1_pd(alpha);
-        for i in 0..chunks {
-            let offset = i * 4;
-            let vy = _mm256_loadu_pd(y.as_ptr().add(offset));
-            let vx = _mm256_loadu_pd(x.as_ptr().add(offset));
-            let result = _mm256_add_pd(vy, _mm256_mul_pd(va, vx));
-            _mm256_storeu_pd(y.as_mut_ptr().add(offset), result);
-        }
-    }
-
-    let tail = chunks * 4;
-    for i in tail..n {
-        y[i] += alpha * x[i];
-    }
-}
+// Element-wise add/sub/scale and AXPY kernels are generated from the shared
+// macros in `super` (identical across ISAs bar width + intrinsic names).
+simd_elementwise_kernels!(
+    f64,
+    4,
+    _mm256_loadu_pd,
+    _mm256_storeu_pd,
+    _mm256_add_pd,
+    _mm256_sub_pd,
+    _mm256_mul_pd,
+    _mm256_set1_pd
+);
+simd_axpy_kernels_muladd!(
+    f64,
+    4,
+    _mm256_loadu_pd,
+    _mm256_storeu_pd,
+    _mm256_add_pd,
+    _mm256_sub_pd,
+    _mm256_mul_pd,
+    _mm256_set1_pd
+);

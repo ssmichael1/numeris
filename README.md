@@ -433,6 +433,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `estimate` | no | State estimation (EKF, UKF, SR-UKF, CKF, RTS, batch LSQ). Implies `alloc`. |
 | `interp` | no | Interpolation (linear, Hermite, barycentric Lagrange, cubic spline, bilinear). |
 | `imageproc` | no | 2D image processing on `DynMatrix` (filters, morphology, integral image, Canny, corners, connected components, geometric). Implies `alloc`. |
+| `quad` | no | Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson). |
 | `special` | no | Special functions (gamma, beta, erf, incomplete gamma/beta, digamma). |
 | `stats` | no | Statistical distributions (Normal, Gamma, Beta, etc.). Implies `special`. |
 | `libm` | baseline | Pure-Rust software float math. Always available as fallback. |
@@ -640,6 +641,20 @@ Operates on `DynMatrix<T>` buffers (column-major, `BorderMode`-aware). Convoluti
 </details>
 
 <details>
+<summary><b><code>quad</code></b> — Numerical quadrature (requires <code>quad</code> feature)</summary>
+
+Fully no-alloc, generic over `FloatScalar` (f32/f64).
+
+| Function | Description |
+|---|---|
+| `gauss_legendre::<N>(f, a, b)` | N-point Gauss-Legendre rule (N = 1..10, 15, 20) |
+| `adaptive_simpson(f, a, b, tol)` | Adaptive Simpson with automatic subdivision to a tolerance |
+| `trapezoid(f, a, b, n)` | Composite trapezoid rule over `n` subintervals |
+| `simpson(f, a, b, n)` | Composite Simpson's rule over `n` subintervals |
+
+</details>
+
+<details>
 <summary><b><code>special</code></b> — Special functions (requires <code>special</code> feature)</summary>
 
 Fully no-std, generic over `FloatScalar` (f32/f64).
@@ -713,7 +728,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **imageproc** — 2D image processing (convolution, filters, morphology, integral image, thresholding, Canny, corners, connected components, geometric)
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
-- [ ] **quad** — Numerical quadrature / integration
+- [x] **quad** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson)
 - [ ] **fft** — Fast Fourier Transform
 - [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
 - [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)

@@ -37,6 +37,188 @@
 // unused in that build — not removable, just inactive for this target.
 #![allow(dead_code)]
 
+// ── ISA kernel macros ──────────────────────────────────────────────────────
+//
+// The element-wise kernels (add/sub/scale/axpy) are algorithmically identical
+// across every ISA — they differ only in the vector width and the intrinsic
+// names. These macros are the single source of truth: each architecture file
+// invokes them once with its own width + intrinsics, instead of hand-writing
+// ~110 lines of near-identical bodies. `dot` and `matmul` stay hand-written per
+// ISA because their reductions / micro-kernels genuinely diverge.
+//
+// Defined before the `mod` declarations below so the child module files see
+// them (macro_rules textual scope flows into modules declared afterward).
+
+/// Element-wise `add_slices` / `sub_slices` / `scale_slices` for one lane type.
+///
+/// `$t` is the scalar type, `$lanes` the vector width in elements, and the
+/// trailing idents are this ISA's load / store / add / sub / mul / broadcast
+/// intrinsics (uniform call shape: `load(ptr)`, `store(ptr, v)`, `op(v, v)`,
+/// `set1(scalar)`).
+macro_rules! simd_elementwise_kernels {
+    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
+        /// Element-wise addition: out[i] = a[i] + b[i].
+        #[inline]
+        pub fn add_slices(a: &[$t], b: &[$t], out: &mut [$t]) {
+            debug_assert_eq!(a.len(), b.len());
+            debug_assert_eq!(a.len(), out.len());
+            let n = a.len();
+            let chunks = n / $lanes;
+            unsafe {
+                for i in 0..chunks {
+                    let offset = i * $lanes;
+                    let va = $load(a.as_ptr().add(offset));
+                    let vb = $load(b.as_ptr().add(offset));
+                    $store(out.as_mut_ptr().add(offset), $add(va, vb));
+                }
+            }
+            let tail = chunks * $lanes;
+            for i in tail..n {
+                out[i] = a[i] + b[i];
+            }
+        }
+
+        /// Element-wise subtraction: out[i] = a[i] - b[i].
+        #[inline]
+        pub fn sub_slices(a: &[$t], b: &[$t], out: &mut [$t]) {
+            debug_assert_eq!(a.len(), b.len());
+            debug_assert_eq!(a.len(), out.len());
+            let n = a.len();
+            let chunks = n / $lanes;
+            unsafe {
+                for i in 0..chunks {
+                    let offset = i * $lanes;
+                    let va = $load(a.as_ptr().add(offset));
+                    let vb = $load(b.as_ptr().add(offset));
+                    $store(out.as_mut_ptr().add(offset), $sub(va, vb));
+                }
+            }
+            let tail = chunks * $lanes;
+            for i in tail..n {
+                out[i] = a[i] - b[i];
+            }
+        }
+
+        /// Scalar multiplication: out[i] = a[i] * scalar.
+        #[inline]
+        pub fn scale_slices(a: &[$t], scalar: $t, out: &mut [$t]) {
+            debug_assert_eq!(a.len(), out.len());
+            let n = a.len();
+            let chunks = n / $lanes;
+            unsafe {
+                let vs = $set1(scalar);
+                for i in 0..chunks {
+                    let offset = i * $lanes;
+                    let va = $load(a.as_ptr().add(offset));
+                    $store(out.as_mut_ptr().add(offset), $mul(va, vs));
+                }
+            }
+            let tail = chunks * $lanes;
+            for i in tail..n {
+                out[i] = a[i] * scalar;
+            }
+        }
+    };
+}
+
+/// AXPY kernels using a separate multiply + add/subtract (x86 SSE2/AVX/AVX-512).
+// Unused on aarch64 (which uses the fused variant below); the reverse holds on x86.
+#[allow(unused_macros)]
+macro_rules! simd_axpy_kernels_muladd {
+    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
+        /// AXPY: y[i] -= alpha * x[i].
+        #[inline]
+        pub fn axpy_neg(y: &mut [$t], alpha: $t, x: &[$t]) {
+            debug_assert_eq!(y.len(), x.len());
+            let n = y.len();
+            let chunks = n / $lanes;
+            unsafe {
+                let va = $set1(alpha);
+                for i in 0..chunks {
+                    let offset = i * $lanes;
+                    let vy = $load(y.as_ptr().add(offset));
+                    let vx = $load(x.as_ptr().add(offset));
+                    $store(y.as_mut_ptr().add(offset), $sub(vy, $mul(va, vx)));
+                }
+            }
+            let tail = chunks * $lanes;
+            for i in tail..n {
+                y[i] -= alpha * x[i];
+            }
+        }
+
+        /// AXPY: y[i] += alpha * x[i].
+        #[inline]
+        pub fn axpy_pos(y: &mut [$t], alpha: $t, x: &[$t]) {
+            debug_assert_eq!(y.len(), x.len());
+            let n = y.len();
+            let chunks = n / $lanes;
+            unsafe {
+                let va = $set1(alpha);
+                for i in 0..chunks {
+                    let offset = i * $lanes;
+                    let vy = $load(y.as_ptr().add(offset));
+                    let vx = $load(x.as_ptr().add(offset));
+                    $store(y.as_mut_ptr().add(offset), $add(vy, $mul(va, vx)));
+                }
+            }
+            let tail = chunks * $lanes;
+            for i in tail..n {
+                y[i] += alpha * x[i];
+            }
+        }
+    };
+}
+
+/// AXPY kernels using NEON fused multiply-add / multiply-subtract.
+#[allow(unused_macros)]
+macro_rules! simd_axpy_kernels_fma {
+    ($t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $fms:ident, $dup:ident) => {
+        /// AXPY: y[i] -= alpha * x[i].
+        #[inline]
+        pub fn axpy_neg(y: &mut [$t], alpha: $t, x: &[$t]) {
+            debug_assert_eq!(y.len(), x.len());
+            let n = y.len();
+            let chunks = n / $lanes;
+            unsafe {
+                let va = $dup(alpha);
+                for i in 0..chunks {
+                    let offset = i * $lanes;
+                    let vy = $load(y.as_ptr().add(offset));
+                    let vx = $load(x.as_ptr().add(offset));
+                    // y -= alpha * x  →  fused multiply-subtract
+                    $store(y.as_mut_ptr().add(offset), $fms(vy, va, vx));
+                }
+            }
+            let tail = chunks * $lanes;
+            for i in tail..n {
+                y[i] -= alpha * x[i];
+            }
+        }
+
+        /// AXPY: y[i] += alpha * x[i].
+        #[inline]
+        pub fn axpy_pos(y: &mut [$t], alpha: $t, x: &[$t]) {
+            debug_assert_eq!(y.len(), x.len());
+            let n = y.len();
+            let chunks = n / $lanes;
+            unsafe {
+                let va = $dup(alpha);
+                for i in 0..chunks {
+                    let offset = i * $lanes;
+                    let vy = $load(y.as_ptr().add(offset));
+                    let vx = $load(x.as_ptr().add(offset));
+                    $store(y.as_mut_ptr().add(offset), $fma(vy, va, vx));
+                }
+            }
+            let tail = chunks * $lanes;
+            for i in tail..n {
+                y[i] += alpha * x[i];
+            }
+        }
+    };
+}
+
 pub(crate) mod scalar;
 
 #[cfg(target_arch = "aarch64")]
@@ -190,275 +372,195 @@ pub(crate) fn matmul_dispatch<T: Scalar>(
     scalar::matmul(a, b, c, m, n, p);
 }
 
-/// Dispatch element-wise addition to SIMD or scalar fallback.
-#[inline]
-pub(crate) fn add_slices_dispatch<T: Scalar>(a: &[T], b: &[T], out: &mut [T]) {
-    #[cfg(target_arch = "aarch64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            f64_neon::add_slices(a, b, out);
-            return;
+/// Dispatch a SIMD element-wise kernel: select the widest available ISA
+/// (AVX-512 > AVX > SSE2 on x86_64, NEON on aarch64) for `f32`/`f64`, otherwise
+/// fall back to the scalar kernel. One arm per argument shape; `dot`/`matmul`
+/// keep the bespoke dispatch above because their reductions genuinely diverge.
+macro_rules! simd_dispatch {
+    // out[i] = a[i] (op) b[i]  — add_slices / sub_slices
+    (binop $(#[$attr:meta])* $name:ident => $kernel:ident) => {
+        $(#[$attr])*
+        #[inline]
+        pub(crate) fn $name<T: Scalar>(a: &[T], b: &[T], out: &mut [T]) {
+            #[cfg(target_arch = "aarch64")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f64>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
+                    let b = unsafe { &*(b as *const [T] as *const [f64]) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+                    f64_neon::$kernel(a, b, out);
+                    return;
+                }
+                if TypeId::of::<T>() == TypeId::of::<f32>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
+                    let b = unsafe { &*(b as *const [T] as *const [f32]) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+                    f32_neon::$kernel(a, b, out);
+                    return;
+                }
+            }
+            #[cfg(target_arch = "x86_64")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f64>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
+                    let b = unsafe { &*(b as *const [T] as *const [f64]) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+                    #[cfg(target_feature = "avx512f")]
+                    f64_avx512::$kernel(a, b, out);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f64_avx::$kernel(a, b, out);
+                    #[cfg(not(target_feature = "avx"))]
+                    f64_sse2::$kernel(a, b, out);
+                    return;
+                }
+                if TypeId::of::<T>() == TypeId::of::<f32>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
+                    let b = unsafe { &*(b as *const [T] as *const [f32]) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+                    #[cfg(target_feature = "avx512f")]
+                    f32_avx512::$kernel(a, b, out);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f32_avx::$kernel(a, b, out);
+                    #[cfg(not(target_feature = "avx"))]
+                    f32_sse2::$kernel(a, b, out);
+                    return;
+                }
+            }
+            scalar::$kernel(a, b, out);
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            f32_neon::add_slices(a, b, out);
-            return;
+    };
+    // out[i] = a[i] * scalar  — scale_slices
+    (scale $(#[$attr:meta])* $name:ident => $kernel:ident) => {
+        $(#[$attr])*
+        #[inline]
+        pub(crate) fn $name<T: Scalar>(a: &[T], scalar: T, out: &mut [T]) {
+            #[cfg(target_arch = "aarch64")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f64>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
+                    let s = unsafe { *(&scalar as *const T as *const f64) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+                    f64_neon::$kernel(a, s, out);
+                    return;
+                }
+                if TypeId::of::<T>() == TypeId::of::<f32>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
+                    let s = unsafe { *(&scalar as *const T as *const f32) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+                    f32_neon::$kernel(a, s, out);
+                    return;
+                }
+            }
+            #[cfg(target_arch = "x86_64")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f64>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
+                    let s = unsafe { *(&scalar as *const T as *const f64) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+                    #[cfg(target_feature = "avx512f")]
+                    f64_avx512::$kernel(a, s, out);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f64_avx::$kernel(a, s, out);
+                    #[cfg(not(target_feature = "avx"))]
+                    f64_sse2::$kernel(a, s, out);
+                    return;
+                }
+                if TypeId::of::<T>() == TypeId::of::<f32>() {
+                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
+                    let s = unsafe { *(&scalar as *const T as *const f32) };
+                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+                    #[cfg(target_feature = "avx512f")]
+                    f32_avx512::$kernel(a, s, out);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f32_avx::$kernel(a, s, out);
+                    #[cfg(not(target_feature = "avx"))]
+                    f32_sse2::$kernel(a, s, out);
+                    return;
+                }
+            }
+            scalar::$kernel(a, scalar, out);
         }
-    }
-    #[cfg(target_arch = "x86_64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            #[cfg(target_feature = "avx512f")]
-            f64_avx512::add_slices(a, b, out);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f64_avx::add_slices(a, b, out);
-            #[cfg(not(target_feature = "avx"))]
-            f64_sse2::add_slices(a, b, out);
-            return;
+    };
+    // y[i] (op)= alpha * x[i]  — axpy_neg / axpy_pos
+    (axpy $(#[$attr:meta])* $name:ident => $kernel:ident) => {
+        $(#[$attr])*
+        #[inline]
+        pub(crate) fn $name<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
+            // Short slices: the out-of-line SIMD call costs more than the loop.
+            if y.len() < 8 {
+                scalar::$kernel(y, alpha, x);
+                return;
+            }
+            #[cfg(target_arch = "aarch64")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f64>() {
+                    let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
+                    let a = unsafe { *(&alpha as *const T as *const f64) };
+                    let x = unsafe { &*(x as *const [T] as *const [f64]) };
+                    f64_neon::$kernel(y, a, x);
+                    return;
+                }
+                if TypeId::of::<T>() == TypeId::of::<f32>() {
+                    let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
+                    let a = unsafe { *(&alpha as *const T as *const f32) };
+                    let x = unsafe { &*(x as *const [T] as *const [f32]) };
+                    f32_neon::$kernel(y, a, x);
+                    return;
+                }
+            }
+            #[cfg(target_arch = "x86_64")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f64>() {
+                    let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
+                    let a = unsafe { *(&alpha as *const T as *const f64) };
+                    let x = unsafe { &*(x as *const [T] as *const [f64]) };
+                    #[cfg(target_feature = "avx512f")]
+                    f64_avx512::$kernel(y, a, x);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f64_avx::$kernel(y, a, x);
+                    #[cfg(not(target_feature = "avx"))]
+                    f64_sse2::$kernel(y, a, x);
+                    return;
+                }
+                if TypeId::of::<T>() == TypeId::of::<f32>() {
+                    let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
+                    let a = unsafe { *(&alpha as *const T as *const f32) };
+                    let x = unsafe { &*(x as *const [T] as *const [f32]) };
+                    #[cfg(target_feature = "avx512f")]
+                    f32_avx512::$kernel(y, a, x);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f32_avx::$kernel(y, a, x);
+                    #[cfg(not(target_feature = "avx"))]
+                    f32_sse2::$kernel(y, a, x);
+                    return;
+                }
+            }
+            scalar::$kernel(y, alpha, x);
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            #[cfg(target_feature = "avx512f")]
-            f32_avx512::add_slices(a, b, out);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f32_avx::add_slices(a, b, out);
-            #[cfg(not(target_feature = "avx"))]
-            f32_sse2::add_slices(a, b, out);
-            return;
-        }
-    }
-    scalar::add_slices(a, b, out);
+    };
 }
 
-/// Dispatch element-wise subtraction to SIMD or scalar fallback.
-#[inline]
-pub(crate) fn sub_slices_dispatch<T: Scalar>(a: &[T], b: &[T], out: &mut [T]) {
-    #[cfg(target_arch = "aarch64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            f64_neon::sub_slices(a, b, out);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            f32_neon::sub_slices(a, b, out);
-            return;
-        }
-    }
-    #[cfg(target_arch = "x86_64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            #[cfg(target_feature = "avx512f")]
-            f64_avx512::sub_slices(a, b, out);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f64_avx::sub_slices(a, b, out);
-            #[cfg(not(target_feature = "avx"))]
-            f64_sse2::sub_slices(a, b, out);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            #[cfg(target_feature = "avx512f")]
-            f32_avx512::sub_slices(a, b, out);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f32_avx::sub_slices(a, b, out);
-            #[cfg(not(target_feature = "avx"))]
-            f32_sse2::sub_slices(a, b, out);
-            return;
-        }
-    }
-    scalar::sub_slices(a, b, out);
-}
-
-/// Dispatch AXPY: y[i] -= alpha * x[i].
-///
-/// For short slices (< 8 elements), uses a scalar loop to avoid the overhead
-/// of SIMD dispatch and register setup, which dominates at small sizes.
-#[inline]
-pub(crate) fn axpy_neg_dispatch<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
-    let n = y.len();
-    if n < 8 {
-        for i in 0..n {
-            y[i] = y[i] - alpha * x[i];
-        }
-        return;
-    }
-    #[cfg(target_arch = "aarch64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
-            let a = unsafe { *(&alpha as *const T as *const f64) };
-            let x = unsafe { &*(x as *const [T] as *const [f64]) };
-            f64_neon::axpy_neg(y, a, x);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
-            let a = unsafe { *(&alpha as *const T as *const f32) };
-            let x = unsafe { &*(x as *const [T] as *const [f32]) };
-            f32_neon::axpy_neg(y, a, x);
-            return;
-        }
-    }
-    #[cfg(target_arch = "x86_64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
-            let a = unsafe { *(&alpha as *const T as *const f64) };
-            let x = unsafe { &*(x as *const [T] as *const [f64]) };
-            #[cfg(target_feature = "avx512f")]
-            f64_avx512::axpy_neg(y, a, x);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f64_avx::axpy_neg(y, a, x);
-            #[cfg(not(target_feature = "avx"))]
-            f64_sse2::axpy_neg(y, a, x);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
-            let a = unsafe { *(&alpha as *const T as *const f32) };
-            let x = unsafe { &*(x as *const [T] as *const [f32]) };
-            #[cfg(target_feature = "avx512f")]
-            f32_avx512::axpy_neg(y, a, x);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f32_avx::axpy_neg(y, a, x);
-            #[cfg(not(target_feature = "avx"))]
-            f32_sse2::axpy_neg(y, a, x);
-            return;
-        }
-    }
-    scalar::axpy_neg(y, alpha, x);
-}
-
-/// Dispatch AXPY: y[i] += alpha * x[i].
-///
-/// For short slices (< 8 elements), uses a scalar loop to avoid the overhead
-/// of SIMD dispatch and register setup, which dominates at small sizes.
-#[inline]
-pub(crate) fn axpy_pos_dispatch<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
-    let n = y.len();
-    if n < 8 {
-        for i in 0..n {
-            y[i] = y[i] + alpha * x[i];
-        }
-        return;
-    }
-    #[cfg(target_arch = "aarch64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
-            let a = unsafe { *(&alpha as *const T as *const f64) };
-            let x = unsafe { &*(x as *const [T] as *const [f64]) };
-            f64_neon::axpy_pos(y, a, x);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
-            let a = unsafe { *(&alpha as *const T as *const f32) };
-            let x = unsafe { &*(x as *const [T] as *const [f32]) };
-            f32_neon::axpy_pos(y, a, x);
-            return;
-        }
-    }
-    #[cfg(target_arch = "x86_64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
-            let a = unsafe { *(&alpha as *const T as *const f64) };
-            let x = unsafe { &*(x as *const [T] as *const [f64]) };
-            #[cfg(target_feature = "avx512f")]
-            f64_avx512::axpy_pos(y, a, x);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f64_avx::axpy_pos(y, a, x);
-            #[cfg(not(target_feature = "avx"))]
-            f64_sse2::axpy_pos(y, a, x);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
-            let a = unsafe { *(&alpha as *const T as *const f32) };
-            let x = unsafe { &*(x as *const [T] as *const [f32]) };
-            #[cfg(target_feature = "avx512f")]
-            f32_avx512::axpy_pos(y, a, x);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f32_avx::axpy_pos(y, a, x);
-            #[cfg(not(target_feature = "avx"))]
-            f32_sse2::axpy_pos(y, a, x);
-            return;
-        }
-    }
-    scalar::axpy_pos(y, alpha, x);
-}
-
-/// Dispatch scalar multiplication to SIMD or scalar fallback.
-#[inline]
-pub(crate) fn scale_slices_dispatch<T: Scalar>(a: &[T], scalar: T, out: &mut [T]) {
-    #[cfg(target_arch = "aarch64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let s = unsafe { *(&scalar as *const T as *const f64) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            f64_neon::scale_slices(a, s, out);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let s = unsafe { *(&scalar as *const T as *const f32) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            f32_neon::scale_slices(a, s, out);
-            return;
-        }
-    }
-    #[cfg(target_arch = "x86_64")]
-    {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let s = unsafe { *(&scalar as *const T as *const f64) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            #[cfg(target_feature = "avx512f")]
-            f64_avx512::scale_slices(a, s, out);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f64_avx::scale_slices(a, s, out);
-            #[cfg(not(target_feature = "avx"))]
-            f64_sse2::scale_slices(a, s, out);
-            return;
-        }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let s = unsafe { *(&scalar as *const T as *const f32) };
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            #[cfg(target_feature = "avx512f")]
-            f32_avx512::scale_slices(a, s, out);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f32_avx::scale_slices(a, s, out);
-            #[cfg(not(target_feature = "avx"))]
-            f32_sse2::scale_slices(a, s, out);
-            return;
-        }
-    }
-    scalar::scale_slices(a, scalar, out);
-}
+simd_dispatch!(binop
+    /// Dispatch element-wise addition to SIMD or scalar fallback.
+    add_slices_dispatch => add_slices);
+simd_dispatch!(binop
+    /// Dispatch element-wise subtraction to SIMD or scalar fallback.
+    sub_slices_dispatch => sub_slices);
+simd_dispatch!(scale
+    /// Dispatch scalar multiplication to SIMD or scalar fallback.
+    scale_slices_dispatch => scale_slices);
+simd_dispatch!(axpy
+    /// Dispatch AXPY: y[i] -= alpha * x[i].
+    ///
+    /// For short slices (< 8 elements) falls back to the scalar kernel to avoid
+    /// SIMD dispatch / register-setup overhead, which dominates at small sizes.
+    axpy_neg_dispatch => axpy_neg);
+simd_dispatch!(axpy
+    /// Dispatch AXPY: y[i] += alpha * x[i].
+    ///
+    /// For short slices (< 8 elements) falls back to the scalar kernel to avoid
+    /// SIMD dispatch / register-setup overhead, which dominates at small sizes.
+    axpy_pos_dispatch => axpy_pos);
 
 /// Dispatch in-place scalar multiplication to SIMD or scalar fallback.
 ///
