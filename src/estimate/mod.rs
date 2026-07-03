@@ -231,21 +231,6 @@ pub(crate) fn fd_jacobian<T: FloatScalar, const N: usize, const M: usize>(
     f: &impl Fn(&Vector<T, N>) -> Vector<T, M>,
     x: &Vector<T, N>,
 ) -> Matrix<T, M, N> {
-    let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
-    let mut jac = Matrix::<T, M, N>::zeros();
-
-    for j in 0..N {
-        let xj = x[j];
-        let h = sqrt_eps * xj.abs().max(T::one());
-        let mut x_pert = *x;
-        x_pert[j] = xj + h;
-        let f_pert = f(&x_pert);
-
-        for i in 0..M {
-            jac[(i, j)] = (f_pert[i] - f0[i]) / h;
-        }
-    }
-
-    jac
+    crate::fdiff::forward_diff_jacobian(x, &f0, |xp| f(xp))
 }

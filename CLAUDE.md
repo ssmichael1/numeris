@@ -123,6 +123,7 @@ src/
 ├── macros.rs           # matrix! / vector! constructor macros
 ├── prelude.rs          # convenience re-exports (Matrix, Vector, Quaternion, traits)
 ├── serde_impl.rs       # (requires `serde` feature) Serialize/Deserialize for all types
+├── fdiff.rs            # (requires `optim`/`estimate`/`ode`) shared forward-difference Jacobian kernel
 ├── matrix/
 │   ├── mod.rs          # Matrix struct, constructors, Index, trait impls
 │   ├── aliases.rs      # Size aliases: Matrix1–Matrix6, Matrix2x3, Vector1–6, etc.
