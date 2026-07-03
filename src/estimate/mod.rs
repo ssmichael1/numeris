@@ -143,8 +143,10 @@ pub(crate) fn cholesky_with_jitter<T: FloatScalar, const N: usize>(
     if let Ok(c) = CholeskyDecomposition::new(p) {
         return Ok(c);
     }
-    for exp in [9u32, 7, 5] {
-        let eps = T::from(10.0f64.powi(-(exp as i32))).unwrap();
+    // Fixed jitter ladder ε ∈ {1e-9, 1e-7, 1e-5}. Written as literals (not
+    // `10f64.powi(..)`) so this compiles in no_std, where `f64::powi` is absent.
+    for eps in [1e-9_f64, 1e-7, 1e-5] {
+        let eps = T::from(eps).unwrap();
         let mut pj = *p;
         for i in 0..N {
             pj[(i, i)] = pj[(i, i)] + eps;
@@ -168,6 +170,58 @@ pub(crate) fn apply_var_floor<T: FloatScalar, const N: usize>(p: &mut Matrix<T, 
             }
         }
     }
+}
+
+/// Symmetrize a covariance and apply the diagonal variance floor — the common
+/// tail of every sigma-point predict/update. `P ← (P + Pᵀ)/2`, then floor.
+#[cfg(feature = "alloc")]
+pub(crate) fn symmetrize_and_floor<T: FloatScalar, const N: usize>(
+    p: &mut Matrix<T, N, N>,
+    min_variance: T,
+) {
+    let half = T::from(0.5).unwrap();
+    *p = (*p + p.transpose()) * half;
+    apply_var_floor(p, min_variance);
+}
+
+/// Store a sigma-point filter's predicted mean/covariance:
+/// `P ← γ·P_sigma + Q`, symmetrized and floored. Shared by UKF and CKF `predict`.
+#[cfg(feature = "alloc")]
+pub(crate) fn store_predicted<T: FloatScalar, const N: usize>(
+    x: &mut Vector<T, N>,
+    p: &mut Matrix<T, N, N>,
+    x_mean: Vector<T, N>,
+    p_sigma: Matrix<T, N, N>,
+    gamma: T,
+    q: Option<&Matrix<T, N, N>>,
+    min_variance: T,
+) {
+    let scaled = p_sigma * gamma;
+    *x = x_mean;
+    *p = match q {
+        Some(q) => scaled + *q,
+        None => scaled,
+    };
+    symmetrize_and_floor(p, min_variance);
+}
+
+/// Kalman gain and symmetric covariance update shared by the UKF and CKF:
+/// `K = Pxz·S⁻¹`, `x += K·innovation`, `P -= K·S·Kᵀ`, then symmetrize + floor.
+/// The `P - K S Kᵀ` form is manifestly PSD-subtracted.
+#[cfg(feature = "alloc")]
+pub(crate) fn sigma_point_update<T: FloatScalar, const N: usize, const M: usize>(
+    x: &mut Vector<T, N>,
+    p: &mut Matrix<T, N, N>,
+    s_mat: &Matrix<T, M, M>,
+    s_inv: &Matrix<T, M, M>,
+    pxz: &Matrix<T, N, M>,
+    innovation: &Vector<T, M>,
+    min_variance: T,
+) {
+    let k = *pxz * *s_inv;
+    *x += k * *innovation;
+    *p -= k * *s_mat * k.transpose();
+    symmetrize_and_floor(p, min_variance);
 }
 
 /// Forward-difference Jacobian of `f: Vector<T,N> → Vector<T,M>`.

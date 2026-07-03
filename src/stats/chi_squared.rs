@@ -1,10 +1,9 @@
-use super::{normal_quantile_standard, quantile_newton, ContinuousDistribution, StatsError};
-use crate::special::{gamma_inc, lgamma};
+use super::{ContinuousDistribution, Gamma, StatsError};
 use crate::FloatScalar;
 
 /// Chi-squared distribution with k degrees of freedom.
 ///
-/// Special case of Gamma(k/2, 1/2).
+/// Special case of Gamma(k/2, 1/2), to which every method delegates.
 ///
 /// # Example
 ///
@@ -17,8 +16,7 @@ use crate::FloatScalar;
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct ChiSquared<T> {
-    k: T,       // degrees of freedom
-    ln_norm: T, // −(k/2)·ln 2 − lgamma(k/2), cached at construction
+    inner: Gamma<T>, // Gamma(k/2, 1/2)
 }
 
 impl<T: FloatScalar> ChiSquared<T> {
@@ -28,19 +26,16 @@ impl<T: FloatScalar> ChiSquared<T> {
             return Err(StatsError::InvalidParameter);
         }
         let two = T::one() + T::one();
-        let half_k = k / two;
-        let ln_norm = T::zero() - half_k * two.ln() - lgamma(half_k);
-        Ok(Self { k, ln_norm })
+        // Chi-squared(k) = Gamma(shape = k/2, rate = 1/2).
+        let inner = Gamma::new(k / two, T::one() / two)?;
+        Ok(Self { inner })
     }
-}
 
-impl<T: FloatScalar> ChiSquared<T> {
     /// Draw a random sample from this distribution.
     ///
-    /// Chi-squared(k) = Gamma(k/2, 1/2), so we sample Gamma(k/2, 1) * 2.
+    /// Chi-squared(k) = Gamma(k/2, 1/2).
     pub fn sample(&self, rng: &mut super::Rng) -> T {
-        let two = T::one() + T::one();
-        rng.next_gamma(self.k / two) * two
+        self.inner.sample(rng)
     }
 
     impl_sample_array!(T, T::zero());
@@ -48,51 +43,26 @@ impl<T: FloatScalar> ChiSquared<T> {
 
 impl<T: FloatScalar> ContinuousDistribution<T> for ChiSquared<T> {
     fn pdf(&self, x: T) -> T {
-        if x <= T::zero() {
-            return T::zero();
-        }
-        self.ln_pdf(x).exp()
+        self.inner.pdf(x)
     }
 
     fn ln_pdf(&self, x: T) -> T {
-        if x <= T::zero() {
-            return T::neg_infinity();
-        }
-        let one = T::one();
-        let two = one + one;
-        let half_k = self.k / two;
-        (half_k - one) * x.ln() - x / two + self.ln_norm
+        self.inner.ln_pdf(x)
     }
 
     fn cdf(&self, x: T) -> T {
-        if x <= T::zero() {
-            return T::zero();
-        }
-        let two = T::one() + T::one();
-        gamma_inc(self.k / two, x / two).unwrap_or(T::nan())
+        self.inner.cdf(x)
     }
 
     fn quantile(&self, p: T) -> T {
-        let two = T::one() + T::one();
-        let nine = T::from(9.0).unwrap();
-        // Wilson-Hilferty approximation
-        let z = normal_quantile_standard(p);
-        let v = T::one() - two / (nine * self.k) + z * (two / (nine * self.k)).sqrt();
-        let x0 = if v > T::zero() {
-            self.k * v * v * v
-        } else {
-            self.mean()
-        };
-        let hi = self.mean() + T::from(40.0).unwrap() * self.variance().sqrt();
-        quantile_newton(|x| self.cdf(x), |x| self.pdf(x), p, x0, T::zero(), hi)
+        self.inner.quantile(p)
     }
 
     fn mean(&self) -> T {
-        self.k
+        self.inner.mean()
     }
 
     fn variance(&self) -> T {
-        let two = T::one() + T::one();
-        two * self.k
+        self.inner.variance()
     }
 }

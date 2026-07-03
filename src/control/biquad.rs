@@ -233,6 +233,66 @@ pub(super) fn bilinear_lp_real<T: FloatScalar>(sigma: T, wa: T, c: T) -> Biquad<
     )
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Cascade assembly helpers (pub(super) — shared by butterworth/chebyshev)
+// ─────────────────────────────────────────────────────────────────────
+
+/// Bilinear pre-warp: return `(wa, c)` where `wa` is the pre-warped analog
+/// cutoff and `c = 2·fs`. Shared by every filter designer.
+pub(super) fn prewarp<T: FloatScalar>(cutoff: T, sample_rate: T) -> (T, T) {
+    let two = T::one() + T::one();
+    let pi = T::from(core::f64::consts::PI).unwrap();
+    let c = two * sample_rate;
+    let wa = c * (pi * cutoff / sample_rate).tan();
+    (wa, c)
+}
+
+/// Assemble a biquad cascade: `order/2` conjugate-pair sections built by `pair`,
+/// followed by a single first-order `real` section when `order` is odd.
+pub(super) fn assemble_cascade<T: FloatScalar, const N: usize>(
+    order: usize,
+    mut pair: impl FnMut(usize) -> Biquad<T>,
+    real: impl FnOnce() -> Biquad<T>,
+) -> BiquadCascade<T, N> {
+    let mut sections = [Biquad::passthrough(); N];
+    let mut idx = 0;
+    for k in 0..order / 2 {
+        sections[idx] = pair(k);
+        idx += 1;
+    }
+    if order % 2 == 1 {
+        sections[idx] = real();
+    }
+    BiquadCascade { sections }
+}
+
+/// Product of every section's transfer-function gain evaluated at `z = z_sign`,
+/// i.e. `z_sign = +1` gives the DC gain and `z_sign = -1` the Nyquist gain.
+pub(super) fn cascade_gain_at<T: FloatScalar, const N: usize>(
+    sections: &[Biquad<T>; N],
+    z_sign: T,
+) -> T {
+    let mut g = T::one();
+    for s in sections.iter() {
+        let (b, a) = s.coefficients();
+        let num = b[0] + z_sign * b[1] + b[2];
+        let den = a[0] + z_sign * a[1] + a[2];
+        g = g * num / den;
+    }
+    g
+}
+
+/// Rescale the numerator of the first section by `scale` (used to fix the
+/// Chebyshev passband gain, whose bilinear helpers assume a Butterworth
+/// numerator).
+pub(super) fn scale_first_section_gain<T: FloatScalar, const N: usize>(
+    sections: &mut [Biquad<T>; N],
+    scale: T,
+) {
+    let (b, a) = sections[0].coefficients();
+    sections[0] = Biquad::new([b[0] * scale, b[1] * scale, b[2] * scale], a);
+}
+
 /// Build a highpass biquad from a single real analog pole `σ` (odd-order case).
 pub(super) fn bilinear_hp_real<T: FloatScalar>(sigma: T, _wa: T, c: T) -> Biquad<T> {
     // H_a(s) = s / (s - sigma)   [sigma < 0]

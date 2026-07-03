@@ -5,7 +5,7 @@ use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
-use super::{apply_var_floor, cholesky_with_jitter, EstimateError};
+use super::{cholesky_with_jitter, sigma_point_update, store_predicted, EstimateError};
 
 /// Unscented Kalman Filter with Merwe-scaled sigma points.
 ///
@@ -256,15 +256,15 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         pxz: &Matrix<T, N, M>,
         innovation: &Vector<T, M>,
     ) {
-        // Kalman gain K = Pxz S⁻¹
-        let k = *pxz * *s_inv;
-
-        // Update state and covariance: P = P - K·S·Kᵀ (symmetric, manifestly PSD-subtracted)
-        self.x += k * *innovation;
-        self.p -= k * *s_mat * k.transpose();
-        let half = T::from(0.5).unwrap();
-        self.p = (self.p + self.p.transpose()) * half;
-        apply_var_floor(&mut self.p, self.min_variance);
+        sigma_point_update(
+            &mut self.x,
+            &mut self.p,
+            s_mat,
+            s_inv,
+            pxz,
+            innovation,
+            self.min_variance,
+        );
     }
 
     /// Predict step.
@@ -318,12 +318,15 @@ impl<T: FloatScalar, const N: usize, const M: usize> Ukf<T, N, M> {
         }
 
         // Fading memory: scale sigma-point covariance by γ before adding Q.
-        p_new *= self.gamma;
-        self.x = x_mean;
-        self.p = if let Some(q) = q { p_new + *q } else { p_new };
-        let half = T::from(0.5).unwrap();
-        self.p = (self.p + self.p.transpose()) * half;
-        apply_var_floor(&mut self.p, self.min_variance);
+        store_predicted(
+            &mut self.x,
+            &mut self.p,
+            x_mean,
+            p_new,
+            self.gamma,
+            q,
+            self.min_variance,
+        );
 
         Ok(())
     }

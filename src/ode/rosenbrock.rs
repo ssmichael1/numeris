@@ -144,18 +144,16 @@ pub trait Rosenbrock<const STAGES: usize> {
             tf,
             y0,
             f,
-            JacSource::<T, S, fn(T, &Vector<T, S>) -> Matrix<T, S, S>>::Auto,
+            JacSource::<fn(T, &Vector<T, S>) -> Matrix<T, S, S>>::Auto,
             settings,
         )
     }
 }
 
 /// Internal enum to distinguish user-supplied vs auto Jacobian.
-enum JacSource<T, const S: usize, J> {
+enum JacSource<J> {
     User(J),
     Auto,
-    #[allow(dead_code)]
-    _Phantom(core::marker::PhantomData<T>),
 }
 
 /// Core integration loop shared by `integrate` and `integrate_auto`.
@@ -164,7 +162,7 @@ fn rosenbrock_step_loop<R, T, const S: usize, const STAGES: usize>(
     tf: T,
     y0: &Vector<T, S>,
     mut f: impl FnMut(T, &Vector<T, S>) -> Vector<T, S>,
-    mut jac_source: JacSource<T, S, impl FnMut(T, &Vector<T, S>) -> Matrix<T, S, S>>,
+    mut jac_source: JacSource<impl FnMut(T, &Vector<T, S>) -> Matrix<T, S, S>>,
     settings: &AdaptiveSettings<T>,
 ) -> Result<RosenbrockSolution<T, S>, OdeError>
 where
@@ -265,7 +263,6 @@ where
                 nevals += S;
                 j
             }
-            JacSource::_Phantom(_) => unreachable!(),
         };
 
         // Form W = I/(hγ) − J and LU-factorize

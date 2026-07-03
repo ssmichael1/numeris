@@ -50,6 +50,34 @@
   the now-unreachable `EstimateError::CholdowndateFailed` variant — the only
   public-API change in this batch. Match on `EstimateError` non-exhaustively or
   drop the arm.
+- **stats: `ChiSquared` now delegates to an inner `Gamma`** — internal-only;
+  results are identical. `ChiSquared(k)` is exactly `Gamma(k/2, 1/2)`, and every
+  method (pdf / ln_pdf / cdf / mean / variance / sample, and even the
+  Wilson-Hilferty quantile guess) reduces algebraically to Gamma's, so the
+  duplicated formulas were replaced by a thin wrapper holding a `Gamma<T>`.
+- **control: shared biquad-cascade builder for Butterworth / Chebyshev** —
+  internal-only; filter coefficients are bit-for-bit identical. The four
+  designers (`butterworth_{lowpass,highpass}`, `chebyshev1_{lowpass,highpass}`)
+  repeated the same skeleton — bilinear pre-warp, a conjugate-pair loop, an
+  odd-order real section, and (for Chebyshev) a passband-gain normalization.
+  These now go through shared `pub(super)` helpers in `biquad.rs` (`prewarp`,
+  `assemble_cascade`, `cascade_gain_at`, `scale_first_section_gain`), with the
+  per-family pole placement factored into small `*_pole` helpers.
+- **ode: dropped the phantom `JacSource` variant** — internal-only. The
+  Rosenbrock Jacobian-source enum carried an unused `T` type parameter, forcing a
+  `_Phantom(PhantomData<T>)` variant with an `unreachable!()` match arm. The enum
+  only needs the closure type, so `T`/`S` (and the phantom) are gone.
+- **estimate: shared UKF/CKF gain-update and predict-finalization** —
+  internal-only; results are identical. The UKF and CKF had byte-for-byte
+  identical `apply_update` bodies and predict tails (`γ·P_sigma + Q`, symmetrize,
+  variance floor). These are now free functions in `estimate` — `sigma_point_update`,
+  `store_predicted`, and the shared `symmetrize_and_floor`.
+- **estimate: fixed a no_std build break** — `cholesky_with_jitter` built its
+  jitter ladder with `10f64.powi(..)`, which does not exist without `std`, so
+  `--no-default-features` builds enabling `estimate` failed to compile. The ladder
+  is now written as `{1e-9, 1e-7, 1e-5}` literals. (The `simd_elementwise_kernels`
+  macro also gained the `#[allow(unused_macros)]` its two siblings already had, so
+  no_std non-SIMD targets like `thumbv7em` build warning-free.)
 
 ## 0.5.13
 

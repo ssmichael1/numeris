@@ -1,7 +1,8 @@
 use crate::traits::FloatScalar;
 
 use super::biquad::{
-    bilinear_hp_pair, bilinear_hp_real, bilinear_lp_pair, bilinear_lp_real, BiquadCascade,
+    assemble_cascade, bilinear_hp_pair, bilinear_hp_real, bilinear_lp_pair, bilinear_lp_real,
+    prewarp, BiquadCascade,
 };
 use super::{validate_design_params, ControlError};
 
@@ -34,38 +35,16 @@ pub fn butterworth_lowpass<T: FloatScalar, const N: usize>(
     sample_rate: T,
 ) -> Result<BiquadCascade<T, N>, ControlError> {
     validate_design_params::<T, N>(order, cutoff, sample_rate)?;
-
-    let two = T::one() + T::one();
-    let pi = T::from(core::f64::consts::PI).unwrap();
-
-    // Pre-warp
-    let wa = two * sample_rate * (pi * cutoff / sample_rate).tan();
-    let c = two * sample_rate;
-
-    let n = order;
-    let nf = T::from(n).unwrap();
-    let mut sections = [super::biquad::Biquad::passthrough(); N];
-    let mut idx = 0;
-
-    // Conjugate pairs: k = 0, 1, …, (n/2 - 1)
-    let num_pairs = n / 2;
-    for k in 0..num_pairs {
-        let kf = T::from(k).unwrap();
-        // θ_k = π·(2k + n + 1) / (2n)
-        let theta = pi * (two * kf + nf + T::one()) / (two * nf);
-        let sigma = wa * theta.cos();
-        let omega = wa * theta.sin();
-        sections[idx] = bilinear_lp_pair(sigma, omega, wa, c);
-        idx += 1;
-    }
-
-    // Odd-order: real pole at σ = −ωa (θ = π for k = (n-1)/2)
-    if n % 2 == 1 {
-        let sigma = -wa;
-        sections[idx] = bilinear_lp_real(sigma, wa, c);
-    }
-
-    Ok(BiquadCascade { sections })
+    let (wa, c) = prewarp(cutoff, sample_rate);
+    Ok(assemble_cascade(
+        order,
+        |k| {
+            let (sigma, omega) = butterworth_pole(order, k, wa);
+            bilinear_lp_pair(sigma, omega, wa, c)
+        },
+        // Odd-order: real pole at σ = −ωa (θ = π).
+        || bilinear_lp_real(-wa, wa, c),
+    ))
 }
 
 /// Design a Butterworth highpass filter as a cascade of `N` biquad sections.
@@ -92,32 +71,24 @@ pub fn butterworth_highpass<T: FloatScalar, const N: usize>(
     sample_rate: T,
 ) -> Result<BiquadCascade<T, N>, ControlError> {
     validate_design_params::<T, N>(order, cutoff, sample_rate)?;
+    let (wa, c) = prewarp(cutoff, sample_rate);
+    Ok(assemble_cascade(
+        order,
+        |k| {
+            let (sigma, omega) = butterworth_pole(order, k, wa);
+            bilinear_hp_pair(sigma, omega, wa, c)
+        },
+        || bilinear_hp_real(-wa, wa, c),
+    ))
+}
 
+/// Analog conjugate-pole pair `(σ, ω)` of the `k`-th Butterworth section,
+/// scaled to the pre-warped cutoff `wa`. θ_k = π·(2k + n + 1) / (2n).
+fn butterworth_pole<T: FloatScalar>(order: usize, k: usize, wa: T) -> (T, T) {
     let two = T::one() + T::one();
     let pi = T::from(core::f64::consts::PI).unwrap();
-
-    let wa = two * sample_rate * (pi * cutoff / sample_rate).tan();
-    let c = two * sample_rate;
-
-    let n = order;
-    let nf = T::from(n).unwrap();
-    let mut sections = [super::biquad::Biquad::passthrough(); N];
-    let mut idx = 0;
-
-    let num_pairs = n / 2;
-    for k in 0..num_pairs {
-        let kf = T::from(k).unwrap();
-        let theta = pi * (two * kf + nf + T::one()) / (two * nf);
-        let sigma = wa * theta.cos();
-        let omega = wa * theta.sin();
-        sections[idx] = bilinear_hp_pair(sigma, omega, wa, c);
-        idx += 1;
-    }
-
-    if n % 2 == 1 {
-        let sigma = -wa;
-        sections[idx] = bilinear_hp_real(sigma, wa, c);
-    }
-
-    Ok(BiquadCascade { sections })
+    let nf = T::from(order).unwrap();
+    let kf = T::from(k).unwrap();
+    let theta = pi * (two * kf + nf + T::one()) / (two * nf);
+    (wa * theta.cos(), wa * theta.sin())
 }
