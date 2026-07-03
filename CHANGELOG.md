@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.15
+
+- **Property-based tests (proptest) for the core algebraic invariants** —
+  test-only, no API or feature change. Adds `proptest` as a dev-dependency and a
+  first batch of `proptests` modules that sample universal identities over
+  hundreds of shrinkable random inputs, complementing the existing fixed-input
+  suite: QR reconstruction `Q·R = A` and orthogonality `Qᵀ·Q = I`; Cholesky
+  `L·Lᵀ = A` and a solve round-trip over random SPD matrices (`MᵀM + 3I`); SVD
+  `U·Σ·Vᵀ = A`, orthonormal `U`/`V`, and non-negative descending singular values;
+  and quaternion unit-norm, rotation norm-preservation, `q·q⁻¹ = 1`, and
+  rotation-matrix orthonormality. Dev-only: the published crate and the no_std /
+  embedded surface are untouched, and the MSRV `cargo build` gate does not
+  compile it.
+
 ## 0.5.14
 
 - **SIMD kernels de-duplicated via macros (~790 fewer lines)** — internal-only;

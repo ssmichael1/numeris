@@ -1306,3 +1306,61 @@ mod tests {
         assert!((r[1] - 1.0).abs() < 1e-6);
     }
 }
+
+// Property-based tests for the rotation invariants that hold for *every* unit
+// quaternion: it has unit norm, it preserves vector length under rotation, it
+// composes with its inverse to the identity, and its rotation matrix is
+// orthonormal. We draw the axis with a first component bounded away from zero so
+// the axis is never degenerate (from_axis_angle only normalizes when the axis
+// norm exceeds epsilon), giving proptest a clean shrink space.
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use core::f64::consts::PI;
+    use proptest::prelude::*;
+
+    // A unit quaternion from a non-degenerate axis and a bounded angle.
+    fn unit_quat() -> impl Strategy<Value = Quaternion<f64>> {
+        (0.5_f64..2.0, -2.0_f64..2.0, -2.0_f64..2.0, -PI..PI).prop_map(|(ax, ay, az, angle)| {
+            Quaternion::from_axis_angle(Vector3::from_array([ax, ay, az]), angle)
+        })
+    }
+
+    fn vec3() -> impl Strategy<Value = Vector3<f64>> {
+        (-10.0_f64..10.0, -10.0_f64..10.0, -10.0_f64..10.0)
+            .prop_map(|(x, y, z)| Vector3::from_array([x, y, z]))
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+
+        #[test]
+        fn from_axis_angle_is_unit(q in unit_quat()) {
+            prop_assert!((q.norm() - 1.0).abs() <= 1e-12, "‖q‖ != 1: {}", q.norm());
+        }
+
+        #[test]
+        fn rotation_preserves_norm(q in unit_quat(), v in vec3()) {
+            let rotated = q * v;
+            prop_assert!(
+                (rotated.norm() - v.norm()).abs() <= 1e-9 * v.norm().max(1.0),
+                "rotation changed length"
+            );
+        }
+
+        #[test]
+        fn inverse_composes_to_identity(q in unit_quat()) {
+            let id = q * q.inverse();
+            prop_assert!((id.w - 1.0).abs() <= 1e-9, "w != 1");
+            prop_assert!(id.x.abs() <= 1e-9 && id.y.abs() <= 1e-9 && id.z.abs() <= 1e-9, "vector part != 0");
+        }
+
+        #[test]
+        fn rotation_matrix_is_orthonormal(q in unit_quat()) {
+            let r = q.to_rotation_matrix();
+            let rtr: Matrix<f64, 3, 3> = r.transpose() * r;
+            prop_assert!((rtr - Matrix::eye()).frobenius_norm() <= 1e-9, "Rᵀ·R != I");
+            prop_assert!((r.det() - 1.0).abs() <= 1e-9, "det(R) != 1: {}", r.det());
+        }
+    }
+}

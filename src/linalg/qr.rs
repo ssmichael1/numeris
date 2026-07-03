@@ -984,3 +984,41 @@ mod tests {
         }
     }
 }
+
+// Property-based tests: the QR reconstruction and orthogonality identities are
+// universal claims ("for all A"), so we sample them over hundreds of shrinkable
+// random matrices rather than the handful of fixed inputs above. Reconstruction
+// (Q·R = A) and orthogonality (Qᵀ·Q = I) are backward-stable regardless of
+// conditioning, so a norm-relative tolerance is safe against false failures.
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    // A 4×3 matrix with bounded finite entries (column-major fill).
+    fn mat_4x3() -> impl Strategy<Value = Matrix<f64, 4, 3>> {
+        prop::collection::vec(-10.0_f64..10.0, 12)
+            .prop_map(|v| Matrix::from_fn(|i, j| v[j * 4 + i]))
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+
+        #[test]
+        fn qr_reconstructs_and_q_is_orthonormal(a in mat_4x3()) {
+            // Rank-deficient draws legitimately return Singular; skip them.
+            let qr = match a.qr() {
+                Ok(qr) => qr,
+                Err(_) => return Ok(()),
+            };
+            let (q, r) = (qr.q(), qr.r());
+            let tol = 1e-9 * a.frobenius_norm().max(1.0);
+
+            let recon: Matrix<f64, 4, 3> = q * r;
+            prop_assert!((recon - a).frobenius_norm() <= tol, "Q·R != A for {a:?}");
+
+            let qtq: Matrix<f64, 3, 3> = q.transpose() * q;
+            prop_assert!((qtq - Matrix::eye()).frobenius_norm() <= 1e-9, "Qᵀ·Q != I for {a:?}");
+        }
+    }
+}
