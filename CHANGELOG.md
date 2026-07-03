@@ -43,6 +43,13 @@
   were byte-for-byte copies of their explicit-Jacobian twins that only differed
   in sourcing the Jacobian from `fd_jacobian`; each now delegates to its twin
   with a `|x| fd_jacobian(&f, x)` closure (using `&F: Fn`), dropping ~80 lines.
+- **estimate: removed the dead `cholupdate` module** — **(minor breaking change)**
+  the private rank-1 Cholesky update/downdate helper was never used in production
+  (SR-UKF re-Choleskys instead), and `linalg` already exposes public
+  `cholesky_rank1_update` / `cholesky_rank1_downdate`. Deleting it also removes
+  the now-unreachable `EstimateError::CholdowndateFailed` variant — the only
+  public-API change in this batch. Match on `EstimateError` non-exhaustively or
+  drop the arm.
 
 ## 0.5.13
 

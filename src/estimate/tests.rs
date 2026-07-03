@@ -514,91 +514,6 @@ mod ukf_tests {
     }
 }
 
-// ── cholupdate tests ────────────────────────────────────────────────
-
-#[cfg(feature = "alloc")]
-mod cholupdate_tests {
-    use super::super::cholupdate::cholupdate;
-    use super::*;
-    use crate::linalg::CholeskyDecomposition;
-
-    #[test]
-    fn cholupdate_rank1_update_roundtrip() {
-        // P = LLᵀ, add v·vᵀ, verify L'·L'ᵀ = P + v·vᵀ
-        let p = Matrix::new([[4.0, 2.0], [2.0, 3.0_f64]]);
-        let chol = CholeskyDecomposition::new(&p).unwrap();
-        let mut l = chol.l_full();
-        let v_orig = Vector::from_array([1.0, 0.5_f64]);
-        let mut v = v_orig;
-
-        cholupdate(&mut l, &mut v, 1.0).unwrap();
-
-        let p_new = l * l.transpose();
-        let p_expected = p + v_orig * v_orig.transpose();
-        for i in 0..2 {
-            for j in 0..2 {
-                approx_eq(p_new[(i, j)], p_expected[(i, j)], 1e-10);
-            }
-        }
-    }
-
-    #[test]
-    fn cholupdate_rank1_downdate_roundtrip() {
-        // Start with P + v·vᵀ, downdate by v·vᵀ, recover P
-        let p_base = Matrix::new([[4.0, 2.0], [2.0, 3.0_f64]]);
-        let v = Vector::from_array([0.5, 0.3_f64]);
-        let p_aug = p_base + v * v.transpose();
-
-        let chol = CholeskyDecomposition::new(&p_aug).unwrap();
-        let mut l = chol.l_full();
-        let mut v_work = v;
-
-        cholupdate(&mut l, &mut v_work, -1.0).unwrap();
-
-        let p_recovered = l * l.transpose();
-        for i in 0..2 {
-            for j in 0..2 {
-                approx_eq(p_recovered[(i, j)], p_base[(i, j)], 1e-10);
-            }
-        }
-    }
-
-    #[test]
-    fn cholupdate_downdate_fails_non_pd() {
-        // Try to downdate identity by a vector that would make result non-PD
-        let mut l = Matrix::<f64, 2, 2>::eye();
-        let mut v = Vector::from_array([1.5, 0.0]);
-
-        let result = cholupdate(&mut l, &mut v, -1.0);
-        assert_eq!(result, Err(EstimateError::CholdowndateFailed));
-    }
-
-    #[test]
-    fn cholupdate_large_matrix() {
-        // 4×4 update
-        let p = Matrix::new([
-            [5.0, 1.0, 0.5, 0.1],
-            [1.0, 4.0, 0.3, 0.2],
-            [0.5, 0.3, 3.0, 0.1],
-            [0.1, 0.2, 0.1, 2.0_f64],
-        ]);
-        let chol = CholeskyDecomposition::new(&p).unwrap();
-        let mut l = chol.l_full();
-        let v_orig = Vector::from_array([0.3, 0.7, 0.1, 0.5]);
-        let mut v = v_orig;
-
-        cholupdate(&mut l, &mut v, 1.0).unwrap();
-
-        let p_new = l * l.transpose();
-        let p_expected = p + v_orig * v_orig.transpose();
-        for i in 0..4 {
-            for j in 0..4 {
-                approx_eq(p_new[(i, j)], p_expected[(i, j)], 1e-10);
-            }
-        }
-    }
-}
-
 // ── SR-UKF tests ────────────────────────────────────────────────────
 
 #[cfg(feature = "alloc")]
@@ -1588,12 +1503,6 @@ fn estimate_error_display() {
 
     let e = EstimateError::SingularInnovation;
     assert_eq!(alloc::format!("{}", e), "innovation covariance is singular");
-
-    let e = EstimateError::CholdowndateFailed;
-    assert_eq!(
-        alloc::format!("{}", e),
-        "Cholesky downdate failed: result not positive definite"
-    );
 }
 
 // ── Robustness feature tests ─────────────────────────────────────────
