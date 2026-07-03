@@ -81,7 +81,6 @@
 //! ```
 
 mod batch;
-mod cholupdate;
 #[cfg(feature = "alloc")]
 mod ckf;
 mod ekf;
@@ -118,8 +117,6 @@ pub enum EstimateError {
     CovarianceNotPD,
     /// Innovation covariance is singular (cannot compute Kalman gain).
     SingularInnovation,
-    /// Cholesky downdate produced a non-positive-definite result.
-    CholdowndateFailed,
 }
 
 impl core::fmt::Display for EstimateError {
@@ -130,9 +127,6 @@ impl core::fmt::Display for EstimateError {
             }
             EstimateError::SingularInnovation => {
                 write!(f, "innovation covariance is singular")
-            }
-            EstimateError::CholdowndateFailed => {
-                write!(f, "Cholesky downdate failed: result not positive definite")
             }
         }
     }
