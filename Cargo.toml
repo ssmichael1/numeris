@@ -30,6 +30,7 @@ all = [
     "interp",
     "imageproc",
     "estimate",
+    "fft",
     "special",
     "stats",
     "nalgebra",
@@ -38,6 +39,7 @@ all = [
 ]
 control = []
 estimate = ["alloc"]
+fft = ["dep:num-complex"]
 interp = []
 imageproc = ["alloc"]
 alloc = []

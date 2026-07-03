@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.20
+
+- **New `fft` module — Fast Fourier Transform** (new `fft` feature). Pure-Rust,
+  no-std-first, integrated with the crate's `Complex` and SIMD support. Two tiers:
+  - **Fixed-size, no-alloc** — in-place complex `fft` / `ifft` (with a precomputed
+    `TwiddleTable`) and table-free `fft_inplace` / `ifft_inplace` over
+    `[Complex<T>; N]` for power-of-two `N ≤ 4096`; real-input `rfft` / `irfft`
+    (half-size packing). Works on the stack with no heap — the embedded path.
+  - **Runtime-sized (`alloc`)** — `DynFft` planner for *any* length: power-of-two
+    lengths use the radix core directly, all others (including primes) go through
+    **Bluestein's algorithm** (chirp-z → power-of-two FFTs). Plus `DynRealFft`,
+    FFT-based `fft_convolve` / `fft_correlate`, and no-alloc `fftshift` / `ifftshift`.
+  - **SIMD** — the `DynFft` power-of-two path deinterleaves into structure-of-arrays
+    re/im buffers and runs radix-2 butterflies through a shared per-ISA kernel macro
+    (f32/f64 × NEON/SSE2/AVX/AVX-512), with a scalar reference fallback. Verified by
+    executing NEON natively and the x86 SSE2/AVX2 paths under Rosetta; AVX-512
+    type-checks and is CI-confirmed. The inverse reuses the accelerated forward via
+    the conjugate identity. The no-std fixed tier stays scalar (small N, code-size).
+  - Additive and no-std-safe: `--no-default-features --features fft` builds the fixed
+    tier with no allocator. The `fft` feature also re-exports `numeris::Complex`.
 ## 0.5.19
 
 - **Banded separable convolution and allocation-free `_into` variants** —

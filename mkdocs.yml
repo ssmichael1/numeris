@@ -47,6 +47,7 @@ nav:
       - Interpolation: interp.md
       - Image Processing: imageproc.md
       - Quadrature: quad.md
+      - Fast Fourier Transform: fft.md
       - Special Functions: special.md
       - Statistics: stats.md
       - Quaternion: quaternion.md

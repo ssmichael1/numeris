@@ -350,6 +350,7 @@ simd_elementwise_kernels!(
     vmulq_f32,
     vdupq_n_f32
 );
+simd_fft_butterfly_kernel!(f32, 4, vld1q_f32, vst1q_f32, vaddq_f32, vsubq_f32, vmulq_f32);
 simd_axpy_kernels_fma!(
     f32,
     4,

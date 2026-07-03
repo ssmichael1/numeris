@@ -450,6 +450,15 @@ simd_elementwise_kernels!(
     _mm256_mul_ps,
     _mm256_set1_ps
 );
+simd_fft_butterfly_kernel!(
+    f32,
+    8,
+    _mm256_loadu_ps,
+    _mm256_storeu_ps,
+    _mm256_add_ps,
+    _mm256_sub_ps,
+    _mm256_mul_ps
+);
 simd_axpy_kernels_muladd!(
     f32,
     8,

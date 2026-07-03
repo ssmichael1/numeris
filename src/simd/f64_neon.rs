@@ -807,6 +807,7 @@ simd_elementwise_kernels!(
     vmulq_f64,
     vdupq_n_f64
 );
+simd_fft_butterfly_kernel!(f64, 2, vld1q_f64, vst1q_f64, vaddq_f64, vsubq_f64, vmulq_f64);
 simd_axpy_kernels_fma!(
     f64,
     2,

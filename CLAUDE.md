@@ -18,7 +18,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt; `_dyn` variants on `DynVector`/`DynMatrix`)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [x] **quad** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson)
-- [ ] **fft** — Fast Fourier Transform
+- [x] **fft** — Fast Fourier Transform (fixed-size no-alloc complex + real; `DynFft` for any length via Bluestein; convolution; SIMD butterflies in the alloc tier)
 - [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
 - [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
 - [ ] **poly** — Polynomial operations and root-finding
@@ -116,6 +116,13 @@ Checked items are implemented; unchecked are potential future work.
 - **`interp`** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline).
 - **`imageproc`** — 2D image processing on `DynMatrix` (convolution, filters, morphology, integral image / local stats, thresholding, Canny, Harris/Shi-Tomasi corners, DoG / Gaussian pyramid, connected components, geometric ops, `BorderMode`). Implies `alloc`.
 - **`quad`** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson). All no-alloc.
+- **`fft`** — Fast Fourier Transform. Fixed-size no-alloc complex FFT (power-of-two `N ≤ 4096`,
+  with/without a precomputed `TwiddleTable`) and real `rfft`/`irfft`. With `alloc`: `DynFft`
+  planner for any length (power-of-two radix + Bluestein chirp-z for prime/awkward sizes),
+  `DynRealFft`, FFT-based `fft_convolve`/`fft_correlate`; `fftshift`/`ifftshift` are no-alloc.
+  The `DynFft` power-of-two path deinterleaves to structure-of-arrays re/im and runs radix-2
+  butterflies through a shared per-ISA SIMD kernel macro (NEON/SSE2/AVX/AVX-512, scalar
+  fallback); the no-std fixed tier stays scalar. Re-exports `num_complex::Complex` (like `complex`).
 - **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
 - **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
 - **`libm`** — always enabled as baseline. Provides pure-Rust software float implementations
@@ -151,7 +158,7 @@ Checked items are implemented; unchecked are potential future work.
   The `imageproc` `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker
   bound (empty blanket impl without `rayon`, `Send + Sync` with it; gated on `imageproc`), so a single
   signature serves both builds without `cfg`-split twins — invisible for `f32`/`f64`, hence additive.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `quad`, `control`, `estimate`, `interp`, `imageproc`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `quad`, `control`, `estimate`, `interp`, `imageproc`, `fft`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -211,8 +218,9 @@ src/
 │   └── rodas4.rs          # RODAS4: 6-stage, order 4(3), L-stable Rosenbrock
 ├── simd/               # private SIMD acceleration (no cargo feature — always-on)
 │   ├── mod.rs          # TypeId dispatch (via the `TypeEq` cast witness): dot, matmul,
-│   │                   #   add/sub/scale/scale-in-place/axpy slices, strided conv1d
-│   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch)
+│   │                   #   add/sub/scale/scale-in-place/axpy slices, strided conv1d,
+│   │                   #   fft_butterfly (SoA radix-2, macro-shared across ISAs)
+│   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch); fft_butterfly reference
 │   ├── f64_neon.rs     # aarch64 NEON f64 kernels (2-wide)
 │   ├── f32_neon.rs     # aarch64 NEON f32 kernels (4-wide)
 │   ├── f64_sse2.rs     # x86_64 SSE2 f64 kernels (2-wide)
@@ -306,6 +314,18 @@ src/
 ├── quad/               # (requires `quad` feature)
 │   ├── mod.rs          # gauss_legendre (N=1..10,15,20), adaptive_simpson, trapezoid, simpson (all no-alloc)
 │   └── tests.rs        # comprehensive tests
+├── fft/                # (requires `fft` feature)
+│   ├── mod.rs          # FftError, cast helper, re-exports, module rustdoc ("not FFTW")
+│   ├── twiddle.rs      # TwiddleTable<T, N> (fixed-size precomputed twiddles)
+│   ├── radix.rs        # size-generic radix-2 core: bit_reverse, radix2_table, radix2_inline
+│   ├── fixed.rs        # fixed-size no-alloc fft/ifft/fft_inplace/ifft_inplace
+│   ├── real.rs         # rfft/irfft (fixed) + DynRealFft (alloc)
+│   ├── shift.rs        # fftshift/ifftshift (no-alloc, any element type)
+│   ├── dynfft.rs       # DynFft planner (alloc): power-of-two SoA/SIMD + Bluestein
+│   ├── bluestein.rs    # chirp-z transform for arbitrary/prime N (alloc)
+│   ├── soa.rs          # SoaPlan: deinterleaved re/im + SIMD butterfly orchestration (alloc)
+│   ├── convolve.rs     # fft_convolve/fft_correlate (alloc)
+│   └── tests.rs        # comprehensive tests (vs naive DFT, round-trip, Parseval, SIMD==scalar)
 └── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle
 ```
 

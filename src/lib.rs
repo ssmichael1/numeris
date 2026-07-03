@@ -118,6 +118,13 @@
 //!   [`quad::trapezoid`] and [`quad::simpson`] (composite rules). All no-alloc.
 //!   Requires `quad` feature.
 //!
+//! - [`fft`] — Fast Fourier Transform. Fixed-size no-alloc complex FFT
+//!   ([`fft::fft`] / [`fft::fft_inplace`], power-of-two `N ≤ 4096`) and real-input
+//!   [`fft::rfft`] / [`fft::irfft`]. With `alloc`: [`fft::DynFft`] for any length
+//!   (Bluestein for prime/awkward sizes, SIMD-accelerated butterflies),
+//!   [`fft::DynRealFft`], and FFT-based [`fft::fft_convolve`] / [`fft::fft_correlate`];
+//!   [`fft::fftshift`] / [`fft::ifftshift`] are no-alloc. Requires `fft` feature.
+//!
 //! - [`stats`] — Statistical distributions with [`stats::ContinuousDistribution`] and
 //!   [`stats::DiscreteDistribution`] traits. Continuous: [`stats::Normal`],
 //!   [`stats::Uniform`], [`stats::Exponential`], [`stats::Gamma`], [`stats::Beta`],
@@ -156,6 +163,7 @@
 //! | `interp`  | no       | Interpolation (linear, Hermite, Lagrange, cubic spline, bilinear 2D) |
 //! | `imageproc` | no     | 2D image processing: filters, morphology, integral image, thresholding, Canny, corners, DoG, pyramid, geometric. Implies `alloc` |
 //! | `quad`    | no       | Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite rules) |
+//! | `fft`     | no       | Fast Fourier Transform (fixed no-alloc + `DynFft`/Bluestein, rfft, convolution). Implies `complex` re-export |
 //! | `special` | no       | Special functions (gamma, beta, erf, incomplete gamma/beta) |
 //! | `stats`   | no       | Statistical distributions (Normal, Gamma, etc.) with sampling. Implies `special` |
 //! | `libm`    | baseline | Pure-Rust software float fallback |
@@ -261,6 +269,8 @@ pub mod estimate;
 // Shared forward-difference Jacobian kernel for optim / estimate / ode.
 #[cfg(any(feature = "optim", feature = "estimate", feature = "ode"))]
 mod fdiff;
+#[cfg(feature = "fft")]
+pub mod fft;
 #[cfg(feature = "imageproc")]
 pub mod imageproc;
 #[cfg(feature = "interp")]
@@ -301,5 +311,5 @@ pub use matrix::Matrix;
 pub use quaternion::Quaternion;
 pub use traits::{FloatScalar, LinalgScalar, MatrixMut, MatrixRef, Scalar};
 
-#[cfg(feature = "complex")]
+#[cfg(any(feature = "complex", feature = "fft"))]
 pub use num_complex::Complex;
