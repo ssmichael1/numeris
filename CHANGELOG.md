@@ -88,7 +88,11 @@
   `crate::fdiff::forward_diff_jacobian` (a new private module gated on
   `optim`/`estimate`/`ode`) that takes a precomputed `f0`, so the Rosenbrock hot
   loop still pays no extra evaluation. The scalar `finite_difference_gradient`
-  keeps its own (scalar-output) form.
+  keeps its own (scalar-output) form. The step-size policy itself is a single
+  `fdiff::fd_step` helper, so the remaining forward-difference routines that
+  don't share the vector kernel — the scalar gradient and the four dynamic FD
+  functions (sequential + `rayon` parallel, Jacobian + gradient) — no longer
+  re-spell `√ε·max(|x_j|, 1)` inline.
 
 ## 0.5.13
 

@@ -9,6 +9,18 @@ use crate::matrix::vector::Vector;
 use crate::traits::FloatScalar;
 use crate::Matrix;
 
+/// Forward-difference step for component value `x_j`: `h_j = √ε · max(|x_j|, 1)`.
+///
+/// The single definition of the crate's finite-difference step-size policy,
+/// shared by every forward-difference routine (fixed and dynamic, sequential and
+/// parallel) so the policy cannot drift between them. `√ε` is loop-invariant, so
+/// callers can still call this per component without a per-iteration `sqrt`
+/// surviving optimization.
+#[inline]
+pub(crate) fn fd_step<T: FloatScalar>(xj: T) -> T {
+    T::epsilon().sqrt() * xj.abs().max(T::one())
+}
+
 /// Forward-difference Jacobian of `f: Rᴺ → Rᴹ` given a precomputed base value
 /// `f0 = f(x)`.
 ///
@@ -21,11 +33,10 @@ pub(crate) fn forward_diff_jacobian<T: FloatScalar, const M: usize, const N: usi
     f0: &Vector<T, M>,
     mut eval: impl FnMut(&Vector<T, N>) -> Vector<T, M>,
 ) -> Matrix<T, M, N> {
-    let sqrt_eps = T::epsilon().sqrt();
     let mut jac = Matrix::<T, M, N>::zeros();
 
     for j in 0..N {
-        let h = sqrt_eps * x[j].abs().max(T::one());
+        let h = fd_step(x[j]);
         let mut x_pert = *x;
         x_pert[j] = x_pert[j] + h;
         let f_pert = eval(&x_pert);

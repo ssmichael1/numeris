@@ -54,12 +54,11 @@ pub fn finite_difference_gradient<T: FloatScalar, const N: usize>(
     mut f: impl FnMut(&Vector<T, N>) -> T,
     x: &Vector<T, N>,
 ) -> Vector<T, N> {
-    let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
     let mut grad = Vector::<T, N>::zeros();
 
     for j in 0..N {
-        let h = sqrt_eps * x[j].abs().max(T::one());
+        let h = crate::fdiff::fd_step(x[j]);
         let mut x_pert = *x;
         x_pert[j] = x_pert[j] + h;
         grad[j] = (f(&x_pert) - f0) / h;
