@@ -5,6 +5,7 @@
 //! `alloc` feature.
 
 use crate::dynmatrix::{DynMatrix, DynVector};
+use crate::fdiff::fd_step;
 use crate::traits::FloatScalar;
 
 use super::line_search::backtracking_armijo_dyn;
@@ -150,7 +151,6 @@ pub fn finite_difference_jacobian_dyn<T: FloatScalar>(
     mut f: impl FnMut(&DynVector<T>) -> DynVector<T>,
     x: &DynVector<T>,
 ) -> DynMatrix<T> {
-    let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
     let n = x.len();
     let m = f0.len();
@@ -158,7 +158,7 @@ pub fn finite_difference_jacobian_dyn<T: FloatScalar>(
 
     let mut x_pert = x.clone();
     for j in 0..n {
-        let h = sqrt_eps * x[j].abs().max(T::one());
+        let h = fd_step(x[j]);
         x_pert[j] = x[j] + h;
         let f_pert = f(&x_pert);
         x_pert[j] = x[j];
@@ -195,14 +195,13 @@ pub fn finite_difference_gradient_dyn<T: FloatScalar>(
     mut f: impl FnMut(&DynVector<T>) -> T,
     x: &DynVector<T>,
 ) -> DynVector<T> {
-    let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
     let n = x.len();
     let mut grad = DynVector::zeros(n);
 
     let mut x_pert = x.clone();
     for j in 0..n {
-        let h = sqrt_eps * x[j].abs().max(T::one());
+        let h = fd_step(x[j]);
         x_pert[j] = x[j] + h;
         grad[j] = (f(&x_pert) - f0) / h;
         x_pert[j] = x[j];
@@ -255,14 +254,13 @@ pub fn finite_difference_jacobian_dyn_par<T: FloatScalar + Send + Sync>(
     f: impl Fn(&DynVector<T>) -> DynVector<T> + Sync + Send,
     x: &DynVector<T>,
 ) -> DynMatrix<T> {
-    let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
     let m = f0.len();
     let f0 = f0.as_slice();
     let mut jac = DynMatrix::zeros(m, x.len());
 
     crate::par::for_each_chunk_mut(jac.as_mut_slice(), m, FD_PAR_MIN_COLS, |j, col| {
-        let h = sqrt_eps * x[j].abs().max(T::one());
+        let h = fd_step(x[j]);
         let mut x_pert = x.clone();
         x_pert[j] = x_pert[j] + h;
         let f_pert = f(&x_pert);
@@ -300,12 +298,11 @@ pub fn finite_difference_gradient_dyn_par<T: FloatScalar + Send + Sync>(
     f: impl Fn(&DynVector<T>) -> T + Sync + Send,
     x: &DynVector<T>,
 ) -> DynVector<T> {
-    let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
     let mut grad = DynVector::zeros(x.len());
 
     crate::par::for_each_chunk_mut(grad.as_mut_slice(), 1, FD_PAR_MIN_COLS, |j, cell| {
-        let h = sqrt_eps * x[j].abs().max(T::one());
+        let h = fd_step(x[j]);
         let mut x_pert = x.clone();
         x_pert[j] = x_pert[j] + h;
         cell[0] = (f(&x_pert) - f0) / h;
