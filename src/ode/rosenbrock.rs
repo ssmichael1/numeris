@@ -12,35 +12,6 @@ use crate::Matrix;
 /// Type alias for Rosenbrock solutions (always vector state).
 pub type RosenbrockSolution<T, const S: usize> = super::Solution<T, S, 1>;
 
-/// Forward-difference Jacobian approximation.
-///
-/// Computes `J[i][j] = ∂f_i/∂y_j` using forward differences.
-/// Reuses `fy = f(t, y)` already evaluated by the caller.
-fn fd_jacobian<T: FloatScalar, const S: usize>(
-    f: &mut impl FnMut(T, &Vector<T, S>) -> Vector<T, S>,
-    t: T,
-    y: &Vector<T, S>,
-    fy: &Vector<T, S>,
-) -> Matrix<T, S, S> {
-    let eps_sqrt = T::epsilon().sqrt();
-    let one = T::one();
-    let mut jac = Matrix::<T, S, S>::zeros();
-
-    for j in 0..S {
-        let yj_abs = y[j].abs();
-        let hj = eps_sqrt * if yj_abs > one { yj_abs } else { one };
-        let mut y_pert = *y;
-        y_pert[j] = y_pert[j] + hj;
-        let fy_pert = f(t, &y_pert);
-        let inv_hj = one / hj;
-        for i in 0..S {
-            jac[(i, j)] = (fy_pert[i] - fy[i]) * inv_hj;
-        }
-    }
-
-    jac
-}
-
 /// Trait for Rosenbrock (linearly-implicit Runge-Kutta) solvers.
 ///
 /// Each solver is a zero-size struct that implements this trait with
@@ -259,7 +230,8 @@ where
         let jac_mat = match &mut jac_source {
             JacSource::User(jac_fn) => jac_fn(t, &y),
             JacSource::Auto => {
-                let j = fd_jacobian(&mut f, t, &y, &fy);
+                // Reuse the already-evaluated fy as the base value (no extra eval).
+                let j = crate::fdiff::forward_diff_jacobian(&y, &fy, |yp| f(t, yp));
                 nevals += S;
                 j
             }

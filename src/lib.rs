@@ -234,6 +234,9 @@ pub use par::MaybeSync;
 pub mod control;
 #[cfg(feature = "estimate")]
 pub mod estimate;
+// Shared forward-difference Jacobian kernel for optim / estimate / ode.
+#[cfg(any(feature = "optim", feature = "estimate", feature = "ode"))]
+mod fdiff;
 #[cfg(feature = "imageproc")]
 pub mod imageproc;
 #[cfg(feature = "interp")]

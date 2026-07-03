@@ -27,22 +27,8 @@ pub fn finite_difference_jacobian<T: FloatScalar, const M: usize, const N: usize
     mut f: impl FnMut(&Vector<T, N>) -> Vector<T, M>,
     x: &Vector<T, N>,
 ) -> Matrix<T, M, N> {
-    let sqrt_eps = T::epsilon().sqrt();
     let f0 = f(x);
-    let mut jac = Matrix::<T, M, N>::zeros();
-
-    for j in 0..N {
-        let h = sqrt_eps * x[j].abs().max(T::one());
-        let mut x_pert = *x;
-        x_pert[j] = x_pert[j] + h;
-        let f_pert = f(&x_pert);
-
-        for i in 0..M {
-            jac[(i, j)] = (f_pert[i] - f0[i]) / h;
-        }
-    }
-
-    jac
+    crate::fdiff::forward_diff_jacobian(x, &f0, f)
 }
 
 /// Approximate the gradient of `f: R^N → R` using forward finite differences.

@@ -77,7 +77,18 @@
   `--no-default-features` builds enabling `estimate` failed to compile. The ladder
   is now written as `{1e-9, 1e-7, 1e-5}` literals. (The `simd_elementwise_kernels`
   macro also gained the `#[allow(unused_macros)]` its two siblings already had, so
-  no_std non-SIMD targets like `thumbv7em` build warning-free.)
+  no_std non-SIMD targets like `thumbv7em` build warning-free.) CI now also builds
+  the full no_std feature surface (`estimate`/`control`/`stats`/…) on `thumbv7em`,
+  not just the core matrix baseline, so this class of regression can't recur.
+- **Shared forward-difference Jacobian kernel** — internal-only; results are
+  identical (the `ode` variant's last-bit `·(1/h)` → `/h` change is well within
+  the adaptive solver's tolerance). `optim::finite_difference_jacobian`,
+  `estimate::fd_jacobian`, and the Rosenbrock private `fd_jacobian` each re-encoded
+  the same step-size policy `h_j = √ε·max(|x_j|, 1)`; they now share one
+  `crate::fdiff::forward_diff_jacobian` (a new private module gated on
+  `optim`/`estimate`/`ode`) that takes a precomputed `f0`, so the Rosenbrock hot
+  loop still pays no extra evaluation. The scalar `finite_difference_gradient`
+  keeps its own (scalar-output) form.
 
 ## 0.5.13
 
