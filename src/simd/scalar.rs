@@ -194,3 +194,18 @@ pub fn axpy_pos<T: Scalar>(y: &mut [T], alpha: T, x: &[T]) {
         y[i] = y[i] + alpha * x[i];
     }
 }
+
+/// Strided 1D correlation: out[i] = Σ_k kernel[k] · src[i + k·stride].
+#[inline]
+#[allow(dead_code)]
+pub fn conv1d<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T], stride: usize) {
+    debug_assert!(stride >= 1);
+    debug_assert!(kernel.is_empty() || src.len() >= out.len() + (kernel.len() - 1) * stride);
+    for (i, cell) in out.iter_mut().enumerate() {
+        let mut sum = T::zero();
+        for (k, &w) in kernel.iter().enumerate() {
+            sum = sum + w * src[i + k * stride];
+        }
+        *cell = sum;
+    }
+}

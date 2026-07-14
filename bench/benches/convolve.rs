@@ -26,9 +26,16 @@ fn bench(c: &mut Criterion) {
     for n in [32usize, 128, 512] {
         let img = image(n);
         group.throughput(Throughput::Elements((n * n) as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(n), &img, |b, img| {
-            b.iter(|| std::hint::black_box(gaussian_blur(img, 2.0_f64, BorderMode::Reflect)));
-        });
+        // sigma=1 → 7-tap kernel (small-kernel regime), sigma=2 → 13-tap.
+        for sigma in [1.0_f64, 2.0] {
+            group.bench_with_input(
+                BenchmarkId::from_parameter(format!("{n}/sigma{sigma}")),
+                &img,
+                |b, img| {
+                    b.iter(|| std::hint::black_box(gaussian_blur(img, sigma, BorderMode::Reflect)));
+                },
+            );
+        }
     }
     group.finish();
 }

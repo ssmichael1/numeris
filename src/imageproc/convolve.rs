@@ -210,21 +210,20 @@ fn convolve_1d_vertical<T: FloatScalar + crate::par::MaybeSync>(
 
     let par_threshold = conv_par_col_threshold(nrows, klen);
     crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, par_threshold, |j, dst_col| {
-        // Interior AXPY: output rows where every kernel tap stays in-bounds.
+        // Interior rows (every kernel tap in-bounds): single traversal with
+        // register-blocked accumulators — each output element is written once
+        // and never re-read, unlike a per-tap AXPY sweep.
         if nrows > 2 * half {
             let interior_len = nrows - 2 * half;
             let src_col_full = src.col_as_slice(j, 0);
-            for k in 0..klen {
-                let w = kernel[k];
-                if w == T::zero() {
-                    continue;
-                }
-                // Output row i (for i in [half, nrows-half)) reads source row
-                // i + (k - half), i.e. source range [k, k + interior_len).
-                let src_slice = &src_col_full[k..k + interior_len];
-                let dst_slice = &mut dst_col[half..half + interior_len];
-                simd::axpy_pos_dispatch(dst_slice, w, src_slice);
-            }
+            // Output row i (for i in [half, nrows-half)) reads source rows
+            // [i - half, i + half], i.e. window [i - half, i - half + klen).
+            simd::conv1d_dispatch(
+                &mut dst_col[half..half + interior_len],
+                src_col_full,
+                kernel,
+                1,
+            );
         }
 
         // Border rows: scalar with border-aware fetch.
@@ -259,7 +258,7 @@ fn vertical_tap_sum<T: FloatScalar>(
 }
 
 /// 1D convolution along the horizontal (column) axis, applied independently
-/// to each row. Implemented as whole-column AXPY between shifted columns —
+/// to each row. Implemented as a strided tap sum across neighbouring columns —
 /// contiguous memory access despite the axis name.
 ///
 /// Each output column reads only (immutably) shifted source columns and writes
@@ -281,21 +280,28 @@ fn convolve_1d_horizontal<T: FloatScalar + crate::par::MaybeSync>(
 
     let par_threshold = conv_par_col_threshold(nrows, klen);
     crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, par_threshold, |j, dst_col| {
-        for k in 0..klen {
+        // Taps whose source column j + (k - half) is in-bounds. Nonempty for
+        // every j (the center tap k = half reads column j itself).
+        let k_lo = half.saturating_sub(j).min(klen);
+        let k_hi = (ncols + half - j).min(klen);
+
+        // In-bounds taps: single traversal over the rows, with the tap sum
+        // held in registers. Tap k reads source column j + k - half at the
+        // same row, i.e. stride `nrows` between taps in column-major storage.
+        let src_from_first_tap = &src.as_slice()[(j + k_lo - half) * nrows..];
+        simd::conv1d_dispatch(dst_col, src_from_first_tap, &kernel[k_lo..k_hi], nrows);
+
+        // Out-of-bounds taps (only within `half` of the left/right edges):
+        // apply the border rule for every output row.
+        for k in (0..k_lo).chain(k_hi..klen) {
             let w = kernel[k];
             if w == T::zero() {
                 continue;
             }
             let sj = j as isize + (k as isize - half as isize);
-            if sj >= 0 && (sj as usize) < ncols {
-                let src_slice = src.col_as_slice(sj as usize, 0);
-                simd::axpy_pos_dispatch(dst_col, w, src_slice);
-            } else {
-                // Border column: apply border rule for every output row.
-                for (i, cell) in dst_col.iter_mut().enumerate() {
-                    let v = fetch_border_2d(src, i as isize, sj, border);
-                    *cell = *cell + w * v;
-                }
+            for (i, cell) in dst_col.iter_mut().enumerate() {
+                let v = fetch_border_2d(src, i as isize, sj, border);
+                *cell = *cell + w * v;
             }
         }
     });

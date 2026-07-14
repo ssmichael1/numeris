@@ -306,3 +306,4 @@ simd_axpy_kernels_fma!(
     vfmsq_f32,
     vdupq_n_f32
 );
+simd_conv1d_kernel_fma!(f32, 4, vld1q_f32, vst1q_f32, vfmaq_f32, vdupq_n_f32);

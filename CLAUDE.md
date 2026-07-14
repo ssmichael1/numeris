@@ -169,7 +169,7 @@ src/
 │   ├── rosenbrock.rs      # Rosenbrock trait, fd_jacobian, integration loop
 │   └── rodas4.rs          # RODAS4: 6-stage, order 4(3), L-stable Rosenbrock
 ├── simd/               # private SIMD acceleration (no cargo feature — always-on)
-│   ├── mod.rs          # TypeId dispatch: dot, matmul, add/sub/scale/axpy slices
+│   ├── mod.rs          # TypeId dispatch: dot, matmul, add/sub/scale/axpy slices, strided conv1d
 │   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch)
 │   ├── f64_neon.rs     # aarch64 NEON f64 kernels (2-wide)
 │   ├── f32_neon.rs     # aarch64 NEON f32 kernels (4-wide)
@@ -194,7 +194,7 @@ src/
 │   ├── mod.rs          # ImageError, module decls, re-exports
 │   ├── border.rs       # BorderMode<T> (Zero/Constant/Replicate/Reflect), fetch_border
 │   ├── kernels.rs      # gaussian_kernel_1d, box_kernel_1d, sobel/scharr/laplacian 3x3
-│   ├── convolve.rs     # convolve2d (dense, any MatrixRef kernel), convolve2d_separable (column-wise SIMD AXPY)
+│   ├── convolve.rs     # convolve2d (dense, any MatrixRef kernel), convolve2d_separable (single-pass strided SIMD tap sums)
 │   ├── filters.rs      # gaussian_blur, box_blur, sobel/scharr_gradients, laplacian, laplacian_of_gaussian, unsharp_mask, gradient_magnitude
 │   ├── geometric.rs    # flip_horizontal/vertical, rotate_90/180/270, pad (BorderMode-aware), crop, resize_nearest
 │   ├── integral.rs     # integral_image (SAT), integral_rect_sum (O(1) rectangle query)

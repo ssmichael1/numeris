@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.15
+
+- **Separable convolution rewritten as single-traversal SIMD tap sums —
+  `gaussian_blur` ~1.4–2× faster** — internal-only; no API change. The two 1D
+  passes in `convolve2d_separable` previously ran one full AXPY sweep over the
+  image per kernel tap: each tap re-read and re-wrote the whole destination
+  (3 memory ops per element per tap, after a `zeros` memset). Each pass now
+  makes a single traversal through a new strided `conv1d` SIMD kernel
+  (`out[i] = Σ_k kernel[k] · src[i + k·stride]`, stride 1 down a column,
+  stride `nrows` across columns) that accumulates the whole tap sum in four
+  vector registers and stores each output element exactly once. The kernel is
+  generated per ISA from two shared macros (`simd_conv1d_kernel_fma` for NEON,
+  `simd_conv1d_kernel_muladd` for SSE2/AVX/AVX-512) with a generic scalar
+  fallback, dispatched via the existing `TypeId` scheme. Everything built on
+  the separable passes speeds up: `gaussian_blur`, `box_blur`, `unsharp_mask`,
+  `laplacian_of_gaussian`, `canny`, corners, DoG, Gaussian pyramid. Measured on
+  an M1 Ultra (f64, σ=1/σ=2): 32² −49%/−48%, 128² −39%/−36%, 512² (parallel)
+  −21%/−68%; ~2–4× faster than SciPy's `gaussian_filter` at matched truncation
+  on the same machine. Summation order per pixel is unchanged (taps in index
+  order), but border-adjacent pixels now add border taps after interior taps,
+  so results can differ from 0.5.14 by float-rounding noise near edges.
+
 ## 0.5.14
 
 - **SIMD kernels de-duplicated via macros (~790 fewer lines)** — internal-only;

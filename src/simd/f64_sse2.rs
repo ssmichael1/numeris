@@ -346,3 +346,12 @@ simd_axpy_kernels_muladd!(
     _mm_mul_pd,
     _mm_set1_pd
 );
+simd_conv1d_kernel_muladd!(
+    f64,
+    2,
+    _mm_loadu_pd,
+    _mm_storeu_pd,
+    _mm_add_pd,
+    _mm_mul_pd,
+    _mm_set1_pd
+);
