@@ -432,3 +432,12 @@ simd_axpy_kernels_muladd!(
     _mm512_mul_pd,
     _mm512_set1_pd
 );
+simd_conv1d_kernel_muladd!(
+    f64,
+    8,
+    _mm512_loadu_pd,
+    _mm512_storeu_pd,
+    _mm512_add_pd,
+    _mm512_mul_pd,
+    _mm512_set1_pd
+);

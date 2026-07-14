@@ -710,3 +710,4 @@ simd_axpy_kernels_fma!(
     vfmsq_f64,
     vdupq_n_f64
 );
+simd_conv1d_kernel_fma!(f64, 2, vld1q_f64, vst1q_f64, vfmaq_f64, vdupq_n_f64);

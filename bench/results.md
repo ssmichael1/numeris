@@ -101,6 +101,27 @@ early flat 64-column threshold parallelized 128² and lost 26% to thread
 overhead. Gating on work (`CONV_PAR_WORK_BUDGET`) keeps 128² sequential while
 512² — and tall/narrow or large-kernel images of similar total work — fan out.
 
+## Single-pass separable convolution (strided SIMD `conv1d`)
+
+Platform: Apple M1 Ultra, 20 cores, aarch64, `cargo bench -p numeris-bench --bench convolve`
+(`rayon` on). `gaussian_blur` f64, σ=1 (7-tap) and σ=2 (13-tap), vs. the former
+per-tap AXPY formulation (one full read-modify-write sweep of the destination
+per kernel tap; the rewrite stores each output element exactly once, keeping the
+tap sum in four NEON/SSE vector registers).
+
+| case | AXPY sweeps | single-pass conv1d | Result |
+|---|---|---|---|
+| 32²/σ1  | 8.5 µs  | 4.3 µs  | **−49%** |
+| 32²/σ2  | 17.5 µs | 9.1 µs  | **−48%** |
+| 128²/σ1 | 53.2 µs | 32.4 µs | **−39%** |
+| 128²/σ2 | 102 µs  | 64.7 µs | **−36%** |
+| 512²/σ1 | ~930 µs | 732 µs  | **−21%** (parallel; noisy baseline) |
+| 512²/σ2 | ~2.1 ms | 771 µs  | **−68%** (parallel; noisy baseline) |
+
+Reference point: SciPy 1.16 `ndimage.gaussian_filter` (truncate=3.0, mirror
+border, f64) on the same machine measures 22 µs (32²/σ1), 115 µs (128²/σ1), and
+2.9 ms (512²/σ2) — numeris is ~2–4× faster across the table.
+
 ## Parallel rank / median filter (`rayon` feature)
 
 Platform: Apple M3, 8 cores (4P+4E), aarch64, `cargo bench -p numeris-bench --bench rank`

@@ -436,3 +436,12 @@ simd_axpy_kernels_muladd!(
     _mm256_mul_pd,
     _mm256_set1_pd
 );
+simd_conv1d_kernel_muladd!(
+    f64,
+    4,
+    _mm256_loadu_pd,
+    _mm256_storeu_pd,
+    _mm256_add_pd,
+    _mm256_mul_pd,
+    _mm256_set1_pd
+);

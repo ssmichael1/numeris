@@ -220,6 +220,122 @@ macro_rules! simd_axpy_kernels_fma {
     };
 }
 
+/// Strided 1D correlation kernel using NEON fused multiply-add:
+/// `out[i] = Σ_k kernel[k] · src[i + k·stride]`.
+///
+/// The k-sum for a block of outputs is accumulated entirely in registers (four
+/// vectors, matching the `dot` kernels' latency-hiding accumulator count), so
+/// each output element is stored exactly once — no per-tap read-modify-write of
+/// `out`. `stride` is the element distance between consecutive taps: `1` for a
+/// convolution along contiguous data, the column stride for one across columns.
+#[allow(unused_macros)]
+macro_rules! simd_conv1d_kernel_fma {
+    ($t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $dup:ident) => {
+        /// Strided 1D correlation: out[i] = Σ_k kernel[k] · src[i + k·stride].
+        #[inline]
+        pub fn conv1d(out: &mut [$t], src: &[$t], kernel: &[$t], stride: usize) {
+            let n = out.len();
+            let klen = kernel.len();
+            debug_assert!(stride >= 1);
+            debug_assert!(klen == 0 || src.len() >= n + (klen - 1) * stride);
+            let mut i = 0;
+            unsafe {
+                while i + 4 * $lanes <= n {
+                    let mut a0 = $dup(0.0);
+                    let mut a1 = $dup(0.0);
+                    let mut a2 = $dup(0.0);
+                    let mut a3 = $dup(0.0);
+                    for k in 0..klen {
+                        let w = $dup(*kernel.get_unchecked(k));
+                        let p = src.as_ptr().add(i + k * stride);
+                        a0 = $fma(a0, w, $load(p));
+                        a1 = $fma(a1, w, $load(p.add($lanes)));
+                        a2 = $fma(a2, w, $load(p.add(2 * $lanes)));
+                        a3 = $fma(a3, w, $load(p.add(3 * $lanes)));
+                    }
+                    let q = out.as_mut_ptr().add(i);
+                    $store(q, a0);
+                    $store(q.add($lanes), a1);
+                    $store(q.add(2 * $lanes), a2);
+                    $store(q.add(3 * $lanes), a3);
+                    i += 4 * $lanes;
+                }
+                while i + $lanes <= n {
+                    let mut a0 = $dup(0.0);
+                    for k in 0..klen {
+                        let w = $dup(*kernel.get_unchecked(k));
+                        a0 = $fma(a0, w, $load(src.as_ptr().add(i + k * stride)));
+                    }
+                    $store(out.as_mut_ptr().add(i), a0);
+                    i += $lanes;
+                }
+            }
+            for ii in i..n {
+                let mut sum = 0.0;
+                for (k, &w) in kernel.iter().enumerate() {
+                    sum += w * src[ii + k * stride];
+                }
+                out[ii] = sum;
+            }
+        }
+    };
+}
+
+/// Strided 1D correlation kernel using separate multiply + add
+/// (x86 SSE2/AVX/AVX-512). See [`simd_conv1d_kernel_fma`] for the contract.
+#[allow(unused_macros)]
+macro_rules! simd_conv1d_kernel_muladd {
+    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $mul:ident, $set1:ident) => {
+        /// Strided 1D correlation: out[i] = Σ_k kernel[k] · src[i + k·stride].
+        #[inline]
+        pub fn conv1d(out: &mut [$t], src: &[$t], kernel: &[$t], stride: usize) {
+            let n = out.len();
+            let klen = kernel.len();
+            debug_assert!(stride >= 1);
+            debug_assert!(klen == 0 || src.len() >= n + (klen - 1) * stride);
+            let mut i = 0;
+            unsafe {
+                while i + 4 * $lanes <= n {
+                    let mut a0 = $set1(0.0);
+                    let mut a1 = $set1(0.0);
+                    let mut a2 = $set1(0.0);
+                    let mut a3 = $set1(0.0);
+                    for k in 0..klen {
+                        let w = $set1(*kernel.get_unchecked(k));
+                        let p = src.as_ptr().add(i + k * stride);
+                        a0 = $add(a0, $mul(w, $load(p)));
+                        a1 = $add(a1, $mul(w, $load(p.add($lanes))));
+                        a2 = $add(a2, $mul(w, $load(p.add(2 * $lanes))));
+                        a3 = $add(a3, $mul(w, $load(p.add(3 * $lanes))));
+                    }
+                    let q = out.as_mut_ptr().add(i);
+                    $store(q, a0);
+                    $store(q.add($lanes), a1);
+                    $store(q.add(2 * $lanes), a2);
+                    $store(q.add(3 * $lanes), a3);
+                    i += 4 * $lanes;
+                }
+                while i + $lanes <= n {
+                    let mut a0 = $set1(0.0);
+                    for k in 0..klen {
+                        let w = $set1(*kernel.get_unchecked(k));
+                        a0 = $add(a0, $mul(w, $load(src.as_ptr().add(i + k * stride))));
+                    }
+                    $store(out.as_mut_ptr().add(i), a0);
+                    i += $lanes;
+                }
+            }
+            for ii in i..n {
+                let mut sum = 0.0;
+                for (k, &w) in kernel.iter().enumerate() {
+                    sum += w * src[ii + k * stride];
+                }
+                out[ii] = sum;
+            }
+        }
+    };
+}
+
 pub(crate) mod scalar;
 
 #[cfg(target_arch = "aarch64")]
@@ -562,6 +678,62 @@ simd_dispatch!(axpy
     /// For short slices (< 8 elements) falls back to the scalar kernel to avoid
     /// SIMD dispatch / register-setup overhead, which dominates at small sizes.
     axpy_pos_dispatch => axpy_pos);
+
+/// Dispatch strided 1D correlation `out[i] = Σ_k kernel[k] · src[i + k·stride]`
+/// to SIMD or scalar fallback.
+///
+/// `stride` is the element distance between consecutive kernel taps: `1`
+/// convolves along contiguous data (e.g. down a matrix column), the column
+/// stride (`nrows`) convolves across columns at a fixed row. `src` must cover
+/// every window: `src.len() >= out.len() + (kernel.len() - 1) · stride`.
+#[inline]
+pub(crate) fn conv1d_dispatch<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T], stride: usize) {
+    #[cfg(target_arch = "aarch64")]
+    {
+        if TypeId::of::<T>() == TypeId::of::<f64>() {
+            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+            let src = unsafe { &*(src as *const [T] as *const [f64]) };
+            let kernel = unsafe { &*(kernel as *const [T] as *const [f64]) };
+            f64_neon::conv1d(out, src, kernel, stride);
+            return;
+        }
+        if TypeId::of::<T>() == TypeId::of::<f32>() {
+            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+            let src = unsafe { &*(src as *const [T] as *const [f32]) };
+            let kernel = unsafe { &*(kernel as *const [T] as *const [f32]) };
+            f32_neon::conv1d(out, src, kernel, stride);
+            return;
+        }
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if TypeId::of::<T>() == TypeId::of::<f64>() {
+            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+            let src = unsafe { &*(src as *const [T] as *const [f64]) };
+            let kernel = unsafe { &*(kernel as *const [T] as *const [f64]) };
+            #[cfg(target_feature = "avx512f")]
+            f64_avx512::conv1d(out, src, kernel, stride);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            f64_avx::conv1d(out, src, kernel, stride);
+            #[cfg(not(target_feature = "avx"))]
+            f64_sse2::conv1d(out, src, kernel, stride);
+            return;
+        }
+        if TypeId::of::<T>() == TypeId::of::<f32>() {
+            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+            let src = unsafe { &*(src as *const [T] as *const [f32]) };
+            let kernel = unsafe { &*(kernel as *const [T] as *const [f32]) };
+            #[cfg(target_feature = "avx512f")]
+            f32_avx512::conv1d(out, src, kernel, stride);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            f32_avx::conv1d(out, src, kernel, stride);
+            #[cfg(not(target_feature = "avx"))]
+            f32_sse2::conv1d(out, src, kernel, stride);
+            return;
+        }
+    }
+    scalar::conv1d(out, src, kernel, stride);
+}
 
 /// Dispatch in-place scalar multiplication to SIMD or scalar fallback.
 ///
@@ -915,5 +1087,69 @@ mod tests {
         let mut y = vec![10_i32, 20, 30, 40, 50];
         axpy_pos_dispatch(&mut y, 3, &x);
         assert_eq!(y, vec![13, 26, 39, 52, 65]);
+    }
+
+    // ── conv1d boundary tests ─────────────────────────────────────────
+
+    #[test]
+    fn conv1d_f64_boundary_lengths() {
+        // Output lengths spanning the scalar tail, single-vector, and
+        // 4-vector block paths for every ISA width; strides 1 and 3.
+        let kernel = [0.25_f64, 0.5, 0.25, 0.125, 0.375];
+        for stride in [1_usize, 3] {
+            for n in [0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 64, 65] {
+                let src_len = n + (kernel.len() - 1) * stride;
+                let src: Vec<f64> = (0..src_len).map(|i| (i as f64) * 0.5 - 3.0).collect();
+                let mut out = vec![0.0_f64; n];
+                let mut out_ref = vec![0.0_f64; n];
+
+                conv1d_dispatch(&mut out, &src, &kernel, stride);
+                scalar::conv1d(&mut out_ref, &src, &kernel, stride);
+
+                for i in 0..n {
+                    assert!(
+                        (out[i] - out_ref[i]).abs() < 1e-12,
+                        "conv1d f64 n={n} stride={stride} idx={i}: got {}, expected {}",
+                        out[i],
+                        out_ref[i]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn conv1d_f32_boundary_lengths() {
+        let kernel = [0.25_f32, 0.5, 0.25];
+        for stride in [1_usize, 4] {
+            for n in [0, 1, 3, 4, 5, 15, 16, 17, 63, 64, 65, 129] {
+                let src_len = n + (kernel.len() - 1) * stride;
+                let src: Vec<f32> = (0..src_len).map(|i| (i as f32) * 0.5 - 3.0).collect();
+                let mut out = vec![0.0_f32; n];
+                let mut out_ref = vec![0.0_f32; n];
+
+                conv1d_dispatch(&mut out, &src, &kernel, stride);
+                scalar::conv1d(&mut out_ref, &src, &kernel, stride);
+
+                for i in 0..n {
+                    assert!(
+                        (out[i] - out_ref[i]).abs() < 1e-4,
+                        "conv1d f32 n={n} stride={stride} idx={i}: got {}, expected {}",
+                        out[i],
+                        out_ref[i]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn conv1d_integer_fallback() {
+        let src = vec![1_i32, 2, 3, 4, 5, 6];
+        let kernel = vec![1_i32, -2, 1];
+        let mut out = vec![0_i32; 4];
+        conv1d_dispatch(&mut out, &src, &kernel, 1);
+        // out[i] = src[i] - 2*src[i+1] + src[i+2] = 0 for a linear ramp.
+        assert_eq!(out, vec![0, 0, 0, 0]);
     }
 }
