@@ -117,6 +117,9 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
             let j0 = jb * NR;
             for ib in 0..m_full / MR {
                 let i0 = ib * MR;
+                // SAFETY: `i0 + 16 <= m_full <= m` and `j0 + 4 <= p_full <= p` by the
+                // tile loops' construction, and `kb <= k_end <= n` — exactly the
+                // microkernel's `# Safety` bounds contract.
                 unsafe {
                     microkernel_16x4(a, b, c, m, n, i0, j0, kb, k_end);
                 }
@@ -129,6 +132,9 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         while i0 + 8 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
+                // SAFETY: the loop condition guarantees `i0 + 8 <= m`, the `jb` loop
+                // gives `j0 + 4 <= p_full <= p`, and `kb <= k_end <= n` — exactly the
+                // microkernel's `# Safety` bounds contract.
                 unsafe {
                     microkernel_8x4(a, b, c, m, n, i0, j0, kb, k_end);
                 }
@@ -138,6 +144,9 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         while i0 + 4 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
+                // SAFETY: the loop condition guarantees `i0 + 4 <= m`, the `jb` loop
+                // gives `j0 + 4 <= p_full <= p`, and `kb <= k_end <= n` — exactly the
+                // microkernel's `# Safety` bounds contract.
                 unsafe {
                     microkernel_4x4(a, b, c, m, n, i0, j0, kb, k_end);
                 }
@@ -147,6 +156,9 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
         while i0 + 2 <= m {
             for jb in 0..p_full / NR {
                 let j0 = jb * NR;
+                // SAFETY: the loop condition guarantees `i0 + 2 <= m`, the `jb` loop
+                // gives `j0 + 4 <= p_full <= p`, and `kb <= k_end <= n` — exactly the
+                // microkernel's `# Safety` bounds contract.
                 unsafe {
                     microkernel_2x4(a, b, c, m, n, i0, j0, kb, k_end);
                 }
@@ -169,6 +181,10 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
                 let b_kj = b[j * n + k];
                 let a_col = k * m;
                 let c_col = j * m;
+                // SAFETY: the broadcast touches no memory. Each iteration loads and
+                // stores one 8-lane vector at `offset = i·8` with `i < i_simd = m / 8`,
+                // so `offset + 8 <= m`: every access stays inside column `k` of `a`
+                // (`a_col = k·m`, `k < n`) and column `j` of `c` (`c_col = j·m`, `j < p`).
                 unsafe {
                     let vb = _mm512_set1_pd(b_kj);
                     for i in 0..i_simd {
@@ -216,6 +232,9 @@ unsafe fn microkernel_16x4(
     k_start: usize,
     k_end: usize,
 ) {
+    // SAFETY: the caller upholds the `# Safety` contract above, which puts
+    // every pointer offset below in bounds of `a`, `b` and `c`; the
+    // broadcasts and vector arithmetic touch no memory.
     unsafe {
         let a_ptr = a.as_ptr();
         let b_ptr = b.as_ptr();
@@ -323,6 +342,9 @@ unsafe fn microkernel_8x4(
     k_start: usize,
     k_end: usize,
 ) {
+    // SAFETY: the caller upholds the `# Safety` contract above, which puts
+    // every pointer offset below in bounds of `a`, `b` and `c`; the
+    // broadcasts and vector arithmetic touch no memory.
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
         let mut a0 = _mm512_setzero_pd();
@@ -382,6 +404,9 @@ unsafe fn microkernel_4x4(
     k_start: usize,
     k_end: usize,
 ) {
+    // SAFETY: the caller upholds the `# Safety` contract above, which puts
+    // every pointer offset below in bounds of `a`, `b` and `c`; the
+    // broadcasts and vector arithmetic touch no memory.
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
         let mut a0 = _mm256_setzero_pd();
@@ -441,6 +466,9 @@ unsafe fn microkernel_2x4(
     k_start: usize,
     k_end: usize,
 ) {
+    // SAFETY: the caller upholds the `# Safety` contract above, which puts
+    // every pointer offset below in bounds of `a`, `b` and `c`; the
+    // broadcasts and vector arithmetic touch no memory.
     unsafe {
         let (ap, bp) = (a.as_ptr(), b.as_ptr());
         let mut a0 = _mm_setzero_pd();

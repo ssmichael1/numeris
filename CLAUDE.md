@@ -40,7 +40,9 @@ Checked items are implemented; unchecked are potential future work.
   `RUSTFLAGS="-C target-cpu=native" cargo bench`. CI sets `target-cpu=x86-64-v3` for the x86_64
   target only (via `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`) to exercise the AVX path
   deterministically; aarch64 runners test NEON on the baseline.
-- **`unsafe` discipline in `simd/`** — the SIMD kernels are the crate's only `unsafe`, and
+- **`unsafe` discipline in `simd/`** — the SIMD kernels hold nearly all of the crate's
+  `unsafe` (the remainder — `linalg`'s two-column split and `quad`'s `MaybeUninit` stack —
+  is likewise block-documented), and
   four rules keep it auditable. (1) *No `#[target_feature]` on the kernels*: the ISA modules
   are `#[cfg(target_feature = ...)]`-gated, so availability is a property of the compilation
   unit; adding the attribute would only turn safe fns into `unsafe fn` (pre-1.86) and buys
@@ -51,9 +53,10 @@ Checked items are implemented; unchecked are potential future work.
   `chunks_exact` so each proof is "the chunk is exactly as wide as the loads covering it"
   rather than hand-computed offsets; where that is impossible (`conv1d`'s strided reads) the
   precondition is a real `assert!` at function entry, not a `debug_assert!`. (4) *Every block
-  documented*: `unsafe_op_in_unsafe_fn` is warned on crate-wide and every `unsafe fn` carries a
-  `# Safety` section — `clippy::missing_safety_doc` does not cover private items, so this is by
-  convention. Style: prefer one `chunks_exact` iterator per loop and take `remainder()` from
+  documented*: `unsafe_op_in_unsafe_fn` is warned on crate-wide, every `unsafe fn` carries a
+  `# Safety` section, and every `unsafe` block a `// SAFETY:` comment stating the argument it
+  relies on (call sites restate how the caller meets the callee's contract) —
+  `clippy::missing_safety_doc` does not cover private items, so this is by convention. Style: prefer one `chunks_exact` iterator per loop and take `remainder()` from
   it, rather than re-calling `chunks_exact`.
 - **Benchmarking `simd/` changes — alignment sensitivity** — the fixed-size `comparison`
   benchmarks run in 80–200 ns and are sensitive to *code alignment* at the ±10% level. During
