@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.16
+## 0.5.17
 
 - **ODE solvers: initial step clamped to `|tf − t0|`** — the automatic
   initial-step heuristic shared by the adaptive RK solvers and RODAS4 computes
@@ -37,6 +37,9 @@
   invariant). The crate-level lint comment in `lib.rs` and the CLAUDE.md
   `unsafe`-discipline notes now name the two audited `unsafe` sites outside
   `simd/` instead of claiming there are none.
+
+## 0.5.16
+
 - **SIMD kernel bounds proofs made structural; `# Safety` contracts written down**
   — internal-only; no API change and results are bit-for-bit identical. The
   element-wise, AXPY and `dot` kernels computed their own chunk offsets
