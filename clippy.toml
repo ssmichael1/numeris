@@ -1,0 +1,5 @@
+# Configuration for `clippy::undocumented_unsafe_blocks` (warned in lib.rs):
+# many audited blocks are `let x = unsafe { … }` initializers whose `// SAFETY:`
+# comment sits above the enclosing statement rather than the `unsafe` keyword.
+accept-comment-above-statement = true
+accept-comment-above-attributes = true

@@ -52,11 +52,17 @@ Checked items are implemented; unchecked are potential future work.
   test/cast type mismatch is unrepresentable. (3) *Structural bounds*: kernels iterate
   `chunks_exact` so each proof is "the chunk is exactly as wide as the loads covering it"
   rather than hand-computed offsets; where that is impossible (`conv1d`'s strided reads) the
-  precondition is a real `assert!` at function entry, not a `debug_assert!`. (4) *Every block
+  precondition is a real `assert!` at function entry, not a `debug_assert!` (this applies to the
+  SIMD `matmul` length checks and `split_two_col_slices`' disjointness check too, not only
+  `conv1d`). (4) *Every block
   documented*: `unsafe_op_in_unsafe_fn` is warned on crate-wide, every `unsafe fn` carries a
   `# Safety` section, and every `unsafe` block a `// SAFETY:` comment stating the argument it
-  relies on (call sites restate how the caller meets the callee's contract) —
-  `clippy::missing_safety_doc` does not cover private items, so this is by convention. Style: prefer one `chunks_exact` iterator per loop and take `remainder()` from
+  relies on (call sites restate how the caller meets the callee's contract) — enforced by
+  `clippy::undocumented_unsafe_blocks` (configured in `clippy.toml`), which covers the private
+  items `clippy::missing_safety_doc` does not. Confinement itself is also compiler-enforced:
+  `#![deny(unsafe_code)]` at the crate root, with `#[allow(unsafe_code)]` on exactly the audited
+  sites (`simd`, `linalg::split_two_col_slices`, `quad::adaptive_simpson`) — add a new site only
+  with the same audit treatment, never by widening an existing `allow`. Style: prefer one `chunks_exact` iterator per loop and take `remainder()` from
   it, rather than re-calling `chunks_exact`.
 - **Benchmarking `simd/` changes — alignment sensitivity** — the fixed-size `comparison`
   benchmarks run in 80–200 ns and are sensitive to *code alignment* at the ±10% level. During

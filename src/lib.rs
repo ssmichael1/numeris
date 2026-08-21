@@ -206,12 +206,24 @@
 #![allow(clippy::too_many_arguments)]
 // The SIMD kernels hold nearly all of the crate's `unsafe` (the rest: the
 // two-column split in `linalg` and the `MaybeUninit` stack in `quad`; every
-// block carries a `// SAFETY:` justification). Requiring an explicit
+// block carries a written safety justification). Requiring an explicit
 // `unsafe` block inside every `unsafe fn` keeps the caller's obligation (stated
 // in the fn's `# Safety` section) distinct from the operations that actually
 // rely on it, so a reader can see which lines consume the precondition. This is
 // the default in edition 2024; the crate is on 2021, so it is opted into here.
 #![warn(unsafe_op_in_unsafe_fn)]
+// Confine `unsafe` to the enumerated, audited sites: the `simd` module plus the
+// two `#[allow(unsafe_code)]` functions named above. A new `unsafe` anywhere
+// else is a compile error (CI runs clippy with `-D warnings`), so "the unsafe
+// surface is exactly these places" is enforced, not just claimed.
+#![deny(unsafe_code)]
+// Machine-enforce the per-block safety-comment convention: every `unsafe`
+// block must carry a justifying comment, and safety comments on safe code are
+// flagged as stale. (`clippy.toml` sets `accept-comment-above-statement`, since
+// many blocks are `let x = unsafe { … }` initializers with the comment above
+// the statement.)
+#![warn(clippy::undocumented_unsafe_blocks)]
+#![warn(clippy::unnecessary_safety_comment)]
 
 #[cfg(feature = "alloc")]
 #[cfg_attr(all(test, not(feature = "std")), macro_use)]
@@ -225,6 +237,9 @@ pub mod prelude;
 pub mod dynmatrix;
 pub mod linalg;
 pub mod matrix;
+// The SIMD kernels are the crate's audited `unsafe` core (see the
+// `#![deny(unsafe_code)]` note above).
+#[allow(unsafe_code)]
 mod simd;
 // The `par` module backs the parallel paths: `imageproc` (always, sequential or
 // parallel) and the `optim` `_par` routines (only under `rayon`).

@@ -105,11 +105,17 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
 ///
 /// `a` is m×n, `b` is n×p, `c` is m×p (column-major flat slices).
 /// Column-major indexing: element (row, col) is at `col * nrows + row`.
+///
+/// # Panics
+///
+/// Panics unless `a.len() == m·n`, `b.len() == n·p` and `c.len() == m·p`.
+/// The microkernels' `# Safety` bounds contracts assume these dimensions, so
+/// they are checked in release builds, not just under `debug_assertions`.
 #[inline]
 pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize) {
-    debug_assert_eq!(a.len(), m * n);
-    debug_assert_eq!(b.len(), n * p);
-    debug_assert_eq!(c.len(), m * p);
+    assert_eq!(a.len(), m * n, "matmul: a.len() != m*n");
+    assert_eq!(b.len(), n * p, "matmul: b.len() != n*p");
+    assert_eq!(c.len(), m * p, "matmul: c.len() != m*p");
 
     const MR: usize = 8; // 2 __m256d registers × 4 f64 lanes
     const NR: usize = 4;
