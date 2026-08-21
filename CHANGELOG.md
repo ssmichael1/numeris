@@ -22,13 +22,23 @@
   is now warned on crate-wide — the default in edition 2024, opted into here on
   2021 — so an `unsafe fn` body can no longer silently consume its own
   precondition.
-  Performance is unchanged: every `comparison` benchmark lands within ±1.7% of
-  0.5.15 on an M1 Ultra (measured noise floor ~1%), and `gaussian_blur` within
-  ±2.2%. Getting there required writing the `dot` kernels so each `chunks_exact`
-  iterator is constructed once and its `remainder()` taken from it; an earlier
-  form that called `chunks_exact` three times inflated the function enough to
-  perturb inlining crate-wide and cost ~12% on `lu_6x6` / `inverse_6x6`, which
-  do not even call `dot`.
+  Performance: every `comparison` benchmark lands within ±1.7% of 0.5.15 on an
+  M1 Ultra, and `gaussian_blur` within ±2.2%. Read those numbers with the
+  following caveat, which this refactor established the hard way. An
+  intermediate version of `dot` moved `lu_6x6` / `inverse_6x6` by 12–14%,
+  reproducibly and with tight confidence intervals — on benchmarks that never
+  call `dot`. Disassembly showed the cause was **code alignment, not codegen**:
+  `LuDecomposition<f64, 6>::new` compiled to a byte-identical instruction stream
+  in both builds (512 instructions compared; the only differences were
+  constant-pool `adrp`/`ldr` offsets, i.e. the same constants relocated), and
+  only its address changed — from `0x1000700e0` to `0x100070024` — because the
+  edit to `dot` had shrunk the preceding code by 188 bytes. A semantically inert
+  never-called function inserted at the same point shifted these benchmarks by
+  under 2%, so the effect is discontinuous in the shift, not proportional to it.
+  The practical consequence: on the fixed-size `comparison` benchmarks (80–200 ns)
+  reproducibility and a small p-value do **not** distinguish a real kernel change
+  from an alignment shift. Treat single-digit-percent differences there as layout
+  noise unless disassembly confirms the affected function's code actually changed.
 
 - **`TypeId` dispatch casts routed through a single witness type** —
   internal-only; no API change and results are bit-for-bit identical. The
