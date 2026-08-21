@@ -519,6 +519,9 @@ pub fn adaptive_simpson<T: FloatScalar>(
     let whole = simpson_val(b - a, fa, fm, fb);
 
     // Fixed-size stack (no heap)
+    // SAFETY: an array of `MaybeUninit<T>` needs no initialization —
+    // `assume_init` asserts the *array* is initialized, not its entries, and
+    // `MaybeUninit`'s contract is precisely that its contents may be garbage.
     let mut stack: [core::mem::MaybeUninit<Entry<T>>; MAX_DEPTH + 1] =
         unsafe { core::mem::MaybeUninit::uninit().assume_init() };
     // Push initial entry
@@ -538,6 +541,9 @@ pub fn adaptive_simpson<T: FloatScalar>(
 
     while sp > 0 {
         sp -= 1;
+        // SAFETY: slots `0..sp` are always initialized — each push writes the
+        // entry with `MaybeUninit::new` *before* incrementing `sp` — so after
+        // the decrement above, `stack[sp]` holds a written value.
         let entry = unsafe { stack[sp].assume_init_read() };
 
         let mid = (entry.a + entry.b) / two;

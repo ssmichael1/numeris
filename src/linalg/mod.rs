@@ -33,9 +33,13 @@ pub(crate) fn split_two_col_slices<T>(
     row_start: usize,
 ) -> (&mut [T], &mut [T]) {
     debug_assert_ne!(col_a, col_b);
-    // Safety: col_a and col_b are different columns, so the slices don't overlap.
-    // MatrixMut guarantees column slices are contiguous and non-overlapping.
     let ptr = m as *mut dyn MatrixMut<T>;
+    // SAFETY: two exclusive reborrows of the same matrix coexist here, which is
+    // sound only because they reach *disjoint* memory: `col_a != col_b`, and
+    // `MatrixMut` hands out each column as a separate non-overlapping
+    // contiguous region, so no aliasing `&mut` to the same bytes ever exist.
+    // Both reborrows derive from the same raw pointer, so creating the second
+    // does not invalidate the first's provenance.
     let a = unsafe { &mut *ptr }.col_as_mut_slice(col_a, row_start);
     let b = unsafe { &mut *ptr }.col_as_mut_slice(col_b, row_start);
     (a, b)

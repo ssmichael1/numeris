@@ -204,7 +204,9 @@
 // `integrate` entry points) genuinely need many parameters (dimensions, scratch
 // buffers, callbacks); factoring them into structs would only obscure the math.
 #![allow(clippy::too_many_arguments)]
-// The SIMD kernels are the crate's only `unsafe`. Requiring an explicit
+// The SIMD kernels hold nearly all of the crate's `unsafe` (the rest: the
+// two-column split in `linalg` and the `MaybeUninit` stack in `quad`; every
+// block carries a `// SAFETY:` justification). Requiring an explicit
 // `unsafe` block inside every `unsafe fn` keeps the caller's obligation (stated
 // in the fn's `# Safety` section) distinct from the operations that actually
 // rely on it, so a reader can see which lines consume the precondition. This is

@@ -2,6 +2,16 @@
 
 ## 0.5.16
 
+- **Every `unsafe` block now carries a `// SAFETY:` comment** — internal-only;
+  no code change, comments only. The remaining undocumented blocks were the
+  matmul microkernel call sites (each now restates how the surrounding tile
+  loops meet the microkernel's `# Safety` bounds contract), the matmul
+  right-edge vector loops, the microkernel bodies (which consume the caller's
+  contract under `unsafe_op_in_unsafe_fn`), `linalg`'s two-column split
+  (disjointness argument), and `quad`'s `MaybeUninit` stack (write-before-pop
+  invariant). The crate-level lint comment in `lib.rs` and the CLAUDE.md
+  `unsafe`-discipline notes now name the two audited `unsafe` sites outside
+  `simd/` instead of claiming there are none.
 - **SIMD kernel bounds proofs made structural; `# Safety` contracts written down**
   — internal-only; no API change and results are bit-for-bit identical. The
   element-wise, AXPY and `dot` kernels computed their own chunk offsets
