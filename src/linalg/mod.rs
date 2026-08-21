@@ -20,27 +20,34 @@ pub use symmetric_eigen::SymmetricEigen;
 use crate::traits::MatrixMut;
 
 /// Get mutable references to sub-column slices of two different columns
-/// simultaneously. Requires `col_a != col_b`.
+/// simultaneously.
 ///
 /// Returns `(a_slice, b_slice)` where:
 /// - `a_slice = &mut m[row_start..nrows, col_a]`
 /// - `b_slice = &mut m[row_start..nrows, col_b]`
+///
+/// # Panics
+///
+/// Panics if `col_a == col_b` — the disjointness of the two slices is what
+/// makes the aliasing below sound, so it is checked in release builds too.
 #[inline]
+#[allow(unsafe_code)] // audited exception to the crate-wide deny; see lib.rs
 pub(crate) fn split_two_col_slices<T>(
     m: &mut impl MatrixMut<T>,
     col_a: usize,
     col_b: usize,
     row_start: usize,
 ) -> (&mut [T], &mut [T]) {
-    debug_assert_ne!(col_a, col_b);
+    assert_ne!(col_a, col_b, "split_two_col_slices: columns must differ");
     let ptr = m as *mut dyn MatrixMut<T>;
     // SAFETY: two exclusive reborrows of the same matrix coexist here, which is
-    // sound only because they reach *disjoint* memory: `col_a != col_b`, and
-    // `MatrixMut` hands out each column as a separate non-overlapping
-    // contiguous region, so no aliasing `&mut` to the same bytes ever exist.
-    // Both reborrows derive from the same raw pointer, so creating the second
-    // does not invalidate the first's provenance.
+    // sound only because they reach *disjoint* memory: `col_a != col_b`
+    // (asserted above), and `MatrixMut` hands out each column as a separate
+    // non-overlapping contiguous region, so no aliasing `&mut` to the same
+    // bytes ever exist. Both reborrows derive from the same raw pointer, so
+    // creating the second does not invalidate the first's provenance.
     let a = unsafe { &mut *ptr }.col_as_mut_slice(col_a, row_start);
+    // SAFETY: as above — the same argument, reaching the second disjoint column.
     let b = unsafe { &mut *ptr }.col_as_mut_slice(col_b, row_start);
     (a, b)
 }

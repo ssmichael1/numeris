@@ -2,6 +2,21 @@
 
 ## 0.5.16
 
+- **`unsafe` confinement and safety comments are now compiler-enforced** —
+  `#![deny(unsafe_code)]` at the crate root with `#[allow(unsafe_code)]` on
+  exactly the audited sites (the `simd` module, `linalg`'s two-column split,
+  `quad`'s `MaybeUninit` stack), so a new `unsafe` anywhere else fails the
+  clippy `-D warnings` CI gate; `clippy::undocumented_unsafe_blocks` /
+  `unnecessary_safety_comment` are warned on crate-wide (with
+  `accept-comment-above-statement` in a new `clippy.toml`), machine-enforcing
+  the `// SAFETY:` convention instead of leaving it to review. Following the
+  `conv1d` precedent, preconditions that unsafe bounds arguments rely on in
+  release builds were promoted from `debug_assert!` to real `assert!`: the
+  three `a`/`b`/`c` length checks in every SIMD `matmul` (three integer
+  compares per call, amortized over the O(m·n·p) kernel) and the
+  `col_a != col_b` disjointness check in `linalg::split_two_col_slices` (one
+  compare per call, amortized over a full-column reflection/AXPY). CI's
+  workflow token is now least-privilege (`permissions: contents: read`).
 - **Every `unsafe` block now carries a `// SAFETY:` comment** — internal-only;
   no code change, comments only. The remaining undocumented blocks were the
   matmul microkernel call sites (each now restates how the surrounding tile

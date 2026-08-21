@@ -268,8 +268,8 @@ macro_rules! simd_conv1d_kernel_fma {
             let mut i = 0;
             while i + 4 * $lanes <= n {
                 // SAFETY: broadcast of zero; touches no memory.
-                let (mut a0, mut a1, mut a2, mut a3) =
-                    unsafe { ($dup(0.0), $dup(0.0), $dup(0.0), $dup(0.0)) };
+                let z = unsafe { $dup(0.0) };
+                let (mut a0, mut a1, mut a2, mut a3) = (z, z, z, z);
                 for (k, &w) in kernel.iter().enumerate() {
                     // SAFETY: in bounds by the block invariant stated above.
                     unsafe {
@@ -347,8 +347,8 @@ macro_rules! simd_conv1d_kernel_muladd {
             let mut i = 0;
             while i + 4 * $lanes <= n {
                 // SAFETY: broadcast of zero; touches no memory.
-                let (mut a0, mut a1, mut a2, mut a3) =
-                    unsafe { ($set1(0.0), $set1(0.0), $set1(0.0), $set1(0.0)) };
+                let z = unsafe { $set1(0.0) };
+                let (mut a0, mut a1, mut a2, mut a3) = (z, z, z, z);
                 for (k, &w) in kernel.iter().enumerate() {
                     // SAFETY: in bounds by the block invariant stated above.
                     unsafe {

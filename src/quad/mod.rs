@@ -474,6 +474,7 @@ const MAX_DEPTH: usize = 50;
 /// let result = adaptive_simpson(|x: f64| x.ln(), 1.0, 2.0, 1e-12).unwrap();
 /// assert!((result - exact).abs() < 1e-12);
 /// ```
+#[allow(unsafe_code)] // audited exception to the crate-wide deny; see lib.rs
 pub fn adaptive_simpson<T: FloatScalar>(
     f: impl Fn(T) -> T,
     a: T,
