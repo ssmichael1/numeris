@@ -694,4 +694,75 @@ mod adaptive_tests {
         );
         assert!(sol.y[1].abs() < 1e-6, "harmonic y[1] = {}", sol.y[1]);
     }
+
+    // ── Initial-step clamp: probe must stay inside [t0, tf] ───────────
+
+    // Nearly-constant RHS: the initial-step heuristic's raw probe step
+    // (0.01·d0/d1) is many orders of magnitude larger than the integration
+    // interval, so without the |tf − t0| clamp the trial evaluation samples
+    // `f` far outside [t0, tf].
+
+    #[test]
+    fn initial_step_clamped_to_interval() {
+        let y0 = Vector::from_array([1.0_f64]);
+        let (t0, tf) = (0.0, 1e-3);
+        let sol = RKTS54::integrate(
+            t0,
+            tf,
+            &y0,
+            |t, _y| {
+                assert!(
+                    (t0..=tf).contains(&t),
+                    "RHS evaluated outside [t0, tf]: t = {t}"
+                );
+                Vector::from_array([1e-8])
+            },
+            &AdaptiveSettings::default(),
+        )
+        .unwrap();
+        assert!((sol.y[0] - (1.0 + 1e-8 * (tf - t0))).abs() < 1e-12);
+    }
+
+    #[test]
+    fn initial_step_clamped_to_interval_backward() {
+        let y0 = Vector::from_array([1.0_f64]);
+        let (t0, tf) = (0.0, -1e-3);
+        let sol = RKTS54::integrate(
+            t0,
+            tf,
+            &y0,
+            |t, _y| {
+                assert!(
+                    (tf..=t0).contains(&t),
+                    "RHS evaluated outside [tf, t0]: t = {t}"
+                );
+                Vector::from_array([1e-8])
+            },
+            &AdaptiveSettings::default(),
+        )
+        .unwrap();
+        assert!((sol.y[0] - (1.0 + 1e-8 * (tf - t0))).abs() < 1e-12);
+    }
+
+    #[test]
+    fn initial_step_clamped_to_interval_rosenbrock() {
+        let y0 = Vector::from_array([1.0_f64]);
+        let (t0, tf) = (0.0, 1e-3);
+        let sol = RODAS4::integrate(
+            t0,
+            tf,
+            &y0,
+            |t, _y| {
+                assert!(
+                    (t0..=tf).contains(&t),
+                    "RHS evaluated outside [t0, tf]: t = {t}"
+                );
+                Vector::from_array([1e-8])
+            },
+            |_t, _y| crate::Matrix::new([[0.0]]),
+            &AdaptiveSettings::default(),
+        )
+        .unwrap();
+        assert!((sol.y[0] - (1.0 + 1e-8 * (tf - t0))).abs() < 1e-12);
+    }
 }
