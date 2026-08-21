@@ -2,6 +2,16 @@
 
 ## 0.5.16
 
+- **ODE solvers: initial step clamped to `|tf − t0|`** — the automatic
+  initial-step heuristic shared by the adaptive RK solvers and RODAS4 computes
+  a probe step `h0 = 0.01·d0/d1` and evaluates the RHS at `t0 + h0` before the
+  main loop's overshoot clamp applies. For a short interval with a slowly
+  varying RHS, that probe could sample `f` far outside `[t0, tf]` (or at an
+  infinite `t` when `d1 == 0`) — a problem for right-hand sides backed by
+  ephemerides, lookup tables, or anything else only defined on the integration
+  interval. Both the probe step and the returned initial `h` are now clamped
+  to the interval magnitude; regression tests assert every RHS evaluation
+  stays inside `[t0, tf]`, forward and backward, explicit and Rosenbrock.
 - **`unsafe` confinement and safety comments are now compiler-enforced** —
   `#![deny(unsafe_code)]` at the crate root with `#[allow(unsafe_code)]` on
   exactly the audited sites (the `simd` module, `linalg`'s two-column split,

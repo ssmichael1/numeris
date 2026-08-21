@@ -122,11 +122,16 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
 
         // Initial step-size guess (adapted from OrdinaryDiffEq.jl)
         let mut h = {
+            let interval = (tf - t0).abs();
             let sci = y0.abs() * settings.rel_tol + settings.abs_tol;
             let d0 = y0.element_div(&sci).scaled_norm();
             let ydot0 = f(t0, y0);
             let d1 = ydot0.element_div(&sci).scaled_norm();
-            let h0 = T::from(0.01).unwrap() * d0 / d1 * tdir;
+            // Clamp the probe step to |tf − t0| so the trial evaluation below
+            // never samples `f` outside the integration interval (the heuristic
+            // can otherwise overshoot it — or be infinite when `d1 == 0`).
+            let h0_mag = T::from(0.01).unwrap() * d0 / d1;
+            let h0 = (if h0_mag < interval { h0_mag } else { interval }) * tdir;
             let y1 = *y0 + ydot0 * h0;
             let ydot1 = f(t0 + h0, &y1);
             let d2 = (ydot1 - ydot0).element_div(&sci).scaled_norm() / h0;
@@ -150,7 +155,9 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
 
             let h0_100 = T::from(100.0).unwrap() * h0.abs();
             let h1_abs = h1.abs();
-            (if h0_100 < h1_abs { h0_100 } else { h1_abs }) * tdir
+            let h_mag = if h0_100 < h1_abs { h0_100 } else { h1_abs };
+            // Never start with a step longer than the whole interval.
+            (if h_mag < interval { h_mag } else { interval }) * tdir
         };
 
         // PID step-size controller coefficients (Söderlind & Wang 2006, §4)
