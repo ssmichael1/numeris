@@ -14,82 +14,86 @@ use core::arch::x86_64::*;
 #[inline]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
-    let n = a.len();
-    let chunks = n / 16; // 4 accumulators × 4 lanes
 
-    unsafe {
-        let ap = a.as_ptr();
-        let bp = b.as_ptr();
+    // SAFETY: register broadcasts of zero; they touch no memory.
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
+        (
+            _mm256_setzero_pd(),
+            _mm256_setzero_pd(),
+            _mm256_setzero_pd(),
+            _mm256_setzero_pd(),
+        )
+    };
 
-        let mut acc0 = _mm256_setzero_pd();
-        let mut acc1 = _mm256_setzero_pd();
-        let mut acc2 = _mm256_setzero_pd();
-        let mut acc3 = _mm256_setzero_pd();
-
-        for i in 0..chunks {
-            let off = i * 16;
+    // 4 accumulators × 4 lanes = 16 elements per iteration.
+    let mut ai = a.chunks_exact(16);
+    let mut bi = b.chunks_exact(16);
+    for (ac, bc) in (&mut ai).zip(&mut bi) {
+        // SAFETY: `chunks_exact(16)` yields chunks of exactly 16 `f64`, so the
+        // four 4-lane loads at offsets 0, 4, 8 and 12 cover each chunk exactly.
+        unsafe {
+            let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
             acc0 = _mm256_add_pd(
                 acc0,
-                _mm256_mul_pd(_mm256_loadu_pd(ap.add(off)), _mm256_loadu_pd(bp.add(off))),
+                _mm256_mul_pd(_mm256_loadu_pd(ap), _mm256_loadu_pd(bp)),
             );
             acc1 = _mm256_add_pd(
                 acc1,
-                _mm256_mul_pd(
-                    _mm256_loadu_pd(ap.add(off + 4)),
-                    _mm256_loadu_pd(bp.add(off + 4)),
-                ),
+                _mm256_mul_pd(_mm256_loadu_pd(ap.add(4)), _mm256_loadu_pd(bp.add(4))),
             );
             acc2 = _mm256_add_pd(
                 acc2,
-                _mm256_mul_pd(
-                    _mm256_loadu_pd(ap.add(off + 8)),
-                    _mm256_loadu_pd(bp.add(off + 8)),
-                ),
+                _mm256_mul_pd(_mm256_loadu_pd(ap.add(8)), _mm256_loadu_pd(bp.add(8))),
             );
             acc3 = _mm256_add_pd(
                 acc3,
-                _mm256_mul_pd(
-                    _mm256_loadu_pd(ap.add(off + 12)),
-                    _mm256_loadu_pd(bp.add(off + 12)),
-                ),
+                _mm256_mul_pd(_mm256_loadu_pd(ap.add(12)), _mm256_loadu_pd(bp.add(12))),
             );
         }
+    }
 
-        acc0 = _mm256_add_pd(acc0, acc1);
-        acc2 = _mm256_add_pd(acc2, acc3);
-        acc0 = _mm256_add_pd(acc0, acc2);
+    // SAFETY: register arithmetic only — no memory is touched.
+    let mut sum = unsafe {
+        let s01 = _mm256_add_pd(acc0, acc1);
+        let s23 = _mm256_add_pd(acc2, acc3);
+        let s = _mm256_add_pd(s01, s23);
         // Horizontal sum: [a, b, c, d] → a+b+c+d
-        let hi128 = _mm256_extractf128_pd(acc0, 1);
-        let lo128 = _mm256_castpd256_pd128(acc0);
+        let hi128 = _mm256_extractf128_pd(s, 1);
+        let lo128 = _mm256_castpd256_pd128(s);
         let sum128 = _mm_add_pd(hi128, lo128);
         let hi64 = _mm_unpackhi_pd(sum128, sum128);
-        let result = _mm_add_sd(sum128, hi64);
-        let mut sum = _mm_cvtsd_f64(result);
+        _mm_cvtsd_f64(_mm_add_sd(sum128, hi64))
+    };
 
-        // Remainder: up to 15 elements — handle quads then scalar
-        let tail = chunks * 16;
-        let remaining = n - tail;
-        let rem_quads = remaining / 4;
-        let mut acc_rem = _mm256_setzero_pd();
-        for i in 0..rem_quads {
-            let off = tail + i * 4;
+    // Remainder: up to 15 elements — 4-wide vectors first, then scalar.
+    // SAFETY: register broadcast of zero.
+    let mut acc_rem = unsafe { _mm256_setzero_pd() };
+    let mut ar = ai.remainder().chunks_exact(4);
+    let mut br = bi.remainder().chunks_exact(4);
+    for (ac, bc) in (&mut ar).zip(&mut br) {
+        // SAFETY: each chunk is exactly 4 `f64` — one vector load each.
+        unsafe {
             acc_rem = _mm256_add_pd(
                 acc_rem,
-                _mm256_mul_pd(_mm256_loadu_pd(ap.add(off)), _mm256_loadu_pd(bp.add(off))),
+                _mm256_mul_pd(_mm256_loadu_pd(ac.as_ptr()), _mm256_loadu_pd(bc.as_ptr())),
             );
         }
-        let rhi = _mm256_extractf128_pd(acc_rem, 1);
-        let rlo = _mm256_castpd256_pd128(acc_rem);
-        let rs = _mm_add_pd(rhi, rlo);
-        let rh = _mm_unpackhi_pd(rs, rs);
-        sum += _mm_cvtsd_f64(_mm_add_sd(rs, rh));
-
-        let scalar_start = tail + rem_quads * 4;
-        for i in scalar_start..n {
-            sum += a[i] * b[i];
-        }
-        sum
     }
+    // SAFETY: register arithmetic only.
+    sum += unsafe {
+        {
+            let rhi = _mm256_extractf128_pd(acc_rem, 1);
+            let rlo = _mm256_castpd256_pd128(acc_rem);
+            let rs = _mm_add_pd(rhi, rlo);
+            let rh = _mm_unpackhi_pd(rs, rs);
+            _mm_cvtsd_f64(_mm_add_sd(rs, rh))
+        }
+    };
+
+    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+        sum += x * y;
+    }
+    sum
 }
 
 /// Matrix multiply C += A * B using AVX with register-blocked micro-kernel.
@@ -190,6 +194,19 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
 
 /// Register-blocked 8×4 micro-kernel: accumulates C[i0..i0+8, j0..j0+4] in
 /// 8 AVX registers across the k-loop, writing C only once.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 8 <= m`, so the tile's 8 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. AVX availability is guaranteed by the
+/// module's `#[cfg(target_feature = "avx")]` gate.
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f64],
@@ -284,6 +301,19 @@ unsafe fn microkernel_8x4(
 }
 
 /// Register-blocked 4×4 mini-kernel for bottom-edge rows (1 __m256d per column).
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 4 <= m`, so the tile's 4 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. AVX availability is guaranteed by the
+/// module's `#[cfg(target_feature = "avx")]` gate.
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f64],
@@ -351,6 +381,19 @@ unsafe fn microkernel_4x4(
 }
 
 /// Register-blocked 2×4 mini-kernel for bottom-edge rows (1 __m128d per column).
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 2 <= m`, so the tile's 2 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. AVX availability is guaranteed by the
+/// module's `#[cfg(target_feature = "avx")]` gate.
 #[inline(always)]
 unsafe fn microkernel_2x4(
     a: &[f64],

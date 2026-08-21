@@ -13,67 +13,76 @@ use core::arch::x86_64::*;
 #[inline]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
-    let n = a.len();
-    let chunks = n / 8; // 4 accumulators × 2 lanes
 
-    unsafe {
-        let ap = a.as_ptr();
-        let bp = b.as_ptr();
+    // SAFETY: register broadcasts of zero; they touch no memory.
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
+        (
+            _mm_setzero_pd(),
+            _mm_setzero_pd(),
+            _mm_setzero_pd(),
+            _mm_setzero_pd(),
+        )
+    };
 
-        let mut acc0 = _mm_setzero_pd();
-        let mut acc1 = _mm_setzero_pd();
-        let mut acc2 = _mm_setzero_pd();
-        let mut acc3 = _mm_setzero_pd();
-
-        for i in 0..chunks {
-            let off = i * 8;
-            acc0 = _mm_add_pd(
-                acc0,
-                _mm_mul_pd(_mm_loadu_pd(ap.add(off)), _mm_loadu_pd(bp.add(off))),
-            );
+    // 4 accumulators × 2 lanes = 8 elements per iteration.
+    let mut ai = a.chunks_exact(8);
+    let mut bi = b.chunks_exact(8);
+    for (ac, bc) in (&mut ai).zip(&mut bi) {
+        // SAFETY: `chunks_exact(8)` yields chunks of exactly 8 `f64`, so the
+        // four 2-lane loads at offsets 0, 2, 4 and 6 cover each chunk exactly.
+        unsafe {
+            let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
+            acc0 = _mm_add_pd(acc0, _mm_mul_pd(_mm_loadu_pd(ap), _mm_loadu_pd(bp)));
             acc1 = _mm_add_pd(
                 acc1,
-                _mm_mul_pd(_mm_loadu_pd(ap.add(off + 2)), _mm_loadu_pd(bp.add(off + 2))),
+                _mm_mul_pd(_mm_loadu_pd(ap.add(2)), _mm_loadu_pd(bp.add(2))),
             );
             acc2 = _mm_add_pd(
                 acc2,
-                _mm_mul_pd(_mm_loadu_pd(ap.add(off + 4)), _mm_loadu_pd(bp.add(off + 4))),
+                _mm_mul_pd(_mm_loadu_pd(ap.add(4)), _mm_loadu_pd(bp.add(4))),
             );
             acc3 = _mm_add_pd(
                 acc3,
-                _mm_mul_pd(_mm_loadu_pd(ap.add(off + 6)), _mm_loadu_pd(bp.add(off + 6))),
+                _mm_mul_pd(_mm_loadu_pd(ap.add(6)), _mm_loadu_pd(bp.add(6))),
             );
         }
+    }
 
-        // Reduce 4 accumulators
-        acc0 = _mm_add_pd(acc0, acc1);
-        acc2 = _mm_add_pd(acc2, acc3);
-        acc0 = _mm_add_pd(acc0, acc2);
-        let high = _mm_unpackhi_pd(acc0, acc0);
-        let sum_vec = _mm_add_sd(acc0, high);
-        let mut sum = _mm_cvtsd_f64(sum_vec);
+    // SAFETY: register arithmetic only — no memory is touched.
+    let mut sum = unsafe {
+        let s01 = _mm_add_pd(acc0, acc1);
+        let s23 = _mm_add_pd(acc2, acc3);
+        let s = _mm_add_pd(s01, s23);
+        let high = _mm_unpackhi_pd(s, s);
+        _mm_cvtsd_f64(_mm_add_sd(s, high))
+    };
 
-        // Remainder: up to 7 elements — handle pairs then scalar
-        let tail = chunks * 8;
-        let remaining = n - tail;
-        let rem_pairs = remaining / 2;
-        let mut acc_rem = _mm_setzero_pd();
-        for i in 0..rem_pairs {
-            let off = tail + i * 2;
+    // Remainder: up to 7 elements — 2-wide vectors first, then scalar.
+    // SAFETY: register broadcast of zero.
+    let mut acc_rem = unsafe { _mm_setzero_pd() };
+    let mut ar = ai.remainder().chunks_exact(2);
+    let mut br = bi.remainder().chunks_exact(2);
+    for (ac, bc) in (&mut ar).zip(&mut br) {
+        // SAFETY: each chunk is exactly 2 `f64` — one vector load each.
+        unsafe {
             acc_rem = _mm_add_pd(
                 acc_rem,
-                _mm_mul_pd(_mm_loadu_pd(ap.add(off)), _mm_loadu_pd(bp.add(off))),
+                _mm_mul_pd(_mm_loadu_pd(ac.as_ptr()), _mm_loadu_pd(bc.as_ptr())),
             );
         }
-        let rh = _mm_unpackhi_pd(acc_rem, acc_rem);
-        sum += _mm_cvtsd_f64(_mm_add_sd(acc_rem, rh));
-
-        let scalar_start = tail + rem_pairs * 2;
-        for i in scalar_start..n {
-            sum += a[i] * b[i];
-        }
-        sum
     }
+    // SAFETY: register arithmetic only.
+    sum += unsafe {
+        {
+            let rh = _mm_unpackhi_pd(acc_rem, acc_rem);
+            _mm_cvtsd_f64(_mm_add_sd(acc_rem, rh))
+        }
+    };
+
+    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+        sum += x * y;
+    }
+    sum
 }
 
 /// Matrix multiply C += A * B using SSE2 with register-blocked micro-kernel.
@@ -166,6 +175,19 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
 
 /// Register-blocked 4×4 micro-kernel: accumulates C[i0..i0+4, j0..j0+4] in
 /// 8 SSE2 registers across a k-block, writing C only once per block.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 4 <= m`, so the tile's 4 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. SSE2 is part of the `x86_64` baseline,
+/// which the module's `#[cfg(target_arch = "x86_64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f64],
@@ -261,6 +283,19 @@ unsafe fn microkernel_4x4(
 
 /// Register-blocked 2×4 mini-kernel for bottom-edge rows: accumulates
 /// C[i0..i0+2, j0..j0+4] in 4 SSE2 registers across a k-block.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 2 <= m`, so the tile's 2 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. SSE2 is part of the `x86_64` baseline,
+/// which the module's `#[cfg(target_arch = "x86_64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_2x4(
     a: &[f64],

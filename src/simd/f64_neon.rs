@@ -11,49 +11,57 @@ use core::arch::aarch64::*;
 #[inline]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
-    let n = a.len();
-    let chunks = n / 8; // 4 accumulators × 2 lanes
 
-    unsafe {
-        let ap = a.as_ptr();
-        let bp = b.as_ptr();
+    // SAFETY: register broadcasts of zero; they touch no memory.
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
+        (
+            vdupq_n_f64(0.0),
+            vdupq_n_f64(0.0),
+            vdupq_n_f64(0.0),
+            vdupq_n_f64(0.0),
+        )
+    };
 
-        let mut acc0 = vdupq_n_f64(0.0);
-        let mut acc1 = vdupq_n_f64(0.0);
-        let mut acc2 = vdupq_n_f64(0.0);
-        let mut acc3 = vdupq_n_f64(0.0);
-
-        for i in 0..chunks {
-            let off = i * 8;
-            acc0 = vfmaq_f64(acc0, vld1q_f64(ap.add(off)), vld1q_f64(bp.add(off)));
-            acc1 = vfmaq_f64(acc1, vld1q_f64(ap.add(off + 2)), vld1q_f64(bp.add(off + 2)));
-            acc2 = vfmaq_f64(acc2, vld1q_f64(ap.add(off + 4)), vld1q_f64(bp.add(off + 4)));
-            acc3 = vfmaq_f64(acc3, vld1q_f64(ap.add(off + 6)), vld1q_f64(bp.add(off + 6)));
+    // 4 accumulators × 2 lanes = 8 elements per iteration.
+    let mut ai = a.chunks_exact(8);
+    let mut bi = b.chunks_exact(8);
+    for (ac, bc) in (&mut ai).zip(&mut bi) {
+        // SAFETY: `chunks_exact(8)` yields chunks of exactly 8 `f64`, so the
+        // four 2-lane loads at offsets 0, 2, 4 and 6 cover each chunk exactly.
+        unsafe {
+            let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
+            acc0 = vfmaq_f64(acc0, vld1q_f64(ap), vld1q_f64(bp));
+            acc1 = vfmaq_f64(acc1, vld1q_f64(ap.add(2)), vld1q_f64(bp.add(2)));
+            acc2 = vfmaq_f64(acc2, vld1q_f64(ap.add(4)), vld1q_f64(bp.add(4)));
+            acc3 = vfmaq_f64(acc3, vld1q_f64(ap.add(6)), vld1q_f64(bp.add(6)));
         }
-
-        // Reduce 4 accumulators
-        acc0 = vaddq_f64(acc0, acc1);
-        acc2 = vaddq_f64(acc2, acc3);
-        acc0 = vaddq_f64(acc0, acc2);
-        let mut sum = vaddvq_f64(acc0);
-
-        // Remainder: up to 7 elements — handle pairs then scalar
-        let tail = chunks * 8;
-        let remaining = n - tail;
-        let rem_pairs = remaining / 2;
-        let mut acc_rem = vdupq_n_f64(0.0);
-        for i in 0..rem_pairs {
-            let off = tail + i * 2;
-            acc_rem = vfmaq_f64(acc_rem, vld1q_f64(ap.add(off)), vld1q_f64(bp.add(off)));
-        }
-        sum += vaddvq_f64(acc_rem);
-
-        let scalar_start = tail + rem_pairs * 2;
-        for i in scalar_start..n {
-            sum += a[i] * b[i];
-        }
-        sum
     }
+
+    // SAFETY: register arithmetic only — no memory is touched.
+    let mut sum = unsafe {
+        let s01 = vaddq_f64(acc0, acc1);
+        let s23 = vaddq_f64(acc2, acc3);
+        vaddvq_f64(vaddq_f64(s01, s23))
+    };
+
+    // Remainder: up to 7 elements — 2-wide vectors first, then scalar.
+    // SAFETY: register broadcast of zero.
+    let mut acc_rem = unsafe { vdupq_n_f64(0.0) };
+    let mut ar = ai.remainder().chunks_exact(2);
+    let mut br = bi.remainder().chunks_exact(2);
+    for (ac, bc) in (&mut ar).zip(&mut br) {
+        // SAFETY: each chunk is exactly 2 `f64` — one vector load each.
+        unsafe {
+            acc_rem = vfmaq_f64(acc_rem, vld1q_f64(ac.as_ptr()), vld1q_f64(bc.as_ptr()));
+        }
+    }
+    // SAFETY: register arithmetic only.
+    sum += unsafe { vaddvq_f64(acc_rem) };
+
+    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+        sum += x * y;
+    }
+    sum
 }
 
 /// Matrix multiply C += A * B using NEON with register-blocked micro-kernel.
@@ -261,6 +269,20 @@ fn pack_b(b: &[f64], b_pack: &mut [f64], j0: usize, kb: usize, k_len: usize, n: 
 
 /// 8×4 micro-kernel with packed B, unpacked A.
 /// B is read from contiguous b_pack, A from original column-major storage.
+///
+/// # Safety
+///
+/// With `a` an `m×n` column-major matrix (`a.len() == m * n`) and `c` an `m×p`
+/// column-major matrix (`c.len() == m * p`), the caller must guarantee:
+///
+/// - `i0 + 8 <= m`, so the tile's 8 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `c`;
+/// - `kb + k_len <= n`, so every `k` indexes a real column of `a`;
+/// - `b_pack.len() >= k_len * 4`, holding the panel `pack_b` wrote for this
+///   `(j0, kb, k_len)` — the kernel reads it sequentially, not by `(k, j)`.
+///
+/// Every load and store below is then in bounds. NEON is unconditionally available on
+/// `aarch64`, which the module's `#[cfg(target_arch = "aarch64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_8x4_bpacked(
     a: &[f64],
@@ -406,6 +428,19 @@ unsafe fn microkernel_8x4_bpacked(
 /// Register-blocked 8×4 micro-kernel: accumulates C[i0..i0+8, j0..j0+4] in
 /// 16 NEON registers across a k-block, writing C only once per block.
 /// Uses 4 NEON f64 vectors (8 elements) × 4 columns = 16 accumulators.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 8 <= m`, so the tile's 8 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. NEON is unconditionally available on
+/// `aarch64`, which the module's `#[cfg(target_arch = "aarch64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f64],
@@ -551,6 +586,19 @@ unsafe fn microkernel_8x4(
 
 /// Register-blocked 4×4 micro-kernel: accumulates C[i0..i0+4, j0..j0+4] in
 /// 8 NEON registers across a k-block, writing C only once per block.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 4 <= m`, so the tile's 4 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. NEON is unconditionally available on
+/// `aarch64`, which the module's `#[cfg(target_arch = "aarch64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f64],
@@ -646,6 +694,19 @@ unsafe fn microkernel_4x4(
 
 /// Register-blocked 2×4 mini-kernel for bottom-edge rows: accumulates
 /// C[i0..i0+2, j0..j0+4] in 4 NEON registers across a k-block.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 2 <= m`, so the tile's 2 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. NEON is unconditionally available on
+/// `aarch64`, which the module's `#[cfg(target_arch = "aarch64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_2x4(
     a: &[f64],

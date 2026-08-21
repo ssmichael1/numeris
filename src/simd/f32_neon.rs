@@ -11,52 +11,57 @@ use core::arch::aarch64::*;
 #[inline]
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
-    let n = a.len();
-    let chunks = n / 16; // 4 accumulators × 4 lanes
 
-    unsafe {
-        let ap = a.as_ptr();
-        let bp = b.as_ptr();
+    // SAFETY: register broadcasts of zero; they touch no memory.
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
+        (
+            vdupq_n_f32(0.0),
+            vdupq_n_f32(0.0),
+            vdupq_n_f32(0.0),
+            vdupq_n_f32(0.0),
+        )
+    };
 
-        let mut acc0 = vdupq_n_f32(0.0);
-        let mut acc1 = vdupq_n_f32(0.0);
-        let mut acc2 = vdupq_n_f32(0.0);
-        let mut acc3 = vdupq_n_f32(0.0);
-
-        for i in 0..chunks {
-            let off = i * 16;
-            acc0 = vfmaq_f32(acc0, vld1q_f32(ap.add(off)), vld1q_f32(bp.add(off)));
-            acc1 = vfmaq_f32(acc1, vld1q_f32(ap.add(off + 4)), vld1q_f32(bp.add(off + 4)));
-            acc2 = vfmaq_f32(acc2, vld1q_f32(ap.add(off + 8)), vld1q_f32(bp.add(off + 8)));
-            acc3 = vfmaq_f32(
-                acc3,
-                vld1q_f32(ap.add(off + 12)),
-                vld1q_f32(bp.add(off + 12)),
-            );
+    // 4 accumulators × 4 lanes = 16 elements per iteration.
+    let mut ai = a.chunks_exact(16);
+    let mut bi = b.chunks_exact(16);
+    for (ac, bc) in (&mut ai).zip(&mut bi) {
+        // SAFETY: `chunks_exact(16)` yields chunks of exactly 16 `f32`, so the
+        // four 4-lane loads at offsets 0, 4, 8 and 12 cover each chunk exactly.
+        unsafe {
+            let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
+            acc0 = vfmaq_f32(acc0, vld1q_f32(ap), vld1q_f32(bp));
+            acc1 = vfmaq_f32(acc1, vld1q_f32(ap.add(4)), vld1q_f32(bp.add(4)));
+            acc2 = vfmaq_f32(acc2, vld1q_f32(ap.add(8)), vld1q_f32(bp.add(8)));
+            acc3 = vfmaq_f32(acc3, vld1q_f32(ap.add(12)), vld1q_f32(bp.add(12)));
         }
-
-        acc0 = vaddq_f32(acc0, acc1);
-        acc2 = vaddq_f32(acc2, acc3);
-        acc0 = vaddq_f32(acc0, acc2);
-        let mut sum = vaddvq_f32(acc0);
-
-        // Remainder: up to 15 elements — handle quads then scalar
-        let tail = chunks * 16;
-        let remaining = n - tail;
-        let rem_quads = remaining / 4;
-        let mut acc_rem = vdupq_n_f32(0.0);
-        for i in 0..rem_quads {
-            let off = tail + i * 4;
-            acc_rem = vfmaq_f32(acc_rem, vld1q_f32(ap.add(off)), vld1q_f32(bp.add(off)));
-        }
-        sum += vaddvq_f32(acc_rem);
-
-        let scalar_start = tail + rem_quads * 4;
-        for i in scalar_start..n {
-            sum += a[i] * b[i];
-        }
-        sum
     }
+
+    // SAFETY: register arithmetic only — no memory is touched.
+    let mut sum = unsafe {
+        let s01 = vaddq_f32(acc0, acc1);
+        let s23 = vaddq_f32(acc2, acc3);
+        vaddvq_f32(vaddq_f32(s01, s23))
+    };
+
+    // Remainder: up to 15 elements — 4-wide vectors first, then scalar.
+    // SAFETY: register broadcast of zero.
+    let mut acc_rem = unsafe { vdupq_n_f32(0.0) };
+    let mut ar = ai.remainder().chunks_exact(4);
+    let mut br = bi.remainder().chunks_exact(4);
+    for (ac, bc) in (&mut ar).zip(&mut br) {
+        // SAFETY: each chunk is exactly 4 `f32` — one vector load each.
+        unsafe {
+            acc_rem = vfmaq_f32(acc_rem, vld1q_f32(ac.as_ptr()), vld1q_f32(bc.as_ptr()));
+        }
+    }
+    // SAFETY: register arithmetic only.
+    sum += unsafe { vaddvq_f32(acc_rem) };
+
+    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+        sum += x * y;
+    }
+    sum
 }
 
 /// Matrix multiply C += A * B using NEON with register-blocked micro-kernel.
@@ -149,6 +154,19 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 
 /// Register-blocked 8×4 micro-kernel: accumulates C[i0..i0+8, j0..j0+4] in
 /// 8 NEON registers across a k-block, writing C only once per block.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 8 <= m`, so the tile's 8 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. NEON is unconditionally available on
+/// `aarch64`, which the module's `#[cfg(target_arch = "aarch64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f32],
@@ -243,6 +261,19 @@ unsafe fn microkernel_8x4(
 }
 
 /// Register-blocked 4×4 mini-kernel for bottom-edge rows (1 NEON f32 register per col).
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 4 <= m`, so the tile's 4 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. NEON is unconditionally available on
+/// `aarch64`, which the module's `#[cfg(target_arch = "aarch64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f32],

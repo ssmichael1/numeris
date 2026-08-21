@@ -204,6 +204,12 @@
 // `integrate` entry points) genuinely need many parameters (dimensions, scratch
 // buffers, callbacks); factoring them into structs would only obscure the math.
 #![allow(clippy::too_many_arguments)]
+// The SIMD kernels are the crate's only `unsafe`. Requiring an explicit
+// `unsafe` block inside every `unsafe fn` keeps the caller's obligation (stated
+// in the fn's `# Safety` section) distinct from the operations that actually
+// rely on it, so a reader can see which lines consume the precondition. This is
+// the default in edition 2024; the crate is on 2021, so it is opted into here.
+#![warn(unsafe_op_in_unsafe_fn)]
 
 #[cfg(feature = "alloc")]
 #[cfg_attr(all(test, not(feature = "std")), macro_use)]

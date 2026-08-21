@@ -160,8 +160,8 @@ pub fn sub_assign_slices<T: Scalar>(a: &mut [T], b: &[T]) {
 
 /// In-place scale: a[i] *= scalar.
 ///
-/// Used only by `DynMatrix` arithmetic, so gated on `alloc`.
-#[cfg(feature = "alloc")]
+/// The fallback for `scale_in_place_dispatch`, so it is not `alloc`-gated like
+/// its `add`/`sub` siblings — Cholesky reaches it on no-std builds.
 #[inline]
 pub fn scale_assign_slices<T: Scalar>(a: &mut [T], scalar: T) {
     for i in 0..a.len() {
