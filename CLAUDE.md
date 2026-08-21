@@ -18,7 +18,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt; `_dyn` variants on `DynVector`/`DynMatrix`)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [x] **quad** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson)
-- [x] **fft** — Fast Fourier Transform (fixed-size no-alloc complex + real; `DynFft` for any length via Bluestein; convolution; SIMD butterflies in the alloc tier)
+- [x] **fft** — Fast Fourier Transform (fixed-size no-alloc complex + real; `DynFft` for any length via Bluestein; 2D `DynFft2`/`DynRealFft2`; convolution; SIMD butterflies in the alloc tier)
 - [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
 - [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
 - [ ] **poly** — Polynomial operations and root-finding
@@ -119,7 +119,9 @@ Checked items are implemented; unchecked are potential future work.
 - **`fft`** — Fast Fourier Transform. Fixed-size no-alloc complex FFT (power-of-two `N ≤ 4096`,
   with/without a precomputed `TwiddleTable`) and real `rfft`/`irfft`. With `alloc`: `DynFft`
   planner for any length (power-of-two radix + Bluestein chirp-z for prime/awkward sizes),
-  `DynRealFft`, FFT-based `fft_convolve`/`fft_correlate`; `fftshift`/`ifftshift` are no-alloc.
+  `DynRealFft`, FFT-based `fft_convolve`/`fft_correlate`, 2D `DynFft2`/`DynRealFft2` over
+  column-major `DynMatrix` (separable row–column, gather/scatter on the strided axis);
+  `fftshift`/`ifftshift` are no-alloc and `fftshift2d`/`ifftshift2d` allocate nothing.
   The `DynFft` power-of-two path deinterleaves to structure-of-arrays re/im and runs radix-2
   butterflies through a shared per-ISA SIMD kernel macro (NEON/SSE2/AVX/AVX-512, scalar
   fallback); the no-std fixed tier stays scalar. Re-exports `num_complex::Complex` (like `complex`).
@@ -322,6 +324,7 @@ src/
 │   ├── real.rs         # rfft/irfft (fixed) + DynRealFft (alloc)
 │   ├── shift.rs        # fftshift/ifftshift (no-alloc, any element type)
 │   ├── dynfft.rs       # DynFft planner (alloc): power-of-two SoA/SIMD + Bluestein
+│   ├── fft2.rs         # DynFft2 / DynRealFft2 2D FFT + fftshift2d/ifftshift2d (alloc)
 │   ├── bluestein.rs    # chirp-z transform for arbitrary/prime N (alloc)
 │   ├── soa.rs          # SoaPlan: deinterleaved re/im + SIMD butterfly orchestration (alloc)
 │   ├── convolve.rs     # fft_convolve/fft_correlate (alloc)

@@ -28,6 +28,7 @@ inverse is normalized by $1/N$ so that `ifft(fft(x)) == x`.
 | Real, fixed | `rfft` / `irfft` | none (stack) | power-of-two `N ≤ 4096` |
 | Runtime | `DynFft` | `alloc` | any length |
 | Real, runtime | `DynRealFft` | `alloc` | any length |
+| 2D | `DynFft2` / `DynRealFft2` | `alloc` | any `rows × cols` |
 
 ## Fixed-size complex FFT (no-alloc)
 
@@ -129,6 +130,41 @@ let c = fft_convolve(&a, &b); // length 4
 For small kernels a direct convolution is faster; the FFT path wins once both operands
 are large.
 
+## 2D FFT (requires `alloc`)
+
+The 2D DFT is *separable*: an `rows × cols` transform is a batch of 1D FFTs along each
+axis (every column, then every row — order does not matter), so `DynFft2` is built entirely
+on `DynFft` and inherits Bluestein for non-power-of-two dimensions. Data is a column-major
+`DynMatrix<Complex<T>>`, so the column pass slices contiguous columns straight out of the
+backing buffer while the row pass gathers/scatters through a scratch buffer.
+
+```rust
+use numeris::fft::DynFft2;
+use numeris::{DynMatrix, Complex};
+
+let mut plan = DynFft2::<f64>::new(4, 4);
+let mut img = DynMatrix::from_fn(4, 4, |r, c| Complex::new((r + c) as f64, 0.0));
+plan.forward(&mut img);
+plan.inverse(&mut img); // normalized by 1/(rows*cols)
+assert!((img[(1, 2)].re - 3.0).abs() < 1e-10);
+```
+
+`DynRealFft2` transforms a real `rows × cols` image into a `(rows/2 + 1) × cols` complex
+half-spectrum (real FFT along the contiguous column axis, full complex FFT along the row
+axis) — roughly half the cost and storage, the form image processing wants.
+
+```rust
+use numeris::fft::DynRealFft2;
+use numeris::{DynMatrix, Complex};
+
+let mut plan = DynRealFft2::<f64>::new(6, 4);
+let real = DynMatrix::from_fn(6, 4, |r, c| (r as f64).sin() + c as f64);
+let mut spec = DynMatrix::zeros(6 / 2 + 1, 4); // (rows/2+1) × cols
+plan.forward(&real, &mut spec);
+let mut recon = DynMatrix::zeros(6, 4);
+plan.inverse(&spec, &mut recon);
+```
+
 ## Spectrum centering
 
 `fftshift` / `ifftshift` are no-alloc, in-place, and generic over any element type — pure
@@ -143,6 +179,18 @@ fftshift(&mut v);
 assert_eq!(v, [3, 4, 0, 1, 2]);
 ifftshift(&mut v);
 assert_eq!(v, [0, 1, 2, 3, 4]);
+```
+
+`fftshift2d` / `ifftshift2d` are the 2D analogue for a `DynMatrix` — they swap diagonal
+quadrants (a 1D shift along each axis) and allocate nothing.
+
+```rust
+use numeris::fft::{fftshift2d, ifftshift2d};
+use numeris::DynMatrix;
+
+let mut m = DynMatrix::from_fn(4, 4, |r, c| (r * 4 + c) as f64);
+fftshift2d(&mut m);   // DC at (0,0) moves to the center
+ifftshift2d(&mut m);  // exact inverse
 ```
 
 ## Performance notes

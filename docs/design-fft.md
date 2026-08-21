@@ -1,7 +1,12 @@
 # FFT module — design notes
 
-Status: **1D implemented** (fixed/dyn complex, Bluestein, rfft/irfft, convolve, shift).
-2D is designed but not yet built. Feature flag: `fft`.
+Status: **1D + 2D implemented** (fixed/dyn complex, Bluestein, rfft/irfft, convolve, shift;
+`DynFft2`/`DynRealFft2` + `fftshift2d`/`ifftshift2d`). Feature flag: `fft`. The 2D landing
+took recommendation (1) — gather/scatter on the strided row axis, reusing the per-column
+`DynFft` directly. Still open as pure optimizations: transpose-based passes (both axes
+contiguous) and `rayon` per-row/column parallelism (needs a scratch-external transform API,
+since `DynFft::forward` currently takes `&mut self`); and `fft_convolve2d` for imageproc's
+large-kernel path.
 
 ## Multi-dimensional (2D) FFT — design
 

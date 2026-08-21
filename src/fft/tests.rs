@@ -11,6 +11,10 @@ use super::DynRealFft;
 use super::{fft, fft_inplace, fftshift, ifft, ifft_inplace, ifftshift, irfft, rfft, TwiddleTable};
 #[cfg(feature = "alloc")]
 use super::{fft_convolve, fft_correlate};
+#[cfg(feature = "alloc")]
+use super::{fftshift2d, ifftshift2d, DynFft2, DynRealFft2};
+#[cfg(feature = "alloc")]
+use crate::DynMatrix;
 use num_complex::Complex;
 
 /// Naive O(N²) DFT reference. `sign = -1.0` forward, `+1.0` inverse (unnormalized).
@@ -431,4 +435,128 @@ fn f32_round_trip() {
         .map(|(a, b)| (a - b).norm())
         .fold(0.0f32, f32::max);
     assert!(err < 1e-4, "f32 round-trip error {err}");
+}
+
+// ─── 2D FFT ────────────────────────────────────────────────────────────
+
+/// Naive O((rows*cols)²) 2D DFT reference on a column-major matrix.
+#[cfg(feature = "alloc")]
+fn naive_dft2(x: &DynMatrix<Complex<f64>>, sign: f64) -> DynMatrix<Complex<f64>> {
+    let (rows, cols) = (x.nrows(), x.ncols());
+    let tau = core::f64::consts::TAU;
+    DynMatrix::from_fn(rows, cols, |kr, kc| {
+        let mut acc = Complex::new(0.0, 0.0);
+        for r in 0..rows {
+            for c in 0..cols {
+                let ang = sign
+                    * tau
+                    * (kr as f64 * r as f64 / rows as f64 + kc as f64 * c as f64 / cols as f64);
+                acc += x[(r, c)] * Complex::new(ang.cos(), ang.sin());
+            }
+        }
+        acc
+    })
+}
+
+#[cfg(feature = "alloc")]
+fn max_err2(a: &DynMatrix<Complex<f64>>, b: &DynMatrix<Complex<f64>>) -> f64 {
+    a.as_slice()
+        .iter()
+        .zip(b.as_slice())
+        .map(|(x, y)| (x - y).norm())
+        .fold(0.0, f64::max)
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn dynfft2_matches_naive_and_round_trips() {
+    // Mix of power-of-two and non-power-of-two (Bluestein) dimensions.
+    for &(rows, cols) in &[(4, 4), (8, 4), (3, 5), (6, 7), (1, 6), (5, 1)] {
+        let input = DynMatrix::from_fn(rows, cols, |r, c| {
+            Complex::new(
+                (r as f64 * 0.7 + c as f64).sin(),
+                (r as f64 - c as f64 * 0.3).cos(),
+            )
+        });
+        let reference = naive_dft2(&input, -1.0);
+
+        let mut plan = DynFft2::<f64>::new(rows, cols);
+        let mut buf = input.clone();
+        plan.forward(&mut buf);
+        assert!(
+            max_err2(&buf, &reference) < 1e-10,
+            "DynFft2 forward mismatch at {rows}x{cols}"
+        );
+
+        plan.inverse(&mut buf);
+        assert!(
+            max_err2(&buf, &input) < 1e-10,
+            "DynFft2 round-trip mismatch at {rows}x{cols}"
+        );
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn dynrealfft2_matches_complex_and_round_trips() {
+    for &(rows, cols) in &[(4, 4), (8, 6), (6, 5), (5, 4)] {
+        let real = DynMatrix::from_fn(rows, cols, |r, c| {
+            (r as f64 * 0.9).sin() + (c as f64 * 0.4).cos() + 0.1 * (r * c) as f64
+        });
+        // Reference: full complex 2D FFT of the real-valued input.
+        let complexified = DynMatrix::from_fn(rows, cols, |r, c| Complex::new(real[(r, c)], 0.0));
+        let full = naive_dft2(&complexified, -1.0);
+
+        let mut plan = DynRealFft2::<f64>::new(rows, cols);
+        let half = rows / 2 + 1;
+        let mut spec = DynMatrix::zeros(half, cols);
+        plan.forward(&real, &mut spec);
+
+        // The half-spectrum must equal the top rows/2+1 rows of the full FFT.
+        for kr in 0..half {
+            for kc in 0..cols {
+                assert!(
+                    (spec[(kr, kc)] - full[(kr, kc)]).norm() < 1e-10,
+                    "rfft2 bin ({kr},{kc}) mismatch at {rows}x{cols}"
+                );
+            }
+        }
+
+        let mut recon = DynMatrix::zeros(rows, cols);
+        plan.inverse(&spec, &mut recon);
+        let err = recon
+            .as_slice()
+            .iter()
+            .zip(real.as_slice())
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, f64::max);
+        assert!(err < 1e-10, "rfft2 round-trip error {err} at {rows}x{cols}");
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn fftshift2d_swaps_quadrants_and_round_trips() {
+    // Even dimensions: fftshift2d swaps diagonal quadrants; ifftshift2d undoes it.
+    let m = DynMatrix::from_fn(4, 4, |r, c| (r * 10 + c) as f64);
+    let mut s = m.clone();
+    fftshift2d(&mut s);
+    // DC at (0,0) lands at the center (2,2) for a 4x4.
+    assert_eq!(s[(2, 2)], m[(0, 0)]);
+    ifftshift2d(&mut s);
+    assert_eq!(s.as_slice(), m.as_slice());
+
+    // Odd dimension: ifftshift2d is the true inverse of fftshift2d.
+    let mo = DynMatrix::from_fn(5, 3, |r, c| (r * 10 + c) as f64);
+    let mut so = mo.clone();
+    fftshift2d(&mut so);
+    ifftshift2d(&mut so);
+    assert_eq!(so.as_slice(), mo.as_slice());
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+#[should_panic]
+fn dynfft2_zero_dim_panics() {
+    let _ = DynFft2::<f64>::new(0, 4);
 }

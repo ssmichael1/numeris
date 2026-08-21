@@ -67,6 +67,8 @@ mod bluestein;
 mod convolve;
 #[cfg(feature = "alloc")]
 mod dynfft;
+#[cfg(feature = "alloc")]
+mod fft2;
 mod fixed;
 mod radix;
 mod real;
@@ -82,6 +84,8 @@ mod tests;
 pub use convolve::{fft_convolve, fft_correlate};
 #[cfg(feature = "alloc")]
 pub use dynfft::DynFft;
+#[cfg(feature = "alloc")]
+pub use fft2::{fftshift2d, ifftshift2d, DynFft2, DynRealFft2};
 pub use fixed::{fft, fft_inplace, ifft, ifft_inplace};
 #[cfg(feature = "alloc")]
 pub use real::DynRealFft;

@@ -18,6 +18,12 @@
     executing NEON natively and the x86 SSE2/AVX2 paths under Rosetta; AVX-512
     type-checks and is CI-confirmed. The inverse reuses the accelerated forward via
     the conjugate identity. The no-std fixed tier stays scalar (small N, code-size).
+  - **2D FFT (`alloc`)** — `DynFft2` (complex) and `DynRealFft2` (real-input,
+    `(rows/2+1)×cols` half-spectrum) over column-major `DynMatrix<Complex<T>>` /
+    `DynMatrix<T>`. The separable row–column algorithm reuses the 1D `DynFft`
+    (Bluestein covers non-power-of-two dimensions transparently): the contiguous
+    column axis transforms in place, the strided row axis via a gather/scatter
+    scratch. Plus no-alloc `fftshift2d` / `ifftshift2d` quadrant swaps.
   - Additive and no-std-safe: `--no-default-features --features fft` builds the fixed
     tier with no allocator. The `fft` feature also re-exports `numeris::Complex`.
 ## 0.5.19

@@ -122,8 +122,10 @@
 //!   ([`fft::fft`] / [`fft::fft_inplace`], power-of-two `N ≤ 4096`) and real-input
 //!   [`fft::rfft`] / [`fft::irfft`]. With `alloc`: [`fft::DynFft`] for any length
 //!   (Bluestein for prime/awkward sizes, SIMD-accelerated butterflies),
-//!   [`fft::DynRealFft`], and FFT-based [`fft::fft_convolve`] / [`fft::fft_correlate`];
-//!   [`fft::fftshift`] / [`fft::ifftshift`] are no-alloc. Requires `fft` feature.
+//!   [`fft::DynRealFft`], FFT-based [`fft::fft_convolve`] / [`fft::fft_correlate`],
+//!   and 2D [`fft::DynFft2`] / [`fft::DynRealFft2`] over `DynMatrix`;
+//!   [`fft::fftshift`] / [`fft::ifftshift`] are no-alloc, and the 2D
+//!   [`fft::fftshift2d`] / [`fft::ifftshift2d`] allocate nothing. Requires `fft` feature.
 //!
 //! - [`stats`] — Statistical distributions with [`stats::ContinuousDistribution`] and
 //!   [`stats::DiscreteDistribution`] traits. Continuous: [`stats::Normal`],
