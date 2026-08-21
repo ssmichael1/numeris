@@ -40,6 +40,35 @@ Checked items are implemented; unchecked are potential future work.
   `RUSTFLAGS="-C target-cpu=native" cargo bench`. CI sets `target-cpu=x86-64-v3` for the x86_64
   target only (via `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`) to exercise the AVX path
   deterministically; aarch64 runners test NEON on the baseline.
+- **`unsafe` discipline in `simd/`** — the SIMD kernels are the crate's only `unsafe`, and
+  four rules keep it auditable. (1) *No `#[target_feature]` on the kernels*: the ISA modules
+  are `#[cfg(target_feature = ...)]`-gated, so availability is a property of the compilation
+  unit; adding the attribute would only turn safe fns into `unsafe fn` (pre-1.86) and buys
+  nothing without runtime detection, which no-std rules out anyway. (2) *One cast witness*:
+  the generic-to-concrete reinterpretation in `simd/mod.rs` goes through `TypeEq<T, U>`, whose
+  sole constructor performs the `TypeId` check — no dispatch site contains `unsafe`, and a
+  test/cast type mismatch is unrepresentable. (3) *Structural bounds*: kernels iterate
+  `chunks_exact` so each proof is "the chunk is exactly as wide as the loads covering it"
+  rather than hand-computed offsets; where that is impossible (`conv1d`'s strided reads) the
+  precondition is a real `assert!` at function entry, not a `debug_assert!`. (4) *Every block
+  documented*: `unsafe_op_in_unsafe_fn` is warned on crate-wide and every `unsafe fn` carries a
+  `# Safety` section — `clippy::missing_safety_doc` does not cover private items, so this is by
+  convention. Style: prefer one `chunks_exact` iterator per loop and take `remainder()` from
+  it, rather than re-calling `chunks_exact`.
+- **Benchmarking `simd/` changes — alignment sensitivity** — the fixed-size `comparison`
+  benchmarks run in 80–200 ns and are sensitive to *code alignment* at the ±10% level. During
+  the 0.5.16 refactor, an edit to `dot` moved `lu_6x6`/`inverse_6x6` by 12–14%, reproducibly
+  and with tight confidence intervals, on benchmarks that never call `dot`. Disassembly showed
+  `LuDecomposition<f64, 6>::new` had a byte-identical instruction stream in both builds — only
+  its address moved (0x1000700e0 → 0x100070024), because `dot` had shrunk the preceding code by
+  188 bytes. The effect is discontinuous in the shift: a semantically inert never-called
+  function inserted at the same point moved the same benchmarks by under 2%. So **reproducibility
+  and a small p-value do not distinguish a real kernel change from an alignment shift.** Before
+  attributing a swing on these benchmarks to your edit, disassemble the affected function
+  (`nm` for the symbol, `objdump -d --start-address=…`) and check whether its code actually
+  changed; if it did not, you are looking at layout, and "fixing" it by reshaping the kernel
+  will not survive the next unrelated edit. Prefer the `_dyn` / larger-size benchmarks and
+  `convolve`/`morphology` for judging real kernel throughput.
 - **`num-traits`** for generic numeric bounds (`Zero`, `One`, `Num`, `Float`), with `default-features = false`.
 - **Matrix storage** — `[[T; M]; N]` (N columns of M rows), column-major. Stack-allocated, contiguous
   in memory. Column-major matches LAPACK conventions and makes column-oriented linalg inner loops
@@ -169,7 +198,8 @@ src/
 │   ├── rosenbrock.rs      # Rosenbrock trait, fd_jacobian, integration loop
 │   └── rodas4.rs          # RODAS4: 6-stage, order 4(3), L-stable Rosenbrock
 ├── simd/               # private SIMD acceleration (no cargo feature — always-on)
-│   ├── mod.rs          # TypeId dispatch: dot, matmul, add/sub/scale/axpy slices, strided conv1d
+│   ├── mod.rs          # TypeId dispatch (via the `TypeEq` cast witness): dot, matmul,
+│   │                   #   add/sub/scale/scale-in-place/axpy slices, strided conv1d
 │   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch)
 │   ├── f64_neon.rs     # aarch64 NEON f64 kernels (2-wide)
 │   ├── f32_neon.rs     # aarch64 NEON f32 kernels (4-wide)

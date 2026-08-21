@@ -1,5 +1,68 @@
 # Changelog
 
+## 0.5.16
+
+- **SIMD kernel bounds proofs made structural; `# Safety` contracts written down**
+  — internal-only; no API change and results are bit-for-bit identical. The
+  element-wise, AXPY and `dot` kernels computed their own chunk offsets
+  (`chunks = n / lanes`, then `ptr.add(off + 6)`), so each vector access rested
+  on an arithmetic argument re-derived per kernel. They now iterate
+  `chunks_exact(BLOCK)` / `chunks_exact_mut(BLOCK)`, which reduces every bounds
+  proof to "the chunk is exactly as wide as the loads that cover it" and moves
+  the scalar tails out of `unsafe` entirely. Blocks are narrowed from one
+  whole-body `unsafe` to per-operation blocks, each with a `SAFETY` comment.
+  `conv1d` is the exception: its source reads are strided and cannot be
+  expressed as chunks, so its window precondition was promoted from
+  `debug_assert!` to a real `assert!` — checked once per call, not per element —
+  which is what makes the strided loads sound in release builds and not only
+  under `debug_assertions`; its output stores and kernel iteration are safe.
+  All 24 private `microkernel_*` functions gained the `# Safety` sections they
+  were missing (`clippy::missing_safety_doc` does not fire on private items),
+  stating the tile/k-range bounds the caller must uphold. `unsafe_op_in_unsafe_fn`
+  is now warned on crate-wide — the default in edition 2024, opted into here on
+  2021 — so an `unsafe fn` body can no longer silently consume its own
+  precondition.
+  Performance: every `comparison` benchmark lands within ±1.7% of 0.5.15 on an
+  M1 Ultra, and `gaussian_blur` within ±2.2%. Read those numbers with the
+  following caveat, which this refactor established the hard way. An
+  intermediate version of `dot` moved `lu_6x6` / `inverse_6x6` by 12–14%,
+  reproducibly and with tight confidence intervals — on benchmarks that never
+  call `dot`. Disassembly showed the cause was **code alignment, not codegen**:
+  `LuDecomposition<f64, 6>::new` compiled to a byte-identical instruction stream
+  in both builds (512 instructions compared; the only differences were
+  constant-pool `adrp`/`ldr` offsets, i.e. the same constants relocated), and
+  only its address changed — from `0x1000700e0` to `0x100070024` — because the
+  edit to `dot` had shrunk the preceding code by 188 bytes. A semantically inert
+  never-called function inserted at the same point shifted these benchmarks by
+  under 2%, so the effect is discontinuous in the shift, not proportional to it.
+  The practical consequence: on the fixed-size `comparison` benchmarks (80–200 ns)
+  reproducibility and a small p-value do **not** distinguish a real kernel change
+  from an alignment shift. Treat single-digit-percent differences there as layout
+  noise unless disassembly confirms the affected function's code actually changed.
+
+- **`TypeId` dispatch casts routed through a single witness type** —
+  internal-only; no API change and results are bit-for-bit identical. The
+  `simd/mod.rs` dispatch layer bridges its generic `T: Scalar` signatures to the
+  ISA kernels' concrete `f32`/`f64` slices with a reinterpreting cast, made
+  sound by a `TypeId` comparison. That argument was previously re-derived
+  independently at each of 83 cast sites, where a copy-paste slip — testing
+  `f64` and casting to `f32` — would have compiled cleanly and silently
+  reinterpreted memory. The comparison now happens once, in the sole constructor
+  of a zero-sized `TypeEq<T, U>` witness, and every cast flows through a method
+  on that witness, so the type that was tested is necessarily the type that is
+  cast to. The module's reinterpreting `unsafe` drops from 83 blocks to four,
+  each carrying a `SAFETY` comment; no dispatch site contains `unsafe` any more.
+- **Fixed aliasing violation in `scale_in_place_dispatch`** — the in-place scale
+  used by Cholesky built a `&[T]` and a `&mut [T]` over the same buffer and
+  passed both to `scale_slices`. The kernel never reads ahead of its writes, so
+  the results were correct, but holding a shared and an exclusive reference to
+  the same memory simultaneously violates Rust's aliasing rules and is undefined
+  behavior regardless (Miri rejects it under Stacked Borrows). Each ISA now gets
+  a real in-place `scale_in_place` kernel — added once to the shared
+  `simd_elementwise_kernels!` macro, so all eight per-ISA files pick it up — that
+  loads and stores through a single `&mut` borrow. Measured on an M1 Ultra:
+  `cholesky_6x6` −3%, `cholesky_4x4` −0.5%, everything else within noise.
+
 ## 0.5.15
 
 - **Separable convolution rewritten as single-traversal SIMD tap sums —

@@ -12,74 +12,81 @@ use core::arch::x86_64::*;
 #[inline]
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
-    let n = a.len();
-    let chunks = n / 16; // 4 accumulators × 4 lanes
 
-    unsafe {
-        let ap = a.as_ptr();
-        let bp = b.as_ptr();
+    // SAFETY: register broadcasts of zero; they touch no memory.
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
+        (
+            _mm_setzero_ps(),
+            _mm_setzero_ps(),
+            _mm_setzero_ps(),
+            _mm_setzero_ps(),
+        )
+    };
 
-        let mut acc0 = _mm_setzero_ps();
-        let mut acc1 = _mm_setzero_ps();
-        let mut acc2 = _mm_setzero_ps();
-        let mut acc3 = _mm_setzero_ps();
-
-        for i in 0..chunks {
-            let off = i * 16;
-            acc0 = _mm_add_ps(
-                acc0,
-                _mm_mul_ps(_mm_loadu_ps(ap.add(off)), _mm_loadu_ps(bp.add(off))),
-            );
+    // 4 accumulators × 4 lanes = 16 elements per iteration.
+    let mut ai = a.chunks_exact(16);
+    let mut bi = b.chunks_exact(16);
+    for (ac, bc) in (&mut ai).zip(&mut bi) {
+        // SAFETY: `chunks_exact(16)` yields chunks of exactly 16 `f32`, so the
+        // four 4-lane loads at offsets 0, 4, 8 and 12 cover each chunk exactly.
+        unsafe {
+            let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
+            acc0 = _mm_add_ps(acc0, _mm_mul_ps(_mm_loadu_ps(ap), _mm_loadu_ps(bp)));
             acc1 = _mm_add_ps(
                 acc1,
-                _mm_mul_ps(_mm_loadu_ps(ap.add(off + 4)), _mm_loadu_ps(bp.add(off + 4))),
+                _mm_mul_ps(_mm_loadu_ps(ap.add(4)), _mm_loadu_ps(bp.add(4))),
             );
             acc2 = _mm_add_ps(
                 acc2,
-                _mm_mul_ps(_mm_loadu_ps(ap.add(off + 8)), _mm_loadu_ps(bp.add(off + 8))),
+                _mm_mul_ps(_mm_loadu_ps(ap.add(8)), _mm_loadu_ps(bp.add(8))),
             );
             acc3 = _mm_add_ps(
                 acc3,
-                _mm_mul_ps(
-                    _mm_loadu_ps(ap.add(off + 12)),
-                    _mm_loadu_ps(bp.add(off + 12)),
-                ),
+                _mm_mul_ps(_mm_loadu_ps(ap.add(12)), _mm_loadu_ps(bp.add(12))),
             );
         }
+    }
 
-        acc0 = _mm_add_ps(acc0, acc1);
-        acc2 = _mm_add_ps(acc2, acc3);
-        acc0 = _mm_add_ps(acc0, acc2);
+    // SAFETY: register arithmetic only — no memory is touched.
+    let mut sum = unsafe {
+        let s01 = _mm_add_ps(acc0, acc1);
+        let s23 = _mm_add_ps(acc2, acc3);
+        let s = _mm_add_ps(s01, s23);
         // Horizontal sum of 4 lanes
-        let shuf = _mm_movehl_ps(acc0, acc0);
-        let sums = _mm_add_ps(acc0, shuf);
+        let shuf = _mm_movehl_ps(s, s);
+        let sums = _mm_add_ps(s, shuf);
         let shuf2 = _mm_shuffle_ps(sums, sums, 1);
-        let total = _mm_add_ss(sums, shuf2);
-        let mut sum = _mm_cvtss_f32(total);
+        _mm_cvtss_f32(_mm_add_ss(sums, shuf2))
+    };
 
-        // Remainder: up to 15 elements — handle quads then scalar
-        let tail = chunks * 16;
-        let remaining = n - tail;
-        let rem_quads = remaining / 4;
-        let mut acc_rem = _mm_setzero_ps();
-        for i in 0..rem_quads {
-            let off = tail + i * 4;
+    // Remainder: up to 15 elements — 4-wide vectors first, then scalar.
+    // SAFETY: register broadcast of zero.
+    let mut acc_rem = unsafe { _mm_setzero_ps() };
+    let mut ar = ai.remainder().chunks_exact(4);
+    let mut br = bi.remainder().chunks_exact(4);
+    for (ac, bc) in (&mut ar).zip(&mut br) {
+        // SAFETY: each chunk is exactly 4 `f32` — one vector load each.
+        unsafe {
             acc_rem = _mm_add_ps(
                 acc_rem,
-                _mm_mul_ps(_mm_loadu_ps(ap.add(off)), _mm_loadu_ps(bp.add(off))),
+                _mm_mul_ps(_mm_loadu_ps(ac.as_ptr()), _mm_loadu_ps(bc.as_ptr())),
             );
         }
-        let rs = _mm_movehl_ps(acc_rem, acc_rem);
-        let rs2 = _mm_add_ps(acc_rem, rs);
-        let rs3 = _mm_shuffle_ps(rs2, rs2, 1);
-        sum += _mm_cvtss_f32(_mm_add_ss(rs2, rs3));
-
-        let scalar_start = tail + rem_quads * 4;
-        for i in scalar_start..n {
-            sum += a[i] * b[i];
-        }
-        sum
     }
+    // SAFETY: register arithmetic only.
+    sum += unsafe {
+        {
+            let rs = _mm_movehl_ps(acc_rem, acc_rem);
+            let rs2 = _mm_add_ps(acc_rem, rs);
+            let rs3 = _mm_shuffle_ps(rs2, rs2, 1);
+            _mm_cvtss_f32(_mm_add_ss(rs2, rs3))
+        }
+    };
+
+    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+        sum += x * y;
+    }
+    sum
 }
 
 /// Matrix multiply C += A * B using SSE2 with register-blocked micro-kernel.
@@ -175,6 +182,19 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 
 /// Register-blocked 8×4 micro-kernel: accumulates C[i0..i0+8, j0..j0+4] in
 /// 8 SSE2 registers across the full k-loop, writing C only once.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 8 <= m`, so the tile's 8 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. SSE2 is part of the `x86_64` baseline,
+/// which the module's `#[cfg(target_arch = "x86_64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f32],
@@ -269,6 +289,19 @@ unsafe fn microkernel_8x4(
 }
 
 /// Register-blocked 4×4 mini-kernel for bottom-edge rows (1 __m128 per col).
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 4 <= m`, so the tile's 4 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. SSE2 is part of the `x86_64` baseline,
+/// which the module's `#[cfg(target_arch = "x86_64")]` gate guarantees.
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f32],

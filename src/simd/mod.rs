@@ -64,17 +64,17 @@ macro_rules! simd_elementwise_kernels {
             debug_assert_eq!(a.len(), b.len());
             debug_assert_eq!(a.len(), out.len());
             let n = a.len();
-            let chunks = n / $lanes;
-            unsafe {
-                for i in 0..chunks {
-                    let offset = i * $lanes;
-                    let va = $load(a.as_ptr().add(offset));
-                    let vb = $load(b.as_ptr().add(offset));
-                    $store(out.as_mut_ptr().add(offset), $add(va, vb));
-                }
+            for ((o, x), y) in out
+                .chunks_exact_mut($lanes)
+                .zip(a.chunks_exact($lanes))
+                .zip(b.chunks_exact($lanes))
+            {
+                // SAFETY: `chunks_exact` yields chunks of exactly $lanes elements,
+                // which is precisely the width of one vector load / store — so all
+                // three accesses are in bounds by construction.
+                unsafe { $store(o.as_mut_ptr(), $add($load(x.as_ptr()), $load(y.as_ptr()))) };
             }
-            let tail = chunks * $lanes;
-            for i in tail..n {
+            for i in (n - n % $lanes)..n {
                 out[i] = a[i] + b[i];
             }
         }
@@ -85,17 +85,15 @@ macro_rules! simd_elementwise_kernels {
             debug_assert_eq!(a.len(), b.len());
             debug_assert_eq!(a.len(), out.len());
             let n = a.len();
-            let chunks = n / $lanes;
-            unsafe {
-                for i in 0..chunks {
-                    let offset = i * $lanes;
-                    let va = $load(a.as_ptr().add(offset));
-                    let vb = $load(b.as_ptr().add(offset));
-                    $store(out.as_mut_ptr().add(offset), $sub(va, vb));
-                }
+            for ((o, x), y) in out
+                .chunks_exact_mut($lanes)
+                .zip(a.chunks_exact($lanes))
+                .zip(b.chunks_exact($lanes))
+            {
+                // SAFETY: each chunk is exactly $lanes wide — one vector load / store.
+                unsafe { $store(o.as_mut_ptr(), $sub($load(x.as_ptr()), $load(y.as_ptr()))) };
             }
-            let tail = chunks * $lanes;
-            for i in tail..n {
+            for i in (n - n % $lanes)..n {
                 out[i] = a[i] - b[i];
             }
         }
@@ -105,18 +103,37 @@ macro_rules! simd_elementwise_kernels {
         pub fn scale_slices(a: &[$t], scalar: $t, out: &mut [$t]) {
             debug_assert_eq!(a.len(), out.len());
             let n = a.len();
-            let chunks = n / $lanes;
-            unsafe {
-                let vs = $set1(scalar);
-                for i in 0..chunks {
-                    let offset = i * $lanes;
-                    let va = $load(a.as_ptr().add(offset));
-                    $store(out.as_mut_ptr().add(offset), $mul(va, vs));
+            // SAFETY: a register broadcast of a scalar; touches no memory.
+            let vs = unsafe { $set1(scalar) };
+            for (o, x) in out.chunks_exact_mut($lanes).zip(a.chunks_exact($lanes)) {
+                // SAFETY: each chunk is exactly $lanes wide — one vector load / store.
+                unsafe { $store(o.as_mut_ptr(), $mul($load(x.as_ptr()), vs)) };
+            }
+            for i in (n - n % $lanes)..n {
+                out[i] = a[i] * scalar;
+            }
+        }
+
+        /// In-place scalar multiplication: a[i] *= scalar.
+        ///
+        /// Distinct from `scale_slices` with aliased arguments: a single `&mut`
+        /// borrow means one provenance for both the loads and the stores, so no
+        /// shared reference to the buffer exists while it is being written.
+        #[inline]
+        pub fn scale_in_place(a: &mut [$t], scalar: $t) {
+            let n = a.len();
+            // SAFETY: a register broadcast of a scalar; touches no memory.
+            let vs = unsafe { $set1(scalar) };
+            for c in a.chunks_exact_mut($lanes) {
+                // SAFETY: the chunk is exactly $lanes wide, so the load and the store
+                // each cover it exactly — both through the one `&mut` borrow.
+                unsafe {
+                    let p = c.as_mut_ptr();
+                    $store(p, $mul($load(p), vs));
                 }
             }
-            let tail = chunks * $lanes;
-            for i in tail..n {
-                out[i] = a[i] * scalar;
+            for i in (n - n % $lanes)..n {
+                a[i] *= scalar;
             }
         }
     };
@@ -132,18 +149,16 @@ macro_rules! simd_axpy_kernels_muladd {
         pub fn axpy_neg(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
-            let chunks = n / $lanes;
-            unsafe {
-                let va = $set1(alpha);
-                for i in 0..chunks {
-                    let offset = i * $lanes;
-                    let vy = $load(y.as_ptr().add(offset));
-                    let vx = $load(x.as_ptr().add(offset));
-                    $store(y.as_mut_ptr().add(offset), $sub(vy, $mul(va, vx)));
+            // SAFETY: a register broadcast of a scalar; touches no memory.
+            let va = unsafe { $set1(alpha) };
+            for (yc, xc) in y.chunks_exact_mut($lanes).zip(x.chunks_exact($lanes)) {
+                // SAFETY: each chunk is exactly $lanes wide — one vector load / store.
+                unsafe {
+                    let p = yc.as_mut_ptr();
+                    $store(p, $sub($load(p), $mul(va, $load(xc.as_ptr()))));
                 }
             }
-            let tail = chunks * $lanes;
-            for i in tail..n {
+            for i in (n - n % $lanes)..n {
                 y[i] -= alpha * x[i];
             }
         }
@@ -153,18 +168,16 @@ macro_rules! simd_axpy_kernels_muladd {
         pub fn axpy_pos(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
-            let chunks = n / $lanes;
-            unsafe {
-                let va = $set1(alpha);
-                for i in 0..chunks {
-                    let offset = i * $lanes;
-                    let vy = $load(y.as_ptr().add(offset));
-                    let vx = $load(x.as_ptr().add(offset));
-                    $store(y.as_mut_ptr().add(offset), $add(vy, $mul(va, vx)));
+            // SAFETY: a register broadcast of a scalar; touches no memory.
+            let va = unsafe { $set1(alpha) };
+            for (yc, xc) in y.chunks_exact_mut($lanes).zip(x.chunks_exact($lanes)) {
+                // SAFETY: each chunk is exactly $lanes wide — one vector load / store.
+                unsafe {
+                    let p = yc.as_mut_ptr();
+                    $store(p, $add($load(p), $mul(va, $load(xc.as_ptr()))));
                 }
             }
-            let tail = chunks * $lanes;
-            for i in tail..n {
+            for i in (n - n % $lanes)..n {
                 y[i] += alpha * x[i];
             }
         }
@@ -180,19 +193,17 @@ macro_rules! simd_axpy_kernels_fma {
         pub fn axpy_neg(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
-            let chunks = n / $lanes;
-            unsafe {
-                let va = $dup(alpha);
-                for i in 0..chunks {
-                    let offset = i * $lanes;
-                    let vy = $load(y.as_ptr().add(offset));
-                    let vx = $load(x.as_ptr().add(offset));
-                    // y -= alpha * x  →  fused multiply-subtract
-                    $store(y.as_mut_ptr().add(offset), $fms(vy, va, vx));
+            // SAFETY: a register broadcast of a scalar; touches no memory.
+            let va = unsafe { $dup(alpha) };
+            for (yc, xc) in y.chunks_exact_mut($lanes).zip(x.chunks_exact($lanes)) {
+                // SAFETY: each chunk is exactly $lanes wide — one vector load / store.
+                // y -= alpha * x  →  fused multiply-subtract.
+                unsafe {
+                    let p = yc.as_mut_ptr();
+                    $store(p, $fms($load(p), va, $load(xc.as_ptr())));
                 }
             }
-            let tail = chunks * $lanes;
-            for i in tail..n {
+            for i in (n - n % $lanes)..n {
                 y[i] -= alpha * x[i];
             }
         }
@@ -202,18 +213,16 @@ macro_rules! simd_axpy_kernels_fma {
         pub fn axpy_pos(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
-            let chunks = n / $lanes;
-            unsafe {
-                let va = $dup(alpha);
-                for i in 0..chunks {
-                    let offset = i * $lanes;
-                    let vy = $load(y.as_ptr().add(offset));
-                    let vx = $load(x.as_ptr().add(offset));
-                    $store(y.as_mut_ptr().add(offset), $fma(vy, va, vx));
+            // SAFETY: a register broadcast of a scalar; touches no memory.
+            let va = unsafe { $dup(alpha) };
+            for (yc, xc) in y.chunks_exact_mut($lanes).zip(x.chunks_exact($lanes)) {
+                // SAFETY: each chunk is exactly $lanes wide — one vector load / store.
+                unsafe {
+                    let p = yc.as_mut_ptr();
+                    $store(p, $fma($load(p), va, $load(xc.as_ptr())));
                 }
             }
-            let tail = chunks * $lanes;
-            for i in tail..n {
+            for i in (n - n % $lanes)..n {
                 y[i] += alpha * x[i];
             }
         }
@@ -228,47 +237,75 @@ macro_rules! simd_axpy_kernels_fma {
 /// each output element is stored exactly once — no per-tap read-modify-write of
 /// `out`. `stride` is the element distance between consecutive taps: `1` for a
 /// convolution along contiguous data, the column stride for one across columns.
+///
+/// The source reads are strided, so unlike the element-wise kernels they cannot
+/// be expressed as `chunks_exact` windows. Their bounds proof rests instead on
+/// the window precondition, which is asserted once on entry (see the body).
 #[allow(unused_macros)]
 macro_rules! simd_conv1d_kernel_fma {
     ($t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $dup:ident) => {
         /// Strided 1D correlation: out[i] = Σ_k kernel[k] · src[i + k·stride].
+        ///
+        /// # Panics
+        ///
+        /// Panics unless `stride >= 1` and `src` covers every window —
+        /// `src.len() >= out.len() + (kernel.len() - 1) * stride`. This is checked
+        /// once per call (not per element) because the strided loads below rely on
+        /// it in release builds, not just under `debug_assertions`.
         #[inline]
         pub fn conv1d(out: &mut [$t], src: &[$t], kernel: &[$t], stride: usize) {
             let n = out.len();
             let klen = kernel.len();
-            debug_assert!(stride >= 1);
-            debug_assert!(klen == 0 || src.len() >= n + (klen - 1) * stride);
+            assert!(stride >= 1, "conv1d: stride must be >= 1");
+            assert!(
+                klen == 0 || src.len() >= n + (klen - 1) * stride,
+                "conv1d: src too short to cover every window"
+            );
+            // Blocked over four vectors: for a block at output offset `i` and tap
+            // `k`, the widest read is `src[i + k*stride + 4*$lanes - 1]`. Since
+            // `i + 4*$lanes <= n` and `k <= klen - 1`, that index is at most
+            // `n + (klen - 1)*stride - 1`, which the assert above puts inside `src`.
             let mut i = 0;
-            unsafe {
-                while i + 4 * $lanes <= n {
-                    let mut a0 = $dup(0.0);
-                    let mut a1 = $dup(0.0);
-                    let mut a2 = $dup(0.0);
-                    let mut a3 = $dup(0.0);
-                    for k in 0..klen {
-                        let w = $dup(*kernel.get_unchecked(k));
+            while i + 4 * $lanes <= n {
+                // SAFETY: broadcast of zero; touches no memory.
+                let (mut a0, mut a1, mut a2, mut a3) =
+                    unsafe { ($dup(0.0), $dup(0.0), $dup(0.0), $dup(0.0)) };
+                for (k, &w) in kernel.iter().enumerate() {
+                    // SAFETY: in bounds by the block invariant stated above.
+                    unsafe {
+                        let w = $dup(w);
                         let p = src.as_ptr().add(i + k * stride);
                         a0 = $fma(a0, w, $load(p));
                         a1 = $fma(a1, w, $load(p.add($lanes)));
                         a2 = $fma(a2, w, $load(p.add(2 * $lanes)));
                         a3 = $fma(a3, w, $load(p.add(3 * $lanes)));
                     }
-                    let q = out.as_mut_ptr().add(i);
+                }
+                let block = &mut out[i..i + 4 * $lanes];
+                // SAFETY: `block` is exactly 4·$lanes wide, so the four stores at
+                // 0, $lanes, 2·$lanes and 3·$lanes cover it exactly.
+                unsafe {
+                    let q = block.as_mut_ptr();
                     $store(q, a0);
                     $store(q.add($lanes), a1);
                     $store(q.add(2 * $lanes), a2);
                     $store(q.add(3 * $lanes), a3);
-                    i += 4 * $lanes;
                 }
-                while i + $lanes <= n {
-                    let mut a0 = $dup(0.0);
-                    for k in 0..klen {
-                        let w = $dup(*kernel.get_unchecked(k));
-                        a0 = $fma(a0, w, $load(src.as_ptr().add(i + k * stride)));
-                    }
-                    $store(out.as_mut_ptr().add(i), a0);
-                    i += $lanes;
+                i += 4 * $lanes;
+            }
+            while i + $lanes <= n {
+                // SAFETY: broadcast of zero; touches no memory.
+                let mut a0 = unsafe { $dup(0.0) };
+                for (k, &w) in kernel.iter().enumerate() {
+                    // SAFETY: `i + $lanes <= n` and `k <= klen - 1`, so the read ends
+                    // at most at `n + (klen - 1)*stride - 1`, inside `src` by the
+                    // asserted precondition.
+                    unsafe { a0 = $fma(a0, $dup(w), $load(src.as_ptr().add(i + k * stride))) };
                 }
+                let block = &mut out[i..i + $lanes];
+                // SAFETY: `block` is exactly $lanes wide — one vector store.
+                unsafe { $store(block.as_mut_ptr(), a0) };
+                i += $lanes;
             }
             for ii in i..n {
                 let mut sum = 0.0;
@@ -287,43 +324,69 @@ macro_rules! simd_conv1d_kernel_fma {
 macro_rules! simd_conv1d_kernel_muladd {
     ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $mul:ident, $set1:ident) => {
         /// Strided 1D correlation: out[i] = Σ_k kernel[k] · src[i + k·stride].
+        ///
+        /// # Panics
+        ///
+        /// Panics unless `stride >= 1` and `src` covers every window —
+        /// `src.len() >= out.len() + (kernel.len() - 1) * stride`. This is checked
+        /// once per call (not per element) because the strided loads below rely on
+        /// it in release builds, not just under `debug_assertions`.
         #[inline]
         pub fn conv1d(out: &mut [$t], src: &[$t], kernel: &[$t], stride: usize) {
             let n = out.len();
             let klen = kernel.len();
-            debug_assert!(stride >= 1);
-            debug_assert!(klen == 0 || src.len() >= n + (klen - 1) * stride);
+            assert!(stride >= 1, "conv1d: stride must be >= 1");
+            assert!(
+                klen == 0 || src.len() >= n + (klen - 1) * stride,
+                "conv1d: src too short to cover every window"
+            );
+            // Blocked over four vectors: for a block at output offset `i` and tap
+            // `k`, the widest read is `src[i + k*stride + 4*$lanes - 1]`. Since
+            // `i + 4*$lanes <= n` and `k <= klen - 1`, that index is at most
+            // `n + (klen - 1)*stride - 1`, which the assert above puts inside `src`.
             let mut i = 0;
-            unsafe {
-                while i + 4 * $lanes <= n {
-                    let mut a0 = $set1(0.0);
-                    let mut a1 = $set1(0.0);
-                    let mut a2 = $set1(0.0);
-                    let mut a3 = $set1(0.0);
-                    for k in 0..klen {
-                        let w = $set1(*kernel.get_unchecked(k));
+            while i + 4 * $lanes <= n {
+                // SAFETY: broadcast of zero; touches no memory.
+                let (mut a0, mut a1, mut a2, mut a3) =
+                    unsafe { ($set1(0.0), $set1(0.0), $set1(0.0), $set1(0.0)) };
+                for (k, &w) in kernel.iter().enumerate() {
+                    // SAFETY: in bounds by the block invariant stated above.
+                    unsafe {
+                        let w = $set1(w);
                         let p = src.as_ptr().add(i + k * stride);
                         a0 = $add(a0, $mul(w, $load(p)));
                         a1 = $add(a1, $mul(w, $load(p.add($lanes))));
                         a2 = $add(a2, $mul(w, $load(p.add(2 * $lanes))));
                         a3 = $add(a3, $mul(w, $load(p.add(3 * $lanes))));
                     }
-                    let q = out.as_mut_ptr().add(i);
+                }
+                let block = &mut out[i..i + 4 * $lanes];
+                // SAFETY: `block` is exactly 4·$lanes wide, so the four stores at
+                // 0, $lanes, 2·$lanes and 3·$lanes cover it exactly.
+                unsafe {
+                    let q = block.as_mut_ptr();
                     $store(q, a0);
                     $store(q.add($lanes), a1);
                     $store(q.add(2 * $lanes), a2);
                     $store(q.add(3 * $lanes), a3);
-                    i += 4 * $lanes;
                 }
-                while i + $lanes <= n {
-                    let mut a0 = $set1(0.0);
-                    for k in 0..klen {
-                        let w = $set1(*kernel.get_unchecked(k));
-                        a0 = $add(a0, $mul(w, $load(src.as_ptr().add(i + k * stride))));
+                i += 4 * $lanes;
+            }
+            while i + $lanes <= n {
+                // SAFETY: broadcast of zero; touches no memory.
+                let mut a0 = unsafe { $set1(0.0) };
+                for (k, &w) in kernel.iter().enumerate() {
+                    // SAFETY: `i + $lanes <= n` and `k <= klen - 1`, so the read ends
+                    // at most at `n + (klen - 1)*stride - 1`, inside `src` by the
+                    // asserted precondition.
+                    unsafe {
+                        a0 = $add(a0, $mul($set1(w), $load(src.as_ptr().add(i + k * stride))));
                     }
-                    $store(out.as_mut_ptr().add(i), a0);
-                    i += $lanes;
                 }
+                let block = &mut out[i..i + $lanes];
+                // SAFETY: `block` is exactly $lanes wide — one vector store.
+                unsafe { $store(block.as_mut_ptr(), a0) };
+                i += $lanes;
             }
             for ii in i..n {
                 let mut sum = 0.0;
@@ -359,50 +422,112 @@ pub(crate) mod f32_avx512;
 pub(crate) mod f64_avx512;
 
 use core::any::TypeId;
+use core::marker::PhantomData;
 
 use crate::traits::Scalar;
+
+/// Zero-sized proof that the type parameters `T` and `U` are the same type.
+///
+/// The ISA kernels are written against concrete `f32` / `f64` slices while this
+/// dispatch layer is generic over `T: Scalar`, so bridging the two needs a
+/// reinterpreting cast — and the only thing that makes such a cast sound is a
+/// `TypeId` comparison establishing `T == U`.
+///
+/// Rather than re-deriving that argument at every cast, where a copy-paste slip
+/// (testing `f64`, casting to `f32`) would compile cleanly and silently
+/// reinterpret memory, the comparison is performed once — in [`TypeEq::new`],
+/// the sole constructor — and yields this witness. Every cast then flows through
+/// a method on the witness, so the `U` that was tested is necessarily the `U`
+/// that is cast to: the mismatch is unrepresentable. All of the module's
+/// reinterpreting `unsafe` is confined to the four methods below.
+struct TypeEq<T: Copy + 'static, U: Copy + 'static>(PhantomData<fn() -> (T, U)>);
+
+impl<T: Copy + 'static, U: Copy + 'static> Clone for TypeEq<T, U> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Copy + 'static, U: Copy + 'static> Copy for TypeEq<T, U> {}
+
+impl<T: Copy + 'static, U: Copy + 'static> TypeEq<T, U> {
+    /// Returns a witness iff `T` and `U` really are the same type.
+    #[inline(always)]
+    fn new() -> Option<Self> {
+        (TypeId::of::<T>() == TypeId::of::<U>()).then_some(Self(PhantomData))
+    }
+
+    /// Reinterprets a `T` slice as the equivalent `U` slice.
+    #[inline(always)]
+    fn slice(self, s: &[T]) -> &[U] {
+        // SAFETY: holding `self` proves `TypeId::of::<T>() == TypeId::of::<U>()`,
+        // and `TypeId` equality of two `'static` types means they are the same
+        // type — so `[T]` and `[U]` have identical size, alignment and layout.
+        // The cast preserves the pointer's provenance and the shared borrow of
+        // `s`, whose lifetime is tied to the returned reference.
+        unsafe { &*(s as *const [T] as *const [U]) }
+    }
+
+    /// Reinterprets a mutable `T` slice as the equivalent `U` slice.
+    #[inline(always)]
+    fn slice_mut(self, s: &mut [T]) -> &mut [U] {
+        // SAFETY: as in `slice`, `T` and `U` are the same type, so the layouts
+        // match exactly. The cast consumes the exclusive borrow of `s` and ties
+        // it to the returned reference, so no aliasing is introduced.
+        unsafe { &mut *(s as *mut [T] as *mut [U]) }
+    }
+
+    /// Reinterprets a `T` value as the equivalent `U` value.
+    #[inline(always)]
+    fn value(self, v: T) -> U {
+        // SAFETY: `T` and `U` are the same type, so the read is correctly sized
+        // and aligned, and reads an initialized value. Both are `Copy`, so
+        // producing a second copy duplicates no ownership.
+        unsafe { *(&v as *const T as *const U) }
+    }
+
+    /// Reinterprets a `U` value — a kernel's return — back as a `T` value.
+    #[inline(always)]
+    fn value_back(self, v: U) -> T {
+        // SAFETY: the mirror of `value`; same type, both `Copy`.
+        unsafe { *(&v as *const U as *const T) }
+    }
+}
 
 /// Dispatch dot product to SIMD or scalar fallback.
 #[inline]
 pub(crate) fn dot_dispatch<T: Scalar>(a: &[T], b: &[T]) -> T {
     #[cfg(target_arch = "aarch64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
-            let result = f64_neon::dot(a, b);
-            return unsafe { *(&result as *const f64 as *const T) };
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            return w.value_back(f64_neon::dot(w.slice(a), w.slice(b)));
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
-            let result = f32_neon::dot(a, b);
-            return unsafe { *(&result as *const f32 as *const T) };
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            return w.value_back(f32_neon::dot(w.slice(a), w.slice(b)));
         }
     }
     #[cfg(target_arch = "x86_64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            let (a, b) = (w.slice(a), w.slice(b));
             #[cfg(target_feature = "avx512f")]
             let result = f64_avx512::dot(a, b);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
             let result = f64_avx::dot(a, b);
             #[cfg(not(target_feature = "avx"))]
             let result = f64_sse2::dot(a, b);
-            return unsafe { *(&result as *const f64 as *const T) };
+            return w.value_back(result);
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            let (a, b) = (w.slice(a), w.slice(b));
             #[cfg(target_feature = "avx512f")]
             let result = f32_avx512::dot(a, b);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
             let result = f32_avx::dot(a, b);
             #[cfg(not(target_feature = "avx"))]
             let result = f32_sse2::dot(a, b);
-            return unsafe { *(&result as *const f32 as *const T) };
+            return w.value_back(result);
         }
     }
     scalar::dot(a, b)
@@ -417,6 +542,7 @@ pub(crate) fn dot_dispatch<T: Scalar>(a: &[T], b: &[T]) -> T {
 /// few-iteration loop (measured: 4×4 QR regressed ~33% without the cutoff).
 #[inline]
 pub(crate) fn dotc_dispatch<T: crate::traits::LinalgScalar>(a: &[T], b: &[T]) -> T {
+    // A plain type test, not a cast — no `TypeEq` witness needed.
     const DOTC_SIMD_CUTOFF: usize = 8;
     if a.len() >= DOTC_SIMD_CUTOFF
         && (TypeId::of::<T>() == TypeId::of::<f64>() || TypeId::of::<T>() == TypeId::of::<f32>())
@@ -444,27 +570,19 @@ pub(crate) fn matmul_dispatch<T: Scalar>(
 ) {
     #[cfg(target_arch = "aarch64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
-            let c = unsafe { &mut *(c as *mut [T] as *mut [f64]) };
-            f64_neon::matmul(a, b, c, m, n, p);
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            f64_neon::matmul(w.slice(a), w.slice(b), w.slice_mut(c), m, n, p);
             return;
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
-            let c = unsafe { &mut *(c as *mut [T] as *mut [f32]) };
-            f32_neon::matmul(a, b, c, m, n, p);
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            f32_neon::matmul(w.slice(a), w.slice(b), w.slice_mut(c), m, n, p);
             return;
         }
     }
     #[cfg(target_arch = "x86_64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let a = unsafe { &*(a as *const [T] as *const [f64]) };
-            let b = unsafe { &*(b as *const [T] as *const [f64]) };
-            let c = unsafe { &mut *(c as *mut [T] as *mut [f64]) };
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            let (a, b, c) = (w.slice(a), w.slice(b), w.slice_mut(c));
             #[cfg(target_feature = "avx512f")]
             f64_avx512::matmul(a, b, c, m, n, p);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -473,10 +591,8 @@ pub(crate) fn matmul_dispatch<T: Scalar>(
             f64_sse2::matmul(a, b, c, m, n, p);
             return;
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let a = unsafe { &*(a as *const [T] as *const [f32]) };
-            let b = unsafe { &*(b as *const [T] as *const [f32]) };
-            let c = unsafe { &mut *(c as *mut [T] as *mut [f32]) };
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            let (a, b, c) = (w.slice(a), w.slice(b), w.slice_mut(c));
             #[cfg(target_feature = "avx512f")]
             f32_avx512::matmul(a, b, c, m, n, p);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -501,27 +617,19 @@ macro_rules! simd_dispatch {
         pub(crate) fn $name<T: Scalar>(a: &[T], b: &[T], out: &mut [T]) {
             #[cfg(target_arch = "aarch64")]
             {
-                if TypeId::of::<T>() == TypeId::of::<f64>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
-                    let b = unsafe { &*(b as *const [T] as *const [f64]) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-                    f64_neon::$kernel(a, b, out);
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    f64_neon::$kernel(w.slice(a), w.slice(b), w.slice_mut(out));
                     return;
                 }
-                if TypeId::of::<T>() == TypeId::of::<f32>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
-                    let b = unsafe { &*(b as *const [T] as *const [f32]) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-                    f32_neon::$kernel(a, b, out);
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    f32_neon::$kernel(w.slice(a), w.slice(b), w.slice_mut(out));
                     return;
                 }
             }
             #[cfg(target_arch = "x86_64")]
             {
-                if TypeId::of::<T>() == TypeId::of::<f64>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
-                    let b = unsafe { &*(b as *const [T] as *const [f64]) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    let (a, b, out) = (w.slice(a), w.slice(b), w.slice_mut(out));
                     #[cfg(target_feature = "avx512f")]
                     f64_avx512::$kernel(a, b, out);
                     #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -530,10 +638,8 @@ macro_rules! simd_dispatch {
                     f64_sse2::$kernel(a, b, out);
                     return;
                 }
-                if TypeId::of::<T>() == TypeId::of::<f32>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
-                    let b = unsafe { &*(b as *const [T] as *const [f32]) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    let (a, b, out) = (w.slice(a), w.slice(b), w.slice_mut(out));
                     #[cfg(target_feature = "avx512f")]
                     f32_avx512::$kernel(a, b, out);
                     #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -553,27 +659,19 @@ macro_rules! simd_dispatch {
         pub(crate) fn $name<T: Scalar>(a: &[T], scalar: T, out: &mut [T]) {
             #[cfg(target_arch = "aarch64")]
             {
-                if TypeId::of::<T>() == TypeId::of::<f64>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
-                    let s = unsafe { *(&scalar as *const T as *const f64) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-                    f64_neon::$kernel(a, s, out);
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    f64_neon::$kernel(w.slice(a), w.value(scalar), w.slice_mut(out));
                     return;
                 }
-                if TypeId::of::<T>() == TypeId::of::<f32>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
-                    let s = unsafe { *(&scalar as *const T as *const f32) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-                    f32_neon::$kernel(a, s, out);
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    f32_neon::$kernel(w.slice(a), w.value(scalar), w.slice_mut(out));
                     return;
                 }
             }
             #[cfg(target_arch = "x86_64")]
             {
-                if TypeId::of::<T>() == TypeId::of::<f64>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f64]) };
-                    let s = unsafe { *(&scalar as *const T as *const f64) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    let (a, s, out) = (w.slice(a), w.value(scalar), w.slice_mut(out));
                     #[cfg(target_feature = "avx512f")]
                     f64_avx512::$kernel(a, s, out);
                     #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -582,10 +680,8 @@ macro_rules! simd_dispatch {
                     f64_sse2::$kernel(a, s, out);
                     return;
                 }
-                if TypeId::of::<T>() == TypeId::of::<f32>() {
-                    let a = unsafe { &*(a as *const [T] as *const [f32]) };
-                    let s = unsafe { *(&scalar as *const T as *const f32) };
-                    let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    let (a, s, out) = (w.slice(a), w.value(scalar), w.slice_mut(out));
                     #[cfg(target_feature = "avx512f")]
                     f32_avx512::$kernel(a, s, out);
                     #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -596,6 +692,48 @@ macro_rules! simd_dispatch {
                 }
             }
             scalar::$kernel(a, scalar, out);
+        }
+    };
+    // a[i] *= scalar  — scale_in_place
+    (scale_ip $(#[$attr:meta])* $name:ident => $kernel:ident => $fallback:ident) => {
+        $(#[$attr])*
+        #[inline]
+        pub(crate) fn $name<T: Scalar>(a: &mut [T], scalar: T) {
+            #[cfg(target_arch = "aarch64")]
+            {
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    f64_neon::$kernel(w.slice_mut(a), w.value(scalar));
+                    return;
+                }
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    f32_neon::$kernel(w.slice_mut(a), w.value(scalar));
+                    return;
+                }
+            }
+            #[cfg(target_arch = "x86_64")]
+            {
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    let (s, a) = (w.value(scalar), w.slice_mut(a));
+                    #[cfg(target_feature = "avx512f")]
+                    f64_avx512::$kernel(a, s);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f64_avx::$kernel(a, s);
+                    #[cfg(not(target_feature = "avx"))]
+                    f64_sse2::$kernel(a, s);
+                    return;
+                }
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    let (s, a) = (w.value(scalar), w.slice_mut(a));
+                    #[cfg(target_feature = "avx512f")]
+                    f32_avx512::$kernel(a, s);
+                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+                    f32_avx::$kernel(a, s);
+                    #[cfg(not(target_feature = "avx"))]
+                    f32_sse2::$kernel(a, s);
+                    return;
+                }
+            }
+            scalar::$fallback(a, scalar);
         }
     };
     // y[i] (op)= alpha * x[i]  — axpy_neg / axpy_pos
@@ -610,45 +748,35 @@ macro_rules! simd_dispatch {
             }
             #[cfg(target_arch = "aarch64")]
             {
-                if TypeId::of::<T>() == TypeId::of::<f64>() {
-                    let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
-                    let a = unsafe { *(&alpha as *const T as *const f64) };
-                    let x = unsafe { &*(x as *const [T] as *const [f64]) };
-                    f64_neon::$kernel(y, a, x);
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    f64_neon::$kernel(w.slice_mut(y), w.value(alpha), w.slice(x));
                     return;
                 }
-                if TypeId::of::<T>() == TypeId::of::<f32>() {
-                    let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
-                    let a = unsafe { *(&alpha as *const T as *const f32) };
-                    let x = unsafe { &*(x as *const [T] as *const [f32]) };
-                    f32_neon::$kernel(y, a, x);
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    f32_neon::$kernel(w.slice_mut(y), w.value(alpha), w.slice(x));
                     return;
                 }
             }
             #[cfg(target_arch = "x86_64")]
             {
-                if TypeId::of::<T>() == TypeId::of::<f64>() {
-                    let y = unsafe { &mut *(y as *mut [T] as *mut [f64]) };
-                    let a = unsafe { *(&alpha as *const T as *const f64) };
-                    let x = unsafe { &*(x as *const [T] as *const [f64]) };
+                if let Some(w) = TypeEq::<T, f64>::new() {
+                    let (y, al, x) = (w.slice_mut(y), w.value(alpha), w.slice(x));
                     #[cfg(target_feature = "avx512f")]
-                    f64_avx512::$kernel(y, a, x);
+                    f64_avx512::$kernel(y, al, x);
                     #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f64_avx::$kernel(y, a, x);
+                    f64_avx::$kernel(y, al, x);
                     #[cfg(not(target_feature = "avx"))]
-                    f64_sse2::$kernel(y, a, x);
+                    f64_sse2::$kernel(y, al, x);
                     return;
                 }
-                if TypeId::of::<T>() == TypeId::of::<f32>() {
-                    let y = unsafe { &mut *(y as *mut [T] as *mut [f32]) };
-                    let a = unsafe { *(&alpha as *const T as *const f32) };
-                    let x = unsafe { &*(x as *const [T] as *const [f32]) };
+                if let Some(w) = TypeEq::<T, f32>::new() {
+                    let (y, al, x) = (w.slice_mut(y), w.value(alpha), w.slice(x));
                     #[cfg(target_feature = "avx512f")]
-                    f32_avx512::$kernel(y, a, x);
+                    f32_avx512::$kernel(y, al, x);
                     #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f32_avx::$kernel(y, a, x);
+                    f32_avx::$kernel(y, al, x);
                     #[cfg(not(target_feature = "avx"))]
-                    f32_sse2::$kernel(y, a, x);
+                    f32_sse2::$kernel(y, al, x);
                     return;
                 }
             }
@@ -666,6 +794,15 @@ simd_dispatch!(binop
 simd_dispatch!(scale
     /// Dispatch scalar multiplication to SIMD or scalar fallback.
     scale_slices_dispatch => scale_slices);
+simd_dispatch!(scale_ip
+    /// Dispatch in-place scalar multiplication (`a[i] *= scalar`) to SIMD or
+    /// scalar fallback.
+    ///
+    /// Uses dedicated in-place kernels rather than aliasing the input and output
+    /// of [`scale_slices_dispatch`]: handing the same buffer to a `&[T]` and a
+    /// `&mut [T]` parameter simultaneously violates Rust's aliasing rules even
+    /// though the element-wise kernel never reads ahead of its writes.
+    scale_in_place_dispatch => scale_in_place => scale_assign_slices);
 simd_dispatch!(axpy
     /// Dispatch AXPY: y[i] -= alpha * x[i].
     ///
@@ -690,27 +827,19 @@ simd_dispatch!(axpy
 pub(crate) fn conv1d_dispatch<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T], stride: usize) {
     #[cfg(target_arch = "aarch64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            let src = unsafe { &*(src as *const [T] as *const [f64]) };
-            let kernel = unsafe { &*(kernel as *const [T] as *const [f64]) };
-            f64_neon::conv1d(out, src, kernel, stride);
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            f64_neon::conv1d(w.slice_mut(out), w.slice(src), w.slice(kernel), stride);
             return;
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            let src = unsafe { &*(src as *const [T] as *const [f32]) };
-            let kernel = unsafe { &*(kernel as *const [T] as *const [f32]) };
-            f32_neon::conv1d(out, src, kernel, stride);
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            f32_neon::conv1d(w.slice_mut(out), w.slice(src), w.slice(kernel), stride);
             return;
         }
     }
     #[cfg(target_arch = "x86_64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f64]) };
-            let src = unsafe { &*(src as *const [T] as *const [f64]) };
-            let kernel = unsafe { &*(kernel as *const [T] as *const [f64]) };
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            let (out, src, kernel) = (w.slice_mut(out), w.slice(src), w.slice(kernel));
             #[cfg(target_feature = "avx512f")]
             f64_avx512::conv1d(out, src, kernel, stride);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -719,10 +848,8 @@ pub(crate) fn conv1d_dispatch<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T],
             f64_sse2::conv1d(out, src, kernel, stride);
             return;
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            let out = unsafe { &mut *(out as *mut [T] as *mut [f32]) };
-            let src = unsafe { &*(src as *const [T] as *const [f32]) };
-            let kernel = unsafe { &*(kernel as *const [T] as *const [f32]) };
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            let (out, src, kernel) = (w.slice_mut(out), w.slice(src), w.slice(kernel));
             #[cfg(target_feature = "avx512f")]
             f32_avx512::conv1d(out, src, kernel, stride);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
@@ -733,22 +860,6 @@ pub(crate) fn conv1d_dispatch<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T],
         }
     }
     scalar::conv1d(out, src, kernel, stride);
-}
-
-/// Dispatch in-place scalar multiplication to SIMD or scalar fallback.
-///
-/// Multiplies each element of `a` by `scalar` in place.
-/// Reuses `scale_slices` kernels since element-wise multiply has no
-/// cross-element dependencies (safe to alias input and output).
-#[inline]
-pub(crate) fn scale_in_place_dispatch<T: Scalar>(a: &mut [T], scalar: T) {
-    // Safety: scale_slices performs element-wise a[i] * scalar → out[i]
-    // with no read-ahead, so aliasing input = output is safe.
-    let ptr = a.as_mut_ptr();
-    let len = a.len();
-    let a_ref = unsafe { core::slice::from_raw_parts(ptr, len) };
-    let out_ref = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
-    scale_slices_dispatch(a_ref, scalar, out_ref);
 }
 
 #[cfg(test)]
@@ -967,6 +1078,43 @@ mod tests {
                 assert_eq!(out[i], a[i] * 3.0, "scale f32 n={n} idx={i}");
             }
         }
+    }
+
+    #[test]
+    fn scale_in_place_f64_boundary() {
+        for n in [0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33] {
+            let mut a: Vec<f64> = (0..n).map(|i| (i + 1) as f64).collect();
+            let expected: Vec<f64> = a.iter().map(|x| x * 3.0).collect();
+
+            scale_in_place_dispatch(&mut a, 3.0);
+
+            for i in 0..n {
+                assert_eq!(a[i], expected[i], "scale_in_place f64 n={n} idx={i}");
+            }
+        }
+    }
+
+    #[test]
+    fn scale_in_place_f32_boundary() {
+        for n in [
+            0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
+        ] {
+            let mut a: Vec<f32> = (0..n).map(|i| (i + 1) as f32).collect();
+            let expected: Vec<f32> = a.iter().map(|x| x * 3.0).collect();
+
+            scale_in_place_dispatch(&mut a, 3.0_f32);
+
+            for i in 0..n {
+                assert_eq!(a[i], expected[i], "scale_in_place f32 n={n} idx={i}");
+            }
+        }
+    }
+
+    #[test]
+    fn scale_in_place_integer_fallback() {
+        let mut a = vec![1_i32, 2, 3, 4, 5];
+        scale_in_place_dispatch(&mut a, 3);
+        assert_eq!(a, vec![3, 6, 9, 12, 15]);
     }
 
     // ── AXPY boundary tests ───────────────────────────────────────────

@@ -18,72 +18,72 @@ use core::arch::x86_64::*;
 #[inline]
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
-    let n = a.len();
-    let chunks = n / 64; // 4 accumulators × 16 lanes
 
-    unsafe {
-        let ap = a.as_ptr();
-        let bp = b.as_ptr();
+    // SAFETY: register broadcasts of zero; they touch no memory.
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
+        (
+            _mm512_setzero_ps(),
+            _mm512_setzero_ps(),
+            _mm512_setzero_ps(),
+            _mm512_setzero_ps(),
+        )
+    };
 
-        let mut acc0 = _mm512_setzero_ps();
-        let mut acc1 = _mm512_setzero_ps();
-        let mut acc2 = _mm512_setzero_ps();
-        let mut acc3 = _mm512_setzero_ps();
-
-        for i in 0..chunks {
-            let off = i * 64;
+    // 4 accumulators × 16 lanes = 64 elements per iteration.
+    let mut ai = a.chunks_exact(64);
+    let mut bi = b.chunks_exact(64);
+    for (ac, bc) in (&mut ai).zip(&mut bi) {
+        // SAFETY: `chunks_exact(64)` yields chunks of exactly 64 `f32`, so the
+        // four 16-lane loads at offsets 0, 16, 32 and 48 cover each chunk exactly.
+        unsafe {
+            let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
             acc0 = _mm512_add_ps(
                 acc0,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(off)), _mm512_loadu_ps(bp.add(off))),
+                _mm512_mul_ps(_mm512_loadu_ps(ap), _mm512_loadu_ps(bp)),
             );
             acc1 = _mm512_add_ps(
                 acc1,
-                _mm512_mul_ps(
-                    _mm512_loadu_ps(ap.add(off + 16)),
-                    _mm512_loadu_ps(bp.add(off + 16)),
-                ),
+                _mm512_mul_ps(_mm512_loadu_ps(ap.add(16)), _mm512_loadu_ps(bp.add(16))),
             );
             acc2 = _mm512_add_ps(
                 acc2,
-                _mm512_mul_ps(
-                    _mm512_loadu_ps(ap.add(off + 32)),
-                    _mm512_loadu_ps(bp.add(off + 32)),
-                ),
+                _mm512_mul_ps(_mm512_loadu_ps(ap.add(32)), _mm512_loadu_ps(bp.add(32))),
             );
             acc3 = _mm512_add_ps(
                 acc3,
-                _mm512_mul_ps(
-                    _mm512_loadu_ps(ap.add(off + 48)),
-                    _mm512_loadu_ps(bp.add(off + 48)),
-                ),
+                _mm512_mul_ps(_mm512_loadu_ps(ap.add(48)), _mm512_loadu_ps(bp.add(48))),
             );
         }
+    }
 
-        acc0 = _mm512_add_ps(acc0, acc1);
-        acc2 = _mm512_add_ps(acc2, acc3);
-        acc0 = _mm512_add_ps(acc0, acc2);
-        let mut sum = _mm512_reduce_add_ps(acc0);
+    // SAFETY: register arithmetic only — no memory is touched.
+    let mut sum = unsafe {
+        let s01 = _mm512_add_ps(acc0, acc1);
+        let s23 = _mm512_add_ps(acc2, acc3);
+        _mm512_reduce_add_ps(_mm512_add_ps(s01, s23))
+    };
 
-        // Remainder: up to 63 elements — handle 16-wide then scalar
-        let tail = chunks * 64;
-        let remaining = n - tail;
-        let rem_sixteens = remaining / 16;
-        let mut acc_rem = _mm512_setzero_ps();
-        for i in 0..rem_sixteens {
-            let off = tail + i * 16;
+    // Remainder: up to 63 elements — 16-wide vectors first, then scalar.
+    // SAFETY: register broadcast of zero.
+    let mut acc_rem = unsafe { _mm512_setzero_ps() };
+    let mut ar = ai.remainder().chunks_exact(16);
+    let mut br = bi.remainder().chunks_exact(16);
+    for (ac, bc) in (&mut ar).zip(&mut br) {
+        // SAFETY: each chunk is exactly 16 `f32` — one vector load each.
+        unsafe {
             acc_rem = _mm512_add_ps(
                 acc_rem,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(off)), _mm512_loadu_ps(bp.add(off))),
+                _mm512_mul_ps(_mm512_loadu_ps(ac.as_ptr()), _mm512_loadu_ps(bc.as_ptr())),
             );
         }
-        sum += _mm512_reduce_add_ps(acc_rem);
-
-        let scalar_start = tail + rem_sixteens * 16;
-        for i in scalar_start..n {
-            sum += a[i] * b[i];
-        }
-        sum
     }
+    // SAFETY: register arithmetic only.
+    sum += unsafe { _mm512_reduce_add_ps(acc_rem) };
+
+    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+        sum += x * y;
+    }
+    sum
 }
 
 /// Matrix multiply C += A * B using AVX-512 with register-blocked micro-kernel.
@@ -193,6 +193,19 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 
 /// Register-blocked 32×4 micro-kernel: accumulates C[i0..i0+32, j0..j0+4] in
 /// 8 AVX-512 registers across the full k-loop, writing C only once.
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 32 <= m`, so the tile's 32 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
+/// the module's `#[cfg(target_feature = "avx512f")]` gate.
 #[inline(always)]
 unsafe fn microkernel_32x4(
     a: &[f32],
@@ -287,6 +300,19 @@ unsafe fn microkernel_32x4(
 }
 
 /// 16×4 mini-kernel (1 __m512 per column, 16 f32 rows).
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 16 <= m`, so the tile's 16 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
+/// the module's `#[cfg(target_feature = "avx512f")]` gate.
 #[inline(always)]
 unsafe fn microkernel_16x4(
     a: &[f32],
@@ -333,6 +359,19 @@ unsafe fn microkernel_16x4(
 }
 
 /// 8×4 mini-kernel (1 __m256 per column).
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 8 <= m`, so the tile's 8 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
+/// the module's `#[cfg(target_feature = "avx512f")]` gate.
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f32],
@@ -379,6 +418,19 @@ unsafe fn microkernel_8x4(
 }
 
 /// 4×4 mini-kernel (1 __m128 per column).
+///
+/// # Safety
+///
+/// With `a` an `m×n`, `b` an `n×p` and `c` an `m×p` column-major matrix — so
+/// `a.len() == m * n`, `b.len() == n * p` and `c.len() == m * p` — the caller
+/// must guarantee that the tile and k-range lie inside them:
+///
+/// - `i0 + 4 <= m`, so the tile's 4 rows are within `a`'s and `c`'s columns;
+/// - `j0 + 4 <= p`, so the tile's 4 columns are within `b` and `c`;
+/// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
+///
+/// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
+/// the module's `#[cfg(target_feature = "avx512f")]` gate.
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f32],
