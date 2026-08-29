@@ -82,6 +82,21 @@ println!("steps taken = {}", sol.accepted); // number of accepted steps
 
 ![Harmonic Oscillator plot](includes/plot_ode.svg)
 
+### Step-size control and discontinuities
+
+Accepted steps are sized by the PI controller. A rejected step is shrunk by the
+order-based estimate `enorm^(0.7/p) / safety` (capped at `1 / min_factor`), and
+from the second *consecutive* rejection on by **at least 2×**. The forced halving
+matters when the right-hand side has a kink or discontinuity inside a step (a
+switching force, an eclipse boundary, a piecewise control law): there the local
+error scales like `h` rather than `h^(p+1)`, so the order-based shrink alone is
+far too gentle for a high-order method and the integrator could exhaust its
+rejection budget before stepping past the kink. With the forced halving every
+solver steps through a kink in a few dozen rejections at any tolerance; the
+`TooManyRejections` limit (50 consecutive) is reached only when the error cannot
+be brought under tolerance at *any* step size. Smooth problems are unaffected —
+they essentially never reject twice in a row.
+
 ### AdaptiveSettings
 
 ```rust
@@ -207,7 +222,7 @@ match RKTS54::integrate(0.0, 1.0, &y0, f, &settings) {
     Ok(sol) => { /* success */ }
     Err(OdeError::MaxStepsExceeded) => { /* increase max_steps or rel_tol/abs_tol */ }
     Err(OdeError::StepNotFinite) => { /* NaN/Inf in state — check dynamics */ }
-    Err(OdeError::TooManyRejections) => { /* likely stiff — use RODAS4 or set h_min */ }
+    Err(OdeError::TooManyRejections) => { /* >50 consecutive rejections: tolerance unreachable — loosen tolerances or set h_min */ }
     Err(OdeError::SingularJacobian) => { /* RODAS4: Jacobian is singular */ }
     _ => {}
 }

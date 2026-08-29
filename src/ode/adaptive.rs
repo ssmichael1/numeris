@@ -63,6 +63,52 @@ impl Default for AdaptiveSettings<f32> {
     }
 }
 
+/// Maximum number of consecutive step rejections before the adaptive
+/// integrators give up with [`OdeError::TooManyRejections`].
+///
+/// [`rejected_step_factor`] shrinks `h` by at least 2× on every rejection
+/// after the first, so this many consecutive rejections shrink the step by
+/// at least 2⁴⁹ ≈ 5·10¹⁴ — the full useful dynamic range of an `f64` step.
+/// The limit can therefore only be reached on a problem the solver cannot
+/// resolve at *any* step size (a tolerance below machine precision, a
+/// non-finite or noisy right-hand side), never by a kink or discontinuity
+/// in an otherwise well-posed `f`.
+pub(super) const MAX_CONSECUTIVE_REJECTS: usize = 50;
+
+/// Divisor applied to the step size after a rejected step.
+///
+/// A single rejection uses the order-based estimate `enorm^β₁ / safety`,
+/// which assumes the local error scales like `h^(p+1)`. That assumption
+/// fails when the right-hand side has a kink or discontinuity inside the
+/// step — there the error is O(h)–O(h²), so the high-order estimate shrinks
+/// `h` far too gently (for a 9th-order method, `enorm = 30` gives a divisor
+/// of only 1.4, and the number of rejections needed to step past the kink
+/// grows without bound as the tolerance tightens). Repeated rejections are
+/// the signature of exactly that case, so from the second consecutive
+/// rejection on the divisor is at least 2, guaranteeing geometric progress.
+/// Both branches are capped at `1 / settings.min_factor`.
+pub(super) fn rejected_step_factor<T: FloatScalar>(
+    enorm: T,
+    beta1: T,
+    consecutive_rejects: usize,
+    settings: &AdaptiveSettings<T>,
+) -> T {
+    let one = T::one();
+    let hi = one / settings.min_factor;
+    let mut q = enorm.powf(beta1) / settings.safety;
+    if consecutive_rejects > 1 {
+        let two = one + one;
+        if q < two {
+            q = two;
+        }
+    }
+    if q < hi {
+        q
+    } else {
+        hi
+    }
+}
+
 /// Trait for adaptive Runge-Kutta solvers.
 ///
 /// Each solver is a zero-size struct that implements this trait with
@@ -301,19 +347,17 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
                     break;
                 }
             } else {
-                // Reject step — use a more conservative factor
+                // Reject step — shrink by at least 2× after the first
+                // consecutive rejection (see `rejected_step_factor`).
                 if Self::FSAL {
                     k_last = None;
                 }
                 nreject += 1;
                 consecutive_rejects += 1;
-                if consecutive_rejects > 10 {
+                if consecutive_rejects > MAX_CONSECUTIVE_REJECTS {
                     return Err(OdeError::TooManyRejections);
                 }
-                let hi = one / settings.min_factor;
-                let reject_q = enorm.powf(beta1) / settings.safety;
-                let denom = if reject_q < hi { reject_q } else { hi };
-                h = h / denom;
+                h = h / rejected_step_factor(enorm, beta1, consecutive_rejects, settings);
 
                 // Enforce h_min floor on rejected step size
                 if let Some(hm) = settings.h_min {
