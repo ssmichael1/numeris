@@ -3,6 +3,7 @@
 //   E. Hairer, rodas.f — http://www.unige.ch/~hairer/prog/stiff/rodas.f
 //   OrdinaryDiffEq.jl (SciML/Julia) — Rosenbrock integrators
 
+use super::adaptive::{rejected_step_factor, MAX_CONSECUTIVE_REJECTS};
 use super::{AdaptiveSettings, OdeError};
 use crate::linalg::lu::{lu_in_place, lu_solve};
 use crate::matrix::vector::Vector;
@@ -379,16 +380,14 @@ where
                 break;
             }
         } else {
-            // Reject step
+            // Reject step — shrink by at least 2× after the first
+            // consecutive rejection (see `adaptive::rejected_step_factor`).
             nreject += 1;
             consecutive_rejects += 1;
-            if consecutive_rejects > 10 {
+            if consecutive_rejects > MAX_CONSECUTIVE_REJECTS {
                 return Err(OdeError::TooManyRejections);
             }
-            let hi = one / settings.min_factor;
-            let reject_q = enorm.powf(beta1) / settings.safety;
-            let denom = if reject_q < hi { reject_q } else { hi };
-            h = h / denom;
+            h = h / rejected_step_factor(enorm, beta1, consecutive_rejects, settings);
 
             // Enforce h_min floor on rejected step size
             if let Some(hm) = settings.h_min {

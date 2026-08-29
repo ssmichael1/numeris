@@ -100,7 +100,14 @@ pub enum OdeError {
     InterpNotImplemented,
     /// Jacobian matrix is singular (Rosenbrock solvers only).
     SingularJacobian,
-    /// Too many consecutive step rejections (adaptive only).
+    /// More than 50 consecutive step rejections (adaptive solvers only).
+    ///
+    /// Every rejection after the first shrinks the step by at least 2×, so
+    /// reaching this limit means the error cannot be brought under tolerance
+    /// at any step size — a tolerance below machine precision, or a
+    /// non-finite/noisy right-hand side. Kinks and discontinuities in `f` do
+    /// not trigger it. Loosen `abs_tol`/`rel_tol`, or set
+    /// [`AdaptiveSettings::h_min`] to accept reduced accuracy instead.
     TooManyRejections,
 }
 

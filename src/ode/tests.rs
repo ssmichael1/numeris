@@ -604,6 +604,117 @@ mod adaptive_tests {
         assert!(!matches!(result_hmin, Err(OdeError::TooManyRejections)));
     }
 
+    // ── Kinks / discontinuities in the right-hand side ─────────────────
+    //
+    // A step straddling a jump in `f` has local error O(h) instead of
+    // O(h^(p+1)), so the order-based rejection shrink is far too gentle and
+    // the old fixed limit of 10 consecutive rejections aborted the integration
+    // with `TooManyRejections`. Every test below failed before the forced
+    // 2× shrink on repeated rejections (see `adaptive::rejected_step_factor`).
+
+    /// `y' = sign(0.5 − t)`, `y(0) = 0` ⇒ `y(1) = 0` exactly.
+    fn kink_rhs(t: f64, _y: &Vector<f64, 1>) -> Vector<f64, 1> {
+        Vector::from_array([if t < 0.5 { 1.0 } else { -1.0 }])
+    }
+
+    /// Tight tolerance with `min_step = 0`, so a straddling step can only be
+    /// accepted once its O(h) error is genuinely under tolerance — no forced
+    /// acceptance path hides a failure to converge.
+    fn kink_settings() -> AdaptiveSettings<f64> {
+        AdaptiveSettings {
+            abs_tol: 1e-10,
+            rel_tol: 1e-10,
+            min_step: 0.0,
+            max_steps: 100_000,
+            ..AdaptiveSettings::default()
+        }
+    }
+
+    fn check_kink<S: RKAdaptive<ST, NI>, const ST: usize, const NI: usize>(name: &str) {
+        let y0 = Vector::from_array([0.0_f64]);
+        let sol = S::integrate(0.0, 1.0, &y0, kink_rhs, &kink_settings())
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert!(
+            sol.y[0].abs() < 1e-8,
+            "{name}: y(1) = {} (expected 0)",
+            sol.y[0]
+        );
+        // Stepping past the kink costs a few dozen rejections total; a
+        // regression back to the gentle shrink would need hundreds.
+        assert!(
+            sol.rejected < 100,
+            "{name}: {} rejections stepping past the kink",
+            sol.rejected
+        );
+    }
+
+    #[test]
+    fn kink_in_rhs_explicit_solvers() {
+        check_kink::<RKF45, 6, 1>("RKF45");
+        check_kink::<RKTS54, 7, 4>("RKTS54");
+        check_kink::<RKV65, 10, 6>("RKV65");
+        check_kink::<RKV87, 17, 7>("RKV87");
+        check_kink::<RKV98, 21, 8>("RKV98");
+        check_kink::<RKV98NoInterp, 16, 1>("RKV98NoInterp");
+        check_kink::<RKV98Efficient, 26, 9>("RKV98Efficient");
+    }
+
+    #[test]
+    fn kink_in_rhs_rodas4() {
+        // `f` does not depend on `y`, so the Jacobian is identically zero.
+        let y0 = Vector::from_array([0.0_f64]);
+        let sol = RODAS4::integrate(
+            0.0,
+            1.0,
+            &y0,
+            kink_rhs,
+            |_t, _y| Matrix::new([[0.0]]),
+            &kink_settings(),
+        )
+        .unwrap_or_else(|e| panic!("RODAS4: {e:?}"));
+        assert!(sol.y[0].abs() < 1e-8, "RODAS4: y(1) = {}", sol.y[0]);
+        assert!(sol.rejected < 100, "RODAS4: {} rejections", sol.rejected);
+    }
+
+    #[test]
+    fn small_step_forcing_rkv98_tight_tol() {
+        // Harmonic oscillator with a 1e-7 forcing switched on at t = π — the
+        // shape of Earth-shadow switching solar radiation pressure on in an
+        // orbit propagator (the kink is tiny relative to the state, so
+        // `enorm` at the kink is modest and the order-based shrink is at its
+        // gentlest). RKV98 at tol = 1e-10 aborted here before the fix.
+        // Exact solution for t ≥ π: y = ε + (1 + ε) cos t ⇒ y(2π) = 1 + 2ε.
+        let eps = 1e-7;
+        let f = |t: f64, y: &Vector<f64, 2>| {
+            let forcing = if t > PI { eps } else { 0.0 };
+            Vector::from_array([y[1], -y[0] + forcing])
+        };
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let sol = RKV98::integrate(0.0, TAU, &y0, f, &kink_settings()).unwrap();
+        assert!(
+            (sol.y[0] - (1.0 + 2.0 * eps)).abs() < 1e-9,
+            "y(2π) = {}",
+            sol.y[0]
+        );
+        assert!(sol.rejected < 50, "{} rejections", sol.rejected);
+    }
+
+    #[test]
+    fn smooth_problem_unaffected_by_rejection_rule() {
+        // The forced 2× shrink only engages from the second *consecutive*
+        // rejection, which a smooth problem essentially never produces —
+        // the step count must be identical to the pre-fix controller.
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-10,
+            rel_tol: 1e-10,
+            ..AdaptiveSettings::default()
+        };
+        let sol = RKV98::integrate(0.0, TAU, &y0, ydot, &settings).unwrap();
+        assert_eq!(sol.rejected, 0);
+        assert!((sol.y[0] - 1.0).abs() < 1e-9);
+    }
+
     #[test]
     fn rodas4_singular_w_matrix() {
         // Provide a Jacobian that makes W = I/(hγ) - J singular.

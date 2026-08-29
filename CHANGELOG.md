@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.5.18
+
+- **Adaptive ODE solvers no longer abort on kinks in the right-hand side** —
+  a step straddling a discontinuity in `f` (Earth-shadow switching solar
+  radiation pressure on/off, a piecewise control law, a step forcing) has a
+  local error that scales like `h` rather than `h^(p+1)`, so the order-based
+  rejection shrink `enorm^(0.7/p) / safety` was far too gentle for the
+  high-order methods (for RKV98, `enorm = 30` shrank `h` by only 1.4×) and the
+  fixed limit of 10 consecutive rejections was exhausted before the step got
+  past the kink, returning `OdeError::TooManyRejections`. Reproduced on a
+  pure kink `y' = sign(0.5 − t)` at `tol = 1e-8` (RKTS54, RKV87, all RKV98
+  variants) and on an oscillator with a 1e-7 step forcing at `tol = 1e-10`
+  (RKV98 — the orbit-propagator case that surfaced it). Every rejection after
+  the first consecutive one now shrinks `h` by at least 2× (still capped at
+  `1 / min_factor`), and the consecutive-rejection limit is 50 — with the
+  forced halving that is a 2⁴⁹ step reduction, so it can only fire when the
+  tolerance is unreachable at any step size (e.g. below machine precision),
+  which is what the error now documents. The rule engages only from the
+  second consecutive rejection, so smooth problems take exactly the same
+  steps as before. Shared between the explicit RK loop and the Rosenbrock
+  loop via one `rejected_step_factor` helper. Regression tests cover the pure
+  kink on all seven explicit solvers and RODAS4 with `min_step = 0` (so no
+  forced-acceptance path can mask a failure), the small-forcing RKV98 case,
+  and an unchanged smooth-problem step count.
+
 ## 0.5.17
 
 - **ODE solvers: initial step clamped to `|tf − t0|`** — the automatic
