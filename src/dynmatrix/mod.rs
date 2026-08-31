@@ -104,15 +104,23 @@ impl<T: Scalar> DynMatrix<T> {
     /// current contents.
     ///
     /// A no-op when the shape already matches. Otherwise the storage is
-    /// resized in place — reallocating only if the existing capacity is
-    /// insufficient — and the element values are unspecified (any new
-    /// elements are zero, but callers must treat the whole matrix as
-    /// scratch to be overwritten). Used by the `_into` variants of
-    /// `imageproc` routines so a caller-owned buffer can be reused across
-    /// calls without touching every element on each call.
+    /// resized in place when its capacity suffices, and replaced by a fresh
+    /// zeroed allocation (`calloc`-backed for zero-representable element
+    /// types, so pages are mapped lazily on first touch rather than memset
+    /// up front) when it does not. Element values are unspecified either way
+    /// — callers must treat the whole matrix as scratch to be overwritten.
+    /// Used by the `_into` variants of `imageproc` routines so a caller-owned
+    /// buffer can be reused across calls without touching every element on
+    /// each call.
+    #[cfg(feature = "imageproc")]
     pub(crate) fn resize_discard(&mut self, nrows: usize, ncols: usize) {
         if self.nrows != nrows || self.ncols != ncols {
-            self.data.resize(nrows * ncols, T::zero());
+            let len = nrows * ncols;
+            if len > self.data.capacity() {
+                self.data = vec![T::zero(); len];
+            } else {
+                self.data.resize(len, T::zero());
+            }
             self.nrows = nrows;
             self.ncols = ncols;
         }

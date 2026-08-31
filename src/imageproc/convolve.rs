@@ -2,7 +2,7 @@ use crate::dynmatrix::DynMatrix;
 use crate::simd;
 use crate::traits::{FloatScalar, MatrixMut, MatrixRef, Scalar};
 
-use super::border::{fetch_border, BorderMode};
+use super::border::{border_index, fetch_border, BorderMode};
 
 /// Approximate per-pass work (element multiply-adds: `nrows · ncols · klen`)
 /// below which a separable convolution pass runs sequentially. Above it, the
@@ -22,7 +22,9 @@ const CONV_PAR_MIN_COLS: usize = 8;
 
 /// Column-count threshold for [`crate::par::for_each_chunk_mut`] derived from the
 /// work budget: parallelize once `ncols` reaches `BUDGET / (nrows · klen)`,
-/// floored at [`CONV_PAR_MIN_COLS`].
+/// floored at [`CONV_PAR_MIN_COLS`]. Used by the test-only whole-image passes;
+/// the banded production path gates on per-band work directly.
+#[cfg(test)]
 #[inline]
 fn conv_par_col_threshold(nrows: usize, klen: usize) -> usize {
     crate::par::work_col_threshold(
@@ -89,6 +91,27 @@ pub fn convolve2d<T: FloatScalar, K: MatrixRef<T>>(
     dst
 }
 
+/// Default band width (output columns) for the banded separable convolution.
+///
+/// Each band's vertical pass writes `band + K_x − 1` columns into a scratch
+/// slab that the band's horizontal pass then reads; 64 columns keeps that
+/// slab cache-resident for typical image heights (a 2048-row f32 image with
+/// an 11-tap kernel is ≈ 600 KB) while paying only `(K_x − 1) / 64` extra
+/// vertical work for the halo. Wider kernels widen the band to bound that
+/// overhead — see [`separable_band`].
+const SEPARABLE_BAND_COLS: usize = 64;
+
+/// Band width for a separable convolution of an `ncols`-wide image with an
+/// `klen_x`-tap horizontal kernel: the default, widened so the halo costs at
+/// most 25 % extra vertical-pass work, clamped to the image width.
+#[inline]
+fn separable_band(ncols: usize, klen_x: usize) -> usize {
+    SEPARABLE_BAND_COLS
+        .max(4 * klen_x.saturating_sub(1))
+        .min(ncols)
+        .max(1)
+}
+
 /// Separable 2D convolution: apply `kernel_y` along each column, then
 /// `kernel_x` along each row.
 ///
@@ -98,10 +121,9 @@ pub fn convolve2d<T: FloatScalar, K: MatrixRef<T>>(
 ///
 /// Both 1D kernels must have odd, nonzero length.
 ///
-/// Allocates the intermediate and output images on every call; see
-/// [`convolve2d_separable_into`] to reuse caller-owned buffers, or
-/// [`convolve2d_separable_cols`] to consume the result column by column
-/// without materializing it at all. All three produce bit-identical results.
+/// Allocates the output image on every call; see
+/// [`convolve2d_separable_into`] to write into a caller-owned buffer instead
+/// (this function is a thin wrapper around it, so the two are bit-identical).
 ///
 /// # Example
 ///
@@ -127,27 +149,33 @@ pub fn convolve2d_separable<T: FloatScalar + crate::par::MaybeSync>(
 ) -> DynMatrix<T> {
     // `zeros` goes through calloc — the pages are mapped lazily and first
     // touched by the passes themselves — so pre-sizing here costs no more
-    // than letting `_into` grow empty buffers, and the `_into` path then sees
-    // matching shapes and does nothing extra.
-    let mut tmp = DynMatrix::<T>::zeros(src.nrows(), src.ncols());
+    // than letting `_into` grow an empty buffer, and the `_into` path then
+    // sees a matching shape and does nothing extra.
     let mut dst = DynMatrix::<T>::zeros(src.nrows(), src.ncols());
-    convolve2d_separable_into(src, kernel_y, kernel_x, border, &mut tmp, &mut dst);
+    convolve2d_separable_into(src, kernel_y, kernel_x, border, &mut dst);
     dst
 }
 
-/// Allocation-free [`convolve2d_separable`]: writes the result into `dst`,
-/// using `tmp` for the intermediate (vertical-pass) image.
+/// [`convolve2d_separable`] into a caller-owned output buffer.
 ///
-/// Both buffers are resized to `src`'s shape if they do not already match
-/// (reallocating only when their capacity is insufficient), and their prior
-/// contents are discarded. Passing buffers that already have the right shape
-/// makes the call allocation-free — the point of this variant: for a large
-/// image the fresh `zeros` allocations plus first-touch page faults of
-/// [`convolve2d_separable`] are a substantial fraction of the total time, and
-/// a caller that filters many frames of the same size can amortize them away.
+/// `dst` is resized to `src`'s shape if it does not already match
+/// (reallocating only when its capacity is insufficient) and its prior
+/// contents are discarded, so a caller that filters many frames of the same
+/// size reuses one output buffer across all of them. The intermediate
+/// (vertical-pass) image is never materialized: the image is processed in
+/// bands of output columns, each band's vertical pass running over the band
+/// plus a kernel-half-width halo into a small scratch slab that its
+/// horizontal pass then consumes. That slab — `(band + K_x − 1) · nrows`
+/// elements, allocated once per call, or once per rayon job (not per band)
+/// under `rayon` — is the only allocation, and it stays cache-resident
+/// across the horizontal pass, which is why this is markedly faster than two
+/// whole-image passes on large images even before counting the output
+/// allocation it saves.
 ///
 /// The output is bit-for-bit identical to [`convolve2d_separable`] (the
-/// allocating function is a thin wrapper around this one).
+/// allocating function is a thin wrapper around this one) and independent of
+/// the band width and thread count: every output column is computed by the
+/// same per-column pass, reading the same values in the same order.
 ///
 /// Both 1D kernels must have odd, nonzero length.
 ///
@@ -158,12 +186,11 @@ pub fn convolve2d_separable<T: FloatScalar + crate::par::MaybeSync>(
 /// use numeris::imageproc::{convolve2d_separable_into, gaussian_kernel_1d, BorderMode};
 ///
 /// let k = gaussian_kernel_1d::<f32>(1.0, 3.0).unwrap();
-/// let mut tmp = DynMatrix::<f32>::zeros(0, 0);
 /// let mut dst = DynMatrix::<f32>::zeros(0, 0);
 /// for frame in 0..3 {
 ///     let img = DynMatrix::<f32>::fill(64, 48, frame as f32);
-///     // First call sizes the buffers; later calls reuse them.
-///     convolve2d_separable_into(&img, &k, &k, BorderMode::Replicate, &mut tmp, &mut dst);
+///     // First call sizes the buffer; later calls reuse it.
+///     convolve2d_separable_into(&img, &k, &k, BorderMode::Replicate, &mut dst);
 ///     assert_eq!((dst.nrows(), dst.ncols()), (64, 48));
 ///     assert!((dst[(10, 10)] - frame as f32).abs() < 1e-6);
 /// }
@@ -173,98 +200,41 @@ pub fn convolve2d_separable_into<T: FloatScalar + crate::par::MaybeSync>(
     kernel_y: &[T],
     kernel_x: &[T],
     border: BorderMode<T>,
-    tmp: &mut DynMatrix<T>,
     dst: &mut DynMatrix<T>,
 ) {
-    debug_assert_separable_kernels(kernel_y, kernel_x);
-    convolve_1d_vertical_into(src, kernel_y, border, tmp);
-    convolve_1d_horizontal_into(tmp, kernel_x, border, dst);
+    let band = separable_band(src.ncols(), kernel_x.len());
+    convolve2d_separable_into_banded(src, kernel_y, kernel_x, border, band, dst);
 }
 
-/// Banded [`convolve2d_separable`] that hands each output **column** to a
-/// callback instead of materializing the result.
+/// [`convolve2d_separable_into`] with an explicit band width — the
+/// implementation behind it, exposed to the tests so the band-boundary logic
+/// can be exercised at widths the heuristic would never pick (1, narrower
+/// than the kernel, non-dividing, wider than the image).
 ///
-/// `f(j, col)` is called exactly once for every output column `j` in
-/// `0..src.ncols()`, with `col` the `src.nrows()` elements of that column of
-/// the convolved image (bit-for-bit identical to the corresponding column of
-/// [`convolve2d_separable`]'s output). Columns are processed in bands of
-/// `band` consecutive columns: for each band the vertical pass runs over the
-/// band plus a `kernel_x.len() / 2`-column halo on either side into a small
-/// scratch buffer, and the horizontal pass then produces the band's output
-/// columns one at a time from that buffer. Peak scratch is therefore
-/// `(band + kernel_x.len() − 1) · nrows` elements instead of two full images,
-/// and nothing of the result outlives the callback unless the caller keeps it.
-///
-/// Under the `rayon` feature the bands run in parallel (above the same work
-/// gate as [`convolve2d_separable`], with at least 8 bands), so the callback
-/// is invoked concurrently from worker threads and **in no particular column
-/// order**; it must be `Sync`, and any output it produces must be written
-/// through a thread-safe path (atomics, a per-column lock, a channel, …).
-/// Without the feature the columns are visited sequentially in increasing
-/// `j`. Scratch buffers are allocated once per worker, not per band.
-///
-/// # Which axis is a "column"?
-///
-/// numeris matrices are column-major, so a *column* is the contiguous axis
-/// of the storage and the callback slice is a contiguous run of memory. A
-/// caller that wrapped a row-major image with `DynMatrix::from_vec(width,
-/// height, pixels)` (so that the matrix's columns are the image's rows) will
-/// receive its **image rows** here, one `width`-element slice per call —
-/// which is exactly the row-streaming shape a raster pipeline wants. Because
-/// a separable kernel's two passes commute, the result is the same whichever
-/// axis is called "vertical".
-///
-/// # Choosing `band`
-///
-/// Larger bands amortize the halo (`kernel_x.len() − 1` extra vertical-pass
-/// columns per band) but grow the scratch buffer; smaller bands keep the
-/// scratch in cache. Values of 64–128 are a good default for kernels up to a
-/// few dozen taps. `band` is clamped to at least 1 and may exceed the width
-/// (then there is one band). The parallel gate needs at least 8 bands, so
-/// for a wide image pick `band ≤ ncols / 8` if you want the fan-out.
-///
-/// Both 1D kernels must have odd, nonzero length.
-///
-/// # Example
-///
-/// ```
-/// use numeris::DynMatrix;
-/// use numeris::imageproc::{convolve2d_separable_cols, gaussian_kernel_1d, BorderMode};
-/// use std::sync::atomic::{AtomicUsize, Ordering};
-///
-/// let img = DynMatrix::<f32>::from_fn(32, 40, |i, j| (i * j % 7) as f32);
-/// let k = gaussian_kernel_1d::<f32>(1.5, 3.0).unwrap();
-/// // Count blurred pixels above a threshold without holding the blurred image.
-/// let above = AtomicUsize::new(0);
-/// convolve2d_separable_cols(&img, &k, &k, BorderMode::Replicate, 16, |_j, col| {
-///     let n = col.iter().filter(|&&v| v > 2.0).count();
-///     above.fetch_add(n, Ordering::Relaxed);
-/// });
-/// assert!(above.load(Ordering::Relaxed) > 0);
-/// ```
-pub fn convolve2d_separable_cols<T, F>(
+/// `band` is clamped to `[1, ncols]`. Under the `rayon` feature the bands
+/// run in parallel (above the same work gate as the column-parallel passes,
+/// with at least [`CONV_PAR_MIN_COLS`] bands); each band writes only its own
+/// disjoint columns of `dst`, so the result does not depend on the schedule.
+pub(super) fn convolve2d_separable_into_banded<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel_y: &[T],
     kernel_x: &[T],
     border: BorderMode<T>,
     band: usize,
-    f: F,
-) where
-    T: FloatScalar + crate::par::MaybeSync,
-    F: Fn(usize, &[T]) + Sync,
-{
+    dst: &mut DynMatrix<T>,
+) {
     debug_assert_separable_kernels(kernel_y, kernel_x);
     let nrows = src.nrows();
     let ncols = src.ncols();
+    dst.resize_discard(nrows, ncols);
     if nrows == 0 || ncols == 0 {
         return;
     }
     let band = band.max(1).min(ncols);
     let klen_x = kernel_x.len();
     let half_x = klen_x / 2;
-    let nbands = ncols.div_ceil(band);
     // Scratch per band: the vertical pass over `band + 2·half_x` columns
-    // (clamped to the image) plus one output column.
+    // (clamped to the image).
     let halo_cols = (band + 2 * half_x).min(ncols);
 
     // Per-band work: vertical pass over the halo, horizontal pass over the
@@ -274,18 +244,14 @@ pub fn convolve2d_separable_cols<T, F>(
     let par_threshold =
         crate::par::work_col_threshold(per_band_work, CONV_PAR_WORK_BUDGET, CONV_PAR_MIN_COLS);
 
-    crate::par::for_each_index_init(
-        nbands,
+    crate::par::for_each_chunk_mut_init(
+        dst.as_mut_slice(),
+        band * nrows,
         par_threshold,
-        || {
-            (
-                alloc::vec![T::zero(); halo_cols * nrows],
-                alloc::vec![T::zero(); nrows],
-            )
-        },
-        |(halo, dst_col), b| {
+        || alloc::vec![T::zero(); halo_cols * nrows],
+        |halo, b, dst_band| {
             let band_lo = b * band;
-            let band_hi = (band_lo + band).min(ncols);
+            let band_hi = band_lo + dst_band.len() / nrows;
             // Vertical-pass columns this band's horizontal taps can read
             // (in-bounds taps only; border-mapped taps land in the same range,
             // see `horizontal_pass_col`).
@@ -295,12 +261,31 @@ pub fn convolve2d_separable_cols<T, F>(
             for (c, col) in halo.chunks_exact_mut(nrows).enumerate() {
                 vertical_pass_col(src, halo_lo + c, kernel_y, border, col);
             }
-            for j in band_lo..band_hi {
+            for (jj, dst_col) in dst_band.chunks_exact_mut(nrows).enumerate() {
+                let j = band_lo + jj;
                 horizontal_pass_col(halo, halo_lo, nrows, ncols, j, kernel_x, border, dst_col);
-                f(j, dst_col);
             }
         },
     );
+}
+
+/// Reference two-pass separable convolution: whole-image vertical pass into
+/// `tmp`, then whole-image horizontal pass into `dst`, both through the same
+/// per-column helpers the banded path uses. The banded implementation must
+/// match this bit-for-bit; it exists only to pin that down in tests.
+#[cfg(test)]
+pub(super) fn convolve2d_separable_two_pass<T: FloatScalar + crate::par::MaybeSync>(
+    src: &DynMatrix<T>,
+    kernel_y: &[T],
+    kernel_x: &[T],
+    border: BorderMode<T>,
+) -> DynMatrix<T> {
+    debug_assert_separable_kernels(kernel_y, kernel_x);
+    let mut tmp = DynMatrix::<T>::zeros(src.nrows(), src.ncols());
+    let mut dst = DynMatrix::<T>::zeros(src.nrows(), src.ncols());
+    convolve_1d_vertical_into(src, kernel_y, border, &mut tmp);
+    convolve_1d_horizontal_into(&tmp, kernel_x, border, &mut dst);
+    dst
 }
 
 #[inline]
@@ -369,14 +354,18 @@ fn accumulate_shifted<T: FloatScalar>(
     }
 }
 
-/// 1D convolution along the vertical (row) axis, applied independently to
-/// each column, written into `dst` (resized to `src`'s shape, contents
-/// discarded).
+/// Whole-image 1D convolution along the vertical (row) axis, applied
+/// independently to each column, written into `dst` (resized to `src`'s
+/// shape, contents discarded). Reference path for
+/// [`convolve2d_separable_two_pass`] — production code goes through the
+/// banded [`convolve2d_separable_into_banded`], which runs the same
+/// [`vertical_pass_col`] per column.
 ///
 /// Each output column depends only on the matching source column, so with the
 /// `rayon` feature the columns are computed in parallel over disjoint output
 /// slices (above the [`conv_par_col_threshold`] work gate) — the result is
 /// identical regardless of thread count.
+#[cfg(test)]
 fn convolve_1d_vertical_into<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel: &[T],
@@ -400,8 +389,8 @@ fn convolve_1d_vertical_into<T: FloatScalar + crate::par::MaybeSync>(
 /// src[i + k − half, j]` with `border` resolving rows outside the image.
 /// `dst_col.len() == src.nrows()`.
 ///
-/// Shared by the whole-image pass and the banded halo pass so the two are
-/// bit-identical by construction.
+/// Shared by the banded production pass and the test-only whole-image
+/// reference pass so the two are bit-identical by construction.
 #[inline]
 fn vertical_pass_col<T: FloatScalar>(
     src: &DynMatrix<T>,
@@ -459,14 +448,17 @@ fn vertical_tap_sum<T: FloatScalar>(
     sum
 }
 
-/// 1D convolution along the horizontal (column) axis, applied independently
-/// to each row, written into `dst` (resized to `src`'s shape, contents
-/// discarded). Implemented as a strided tap sum across neighbouring columns —
-/// contiguous memory access despite the axis name.
+/// Whole-image 1D convolution along the horizontal (column) axis, applied
+/// independently to each row, written into `dst` (resized to `src`'s shape,
+/// contents discarded). Implemented as a strided tap sum across neighbouring
+/// columns — contiguous memory access despite the axis name. Reference path
+/// for [`convolve2d_separable_two_pass`]; production code runs the same
+/// [`horizontal_pass_col`] per column over a band's halo slab.
 ///
 /// Each output column reads only (immutably) shifted source columns and writes
 /// its own disjoint output column, so with the `rayon` feature the output
 /// columns are computed in parallel (above the [`conv_par_col_threshold`] work gate).
+#[cfg(test)]
 fn convolve_1d_horizontal_into<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel: &[T],
@@ -498,10 +490,10 @@ fn convolve_1d_horizontal_into<T: FloatScalar + crate::par::MaybeSync>(
 /// `half` of `j` lands within `half` of `j`), so a slab covering that window
 /// always suffices. The whole image with `buf_col0 = 0` trivially does.
 ///
-/// Shared by the whole-image pass and the banded halo pass so the two are
-/// bit-identical by construction: the in-bounds taps are one fused
-/// [`simd::conv1d_dispatch`] sweep, then each out-of-bounds tap is added
-/// non-fused in kernel order.
+/// Shared by the banded production pass and the test-only whole-image
+/// reference pass so the two are bit-identical by construction: the
+/// in-bounds taps are one fused [`simd::conv1d_dispatch`] sweep, then each
+/// out-of-bounds tap is added non-fused in kernel order.
 #[inline]
 fn horizontal_pass_col<T: FloatScalar>(
     buf: &[T],
@@ -536,13 +528,7 @@ fn horizontal_pass_col<T: FloatScalar>(
             continue;
         }
         let sj = j as isize + (k as isize - half as isize);
-        let ncols_i = ncols as isize;
-        let src_col: Option<usize> = match border {
-            BorderMode::Zero | BorderMode::Constant(_) => None,
-            BorderMode::Replicate => Some(sj.clamp(0, ncols_i - 1) as usize),
-            BorderMode::Reflect => Some(reflect_index(sj, ncols_i)),
-        };
-        match src_col {
+        match border_index(sj, ncols as isize, border) {
             Some(c) => {
                 let col = &buf[(c - buf_col0) * nrows..(c - buf_col0 + 1) * nrows];
                 for (cell, &v) in dst_col.iter_mut().zip(col) {
@@ -572,34 +558,14 @@ pub(super) fn fetch_border_2d<T: Scalar>(
 ) -> T {
     let nrows = src.nrows() as isize;
     let ncols = src.ncols() as isize;
-    if i >= 0 && i < nrows && j >= 0 && j < ncols {
-        return src[(i as usize, j as usize)];
+    match (
+        border_index(i, nrows, border),
+        border_index(j, ncols, border),
+    ) {
+        (Some(ii), Some(jj)) => src[(ii, jj)],
+        _ => match border {
+            BorderMode::Constant(c) => c,
+            _ => T::zero(),
+        },
     }
-    match border {
-        BorderMode::Zero => T::zero(),
-        BorderMode::Constant(c) => c,
-        BorderMode::Replicate => {
-            let ii = i.clamp(0, nrows - 1) as usize;
-            let jj = j.clamp(0, ncols - 1) as usize;
-            src[(ii, jj)]
-        }
-        BorderMode::Reflect => {
-            let ii = reflect_index(i, nrows);
-            let jj = reflect_index(j, ncols);
-            src[(ii, jj)]
-        }
-    }
-}
-
-#[inline]
-fn reflect_index(idx: isize, n: isize) -> usize {
-    if n <= 1 {
-        return 0;
-    }
-    let period = 2 * (n - 1);
-    let mut m = idx.rem_euclid(period);
-    if m >= n {
-        m = period - m;
-    }
-    m as usize
 }

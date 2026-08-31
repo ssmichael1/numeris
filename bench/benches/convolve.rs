@@ -13,7 +13,7 @@
 //! the feature; the larger sizes show the speedup.
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use numeris::imageproc::{gaussian_blur, gaussian_blur_cols, gaussian_blur_into, BorderMode};
+use numeris::imageproc::{gaussian_blur, gaussian_blur_into, BorderMode};
 use numeris::DynMatrix;
 
 fn image(n: usize) -> DynMatrix<f64> {
@@ -40,11 +40,10 @@ fn bench(c: &mut Criterion) {
     group.finish();
 }
 
-/// The three ways of running one large blur: allocating, into reused
-/// buffers, and streamed through the per-column callback (band 64 / 128).
-/// 2048² f32 with σ = 1.5 (11 taps) is the star-tracker matched-filter case
-/// that motivated the `_into` / `_cols` variants: at this size the fresh
-/// allocations plus first-touch page faults are a large share of the
+/// One large blur, allocating vs. into a reused output buffer. 2048² f32
+/// with σ = 1.5 (11 taps) is the star-tracker matched-filter case that
+/// motivated the banded `_into` variant: at this size a fresh 16 MB output
+/// allocation plus its first-touch page faults is a large share of the
 /// allocating call, especially in the parallel build.
 fn bench_large_f32(c: &mut Criterion) {
     let n = 2048usize;
@@ -55,23 +54,13 @@ fn bench_large_f32(c: &mut Criterion) {
     group.bench_function("alloc", |b| {
         b.iter(|| std::hint::black_box(gaussian_blur(&img, sigma, BorderMode::Reflect)));
     });
-    let mut tmp = DynMatrix::<f32>::zeros(n, n);
     let mut dst = DynMatrix::<f32>::zeros(n, n);
     group.bench_function("into", |b| {
         b.iter(|| {
-            gaussian_blur_into(&img, sigma, BorderMode::Reflect, &mut tmp, &mut dst);
+            gaussian_blur_into(&img, sigma, BorderMode::Reflect, &mut dst);
             std::hint::black_box(&dst);
         });
     });
-    for band in [64usize, 128] {
-        group.bench_with_input(BenchmarkId::new("cols", band), &band, |b, &band| {
-            b.iter(|| {
-                gaussian_blur_cols(&img, sigma, BorderMode::Reflect, band, |_j, col| {
-                    std::hint::black_box(col[0]);
-                });
-            });
-        });
-    }
     group.finish();
 }
 

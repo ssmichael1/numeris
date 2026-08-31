@@ -135,49 +135,65 @@ pub(crate) fn for_each_chunk_mut<T, F>(
     }
 }
 
-/// Apply `f(&mut scratch, i)` for each index `i` in `0..n`, with a
-/// per-worker scratch value produced by `init`.
+/// Apply `f(&mut scratch, j, chunk)` to each disjoint `chunk_len`-sized chunk
+/// of `data`, with a per-worker scratch value produced by `init`.
 ///
-/// This is the index-driven counterpart of [`for_each_chunk_mut`] for
-/// algorithms whose output is *not* a single shared buffer (e.g. a per-band
-/// blur that hands each result to a caller callback instead of materializing
-/// it). Under the `rayon` feature the indices run in parallel when `n` reaches
-/// `threshold`, using `for_each_init` so `init` runs roughly once per worker
-/// job rather than once per index — scratch buffers are therefore reused
-/// across the indices a worker processes. Sequentially (below the threshold,
-/// or always without the feature) `init` runs exactly once.
+/// Like [`for_each_chunk_mut`] but for algorithms that need a scratch buffer
+/// per chunk (e.g. the banded separable convolution's halo slab). The last
+/// chunk may be shorter than `chunk_len` when `data.len()` is not a multiple
+/// of it. Under the `rayon` feature the chunks run in parallel when there are
+/// at least `threshold` of them, using `for_each_init` so `init` runs roughly
+/// once per worker job rather than once per chunk — scratch is reused across
+/// the chunks a worker processes. Sequentially (below the threshold, or
+/// always without the feature) `init` runs exactly once.
 ///
-/// `f` must not depend on the scratch contents left by a previous index
+/// `f` must not depend on the scratch contents left by a previous chunk
 /// beyond what it re-initializes itself, and must not rely on any particular
-/// index order.
-#[cfg(feature = "rayon")]
+/// chunk order.
+#[cfg(all(feature = "imageproc", feature = "rayon"))]
 #[inline]
-pub(crate) fn for_each_index_init<S, I, F>(n: usize, threshold: usize, init: I, f: F)
-where
+pub(crate) fn for_each_chunk_mut_init<T, S, I, F>(
+    data: &mut [T],
+    chunk_len: usize,
+    threshold: usize,
+    init: I,
+    f: F,
+) where
+    T: Send,
     S: Send,
     I: Fn() -> S + Sync + Send,
-    F: Fn(&mut S, usize) + Sync + Send,
+    F: Fn(&mut S, usize, &mut [T]) + Sync + Send,
 {
     use rayon::prelude::*;
-    if n >= threshold {
-        (0..n).into_par_iter().for_each_init(&init, |s, i| f(s, i));
+    debug_assert!(chunk_len > 0);
+    let nchunks = data.len().div_ceil(chunk_len);
+    if nchunks >= threshold {
+        data.par_chunks_mut(chunk_len)
+            .enumerate()
+            .for_each_init(&init, |s, (j, chunk)| f(s, j, chunk));
     } else {
         let mut s = init();
-        for i in 0..n {
-            f(&mut s, i);
+        for (j, chunk) in data.chunks_mut(chunk_len).enumerate() {
+            f(&mut s, j, chunk);
         }
     }
 }
 
-#[cfg(not(feature = "rayon"))]
+#[cfg(all(feature = "imageproc", not(feature = "rayon")))]
 #[inline]
-pub(crate) fn for_each_index_init<S, I, F>(n: usize, _threshold: usize, init: I, mut f: F)
-where
+pub(crate) fn for_each_chunk_mut_init<T, S, I, F>(
+    data: &mut [T],
+    chunk_len: usize,
+    _threshold: usize,
+    init: I,
+    mut f: F,
+) where
     I: FnOnce() -> S,
-    F: FnMut(&mut S, usize),
+    F: FnMut(&mut S, usize, &mut [T]),
 {
+    debug_assert!(chunk_len > 0);
     let mut s = init();
-    for i in 0..n {
-        f(&mut s, i);
+    for (j, chunk) in data.chunks_mut(chunk_len).enumerate() {
+        f(&mut s, j, chunk);
     }
 }

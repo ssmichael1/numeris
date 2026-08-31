@@ -1,12 +1,10 @@
 use alloc::vec::Vec;
 
 use crate::dynmatrix::DynMatrix;
-use crate::traits::{FloatScalar, MatrixRef};
+use crate::traits::FloatScalar;
 
 use super::border::BorderMode;
-use super::convolve::{
-    convolve2d, convolve2d_separable, convolve2d_separable_cols, convolve2d_separable_into,
-};
+use super::convolve::{convolve2d, convolve2d_separable, convolve2d_separable_into};
 use super::kernels::{
     box_kernel_1d, gaussian_kernel_1d, scharr_x_3x3, scharr_y_3x3, sobel_x_3x3, sobel_y_3x3,
 };
@@ -16,9 +14,9 @@ use super::ImageError;
 /// Gaussian truncated at `3 σ` on each side, i.e.
 /// [`gaussian_kernel_1d`]`(sigma, 3.0)`, of length `2 · ceil(3 σ) + 1`.
 ///
-/// Exposed so callers of the streaming variant [`gaussian_blur_cols`] can
-/// size their own halos or bands from the kernel length, and so the blur's
-/// kernel can be reused with [`convolve2d_separable`] and friends.
+/// Exposed so the blur's exact kernel can be reused with
+/// [`convolve2d_separable`] / [`convolve2d_separable_into`] (e.g. to pair it
+/// with a different horizontal kernel) or inspected for its length.
 ///
 /// # Errors
 ///
@@ -47,10 +45,8 @@ pub fn gaussian_blur_kernel<T: FloatScalar>(sigma: T) -> Result<Vec<T>, ImageErr
 /// A non-positive or non-finite `sigma` is clamped to returning the input
 /// unchanged.
 ///
-/// Allocates the intermediate and output images on every call; see
-/// [`gaussian_blur_into`] to reuse caller-owned buffers and
-/// [`gaussian_blur_cols`] to stream the result column by column without
-/// materializing it. All three produce bit-identical results.
+/// Allocates the output image on every call; see [`gaussian_blur_into`] to
+/// write into a caller-owned buffer instead (bit-identical results).
 pub fn gaussian_blur<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
@@ -63,17 +59,16 @@ pub fn gaussian_blur<T: FloatScalar + crate::par::MaybeSync>(
     convolve2d_separable(src, &kernel, &kernel, border)
 }
 
-/// Allocation-free [`gaussian_blur`]: writes the result into `dst`, using
-/// `tmp` for the intermediate image.
+/// [`gaussian_blur`] into a caller-owned output buffer.
 ///
-/// Both buffers are resized to `src`'s shape if needed (reallocating only
-/// when their capacity is insufficient) and their prior contents are
-/// discarded; with correctly sized buffers the call performs no allocation.
-/// See [`convolve2d_separable_into`] for why this matters on large images.
-/// Bit-for-bit identical to [`gaussian_blur`].
+/// `dst` is resized to `src`'s shape if needed (reallocating only when its
+/// capacity is insufficient) and its prior contents are discarded, so a
+/// pipeline blurring many same-size frames reuses one buffer. No
+/// intermediate image is allocated — see [`convolve2d_separable_into`] for
+/// the banded scheme and why it is faster on large images. Bit-for-bit
+/// identical to [`gaussian_blur`].
 ///
-/// A non-positive or non-finite `sigma` copies `src` into `dst` unchanged
-/// (`tmp` is left untouched).
+/// A non-positive or non-finite `sigma` copies `src` into `dst` unchanged.
 ///
 /// # Example
 ///
@@ -82,16 +77,14 @@ pub fn gaussian_blur<T: FloatScalar + crate::par::MaybeSync>(
 /// use numeris::imageproc::{gaussian_blur, gaussian_blur_into, BorderMode};
 ///
 /// let img = DynMatrix::<f32>::from_fn(40, 30, |i, j| (i * 3 + j) as f32);
-/// let mut tmp = DynMatrix::<f32>::zeros(40, 30);
 /// let mut dst = DynMatrix::<f32>::zeros(40, 30);
-/// gaussian_blur_into(&img, 1.5, BorderMode::Reflect, &mut tmp, &mut dst);
+/// gaussian_blur_into(&img, 1.5, BorderMode::Reflect, &mut dst);
 /// assert_eq!(dst.as_slice(), gaussian_blur(&img, 1.5, BorderMode::Reflect).as_slice());
 /// ```
 pub fn gaussian_blur_into<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     sigma: T,
     border: BorderMode<T>,
-    tmp: &mut DynMatrix<T>,
     dst: &mut DynMatrix<T>,
 ) {
     let kernel = match gaussian_blur_kernel(sigma) {
@@ -102,62 +95,7 @@ pub fn gaussian_blur_into<T: FloatScalar + crate::par::MaybeSync>(
             return;
         }
     };
-    convolve2d_separable_into(src, &kernel, &kernel, border, tmp, dst);
-}
-
-/// Banded [`gaussian_blur`] that hands each output **column** to a callback
-/// instead of materializing the blurred image.
-///
-/// `f(j, col)` receives every column `j` of the blurred image exactly once,
-/// bit-for-bit identical to column `j` of [`gaussian_blur`]'s output. The
-/// image is processed in bands of `band` columns with a
-/// `(band + K − 1) · nrows` scratch buffer (`K` = kernel length, see
-/// [`gaussian_blur_kernel`]); under the `rayon` feature the bands run in
-/// parallel and the callback is invoked concurrently, in no particular
-/// order. `band` = 64–128 is a good default. Full details — the scratch
-/// layout, threading contract, and the column-major note that a row-major
-/// caller sees its image *rows* in the callback — are in
-/// [`convolve2d_separable_cols`], which this wraps.
-///
-/// A non-positive or non-finite `sigma` streams the columns of `src`
-/// unchanged.
-///
-/// # Example
-///
-/// ```
-/// use numeris::DynMatrix;
-/// use numeris::imageproc::{gaussian_blur_cols, BorderMode};
-/// use std::sync::Mutex;
-///
-/// let img = DynMatrix::<f32>::from_fn(64, 100, |i, j| ((i ^ j) % 5) as f32);
-/// // Per-column maxima of the blurred image, without the blurred image.
-/// let maxima = Mutex::new(vec![0.0f32; 100]);
-/// gaussian_blur_cols(&img, 1.5, BorderMode::Replicate, 32, |j, col| {
-///     let m = col.iter().cloned().fold(f32::MIN, f32::max);
-///     maxima.lock().unwrap()[j] = m;
-/// });
-/// assert!(maxima.into_inner().unwrap().iter().all(|&m| m > 0.0));
-/// ```
-pub fn gaussian_blur_cols<T, F>(
-    src: &DynMatrix<T>,
-    sigma: T,
-    border: BorderMode<T>,
-    band: usize,
-    f: F,
-) where
-    T: FloatScalar + crate::par::MaybeSync,
-    F: Fn(usize, &[T]) + Sync,
-{
-    let kernel = match gaussian_blur_kernel(sigma) {
-        Ok(k) => k,
-        Err(_) => {
-            for j in 0..src.ncols() {
-                f(j, src.col_as_slice(j, 0));
-            }
-            return;
-        }
-    };
-    convolve2d_separable_cols(src, &kernel, &kernel, border, band, f);
+    convolve2d_separable_into(src, &kernel, &kernel, border, dst);
 }
 
 /// Box (mean) blur with odd radius `radius`, i.e. kernel length `2·radius + 1`.
