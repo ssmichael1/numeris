@@ -98,6 +98,11 @@ pub fn convolve2d<T: FloatScalar, K: MatrixRef<T>>(
 ///
 /// Both 1D kernels must have odd, nonzero length.
 ///
+/// Allocates the intermediate and output images on every call; see
+/// [`convolve2d_separable_into`] to reuse caller-owned buffers, or
+/// [`convolve2d_separable_cols`] to consume the result column by column
+/// without materializing it at all. All three produce bit-identical results.
+///
 /// # Example
 ///
 /// ```
@@ -120,6 +125,64 @@ pub fn convolve2d_separable<T: FloatScalar + crate::par::MaybeSync>(
     kernel_x: &[T],
     border: BorderMode<T>,
 ) -> DynMatrix<T> {
+    // `zeros` goes through calloc — the pages are mapped lazily and first
+    // touched by the passes themselves — so pre-sizing here costs no more
+    // than letting `_into` grow empty buffers, and the `_into` path then sees
+    // matching shapes and does nothing extra.
+    let mut tmp = DynMatrix::<T>::zeros(src.nrows(), src.ncols());
+    let mut dst = DynMatrix::<T>::zeros(src.nrows(), src.ncols());
+    convolve2d_separable_into(src, kernel_y, kernel_x, border, &mut tmp, &mut dst);
+    dst
+}
+
+/// Allocation-free [`convolve2d_separable`]: writes the result into `dst`,
+/// using `tmp` for the intermediate (vertical-pass) image.
+///
+/// Both buffers are resized to `src`'s shape if they do not already match
+/// (reallocating only when their capacity is insufficient), and their prior
+/// contents are discarded. Passing buffers that already have the right shape
+/// makes the call allocation-free — the point of this variant: for a large
+/// image the fresh `zeros` allocations plus first-touch page faults of
+/// [`convolve2d_separable`] are a substantial fraction of the total time, and
+/// a caller that filters many frames of the same size can amortize them away.
+///
+/// The output is bit-for-bit identical to [`convolve2d_separable`] (the
+/// allocating function is a thin wrapper around this one).
+///
+/// Both 1D kernels must have odd, nonzero length.
+///
+/// # Example
+///
+/// ```
+/// use numeris::DynMatrix;
+/// use numeris::imageproc::{convolve2d_separable_into, gaussian_kernel_1d, BorderMode};
+///
+/// let k = gaussian_kernel_1d::<f32>(1.0, 3.0).unwrap();
+/// let mut tmp = DynMatrix::<f32>::zeros(0, 0);
+/// let mut dst = DynMatrix::<f32>::zeros(0, 0);
+/// for frame in 0..3 {
+///     let img = DynMatrix::<f32>::fill(64, 48, frame as f32);
+///     // First call sizes the buffers; later calls reuse them.
+///     convolve2d_separable_into(&img, &k, &k, BorderMode::Replicate, &mut tmp, &mut dst);
+///     assert_eq!((dst.nrows(), dst.ncols()), (64, 48));
+///     assert!((dst[(10, 10)] - frame as f32).abs() < 1e-6);
+/// }
+/// ```
+pub fn convolve2d_separable_into<T: FloatScalar + crate::par::MaybeSync>(
+    src: &DynMatrix<T>,
+    kernel_y: &[T],
+    kernel_x: &[T],
+    border: BorderMode<T>,
+    tmp: &mut DynMatrix<T>,
+    dst: &mut DynMatrix<T>,
+) {
+    debug_assert_separable_kernels(kernel_y, kernel_x);
+    convolve_1d_vertical_into(src, kernel_y, border, tmp);
+    convolve_1d_horizontal_into(tmp, kernel_x, border, dst);
+}
+
+#[inline]
+fn debug_assert_separable_kernels<T>(kernel_y: &[T], kernel_x: &[T]) {
     debug_assert!(
         !kernel_y.is_empty() && kernel_y.len() % 2 == 1,
         "kernel_y length must be odd and nonzero"
@@ -128,9 +191,6 @@ pub fn convolve2d_separable<T: FloatScalar + crate::par::MaybeSync>(
         !kernel_x.is_empty() && kernel_x.len() % 2 == 1,
         "kernel_x length must be odd and nonzero"
     );
-
-    let tmp = convolve_1d_vertical(src, kernel_y, border);
-    convolve_1d_horizontal(&tmp, kernel_x, border)
 }
 
 // ── internal helpers ──────────────────────────────────────────────────
@@ -188,56 +248,76 @@ fn accumulate_shifted<T: FloatScalar>(
 }
 
 /// 1D convolution along the vertical (row) axis, applied independently to
-/// each column.
+/// each column, written into `dst` (resized to `src`'s shape, contents
+/// discarded).
 ///
 /// Each output column depends only on the matching source column, so with the
 /// `rayon` feature the columns are computed in parallel over disjoint output
 /// slices (above the [`conv_par_col_threshold`] work gate) — the result is
 /// identical regardless of thread count.
-fn convolve_1d_vertical<T: FloatScalar + crate::par::MaybeSync>(
+fn convolve_1d_vertical_into<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel: &[T],
     border: BorderMode<T>,
-) -> DynMatrix<T> {
+    dst: &mut DynMatrix<T>,
+) {
     let nrows = src.nrows();
     let ncols = src.ncols();
-    let klen = kernel.len();
-    let half = klen / 2;
-    let mut dst = DynMatrix::<T>::zeros(nrows, ncols);
+    dst.resize_discard(nrows, ncols);
     if nrows == 0 || ncols == 0 {
-        return dst;
+        return;
     }
 
-    let par_threshold = conv_par_col_threshold(nrows, klen);
+    let par_threshold = conv_par_col_threshold(nrows, kernel.len());
     crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, par_threshold, |j, dst_col| {
-        // Interior rows (every kernel tap in-bounds): single traversal with
-        // register-blocked accumulators — each output element is written once
-        // and never re-read, unlike a per-tap AXPY sweep.
-        if nrows > 2 * half {
-            let interior_len = nrows - 2 * half;
-            let src_col_full = src.col_as_slice(j, 0);
-            // Output row i (for i in [half, nrows-half)) reads source rows
-            // [i - half, i + half], i.e. window [i - half, i - half + klen).
-            simd::conv1d_dispatch(
-                &mut dst_col[half..half + interior_len],
-                src_col_full,
-                kernel,
-                1,
-            );
-        }
-
-        // Border rows: scalar with border-aware fetch.
-        let src_col = src.col_as_slice(j, 0);
-        let border_top_hi = half.min(nrows);
-        let border_bot_lo = nrows.saturating_sub(half).max(border_top_hi);
-        for (i, cell) in dst_col[..border_top_hi].iter_mut().enumerate() {
-            *cell = vertical_tap_sum(src_col, kernel, half, i, border);
-        }
-        for (off, cell) in dst_col[border_bot_lo..].iter_mut().enumerate() {
-            *cell = vertical_tap_sum(src_col, kernel, half, border_bot_lo + off, border);
-        }
+        vertical_pass_col(src, j, kernel, border, dst_col);
     });
-    dst
+}
+
+/// Vertical pass for a single column: `dst_col[i] = Σ_k kernel[k] ·
+/// src[i + k − half, j]` with `border` resolving rows outside the image.
+/// `dst_col.len() == src.nrows()`.
+///
+/// Shared by the whole-image pass and the banded halo pass so the two are
+/// bit-identical by construction.
+#[inline]
+fn vertical_pass_col<T: FloatScalar>(
+    src: &DynMatrix<T>,
+    j: usize,
+    kernel: &[T],
+    border: BorderMode<T>,
+    dst_col: &mut [T],
+) {
+    let nrows = src.nrows();
+    let half = kernel.len() / 2;
+    debug_assert_eq!(dst_col.len(), nrows);
+
+    // Interior rows (every kernel tap in-bounds): single traversal with
+    // register-blocked accumulators — each output element is written once
+    // and never re-read, unlike a per-tap AXPY sweep.
+    if nrows > 2 * half {
+        let interior_len = nrows - 2 * half;
+        let src_col_full = src.col_as_slice(j, 0);
+        // Output row i (for i in [half, nrows-half)) reads source rows
+        // [i - half, i + half], i.e. window [i - half, i - half + klen).
+        simd::conv1d_dispatch(
+            &mut dst_col[half..half + interior_len],
+            src_col_full,
+            kernel,
+            1,
+        );
+    }
+
+    // Border rows: scalar with border-aware fetch.
+    let src_col = src.col_as_slice(j, 0);
+    let border_top_hi = half.min(nrows);
+    let border_bot_lo = nrows.saturating_sub(half).max(border_top_hi);
+    for (i, cell) in dst_col[..border_top_hi].iter_mut().enumerate() {
+        *cell = vertical_tap_sum(src_col, kernel, half, i, border);
+    }
+    for (off, cell) in dst_col[border_bot_lo..].iter_mut().enumerate() {
+        *cell = vertical_tap_sum(src_col, kernel, half, border_bot_lo + off, border);
+    }
 }
 
 #[inline]
@@ -258,54 +338,106 @@ fn vertical_tap_sum<T: FloatScalar>(
 }
 
 /// 1D convolution along the horizontal (column) axis, applied independently
-/// to each row. Implemented as a strided tap sum across neighbouring columns —
+/// to each row, written into `dst` (resized to `src`'s shape, contents
+/// discarded). Implemented as a strided tap sum across neighbouring columns —
 /// contiguous memory access despite the axis name.
 ///
 /// Each output column reads only (immutably) shifted source columns and writes
 /// its own disjoint output column, so with the `rayon` feature the output
 /// columns are computed in parallel (above the [`conv_par_col_threshold`] work gate).
-fn convolve_1d_horizontal<T: FloatScalar + crate::par::MaybeSync>(
+fn convolve_1d_horizontal_into<T: FloatScalar + crate::par::MaybeSync>(
     src: &DynMatrix<T>,
     kernel: &[T],
     border: BorderMode<T>,
-) -> DynMatrix<T> {
+    dst: &mut DynMatrix<T>,
+) {
     let nrows = src.nrows();
     let ncols = src.ncols();
-    let klen = kernel.len();
-    let half = klen / 2;
-    let mut dst = DynMatrix::<T>::zeros(nrows, ncols);
+    dst.resize_discard(nrows, ncols);
     if nrows == 0 || ncols == 0 {
-        return dst;
+        return;
     }
 
-    let par_threshold = conv_par_col_threshold(nrows, klen);
+    let par_threshold = conv_par_col_threshold(nrows, kernel.len());
     crate::par::for_each_chunk_mut(dst.as_mut_slice(), nrows, par_threshold, |j, dst_col| {
-        // Taps whose source column j + (k - half) is in-bounds. Nonempty for
-        // every j (the center tap k = half reads column j itself).
-        let k_lo = half.saturating_sub(j).min(klen);
-        let k_hi = (ncols + half - j).min(klen);
+        horizontal_pass_col(src.as_slice(), 0, nrows, ncols, j, kernel, border, dst_col);
+    });
+}
 
-        // In-bounds taps: single traversal over the rows, with the tap sum
-        // held in registers. Tap k reads source column j + k - half at the
-        // same row, i.e. stride `nrows` between taps in column-major storage.
-        let src_from_first_tap = &src.as_slice()[(j + k_lo - half) * nrows..];
-        simd::conv1d_dispatch(dst_col, src_from_first_tap, &kernel[k_lo..k_hi], nrows);
+/// Horizontal pass for a single output column `j`.
+///
+/// `buf` is a column-major slab of `nrows`-element columns holding the
+/// vertical-pass image; its first column is image column `buf_col0`. It must
+/// contain every column this output reads: the in-bounds taps
+/// `[j − half, j + half] ∩ [0, ncols)`, plus — for `Replicate` / `Reflect` —
+/// the columns the out-of-bounds taps map to. Both lie within
+/// `[j − half, j + half] ∩ [0, ncols)` (clamping moves an index to the nearest
+/// edge, which is on the near side of `j`; reflection about an edge within
+/// `half` of `j` lands within `half` of `j`), so a slab covering that window
+/// always suffices. The whole image with `buf_col0 = 0` trivially does.
+///
+/// Shared by the whole-image pass and the banded halo pass so the two are
+/// bit-identical by construction: the in-bounds taps are one fused
+/// [`simd::conv1d_dispatch`] sweep, then each out-of-bounds tap is added
+/// non-fused in kernel order.
+#[inline]
+fn horizontal_pass_col<T: FloatScalar>(
+    buf: &[T],
+    buf_col0: usize,
+    nrows: usize,
+    ncols: usize,
+    j: usize,
+    kernel: &[T],
+    border: BorderMode<T>,
+    dst_col: &mut [T],
+) {
+    let klen = kernel.len();
+    let half = klen / 2;
+    debug_assert_eq!(dst_col.len(), nrows);
 
-        // Out-of-bounds taps (only within `half` of the left/right edges):
-        // apply the border rule for every output row.
-        for k in (0..k_lo).chain(k_hi..klen) {
-            let w = kernel[k];
-            if w == T::zero() {
-                continue;
+    // Taps whose source column j + (k - half) is in-bounds. Nonempty for
+    // every j (the center tap k = half reads column j itself).
+    let k_lo = half.saturating_sub(j).min(klen);
+    let k_hi = (ncols + half - j).min(klen);
+
+    // In-bounds taps: single traversal over the rows, with the tap sum
+    // held in registers. Tap k reads source column j + k - half at the
+    // same row, i.e. stride `nrows` between taps in column-major storage.
+    let src_from_first_tap = &buf[(j + k_lo - half - buf_col0) * nrows..];
+    simd::conv1d_dispatch(dst_col, src_from_first_tap, &kernel[k_lo..k_hi], nrows);
+
+    // Out-of-bounds taps (only within `half` of the left/right edges):
+    // apply the border rule for every output row.
+    for k in (0..k_lo).chain(k_hi..klen) {
+        let w = kernel[k];
+        if w == T::zero() {
+            continue;
+        }
+        let sj = j as isize + (k as isize - half as isize);
+        let ncols_i = ncols as isize;
+        let src_col: Option<usize> = match border {
+            BorderMode::Zero | BorderMode::Constant(_) => None,
+            BorderMode::Replicate => Some(sj.clamp(0, ncols_i - 1) as usize),
+            BorderMode::Reflect => Some(reflect_index(sj, ncols_i)),
+        };
+        match src_col {
+            Some(c) => {
+                let col = &buf[(c - buf_col0) * nrows..(c - buf_col0 + 1) * nrows];
+                for (cell, &v) in dst_col.iter_mut().zip(col) {
+                    *cell = *cell + w * v;
+                }
             }
-            let sj = j as isize + (k as isize - half as isize);
-            for (i, cell) in dst_col.iter_mut().enumerate() {
-                let v = fetch_border_2d(src, i as isize, sj, border);
-                *cell = *cell + w * v;
+            None => {
+                let v = match border {
+                    BorderMode::Constant(c) => c,
+                    _ => T::zero(),
+                };
+                for cell in dst_col.iter_mut() {
+                    *cell = *cell + w * v;
+                }
             }
         }
-    });
-    dst
+    }
 }
 
 /// Fetch a 2D pixel with independent border handling on each axis.

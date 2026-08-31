@@ -100,6 +100,24 @@ impl<T: Scalar> DynMatrix<T> {
         }
     }
 
+    /// Resize to `nrows × ncols` for use as an output buffer, discarding the
+    /// current contents.
+    ///
+    /// A no-op when the shape already matches. Otherwise the storage is
+    /// resized in place — reallocating only if the existing capacity is
+    /// insufficient — and the element values are unspecified (any new
+    /// elements are zero, but callers must treat the whole matrix as
+    /// scratch to be overwritten). Used by the `_into` variants of
+    /// `imageproc` routines so a caller-owned buffer can be reused across
+    /// calls without touching every element on each call.
+    pub(crate) fn resize_discard(&mut self, nrows: usize, ncols: usize) {
+        if self.nrows != nrows || self.ncols != ncols {
+            self.data.resize(nrows * ncols, T::zero());
+            self.nrows = nrows;
+            self.ncols = ncols;
+        }
+    }
+
     /// Create a matrix filled with a given value.
     ///
     /// ```
