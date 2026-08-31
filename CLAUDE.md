@@ -144,7 +144,10 @@ Checked items are implemented; unchecked are potential future work.
   parallelize over output columns, gated on per-pass work via the shared `par::work_col_threshold`
   helper. Morphology's horizontal Van Herk pass is run as a transposed vertical pass under `rayon`
   (`out = (V(T(V(src))))ᵀ`), `cfg`-split so the no-`rayon` build keeps the lean two-buffer sequential
-  pass. Not yet parallel: the integral-image scan (prefix sum; needs a two-pass decomposition).
+  pass. The streaming `convolve2d_separable_cols` / `gaussian_blur_cols` parallelize over *bands* of output
+  columns through `par::for_each_index_init` (per-worker scratch, no shared output buffer); their per-column
+  callback is bounded `Fn + Sync` in every build so the signature is feature-independent.
+  Not yet parallel: the integral-image scan (prefix sum; needs a two-pass decomposition).
   The `imageproc` `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker
   bound (empty blanket impl without `rayon`, `Send + Sync` with it; gated on `imageproc`), so a single
   signature serves both builds without `cfg`-split twins — invisible for `f32`/`f64`, hence additive.
@@ -219,7 +222,7 @@ src/
 │   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide, compile-time opt-in)
 │   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide, compile-time opt-in)
 ├── par/                # private parallelism dispatch (requires `rayon` feature to multi-thread)
-│   └── mod.rs          # for_each_chunk_mut (sequential chunks_mut / rayon par_chunks_mut over disjoint output chunks); work_col_threshold; MaybeSync marker bound
+│   └── mod.rs          # for_each_chunk_mut (sequential chunks_mut / rayon par_chunks_mut over disjoint output chunks); for_each_index_init (index-driven, per-worker scratch via for_each_init — for callback-driven outputs); work_col_threshold; MaybeSync marker bound
 ├── nalgebra_interop.rs # (requires `nalgebra` feature) From/Into, MatrixRef/MatrixMut for nalgebra types
 ├── interp/             # (requires `interp` feature)
 │   ├── mod.rs          # InterpError, find_interval, validate_sorted helpers, re-exports
@@ -233,8 +236,8 @@ src/
 │   ├── mod.rs          # ImageError, module decls, re-exports
 │   ├── border.rs       # BorderMode<T> (Zero/Constant/Replicate/Reflect), fetch_border
 │   ├── kernels.rs      # gaussian_kernel_1d, box_kernel_1d, sobel/scharr/laplacian 3x3
-│   ├── convolve.rs     # convolve2d (dense, any MatrixRef kernel), convolve2d_separable (single-pass strided SIMD tap sums)
-│   ├── filters.rs      # gaussian_blur, box_blur, sobel/scharr_gradients, laplacian, laplacian_of_gaussian, unsharp_mask, gradient_magnitude
+│   ├── convolve.rs     # convolve2d (dense, any MatrixRef kernel), convolve2d_separable (single-pass strided SIMD tap sums) + _into (caller buffers) + _cols (banded, per-column callback); shared vertical_pass_col / horizontal_pass_col so all three are bit-identical
+│   ├── filters.rs      # gaussian_blur (+ _into, _cols, gaussian_blur_kernel), box_blur, sobel/scharr_gradients, laplacian, laplacian_of_gaussian, unsharp_mask, gradient_magnitude
 │   ├── geometric.rs    # flip_horizontal/vertical, rotate_90/180/270, pad (BorderMode-aware), crop, resize_nearest
 │   ├── integral.rs     # integral_image (SAT), integral_rect_sum (O(1) rectangle query)
 │   ├── local_stats.rs  # local_mean, local_variance, local_stddev via integral images (O(1) per pixel)

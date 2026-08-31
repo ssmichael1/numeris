@@ -114,6 +114,30 @@ let blurred = convolve2d_separable(&img, &k, &k, BorderMode::Replicate);
 
 Both passes run as whole-column AXPYs on contiguous source/dest columns, so they dispatch straight into the SIMD kernels on f32/f64.
 
+### Reusing buffers and streaming columns
+
+`convolve2d_separable` allocates the intermediate and the output image on every call. On a large image (a 2048² f32 frame is 16 MB per buffer) the fresh allocations plus first-touch page faults are a sizeable share of the call, so two allocation-free variants exist — both **bit-for-bit identical** to the allocating call (which is a thin wrapper over the first):
+
+- **`convolve2d_separable_into(src, ky, kx, border, &mut tmp, &mut dst)`** writes into caller-owned buffers. They are resized to `src`'s shape if they do not match (reallocating only when capacity is insufficient) and their contents discarded; with correctly sized buffers the call performs no allocation, so a pipeline filtering many same-size frames amortizes the buffers away.
+- **`convolve2d_separable_cols(src, ky, kx, border, band, f)`** never materializes the result: it processes the image in bands of `band` output columns — vertical pass over the band plus a kernel-half-width halo into a small scratch buffer, then the horizontal pass one output column at a time — and calls `f(j, col)` with each finished column. Peak scratch is `(band + K_x − 1) · nrows` elements. Under `rayon` the bands run in parallel and `f` is invoked concurrently (in no particular column order), so it must be `Fn + Sync`; `band` = 64–128 is a good default.
+
+```rust
+use numeris::DynMatrix;
+use numeris::imageproc::{convolve2d_separable_cols, gaussian_blur_kernel, BorderMode};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+let img = DynMatrix::<f32>::from_fn(2048, 2048, |i, j| ((i * 7 + j * 13) % 251) as f32);
+let k = gaussian_blur_kernel::<f32>(1.5).unwrap();   // 11 taps
+// Count pixels above a threshold in the blurred image without ever holding it.
+let above = AtomicUsize::new(0);
+convolve2d_separable_cols(&img, &k, &k, BorderMode::Replicate, 64, |_j, col| {
+    above.fetch_add(col.iter().filter(|&&v| v > 100.0).count(), Ordering::Relaxed);
+});
+```
+
+!!! note "Which axis is a column?"
+    A `DynMatrix` column is the contiguous axis of the storage. If you wrapped a row-major image with `DynMatrix::from_vec(width, height, pixels)` — so the matrix's columns are the image's rows — the callback hands you your **image rows**, one `width`-element contiguous slice per call. A separable kernel's two passes commute, so the result is the same either way.
+
 ## Blurs and Sharpening
 
 ```rust
@@ -127,7 +151,7 @@ let b = box_blur(&img, 2, BorderMode::Replicate);              // 5×5 mean
 let sharp = unsharp_mask(&img, 1.0, 0.7, BorderMode::Replicate); // img + 0.7·(img − blur)
 ```
 
-`gaussian_blur` truncates the kernel at `3σ` on each side and delegates to `convolve2d_separable`. `unsharp_mask` composes a blur with a per-pixel subtract — useful for edge enhancement.
+`gaussian_blur` truncates the kernel at `3σ` on each side (`gaussian_blur_kernel(sigma)` returns exactly that kernel) and delegates to `convolve2d_separable`. `gaussian_blur_into` and `gaussian_blur_cols` are its allocation-free and column-streaming counterparts — see [Reusing buffers and streaming columns](#reusing-buffers-and-streaming-columns). `unsharp_mask` composes a blur with a per-pixel subtract — useful for edge enhancement.
 
 ## Gradients and Edges
 

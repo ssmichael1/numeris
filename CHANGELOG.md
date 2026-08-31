@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.5.19
+
+- **Allocation-free and streaming separable convolution** — additive API,
+  results bit-for-bit identical to the existing calls. `convolve2d_separable`
+  (and so `gaussian_blur`) allocated the intermediate and the output image on
+  every call; on a 2048² f32 frame the two fresh 16 MB `zeros` plus their
+  first-touch page faults were roughly a third of the parallel-build blur.
+  New `convolve2d_separable_into(src, ky, kx, border, &mut tmp, &mut dst)` and
+  `gaussian_blur_into(src, sigma, border, &mut tmp, &mut dst)` write into
+  caller-owned buffers (resized to `src`'s shape only when they do not match,
+  contents discarded), so a pipeline filtering same-size frames performs no
+  allocation at all; the allocating functions are now thin wrappers over
+  them, so there is one code path. New `convolve2d_separable_cols(src, ky, kx,
+  border, band, f)` and `gaussian_blur_cols(src, sigma, border, band, f)`
+  never materialize the result: the image is processed in bands of `band`
+  output columns (vertical pass over the band plus a kernel-half-width halo
+  into a `(band + K_x − 1) · nrows` scratch, then the horizontal pass one
+  output column at a time) and `f(j, col)` receives each finished column —
+  for a row-major caller that wrapped its image with `from_vec(width, height,
+  …)`, those are its image rows. Both passes are the same per-column helpers
+  the whole-image passes use (`vertical_pass_col` / `horizontal_pass_col`),
+  which is what makes the equality structural rather than approximate; tests
+  compare raw bit patterns (signed zeros included) for `f32` and `f64` across
+  odd/even shapes below and above the SIMD block widths, images narrower than
+  the kernel half-width, all four border modes, three kernel lengths, and
+  bands that do and do not divide the width, are narrower than the kernel, or
+  exceed it — with and without `rayon`. Under `rayon` the bands run in
+  parallel through a new internal `par::for_each_index_init` (rayon
+  `for_each_init`, so scratch is allocated per worker, not per band) above the
+  same work gate as the column passes with an 8-band floor; the callback is
+  bounded `Fn + Sync` in every build so enabling the feature cannot change
+  the signature. `gaussian_blur_kernel(sigma)` exposes the exact 3σ-truncated
+  kernel `gaussian_blur` uses so callers can size bands and halos. Measured
+  on a 2048² f32 blur, σ = 1.5 (11 taps), Apple M3 (`bench/benches/convolve.rs`,
+  `gaussian_blur_2048_f32`, machine under load): serial `gaussian_blur` 5.99 ms
+  → `_into` 5.25 ms → `_cols` band 64 / 128 4.13 / 3.96 ms; `rayon` 2.58 ms →
+  2.17 ms → 1.82 / 1.74 ms. The `_cols` win over `_into` in the serial build is
+  cache locality: the band's halo stays resident across the horizontal pass
+  instead of the 16 MB intermediate being streamed twice.
+
 ## 0.5.18
 
 - **Adaptive ODE solvers no longer abort on kinks in the right-hand side** —
