@@ -134,3 +134,66 @@ pub(crate) fn for_each_chunk_mut<T, F>(
         f(j, chunk);
     }
 }
+
+/// Apply `f(&mut scratch, j, chunk)` to each disjoint `chunk_len`-sized chunk
+/// of `data`, with a per-worker scratch value produced by `init`.
+///
+/// Like [`for_each_chunk_mut`] but for algorithms that need a scratch buffer
+/// per chunk (e.g. the banded separable convolution's halo slab). The last
+/// chunk may be shorter than `chunk_len` when `data.len()` is not a multiple
+/// of it. Under the `rayon` feature the chunks run in parallel when there are
+/// at least `threshold` of them, using `for_each_init` so `init` runs roughly
+/// once per worker job rather than once per chunk — scratch is reused across
+/// the chunks a worker processes. Sequentially (below the threshold, or
+/// always without the feature) `init` runs exactly once.
+///
+/// `f` must not depend on the scratch contents left by a previous chunk
+/// beyond what it re-initializes itself, and must not rely on any particular
+/// chunk order.
+#[cfg(all(feature = "imageproc", feature = "rayon"))]
+#[inline]
+pub(crate) fn for_each_chunk_mut_init<T, S, I, F>(
+    data: &mut [T],
+    chunk_len: usize,
+    threshold: usize,
+    init: I,
+    f: F,
+) where
+    T: Send,
+    S: Send,
+    I: Fn() -> S + Sync + Send,
+    F: Fn(&mut S, usize, &mut [T]) + Sync + Send,
+{
+    use rayon::prelude::*;
+    debug_assert!(chunk_len > 0);
+    let nchunks = data.len().div_ceil(chunk_len);
+    if nchunks >= threshold {
+        data.par_chunks_mut(chunk_len)
+            .enumerate()
+            .for_each_init(&init, |s, (j, chunk)| f(s, j, chunk));
+    } else {
+        let mut s = init();
+        for (j, chunk) in data.chunks_mut(chunk_len).enumerate() {
+            f(&mut s, j, chunk);
+        }
+    }
+}
+
+#[cfg(all(feature = "imageproc", not(feature = "rayon")))]
+#[inline]
+pub(crate) fn for_each_chunk_mut_init<T, S, I, F>(
+    data: &mut [T],
+    chunk_len: usize,
+    _threshold: usize,
+    init: I,
+    mut f: F,
+) where
+    I: FnOnce() -> S,
+    F: FnMut(&mut S, usize, &mut [T]),
+{
+    debug_assert!(chunk_len > 0);
+    let mut s = init();
+    for (j, chunk) in data.chunks_mut(chunk_len).enumerate() {
+        f(&mut s, j, chunk);
+    }
+}

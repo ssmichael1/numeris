@@ -1,5 +1,6 @@
 use super::*;
 use crate::DynMatrix;
+use crate::FloatScalar;
 use crate::Matrix;
 
 // ── kernel generators ──────────────────────────────────────────────────
@@ -225,6 +226,205 @@ fn gaussian_blur_smooths_impulse() {
             }
         }
     }
+}
+
+// ── banded separable convolution ───────────────────────────────────────
+//
+// `convolve2d_separable` is a thin wrapper over `_into`, which processes the
+// image in bands of output columns; both must agree bit-for-bit — signed
+// zeros included, hence the comparisons go through the raw bit patterns —
+// with the test-only two-pass reference (`convolve2d_separable_two_pass`)
+// that runs the same per-column passes over the whole image.
+
+use super::convolve::{convolve2d_separable_into_banded, convolve2d_separable_two_pass};
+
+/// Deterministic, non-uniform, non-symmetric test image with mixed signs.
+fn sep_test_image<T: FloatScalar>(h: usize, w: usize) -> DynMatrix<T> {
+    DynMatrix::from_fn(h, w, |i, j| {
+        let v = ((i * 37 + j * 11 + i * j) % 23) as f64 * 0.37 - 4.0;
+        T::from(v).unwrap()
+    })
+}
+
+/// Shapes below, at and above the SIMD block widths (4/8/16 lanes, 16-wide
+/// register blocks), odd and even, tall and wide, and smaller than the
+/// kernel half-width (so every tap of some columns is out of bounds).
+const SEP_SHAPES: [(usize, usize); 12] = [
+    (1, 1),
+    (2, 3),
+    (3, 2),
+    (5, 7),
+    (7, 5),
+    (15, 17),
+    (16, 16),
+    (17, 33),
+    (33, 17),
+    (64, 63),
+    (100, 37),
+    (37, 130),
+];
+
+/// σ = 0.4 → 5 taps, 1.5 → 11 taps, 3.0 → 19 taps.
+const SEP_SIGMAS: [f64; 3] = [0.4, 1.5, 3.0];
+
+/// Bands that do and don't divide the width, narrower than the kernel
+/// (1, 2, 5, 7 vs. up to 19 taps), and wider than any test image.
+const SEP_BANDS: [usize; 8] = [1, 2, 5, 7, 16, 64, 100, 1 << 20];
+
+fn sep_borders<T: FloatScalar>() -> [BorderMode<T>; 4] {
+    [
+        BorderMode::Zero,
+        BorderMode::Constant(T::from(0.5).unwrap()),
+        BorderMode::Replicate,
+        BorderMode::Reflect,
+    ]
+}
+
+fn assert_bits_equal<T: FloatScalar>(
+    a: &DynMatrix<T>,
+    b: &DynMatrix<T>,
+    bits: fn(T) -> u64,
+    what: &str,
+) {
+    assert_eq!(
+        (a.nrows(), a.ncols()),
+        (b.nrows(), b.ncols()),
+        "{what}: shape"
+    );
+    for (idx, (x, y)) in a.as_slice().iter().zip(b.as_slice()).enumerate() {
+        assert_eq!(bits(*x), bits(*y), "{what}: element {idx} ({x:?} vs {y:?})");
+    }
+}
+
+fn check_separable_banded<T: FloatScalar + crate::par::MaybeSync>(bits: fn(T) -> u64) {
+    // Deliberately wrong-shaped, reused across every call: the first call
+    // grows it, later calls shrink/grow/reuse in place.
+    let mut dst = DynMatrix::<T>::zeros(2, 9);
+    for &(h, w) in &SEP_SHAPES {
+        let img = sep_test_image::<T>(h, w);
+        for &sigma in &SEP_SIGMAS {
+            let sigma_t = T::from(sigma).unwrap();
+            let ky = gaussian_blur_kernel::<T>(sigma_t).unwrap();
+            // Asymmetric pair (Gaussian × box) so a y/x mix-up would show.
+            let kx = box_kernel_1d::<T>(2 * (ky.len() / 4) + 1).unwrap();
+            for &border in &sep_borders::<T>() {
+                let expected = convolve2d_separable_two_pass(&img, &ky, &kx, border);
+
+                let got = convolve2d_separable(&img, &ky, &kx, border);
+                assert_bits_equal(
+                    &got,
+                    &expected,
+                    bits,
+                    &format!("separable {h}x{w} σ={sigma} {border:?}"),
+                );
+                convolve2d_separable_into(&img, &ky, &kx, border, &mut dst);
+                assert_bits_equal(
+                    &dst,
+                    &expected,
+                    bits,
+                    &format!("into {h}x{w} σ={sigma} {border:?}"),
+                );
+                for &band in &SEP_BANDS {
+                    convolve2d_separable_into_banded(&img, &ky, &kx, border, band, &mut dst);
+                    assert_bits_equal(
+                        &dst,
+                        &expected,
+                        bits,
+                        &format!("banded {h}x{w} σ={sigma} {border:?} band={band}"),
+                    );
+                }
+
+                let expected = convolve2d_separable_two_pass(&img, &ky, &ky, border);
+                let got = gaussian_blur(&img, sigma_t, border);
+                assert_bits_equal(
+                    &got,
+                    &expected,
+                    bits,
+                    &format!("blur {h}x{w} σ={sigma} {border:?}"),
+                );
+                gaussian_blur_into(&img, sigma_t, border, &mut dst);
+                assert_bits_equal(
+                    &dst,
+                    &expected,
+                    bits,
+                    &format!("blur_into {h}x{w} σ={sigma} {border:?}"),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn separable_banded_matches_two_pass_bitwise_f32() {
+    check_separable_banded::<f32>(|v| v.to_bits() as u64);
+}
+
+#[test]
+fn separable_banded_matches_two_pass_bitwise_f64() {
+    check_separable_banded::<f64>(f64::to_bits);
+}
+
+#[test]
+fn separable_banded_band_zero_is_clamped_to_one() {
+    let img = sep_test_image::<f32>(9, 6);
+    let k = gaussian_blur_kernel::<f32>(1.0).unwrap();
+    let expected = convolve2d_separable_two_pass(&img, &k, &k, BorderMode::Reflect);
+    let mut dst = DynMatrix::<f32>::zeros(0, 0);
+    convolve2d_separable_into_banded(&img, &k, &k, BorderMode::Reflect, 0, &mut dst);
+    assert_eq!(dst.as_slice(), expected.as_slice());
+}
+
+#[test]
+fn gaussian_blur_into_invalid_sigma_copies_source() {
+    let img = sep_test_image::<f32>(9, 13);
+    let mut dst = DynMatrix::<f32>::zeros(0, 0);
+    for sigma in [0.0_f32, -1.0, f32::NAN, f32::INFINITY] {
+        gaussian_blur_into(&img, sigma, BorderMode::Reflect, &mut dst);
+        assert_eq!(dst.as_slice(), img.as_slice());
+    }
+}
+
+#[test]
+fn separable_into_empty_image() {
+    let k = gaussian_blur_kernel::<f64>(1.0).unwrap();
+    let mut dst = DynMatrix::<f64>::zeros(4, 4);
+    let img = DynMatrix::<f64>::zeros(0, 5);
+    convolve2d_separable_into(&img, &k, &k, BorderMode::Zero, &mut dst);
+    assert_eq!((dst.nrows(), dst.ncols()), (0, 5));
+    let img = DynMatrix::<f64>::zeros(5, 0);
+    convolve2d_separable_into(&img, &k, &k, BorderMode::Zero, &mut dst);
+    assert_eq!((dst.nrows(), dst.ncols()), (5, 0));
+}
+
+#[test]
+fn separable_into_large_parallel_bitwise() {
+    // Large enough to cross the convolution work gate (parallel under
+    // `rayon`: the two-pass reference over columns, and the banded path with
+    // 640 / 64 = 10 bands ≥ the 8-band floor). Checks the thread-count and
+    // band-independence claims bit-for-bit.
+    let (h, w) = (600usize, 640usize);
+    let img = sep_test_image::<f32>(h, w);
+    let sigma = 1.5_f32;
+    let k = gaussian_blur_kernel::<f32>(sigma).unwrap();
+    let mut dst = DynMatrix::<f32>::zeros(h, w);
+    for &border in &sep_borders::<f32>() {
+        let expected = convolve2d_separable_two_pass(&img, &k, &k, border);
+        gaussian_blur_into(&img, sigma, border, &mut dst);
+        assert_bits_equal(&dst, &expected, |v| v.to_bits() as u64, "large into");
+        for band in [64usize, 128] {
+            convolve2d_separable_into_banded(&img, &k, &k, border, band, &mut dst);
+            assert_bits_equal(&dst, &expected, |v| v.to_bits() as u64, "large banded");
+        }
+    }
+}
+
+#[test]
+fn gaussian_blur_kernel_is_three_sigma_truncation() {
+    let k = gaussian_blur_kernel::<f64>(1.5).unwrap();
+    assert_eq!(k.len(), 11);
+    assert_eq!(k, gaussian_kernel_1d::<f64>(1.5, 3.0).unwrap());
+    assert!(gaussian_blur_kernel::<f64>(0.0).is_err());
+    assert!(gaussian_blur_kernel::<f64>(f64::NAN).is_err());
 }
 
 // ── Sobel ──────────────────────────────────────────────────────────────

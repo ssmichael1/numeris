@@ -627,7 +627,7 @@ Fixed-size (const N, stack-allocated, no-std) and dynamic variants (`Dyn*`, requ
 
 Operates on `DynMatrix<T>` buffers (column-major, `BorderMode`-aware). Convolution inner loops dispatch through the SIMD dot/AXPY kernels on contiguous column slices. Implies `alloc`.
 
-- **Filtering & convolution**: `convolve2d` (any `MatrixRef` kernel), `convolve2d_separable`, `gaussian_blur`, `box_blur`, `unsharp_mask`, `laplacian`, `laplacian_of_gaussian`, `sobel_gradients`, `scharr_gradients`, `gradient_magnitude`
+- **Filtering & convolution**: `convolve2d` (any `MatrixRef` kernel), `convolve2d_separable`, `gaussian_blur`, `box_blur`, allocation-free `_into` variants (`convolve2d_separable_into`, `gaussian_blur_into` — write into a caller-owned output; banded internally so no intermediate image is ever materialized; bit-identical to the allocating calls), `gaussian_blur_kernel`, `unsharp_mask`, `laplacian`, `laplacian_of_gaussian`, `sobel_gradients`, `scharr_gradients`, `gradient_magnitude`
 - **Order-statistic filters**: `rank_filter`, `percentile_filter`, `median_filter` (quickselect; 3×3/5×5 stack fast paths), `median_filter_u16` (Huang sliding histogram), `median_pool`, `median_pool_upsampled`
 - **Morphology** (Van Herk - Gil-Werman, ~3 compares/pixel): `max_filter`, `min_filter`, `dilate`, `erode`, `opening`, `closing`, `morphology_gradient`, `top_hat`, `black_hat`
 - **Local statistics** via integral image (O(1) per pixel): `integral_image`, `integral_rect_sum`, `local_mean`, `local_variance`, `local_stddev`

@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.5.19
+
+- **Banded separable convolution and allocation-free `_into` variants** —
+  `convolve2d_separable` (and so `gaussian_blur` and every filter built on
+  it: `unsharp_mask`, `laplacian_of_gaussian`, `canny`, the corner detectors,
+  DoG, the Gaussian pyramid) no longer materializes the whole-image
+  intermediate. The image is processed in bands of output columns (64 by
+  default, wider for long kernels): each band's vertical pass runs over the
+  band plus a kernel-half-width halo into a `(band + K_x − 1) · nrows`
+  scratch slab, and its horizontal pass reads that slab straight into the
+  band's output columns. The slab stays cache-resident across the horizontal
+  pass instead of a full intermediate being streamed twice, and one 16 MB
+  allocation per 2048² f32 call disappears. Results are **bit-for-bit
+  identical** to before and independent of band width and thread count —
+  every output column is computed by the same per-column pass reading the
+  same values in the same order; tests compare raw bit patterns (signed
+  zeros included) against a test-only two-pass reference for `f32` and
+  `f64` across odd/even shapes below and above the SIMD block widths, images
+  narrower than the kernel half-width, all four border modes, three kernel
+  lengths, and bands that do and do not divide the width, are narrower than
+  the kernel, or exceed it — with and without `rayon`. Under `rayon` the
+  bands run in parallel through a new internal `par::for_each_chunk_mut_init`
+  (rayon `for_each_init`, so the slab is allocated per rayon job, not per band)
+  above the same work gate as before with an 8-band floor. New additive API:
+  `convolve2d_separable_into(src, ky, kx, border, &mut dst)` and
+  `gaussian_blur_into(src, sigma, border, &mut dst)` write into a
+  caller-owned output (resized to `src`'s shape only when it does not match,
+  contents discarded), so a pipeline filtering same-size frames reuses one
+  buffer; the allocating functions are thin wrappers over them.
+  `gaussian_blur_kernel(sigma)` exposes the exact 3σ-truncated kernel
+  `gaussian_blur` uses. Motivated by profiling the tetra3rs star plate
+  solver, where the old two whole-image passes' allocations and first-touch
+  page faults were roughly a third of the parallel-build blur; see
+  `bench/benches/convolve.rs` (`gaussian_blur_2048_f32`).
+
 ## 0.5.18
 
 - **Adaptive ODE solvers no longer abort on kinks in the right-hand side** —

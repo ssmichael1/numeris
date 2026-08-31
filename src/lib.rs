@@ -91,7 +91,8 @@
 //!
 //! - [`imageproc`] — 2D image processing on `DynMatrix` buffers. Full
 //!   toolkit: convolution ([`imageproc::convolve2d`],
-//!   [`imageproc::convolve2d_separable`]), blurs / sharpening / gradients /
+//!   [`imageproc::convolve2d_separable`], banded internally, with
+//!   allocation-free `_into` variants), blurs / sharpening / gradients /
 //!   Laplacian / LoG, order-statistic filters (quickselect and
 //!   Huang sliding-histogram for u16), morphology (Van Herk max/min plus
 //!   opening / closing / top-hat / black-hat / morphology gradient),

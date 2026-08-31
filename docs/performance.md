@@ -120,7 +120,7 @@ Only heap-backed, runtime-sized paths with **independent, disjoint output column
 | Area | Routines | Axis |
 |---|---|---|
 | `optim` | `finite_difference_jacobian_dyn_par`, `finite_difference_gradient_dyn_par` | columns = independent function evaluations |
-| `imageproc` convolution | `gaussian_blur`, `box_blur`, `unsharp_mask`, `laplacian_of_gaussian`, `canny`, Harris / Shi-Tomasi corners, DoG, Gaussian pyramid | output columns |
+| `imageproc` separable convolution | `convolve2d_separable` / `_into`, `gaussian_blur` / `_into`, `box_blur`, `unsharp_mask`, `laplacian_of_gaussian`, `canny`, Harris / Shi-Tomasi corners, DoG, Gaussian pyramid | bands of output columns (each band's vertical + horizontal pass on a per-worker scratch slab) |
 | `imageproc` rank/median | `rank_filter`, `percentile_filter`, `median_filter` | output columns (quickselect per pixel) |
 | `imageproc` geometric/stats | `resize_bilinear`, `local_mean` / `local_variance` / `local_stddev`, `adaptive_threshold` | output columns |
 | `imageproc` morphology | `dilate` / `erode`, `opening` / `closing`, `max`/`min_filter`, gradient, top-hat, black-hat | output columns (horizontal pass via transpose) |

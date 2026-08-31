@@ -51,3 +51,38 @@ pub fn fetch_border<T: Scalar>(slice: &[T], idx: isize, border: BorderMode<T>) -
         }
     }
 }
+
+/// Resolve a possibly out-of-range index along one axis of length `n`.
+///
+/// Returns the in-range index to read for in-bounds `idx` and for the
+/// index-remapping modes (`Replicate` clamps, `Reflect` mirrors about the
+/// edge without duplicating it); `None` for the value-filling modes (`Zero`,
+/// `Constant`), whose fill value the caller takes from `border`. This is the
+/// single definition of the index rule that the 2D fetch and the strided
+/// horizontal pass share.
+#[inline]
+pub(super) fn border_index<T>(idx: isize, n: isize, border: BorderMode<T>) -> Option<usize> {
+    if idx >= 0 && idx < n {
+        return Some(idx as usize);
+    }
+    match border {
+        BorderMode::Zero | BorderMode::Constant(_) => None,
+        BorderMode::Replicate => Some(idx.clamp(0, n - 1) as usize),
+        BorderMode::Reflect => Some(reflect_index(idx, n)),
+    }
+}
+
+/// Mirror `idx` into `[0, n)` about the edges without duplicating them
+/// (period `2·(n − 1)`); for `n ≤ 1` every index maps to 0.
+#[inline]
+pub(super) fn reflect_index(idx: isize, n: isize) -> usize {
+    if n <= 1 {
+        return 0;
+    }
+    let period = 2 * (n - 1);
+    let mut m = idx.rem_euclid(period);
+    if m >= n {
+        m = period - m;
+    }
+    m as usize
+}
