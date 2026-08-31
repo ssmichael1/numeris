@@ -181,6 +181,128 @@ pub fn convolve2d_separable_into<T: FloatScalar + crate::par::MaybeSync>(
     convolve_1d_horizontal_into(tmp, kernel_x, border, dst);
 }
 
+/// Banded [`convolve2d_separable`] that hands each output **column** to a
+/// callback instead of materializing the result.
+///
+/// `f(j, col)` is called exactly once for every output column `j` in
+/// `0..src.ncols()`, with `col` the `src.nrows()` elements of that column of
+/// the convolved image (bit-for-bit identical to the corresponding column of
+/// [`convolve2d_separable`]'s output). Columns are processed in bands of
+/// `band` consecutive columns: for each band the vertical pass runs over the
+/// band plus a `kernel_x.len() / 2`-column halo on either side into a small
+/// scratch buffer, and the horizontal pass then produces the band's output
+/// columns one at a time from that buffer. Peak scratch is therefore
+/// `(band + kernel_x.len() − 1) · nrows` elements instead of two full images,
+/// and nothing of the result outlives the callback unless the caller keeps it.
+///
+/// Under the `rayon` feature the bands run in parallel (above the same work
+/// gate as [`convolve2d_separable`], with at least 8 bands), so the callback
+/// is invoked concurrently from worker threads and **in no particular column
+/// order**; it must be `Sync`, and any output it produces must be written
+/// through a thread-safe path (atomics, a per-column lock, a channel, …).
+/// Without the feature the columns are visited sequentially in increasing
+/// `j`. Scratch buffers are allocated once per worker, not per band.
+///
+/// # Which axis is a "column"?
+///
+/// numeris matrices are column-major, so a *column* is the contiguous axis
+/// of the storage and the callback slice is a contiguous run of memory. A
+/// caller that wrapped a row-major image with `DynMatrix::from_vec(width,
+/// height, pixels)` (so that the matrix's columns are the image's rows) will
+/// receive its **image rows** here, one `width`-element slice per call —
+/// which is exactly the row-streaming shape a raster pipeline wants. Because
+/// a separable kernel's two passes commute, the result is the same whichever
+/// axis is called "vertical".
+///
+/// # Choosing `band`
+///
+/// Larger bands amortize the halo (`kernel_x.len() − 1` extra vertical-pass
+/// columns per band) but grow the scratch buffer; smaller bands keep the
+/// scratch in cache. Values of 64–128 are a good default for kernels up to a
+/// few dozen taps. `band` is clamped to at least 1 and may exceed the width
+/// (then there is one band). The parallel gate needs at least 8 bands, so
+/// for a wide image pick `band ≤ ncols / 8` if you want the fan-out.
+///
+/// Both 1D kernels must have odd, nonzero length.
+///
+/// # Example
+///
+/// ```
+/// use numeris::DynMatrix;
+/// use numeris::imageproc::{convolve2d_separable_cols, gaussian_kernel_1d, BorderMode};
+/// use std::sync::atomic::{AtomicUsize, Ordering};
+///
+/// let img = DynMatrix::<f32>::from_fn(32, 40, |i, j| (i * j % 7) as f32);
+/// let k = gaussian_kernel_1d::<f32>(1.5, 3.0).unwrap();
+/// // Count blurred pixels above a threshold without holding the blurred image.
+/// let above = AtomicUsize::new(0);
+/// convolve2d_separable_cols(&img, &k, &k, BorderMode::Replicate, 16, |_j, col| {
+///     let n = col.iter().filter(|&&v| v > 2.0).count();
+///     above.fetch_add(n, Ordering::Relaxed);
+/// });
+/// assert!(above.load(Ordering::Relaxed) > 0);
+/// ```
+pub fn convolve2d_separable_cols<T, F>(
+    src: &DynMatrix<T>,
+    kernel_y: &[T],
+    kernel_x: &[T],
+    border: BorderMode<T>,
+    band: usize,
+    f: F,
+) where
+    T: FloatScalar + crate::par::MaybeSync,
+    F: Fn(usize, &[T]) + Sync,
+{
+    debug_assert_separable_kernels(kernel_y, kernel_x);
+    let nrows = src.nrows();
+    let ncols = src.ncols();
+    if nrows == 0 || ncols == 0 {
+        return;
+    }
+    let band = band.max(1).min(ncols);
+    let klen_x = kernel_x.len();
+    let half_x = klen_x / 2;
+    let nbands = ncols.div_ceil(band);
+    // Scratch per band: the vertical pass over `band + 2·half_x` columns
+    // (clamped to the image) plus one output column.
+    let halo_cols = (band + 2 * half_x).min(ncols);
+
+    // Per-band work: vertical pass over the halo, horizontal pass over the
+    // band; gate exactly like the column-parallel passes.
+    let per_band_work = nrows
+        .saturating_mul(kernel_y.len().saturating_mul(halo_cols) + klen_x.saturating_mul(band));
+    let par_threshold =
+        crate::par::work_col_threshold(per_band_work, CONV_PAR_WORK_BUDGET, CONV_PAR_MIN_COLS);
+
+    crate::par::for_each_index_init(
+        nbands,
+        par_threshold,
+        || {
+            (
+                alloc::vec![T::zero(); halo_cols * nrows],
+                alloc::vec![T::zero(); nrows],
+            )
+        },
+        |(halo, dst_col), b| {
+            let band_lo = b * band;
+            let band_hi = (band_lo + band).min(ncols);
+            // Vertical-pass columns this band's horizontal taps can read
+            // (in-bounds taps only; border-mapped taps land in the same range,
+            // see `horizontal_pass_col`).
+            let halo_lo = band_lo.saturating_sub(half_x);
+            let halo_hi = (band_hi + half_x).min(ncols);
+            let halo = &mut halo[..(halo_hi - halo_lo) * nrows];
+            for (c, col) in halo.chunks_exact_mut(nrows).enumerate() {
+                vertical_pass_col(src, halo_lo + c, kernel_y, border, col);
+            }
+            for j in band_lo..band_hi {
+                horizontal_pass_col(halo, halo_lo, nrows, ncols, j, kernel_x, border, dst_col);
+                f(j, dst_col);
+            }
+        },
+    );
+}
+
 #[inline]
 fn debug_assert_separable_kernels<T>(kernel_y: &[T], kernel_x: &[T]) {
     debug_assert!(

@@ -134,3 +134,50 @@ pub(crate) fn for_each_chunk_mut<T, F>(
         f(j, chunk);
     }
 }
+
+/// Apply `f(&mut scratch, i)` for each index `i` in `0..n`, with a
+/// per-worker scratch value produced by `init`.
+///
+/// This is the index-driven counterpart of [`for_each_chunk_mut`] for
+/// algorithms whose output is *not* a single shared buffer (e.g. a per-band
+/// blur that hands each result to a caller callback instead of materializing
+/// it). Under the `rayon` feature the indices run in parallel when `n` reaches
+/// `threshold`, using `for_each_init` so `init` runs roughly once per worker
+/// job rather than once per index — scratch buffers are therefore reused
+/// across the indices a worker processes. Sequentially (below the threshold,
+/// or always without the feature) `init` runs exactly once.
+///
+/// `f` must not depend on the scratch contents left by a previous index
+/// beyond what it re-initializes itself, and must not rely on any particular
+/// index order.
+#[cfg(feature = "rayon")]
+#[inline]
+pub(crate) fn for_each_index_init<S, I, F>(n: usize, threshold: usize, init: I, f: F)
+where
+    S: Send,
+    I: Fn() -> S + Sync + Send,
+    F: Fn(&mut S, usize) + Sync + Send,
+{
+    use rayon::prelude::*;
+    if n >= threshold {
+        (0..n).into_par_iter().for_each_init(&init, |s, i| f(s, i));
+    } else {
+        let mut s = init();
+        for i in 0..n {
+            f(&mut s, i);
+        }
+    }
+}
+
+#[cfg(not(feature = "rayon"))]
+#[inline]
+pub(crate) fn for_each_index_init<S, I, F>(n: usize, _threshold: usize, init: I, mut f: F)
+where
+    I: FnOnce() -> S,
+    F: FnMut(&mut S, usize),
+{
+    let mut s = init();
+    for i in 0..n {
+        f(&mut s, i);
+    }
+}

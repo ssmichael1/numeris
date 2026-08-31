@@ -66,11 +66,14 @@ pub use connected::{
     connected_components, connected_components_labeled, connected_components_with_label_buffer,
     Component, Connectivity,
 };
-pub use convolve::{convolve2d, convolve2d_separable, convolve2d_separable_into};
+pub use convolve::{
+    convolve2d, convolve2d_separable, convolve2d_separable_cols, convolve2d_separable_into,
+};
 pub use corners::{harris_corners, shi_tomasi_corners};
 pub use filters::{
-    box_blur, gaussian_blur, gaussian_blur_into, gaussian_blur_kernel, gradient_magnitude,
-    laplacian, laplacian_of_gaussian, scharr_gradients, sobel_gradients, unsharp_mask,
+    box_blur, gaussian_blur, gaussian_blur_cols, gaussian_blur_into, gaussian_blur_kernel,
+    gradient_magnitude, laplacian, laplacian_of_gaussian, scharr_gradients, sobel_gradients,
+    unsharp_mask,
 };
 pub use geometric::{
     crop, flip_horizontal, flip_vertical, pad, resize_nearest, rotate_180, rotate_270, rotate_90,
