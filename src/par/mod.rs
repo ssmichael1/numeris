@@ -34,19 +34,31 @@
 /// signature serve both configurations: the bound vanishes unless parallelism
 /// is actually compiled in, and for the real element types (`f32`/`f64`) it is
 /// satisfied automatically when it does apply. This avoids duplicating every
-/// parallelized routine into `cfg`-gated twins. Only `imageproc` uses it (the
-/// `optim` parallel routines name `Fn + Sync + Send` directly), so it is gated
-/// on that feature.
-#[cfg(all(feature = "imageproc", feature = "rayon"))]
+/// parallelized routine into `cfg`-gated twins. `imageproc` and the `fft` 2D
+/// transforms use it (the `optim` parallel routines name `Fn + Sync + Send`
+/// directly), so it is gated on those features.
+#[cfg(all(
+    any(feature = "imageproc", all(feature = "fft", feature = "alloc")),
+    feature = "rayon"
+))]
 #[doc(hidden)]
 pub trait MaybeSync: Send + Sync {}
-#[cfg(all(feature = "imageproc", feature = "rayon"))]
+#[cfg(all(
+    any(feature = "imageproc", all(feature = "fft", feature = "alloc")),
+    feature = "rayon"
+))]
 impl<T: Send + Sync> MaybeSync for T {}
 
-#[cfg(all(feature = "imageproc", not(feature = "rayon")))]
+#[cfg(all(
+    any(feature = "imageproc", all(feature = "fft", feature = "alloc")),
+    not(feature = "rayon")
+))]
 #[doc(hidden)]
 pub trait MaybeSync {}
-#[cfg(all(feature = "imageproc", not(feature = "rayon")))]
+#[cfg(all(
+    any(feature = "imageproc", all(feature = "fft", feature = "alloc")),
+    not(feature = "rayon")
+))]
 impl<T> MaybeSync for T {}
 
 /// Column-count threshold for [`for_each_chunk_mut`] derived from a work budget.
@@ -68,7 +80,7 @@ impl<T> MaybeSync for T {}
 /// the cost band around the crossover is wide and forgiving. On the reference
 /// 8-thread machine the scale factor is exactly 1, leaving the tuned behavior
 /// unchanged.
-#[cfg(feature = "imageproc")]
+#[cfg(any(feature = "imageproc", all(feature = "fft", feature = "alloc")))]
 #[inline]
 pub(crate) fn work_col_threshold(per_col_work: usize, budget: usize, min_cols: usize) -> usize {
     #[cfg(feature = "rayon")]
@@ -82,7 +94,10 @@ pub(crate) fn work_col_threshold(per_col_work: usize, budget: usize, min_cols: u
 /// Logical-core count of the machine the `*_WORK_BUDGET` constants were tuned on
 /// (Apple M3, 8 logical cores). Used to normalize [`work_col_threshold`]'s
 /// thread-count scaling so the reference machine's behavior is unchanged.
-#[cfg(all(feature = "imageproc", feature = "rayon"))]
+#[cfg(all(
+    any(feature = "imageproc", all(feature = "fft", feature = "alloc")),
+    feature = "rayon"
+))]
 const TUNED_THREADS: usize = 8;
 
 /// Apply `f(j, chunk)` to each disjoint `chunk_len`-sized chunk of `data`.
@@ -150,7 +165,10 @@ pub(crate) fn for_each_chunk_mut<T, F>(
 /// `f` must not depend on the scratch contents left by a previous chunk
 /// beyond what it re-initializes itself, and must not rely on any particular
 /// chunk order.
-#[cfg(all(feature = "imageproc", feature = "rayon"))]
+#[cfg(all(
+    any(feature = "imageproc", all(feature = "fft", feature = "alloc")),
+    feature = "rayon"
+))]
 #[inline]
 pub(crate) fn for_each_chunk_mut_init<T, S, I, F>(
     data: &mut [T],

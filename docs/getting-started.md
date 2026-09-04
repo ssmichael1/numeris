@@ -32,6 +32,7 @@ numeris = { version = "0.5", features = ["all"] }
 | `interp` | no | Interpolation — linear, Hermite, Lagrange, cubic spline, bilinear. |
 | `special` | no | Special functions — gamma, lgamma, digamma, beta, betainc, erf. |
 | `quad` | no | Numerical quadrature — Gauss-Legendre, adaptive Simpson, composite rules. |
+| `fft` | no | Fast Fourier Transform — fixed-size no-alloc complex/real FFT; `DynFft` (any length), 2D, convolution with `alloc`. Re-exports `Complex`. |
 | `stats` | no | Statistical distributions (10 families) with sampling. Implies `special`. |
 | `complex` | no | `Complex<f32>` / `Complex<f64>` support for all decompositions. |
 | `nalgebra` | no | Conversions between numeris and nalgebra types. |

@@ -96,6 +96,41 @@ Compared against nalgebra 0.34 and faer 0.24. All benchmarks run with `cargo ben
 - **SVD 6×6**: 27% behind nalgebra — likely dominated by Givens rotations in bidiagonal QR
 - **LU**: small margin behind nalgebra — possibly similar `Result` vs `Option` artifact
 
+## FFT
+
+The `fft` module's `DynFft` tier deinterleaves into structure-of-arrays re/im buffers and runs
+radix-2 butterflies through the same per-ISA SIMD kernel macros as the element-wise ops; the
+no-alloc fixed tier stays scalar (its audience is embedded, small `N`). Bluestein (arbitrary /
+prime lengths) runs its inner power-of-two transforms on the same SIMD core. Real transforms
+are half-size in both directions; 1D and 2D FFT convolution pad to a power of two and use the
+real plans; the 2D row pass runs on a cache-blocked transposed copy so both passes are
+contiguous.
+
+Apple Silicon (aarch64, NEON), `f64`, `cargo bench -p numeris-bench --bench fft`, single
+thread. Measured on a busy machine, so treat the absolute times as approximate — the ratios
+are what the optimizations bought relative to the first landing (gather/scatter 2D, scalar
+Bluestein, full-length real inverse, Bluestein-at-exact-length convolution):
+
+| Transform | Size | Time | vs. first landing |
+|---|---|---|---|
+| `DynFft` forward, power of two | 1024 | ~4 µs | 1.2× |
+| `DynFft` forward, power of two | 65536 | ~0.9 ms | 1.2× |
+| `DynFft` forward, `f32` | 4096 | ~12 µs | 1.7× |
+| `DynFft` inverse (conj folded into copies) | 1024 | ~4 µs | 1.6× |
+| `DynFft` Bluestein (prime) | 1009 | ~26 µs | 2.4× |
+| `DynFft` Bluestein (prime) | 4093 | ~130 µs | 2.3× |
+| `DynRealFft` forward | 65536 | ~0.6 ms | 1.3× |
+| `DynRealFft` inverse (half-size) | 65536 | ~0.6 ms | 2.0× |
+| `fft_convolve` | 4096 ∗ 512 | ~0.17 ms | 11× |
+| `fft_convolve` | 10000 ∗ 1000 | ~0.35 ms | 12× |
+| `DynFft2` forward (sequential) | 512² | ~3.3 ms | 1.4× |
+| `DynFft2` forward (sequential) | 1024² | ~16 ms | 1.6× |
+| `DynRealFft2` forward (sequential) | 1024² | ~9 ms | — |
+
+A prime length costs roughly 6× the next power of two (two length-`≥ 2N` transforms plus the
+chirp multiplies), so pad to a power of two when you control the length — `fft_convolve` and
+`fft_convolve2d` do this for you.
+
 ## No-std Performance
 
 On embedded targets with no hardware FPU, float operations fall back to the `libm` software implementation. Performance in this mode is entirely determined by the target's ALU throughput — SIMD code paths are not compiled for targets without SIMD (the `TypeId` dispatch compiles down to scalar loops).
@@ -124,6 +159,7 @@ Only heap-backed, runtime-sized paths with **independent, disjoint output column
 | `imageproc` rank/median | `rank_filter`, `percentile_filter`, `median_filter` | output columns (quickselect per pixel) |
 | `imageproc` geometric/stats | `resize_bilinear`, `local_mean` / `local_variance` / `local_stddev`, `adaptive_threshold` | output columns |
 | `imageproc` morphology | `dilate` / `erode`, `opening` / `closing`, `max`/`min_filter`, gradient, top-hat, black-hat | output columns (horizontal pass via transpose) |
+| `fft` 2D | `DynFft2` / `DynRealFft2` (hence `fft_convolve2d` / `fft_correlate2d`) | columns of each pass — independent 1D transforms sharing one read-only plan, one `DynFftScratch` per worker; row pass via a blocked transpose (also banded in parallel). A single 1D FFT is never multithreaded. |
 
 The `optim` parallel routines are **separate `_par` functions** (e.g. `finite_difference_jacobian_dyn_par`) requiring `Fn + Sync + Send`, rather than a feature-gated change to the sequential `finite_difference_jacobian_dyn` (which keeps its `FnMut` signature). This keeps the feature purely additive — enabling `rayon` anywhere in a dependency tree never alters an existing signature. The `imageproc` routines take no user closure, so they parallelize in place (the element-type `Send + Sync` requirement is invisible for `f32`/`f64`).
 
@@ -143,6 +179,9 @@ Apple M3 — 8 cores (4 performance + 4 efficiency), aarch64, `f64`. Rayon uses 
 | Median filter (5×5) | 256² | ~3.4× |
 | Median filter (3×3) | 256² | ~3.7× |
 | Morphological dilation (r=3) | 1024² | ~4.1× |
+| 2D FFT (`DynFft2`, complex) | 512² | ~2.6× |
+| 2D FFT (`DynFft2`, complex) | 1024² | ~2.8× |
+| 2D real FFT (`DynRealFft2`, forward / inverse) | 1024² | ~2.9× / ~2.7× |
 | Finite-difference Jacobian | n=256, expensive `f` | ~4× |
 
 Wins scale with total work; below each routine's gate the parallel build matches the sequential one (no regression). See `bench/` for the harnesses — each is feature-toggled (`--no-default-features` flips `rayon` off) so Criterion can diff the two baselines.

@@ -373,6 +373,47 @@ def make_continuous_cdf_plot():
     savefig(fig, "plot_continuous_cdf")
 
 
+# ── FFT: real-input spectrum ──────────────────────────────────────────────
+
+
+def make_fft_plot():
+    """Two tones in noise → `rfft` half-spectrum (what `DynRealFft` returns)."""
+    fs = 1000.0
+    n = 1024
+    t = np.arange(n) / fs
+    rng = np.random.default_rng(7)
+    x = (
+        1.0 * np.sin(2 * np.pi * 50.0 * t)
+        + 0.5 * np.sin(2 * np.pi * 120.0 * t)
+        + 0.3 * rng.standard_normal(n)
+    )
+    spec = np.fft.rfft(x)  # n/2 + 1 bins, DC … Nyquist
+    freqs = np.fft.rfftfreq(n, d=1.0 / fs)
+    mag = 2.0 * np.abs(spec) / n  # single-sided amplitude
+
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(7.2, 3.0))
+    ax0.plot(t[:200] * 1e3, x[:200], color=COLORS[0], linewidth=1.0)
+    ax0.set_xlabel("time (ms)")
+    ax0.set_ylabel("$x(t)$")
+    ax0.set_title("Signal: 50 Hz + 120 Hz + noise")
+
+    ax1.plot(freqs, mag, color=COLORS[1], linewidth=1.0)
+    ax1.set_xlim(0, fs / 2)
+    ax1.set_xlabel("frequency (Hz)")
+    ax1.set_ylabel("amplitude")
+    ax1.set_title("rfft half-spectrum ($N/2+1$ bins)")
+    for f0, a0 in [(50.0, 1.0), (120.0, 0.5)]:
+        ax1.annotate(
+            f"{f0:.0f} Hz",
+            xy=(f0, a0),
+            xytext=(f0 + 40, a0 * 0.9),
+            fontsize=8,
+            arrowprops=dict(arrowstyle="-", color="gray", linewidth=0.6),
+        )
+    fig.tight_layout()
+    savefig(fig, "plot_fft")
+
+
 # ── Image processing ───────────────────────────────────────────────────────
 
 
@@ -512,6 +553,7 @@ if __name__ == "__main__":
     make_binomial_pmf_plot()
     make_poisson_pmf_plot()
     make_continuous_cdf_plot()
+    make_fft_plot()
     make_imageproc_panel()
     make_imageproc_bgsub()
 

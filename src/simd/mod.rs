@@ -399,6 +399,73 @@ macro_rules! simd_conv1d_kernel_muladd {
     };
 }
 
+/// Deinterleaved (SoA) radix-2 FFT butterfly for one lane type.
+///
+/// Same body across every ISA — only the vector width and intrinsic names
+/// differ — so validating one architecture (NEON, locally) validates the logic
+/// for all of them. Computes, per lane block: `v = bot·w` (complex multiply on
+/// separate re/im lanes), then `top += v`, `bot -= v`. Uses only the load /
+/// store / add / sub / mul intrinsics already wired for `simd_elementwise_kernels!`.
+#[allow(unused_macros)]
+macro_rules! simd_fft_butterfly_kernel {
+    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident) => {
+        /// SoA radix-2 butterfly (see the crate `simd::scalar::fft_butterfly` reference).
+        #[inline]
+        pub fn fft_butterfly(
+            tr: &mut [$t],
+            ti: &mut [$t],
+            br: &mut [$t],
+            bi: &mut [$t],
+            wr: &[$t],
+            wi: &[$t],
+        ) {
+            let half = tr.len();
+            debug_assert_eq!(ti.len(), half);
+            debug_assert_eq!(br.len(), half);
+            debug_assert_eq!(bi.len(), half);
+            debug_assert_eq!(wr.len(), half);
+            debug_assert_eq!(wi.len(), half);
+            for (((((ctr, cti), cbr), cbi), cwr), cwi) in tr
+                .chunks_exact_mut($lanes)
+                .zip(ti.chunks_exact_mut($lanes))
+                .zip(br.chunks_exact_mut($lanes))
+                .zip(bi.chunks_exact_mut($lanes))
+                .zip(wr.chunks_exact($lanes))
+                .zip(wi.chunks_exact($lanes))
+            {
+                // SAFETY: every chunk is exactly $lanes wide — one vector load /
+                // store each — so all six accesses are in bounds by construction,
+                // and each `&mut` chunk is loaded and stored through its own borrow.
+                unsafe {
+                    let vbr = $load(cbr.as_ptr());
+                    let vbi = $load(cbi.as_ptr());
+                    let vwr = $load(cwr.as_ptr());
+                    let vwi = $load(cwi.as_ptr());
+                    // v = bot * w  (complex)
+                    let vr = $sub($mul(vbr, vwr), $mul(vbi, vwi));
+                    let vi = $add($mul(vbr, vwi), $mul(vbi, vwr));
+                    let vtr = $load(ctr.as_ptr());
+                    let vti = $load(cti.as_ptr());
+                    $store(ctr.as_mut_ptr(), $add(vtr, vr));
+                    $store(cti.as_mut_ptr(), $add(vti, vi));
+                    $store(cbr.as_mut_ptr(), $sub(vtr, vr));
+                    $store(cbi.as_mut_ptr(), $sub(vti, vi));
+                }
+            }
+            for k in (half - half % $lanes)..half {
+                let vr = br[k] * wr[k] - bi[k] * wi[k];
+                let vi = br[k] * wi[k] + bi[k] * wr[k];
+                let trk = tr[k];
+                let tik = ti[k];
+                tr[k] = trk + vr;
+                ti[k] = tik + vi;
+                br[k] = trk - vr;
+                bi[k] = tik - vi;
+            }
+        }
+    };
+}
+
 pub(crate) mod scalar;
 
 #[cfg(target_arch = "aarch64")]
@@ -860,6 +927,68 @@ pub(crate) fn conv1d_dispatch<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T],
         }
     }
     scalar::conv1d(out, src, kernel, stride);
+}
+
+/// Dispatch a deinterleaved (SoA) radix-2 FFT butterfly to SIMD or scalar.
+///
+/// Operates on the top halves (`tr`/`ti`), bottom halves (`br`/`bi`), and stage
+/// twiddles (`wr`/`wi`), all of equal length. For `f32`/`f64` the SIMD kernels
+/// are selected at compile time (widest ISA available); all other types use the
+/// scalar reference in [`scalar::fft_butterfly`]. Used by the `fft` module's
+/// heap-backed `DynFft` tier.
+#[inline]
+#[allow(dead_code)]
+pub(crate) fn fft_butterfly_dispatch<T: Scalar>(
+    tr: &mut [T],
+    ti: &mut [T],
+    br: &mut [T],
+    bi: &mut [T],
+    wr: &[T],
+    wi: &[T],
+) {
+    // Reinterpret the six `T` slices as the concrete float type through the
+    // `TypeEq` witness `$w`, then call `$module::fft_butterfly`. Unused on
+    // architectures without a SIMD kernel (e.g. the thumbv7em no_std target).
+    #[allow(unused_macros)]
+    macro_rules! simd_call {
+        ($w:ident, $module:ident) => {{
+            let (tr, ti) = ($w.slice_mut(tr), $w.slice_mut(ti));
+            let (br, bi) = ($w.slice_mut(br), $w.slice_mut(bi));
+            let (wr, wi) = ($w.slice(wr), $w.slice(wi));
+            $module::fft_butterfly(tr, ti, br, bi, wr, wi);
+            return;
+        }};
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            simd_call!(w, f64_neon);
+        }
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            simd_call!(w, f32_neon);
+        }
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            #[cfg(target_feature = "avx512f")]
+            simd_call!(w, f64_avx512);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            simd_call!(w, f64_avx);
+            #[cfg(not(target_feature = "avx"))]
+            simd_call!(w, f64_sse2);
+        }
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            #[cfg(target_feature = "avx512f")]
+            simd_call!(w, f32_avx512);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            simd_call!(w, f32_avx);
+            #[cfg(not(target_feature = "avx"))]
+            simd_call!(w, f32_sse2);
+        }
+    }
+    scalar::fft_butterfly(tr, ti, br, bi, wr, wi);
 }
 
 #[cfg(test)]

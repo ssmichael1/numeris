@@ -131,3 +131,7 @@ numeris uses `num-traits` with `default-features = false` for generic numeric bo
 - `Float` — transcendentals, `sqrt`, `sin`, etc. (FloatScalar bound)
 
 When `std` is enabled, `Float` delegates to the system's hardware libm. Without `std`, it uses `libm`'s software implementations via the `libm` feature.
+
+## FFT
+
+The FFT module has its own design notes — the two-tier (no-alloc fixed / `alloc` planner) split, the structure-of-arrays SIMD butterflies, Bluestein for arbitrary lengths, and the column-major 2D layout decision. See [FFT Design Notes](design-fft.md).

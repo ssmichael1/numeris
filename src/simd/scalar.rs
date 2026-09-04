@@ -209,3 +209,38 @@ pub fn conv1d<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T], stride: usize) 
         *cell = sum;
     }
 }
+
+/// Decimation-in-time radix-2 butterfly on deinterleaved (structure-of-arrays)
+/// real/imaginary slices — the reference for the SIMD FFT kernels.
+///
+/// For each `k`: `v = bot[k] · w[k]` (complex), then `top[k] += v`,
+/// `bot[k] -= v`. `tr`/`ti` are the top halves, `br`/`bi` the bottom halves,
+/// and `wr`/`wi` the stage twiddles, all of equal length.
+#[inline]
+#[allow(dead_code)]
+pub fn fft_butterfly<T: Scalar>(
+    tr: &mut [T],
+    ti: &mut [T],
+    br: &mut [T],
+    bi: &mut [T],
+    wr: &[T],
+    wi: &[T],
+) {
+    let half = tr.len();
+    debug_assert_eq!(ti.len(), half);
+    debug_assert_eq!(br.len(), half);
+    debug_assert_eq!(bi.len(), half);
+    debug_assert_eq!(wr.len(), half);
+    debug_assert_eq!(wi.len(), half);
+    for k in 0..half {
+        // v = bot[k] * w[k]
+        let vr = br[k] * wr[k] - bi[k] * wi[k];
+        let vi = br[k] * wi[k] + bi[k] * wr[k];
+        let trk = tr[k];
+        let tik = ti[k];
+        tr[k] = trk + vr;
+        ti[k] = tik + vi;
+        br[k] = trk - vr;
+        bi[k] = tik - vi;
+    }
+}

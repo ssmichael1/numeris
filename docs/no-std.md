@@ -27,6 +27,7 @@ This gives you:
 | No-std + heap | `["libm", "alloc"]` | **no** |
 | No-std + ODE | `["libm", "ode"]` | **no** |
 | No-std + filters | `["libm", "control"]` | **no** |
+| No-std + FFT | `["libm", "fft"]` | **no** |
 | No-std + EKF only | `["libm", "estimate"]` — but estimate implies alloc | **no** |
 
 !!! info "Alloc without std"
@@ -57,6 +58,7 @@ These modules work with `#![no_std]` and zero heap allocation:
 | `interp` | ✓ | Fixed-size variants (`LinearInterp<T, N>`, etc.) |
 | `optim` | ✓ | Root finding, BFGS, GN, LM |
 | `estimate` | ✓ (EKF, BatchLsq) | UKF/SR-UKF/CKF require `alloc` |
+| `fft` | ✓ (`fft`/`ifft`, `rfft`/`irfft`, `fftshift`) | Power-of-two `N ≤ 4096` on the stack; `DynFft`/2D/convolution require `alloc` |
 | `dynmatrix` | ✗ | Requires `alloc` |
 
 ## Example: Embedded EKF (no heap)
