@@ -21,6 +21,7 @@ Numeris API reference is [here](https://docs.rs/numeris/)
 | **Interpolation** | Linear, Hermite, Lagrange, cubic spline, bilinear |
 | **Image Processing** | 2D convolution, Gaussian/box blur, Sobel/Scharr gradients, morphology (Van Herk), Canny, Harris/Shi-Tomasi corners, Otsu/adaptive thresholding |
 | **Quadrature** | Gauss-Legendre (N=1–10, 15, 20), adaptive Simpson, composite trapezoid/Simpson |
+| **FFT** | Fixed-size no-alloc complex/real FFT, `DynFft` for any length (Bluestein), 2D `DynFft2`, FFT convolution, `fftshift` |
 | **Special Functions** | gamma, lgamma, digamma, beta, betainc, incomplete gamma, erf |
 | **Statistics** | 10 distributions (Normal, Gamma, Beta, Student's t, Poisson, …) |
 | **Digital Control** | Butterworth/Chebyshev IIR filters, PID controller |

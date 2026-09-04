@@ -98,6 +98,8 @@ bins (DC … Nyquist) are computed. The forward transform packs the reals into `
 complex samples for roughly half the work. Output length is passed as a caller-supplied
 slice (returning `[_; N/2+1]` would need unstable const generics).
 
+![Real FFT spectrum of two tones in noise](includes/plot_fft.svg)
+
 ```rust
 use numeris::fft::{rfft, irfft};
 use numeris::Complex;

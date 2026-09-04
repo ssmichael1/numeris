@@ -53,7 +53,9 @@ nav:
       - Quaternion: quaternion.md
   - Performance: performance.md
   - No-std / Embedded: no-std.md
-  - Design: design.md
+  - Design:
+      - Overview: design.md
+      - FFT Design Notes: design-fft.md
   - API Reference ↗: https://docs.rs/numeris
 
 markdown_extensions:
