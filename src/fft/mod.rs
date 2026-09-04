@@ -81,15 +81,15 @@ mod twiddle;
 mod tests;
 
 #[cfg(feature = "alloc")]
-pub use convolve::{fft_convolve, fft_correlate};
+pub use convolve::{fft_convolve, fft_convolve2d, fft_correlate, fft_correlate2d};
 #[cfg(feature = "alloc")]
-pub use dynfft::DynFft;
+pub use dynfft::{DynFft, DynFftScratch};
 #[cfg(feature = "alloc")]
 pub use fft2::{fftshift2d, ifftshift2d, DynFft2, DynRealFft2};
 pub use fixed::{fft, fft_inplace, ifft, ifft_inplace};
-#[cfg(feature = "alloc")]
-pub use real::DynRealFft;
 pub use real::{irfft, rfft};
+#[cfg(feature = "alloc")]
+pub use real::{DynRealFft, DynRealFftScratch};
 pub use shift::{fftshift, ifftshift};
 pub use twiddle::TwiddleTable;
 

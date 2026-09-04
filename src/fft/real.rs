@@ -3,11 +3,12 @@
 //! A length-`N` real signal has a Hermitian-symmetric spectrum, so only the
 //! `N/2 + 1` non-redundant bins (DC … Nyquist) are computed and returned.
 //!
-//! The forward fixed-size transform uses the classic half-size packing trick:
-//! pack the `N` reals into `N/2` complex samples, run one length-`N/2` complex
-//! FFT, then untangle — roughly half the work of a full complex FFT. The inverse
-//! reconstructs the full Hermitian spectrum and runs a length-`N` inverse FFT
-//! (the simpler, correct choice; a half-size inverse is a future optimization).
+//! Both directions use the classic half-size packing trick. Forward: pack the
+//! `N` reals into `N/2` complex samples `z[j] = x[2j] + i·x[2j+1]`, run one
+//! length-`N/2` complex FFT, then untangle the even/odd sub-spectra. Inverse:
+//! re-tangle the `N/2 + 1` bins into the length-`N/2` spectrum of `z`, run one
+//! length-`N/2` inverse FFT, and unpack. Each direction is roughly half the work
+//! of the corresponding full complex transform.
 //!
 //! Following the crate convention, the output length is passed by the caller as
 //! a slice (returning `[_; N/2 + 1]` would require the unstable
@@ -44,16 +45,47 @@ fn untangle<T: FloatScalar>(z: &[Complex<T>], out: &mut [Complex<T>], n: usize) 
     }
 }
 
-/// Rebuild the full length-`n` Hermitian spectrum from its `n/2 + 1` bins.
-fn hermitian_fill<T: FloatScalar>(bins: &[Complex<T>], full: &mut [Complex<T>]) {
-    let n = full.len();
-    let half = n / 2;
-    for (k, slot) in full.iter_mut().enumerate() {
-        *slot = if k <= half {
-            bins[k]
-        } else {
-            bins[n - k].conj()
-        };
+/// Inverse of [`untangle`]: rebuild the length-`m` spectrum `z[0..m]` of the
+/// packed sequence `x[2j] + i·x[2j+1]` from the `m + 1` real-spectrum bins,
+/// where `n = 2m`.
+///
+/// With `Fe`/`Fo` the even/odd sub-spectra and `w = exp(-2πi k/N)`, the forward
+/// gives `X[k] = Fe + w·Fo` and `conj(X[m−k]) = Fe − w·Fo`, so
+/// `Fe = (X[k] + conj(X[m−k]))/2`, `Fo = conj(w)·(X[k] − conj(X[m−k]))/2`, and
+/// `Z[k] = Fe + i·Fo`.
+fn retangle<T: FloatScalar>(bins: &[Complex<T>], z: &mut [Complex<T>], n: usize) {
+    let m = z.len();
+    debug_assert_eq!(n, 2 * m);
+    debug_assert_eq!(bins.len(), m + 1);
+
+    let half = cast::<T>(0.5);
+    for (k, slot) in z.iter_mut().enumerate() {
+        let xf = bins[k];
+        let xb = bins[m - k].conj();
+        let fe = (xf + xb) * half;
+        let d = (xf - xb) * half;
+        let ang = cast::<T>(core::f64::consts::TAU * (k as f64) / (n as f64));
+        let wc = Complex::new(ang.cos(), ang.sin()); // conj(w) = exp(+2πi k / N)
+        let fo = d * wc;
+        // Z = Fe + i·Fo
+        *slot = Complex::new(fe.re - fo.im, fe.im + fo.re);
+    }
+}
+
+/// Pack `n` reals into `n/2` complex samples `z[j] = x[2j] + i·x[2j+1]`.
+#[inline]
+fn pack<T: FloatScalar>(input: &[T], z: &mut [Complex<T>]) {
+    for (slot, pair) in z.iter_mut().zip(input.chunks_exact(2)) {
+        *slot = Complex::new(pair[0], pair[1]);
+    }
+}
+
+/// Unpack `n/2` complex samples back into `n` reals (inverse of [`pack`]).
+#[inline]
+fn unpack<T: FloatScalar>(z: &[Complex<T>], output: &mut [T]) {
+    for (pair, s) in output.chunks_exact_mut(2).zip(z) {
+        pair[0] = s.re;
+        pair[1] = s.im;
     }
 }
 
@@ -77,9 +109,7 @@ pub fn rfft<T: FloatScalar, const N: usize>(input: &[T; N], output: &mut [Comple
 
     let m = N / 2;
     let mut z = [Complex::new(T::zero(), T::zero()); N];
-    for j in 0..m {
-        z[j] = Complex::new(input[2 * j], input[2 * j + 1]);
-    }
+    pack(input, &mut z[..m]);
     radix2_inline(&mut z[..m], false);
     untangle(&z[..m], output, N);
 }
@@ -88,7 +118,7 @@ pub fn rfft<T: FloatScalar, const N: usize>(input: &[T; N], output: &mut [Comple
 /// `output` receives the `N` reconstructed real samples (normalized by `1/N`).
 ///
 /// `N` must be a power of two with `2 ≤ N ≤ 4096`, and `input.len()` must equal
-/// `N/2 + 1`.
+/// `N/2 + 1`. Runs a single length-`N/2` inverse FFT (half-size packing).
 pub fn irfft<T: FloatScalar, const N: usize>(input: &[Complex<T>], output: &mut [T; N]) {
     const {
         assert!(
@@ -102,16 +132,15 @@ pub fn irfft<T: FloatScalar, const N: usize>(input: &[Complex<T>], output: &mut 
         "irfft: input length must be N/2 + 1"
     );
 
-    let mut full = [Complex::new(T::zero(), T::zero()); N];
-    hermitian_fill(input, &mut full);
-    radix2_inline(&mut full, true);
-    for (o, f) in output.iter_mut().zip(&full) {
-        *o = f.re;
-    }
+    let m = N / 2;
+    let mut z = [Complex::new(T::zero(), T::zero()); N];
+    retangle(input, &mut z[..m], N);
+    radix2_inline(&mut z[..m], true);
+    unpack(&z[..m], output);
 }
 
 #[cfg(feature = "alloc")]
-pub use dyn_real::DynRealFft;
+pub use dyn_real::{DynRealFft, DynRealFftScratch};
 
 #[cfg(feature = "alloc")]
 mod dyn_real {
@@ -121,16 +150,62 @@ mod dyn_real {
 
     use num_complex::Complex;
 
-    use super::super::dynfft::DynFft;
-    use super::{hermitian_fill, untangle};
+    use super::super::dynfft::{DynFft, DynFftScratch};
+    use super::{pack, retangle, unpack, untangle};
     use crate::traits::FloatScalar;
+
+    /// Rebuild the full length-`n` Hermitian spectrum from its `n/2 + 1` bins.
+    fn hermitian_fill<T: FloatScalar>(bins: &[Complex<T>], full: &mut [Complex<T>]) {
+        let n = full.len();
+        let half = n / 2;
+        for (k, slot) in full.iter_mut().enumerate() {
+            *slot = if k <= half {
+                bins[k]
+            } else {
+                bins[n - k].conj()
+            };
+        }
+    }
+
+    /// Work buffers for a [`DynRealFft`] plan (requires `alloc`).
+    ///
+    /// The real-FFT analogue of [`DynFftScratch`]: build one per worker with
+    /// [`DynRealFft::make_scratch`] to run a shared plan through
+    /// [`DynRealFft::forward_with`] / [`DynRealFft::inverse_with`].
+    pub struct DynRealFftScratch<T: FloatScalar> {
+        n: usize,
+        /// Packed (even `n`: length `n/2`) or full (odd `n`: length `n`) complex
+        /// work buffer.
+        z: Vec<Complex<T>>,
+        fft: DynFftScratch<T>,
+    }
+
+    impl<T: FloatScalar> DynRealFftScratch<T> {
+        /// The real signal length this scratch was built for.
+        #[inline]
+        pub fn len(&self) -> usize {
+            self.n
+        }
+
+        /// Always `false` — a scratch cannot be built for length zero.
+        #[inline]
+        pub fn is_empty(&self) -> bool {
+            false
+        }
+    }
 
     /// Runtime-sized real FFT (requires `alloc`).
     ///
     /// Handles any signal length `n`. Even lengths use the half-size packing
-    /// trick (a length-`n/2` complex plan); odd lengths run a full length-`n`
-    /// complex FFT and slice off the non-redundant bins. The inverse always
-    /// reconstructs the Hermitian spectrum and runs a length-`n` inverse FFT.
+    /// trick in both directions (a single length-`n/2` complex plan); odd
+    /// lengths run a full length-`n` complex FFT and slice off / rebuild the
+    /// non-redundant bins.
+    ///
+    /// Like [`DynFft`], the plan is read-only during a transform: use
+    /// [`make_scratch`](DynRealFft::make_scratch) with
+    /// [`forward_with`](DynRealFft::forward_with) /
+    /// [`inverse_with`](DynRealFft::inverse_with) to share one plan across
+    /// workers.
     ///
     /// # Examples
     ///
@@ -147,27 +222,30 @@ mod dyn_real {
     /// ```
     pub struct DynRealFft<T: FloatScalar> {
         n: usize,
-        /// Half-size complex plan for even-length forward transforms.
-        half_plan: Option<DynFft<T>>,
-        /// Full-size complex plan (odd-length forward and every inverse).
-        full_plan: DynFft<T>,
-        scratch: Vec<Complex<T>>,
+        /// Length-`n/2` plan for even `n`, length-`n` plan for odd `n`.
+        plan: DynFft<T>,
+        scratch: DynRealFftScratch<T>,
     }
 
     impl<T: FloatScalar> DynRealFft<T> {
         /// Build a plan for real signals of length `len`. Panics if `len == 0`.
         pub fn new(len: usize) -> Self {
             assert!(len > 0, "DynRealFft length must be non-zero");
-            let half_plan = if len % 2 == 0 {
-                Some(DynFft::new(len / 2))
-            } else {
-                None
-            };
+            let plan_len = if len % 2 == 0 { len / 2 } else { len };
+            let plan = DynFft::new(plan_len);
+            let scratch = Self::scratch_for(&plan, len);
             Self {
                 n: len,
-                half_plan,
-                full_plan: DynFft::new(len),
-                scratch: vec![Complex::new(T::zero(), T::zero()); len],
+                plan,
+                scratch,
+            }
+        }
+
+        fn scratch_for(plan: &DynFft<T>, n: usize) -> DynRealFftScratch<T> {
+            DynRealFftScratch {
+                n,
+                z: vec![Complex::new(T::zero(), T::zero()); plan.len()],
+                fft: plan.make_scratch(),
             }
         }
 
@@ -183,52 +261,108 @@ mod dyn_real {
             false
         }
 
+        /// Allocate a fresh scratch buffer for this plan.
+        pub fn make_scratch(&self) -> DynRealFftScratch<T> {
+            Self::scratch_for(&self.plan, self.n)
+        }
+
         /// Forward real FFT. `input.len() == n`, `output.len() == n/2 + 1`.
         pub fn forward(&mut self, input: &[T], output: &mut [Complex<T>]) {
-            assert_eq!(input.len(), self.n, "DynRealFft: input length must equal n");
-            assert_eq!(
-                output.len(),
-                self.n / 2 + 1,
-                "DynRealFft: output length must be n/2 + 1"
-            );
-
-            match &mut self.half_plan {
-                Some(half) => {
-                    let m = self.n / 2;
-                    let z = &mut self.scratch[..m];
-                    for (j, slot) in z.iter_mut().enumerate() {
-                        *slot = Complex::new(input[2 * j], input[2 * j + 1]);
-                    }
-                    half.forward(z);
-                    untangle(&self.scratch[..m], output, self.n);
-                }
-                None => {
-                    for (slot, &x) in self.scratch.iter_mut().zip(input) {
-                        *slot = Complex::new(x, T::zero());
-                    }
-                    self.full_plan.forward(&mut self.scratch);
-                    output.copy_from_slice(&self.scratch[..self.n / 2 + 1]);
-                }
-            }
+            let Self { n, plan, scratch } = self;
+            Self::forward_impl(plan, *n, input, output, scratch);
         }
 
         /// Inverse real FFT. `input.len() == n/2 + 1`, `output.len() == n`.
         pub fn inverse(&mut self, input: &[Complex<T>], output: &mut [T]) {
-            assert_eq!(
-                input.len(),
-                self.n / 2 + 1,
-                "DynRealFft: input length must be n/2 + 1"
-            );
+            let Self { n, plan, scratch } = self;
+            Self::inverse_impl(plan, *n, input, output, scratch);
+        }
+
+        /// Forward real FFT through a caller-owned scratch, leaving the plan
+        /// shared. Panics on a length mismatch or a scratch built for another
+        /// length.
+        pub fn forward_with(
+            &self,
+            input: &[T],
+            output: &mut [Complex<T>],
+            scratch: &mut DynRealFftScratch<T>,
+        ) {
+            Self::forward_impl(&self.plan, self.n, input, output, scratch);
+        }
+
+        /// Inverse real FFT through a caller-owned scratch, leaving the plan
+        /// shared. Panics on a length mismatch or a scratch built for another
+        /// length.
+        pub fn inverse_with(
+            &self,
+            input: &[Complex<T>],
+            output: &mut [T],
+            scratch: &mut DynRealFftScratch<T>,
+        ) {
+            Self::inverse_impl(&self.plan, self.n, input, output, scratch);
+        }
+
+        fn forward_impl(
+            plan: &DynFft<T>,
+            n: usize,
+            input: &[T],
+            output: &mut [Complex<T>],
+            scratch: &mut DynRealFftScratch<T>,
+        ) {
+            assert_eq!(input.len(), n, "DynRealFft: input length must equal n");
             assert_eq!(
                 output.len(),
-                self.n,
-                "DynRealFft: output length must equal n"
+                n / 2 + 1,
+                "DynRealFft: output length must be n/2 + 1"
             );
+            assert_eq!(
+                scratch.n, n,
+                "DynRealFft: scratch was built for a different length"
+            );
+            let DynRealFftScratch { z, fft, .. } = scratch;
 
-            hermitian_fill(input, &mut self.scratch);
-            self.full_plan.inverse(&mut self.scratch);
-            for (o, f) in output.iter_mut().zip(&self.scratch) {
-                *o = f.re;
+            if n % 2 == 0 {
+                pack(input, z);
+                plan.forward_with(z, fft);
+                untangle(z, output, n);
+            } else {
+                for (slot, &x) in z.iter_mut().zip(input) {
+                    *slot = Complex::new(x, T::zero());
+                }
+                plan.forward_with(z, fft);
+                output.copy_from_slice(&z[..n / 2 + 1]);
+            }
+        }
+
+        fn inverse_impl(
+            plan: &DynFft<T>,
+            n: usize,
+            input: &[Complex<T>],
+            output: &mut [T],
+            scratch: &mut DynRealFftScratch<T>,
+        ) {
+            assert_eq!(
+                input.len(),
+                n / 2 + 1,
+                "DynRealFft: input length must be n/2 + 1"
+            );
+            assert_eq!(output.len(), n, "DynRealFft: output length must equal n");
+            assert_eq!(
+                scratch.n, n,
+                "DynRealFft: scratch was built for a different length"
+            );
+            let DynRealFftScratch { z, fft, .. } = scratch;
+
+            if n % 2 == 0 {
+                retangle(input, z, n);
+                plan.inverse_with(z, fft);
+                unpack(z, output);
+            } else {
+                hermitian_fill(input, z);
+                plan.inverse_with(z, fft);
+                for (o, f) in output.iter_mut().zip(z.iter()) {
+                    *o = f.re;
+                }
             }
         }
     }

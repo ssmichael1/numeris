@@ -1,12 +1,16 @@
 # FFT module — design notes
 
-Status: **1D + 2D implemented** (fixed/dyn complex, Bluestein, rfft/irfft, convolve, shift;
-`DynFft2`/`DynRealFft2` + `fftshift2d`/`ifftshift2d`). Feature flag: `fft`. The 2D landing
-took recommendation (1) — gather/scatter on the strided row axis, reusing the per-column
-`DynFft` directly. Still open as pure optimizations: transpose-based passes (both axes
-contiguous) and `rayon` per-row/column parallelism (needs a scratch-external transform API,
-since `DynFft::forward` currently takes `&mut self`); and `fft_convolve2d` for imageproc's
-large-kernel path.
+Status: **1D + 2D implemented and optimized** (fixed/dyn complex, Bluestein, rfft/irfft,
+convolve, shift; `DynFft2`/`DynRealFft2` + `fftshift2d`/`ifftshift2d`;
+`fft_convolve2d`/`fft_correlate2d`). Feature flag: `fft`. The 2D row pass took
+recommendation (2) — a cache-blocked transpose so both passes are contiguous SIMD batches —
+after first landing as (1) gather/scatter. `DynFft::forward` still takes `&mut self` (it
+uses the plan's own scratch), but the plan is now split from its scratch: `make_scratch` +
+`forward_with`/`inverse_with` run a shared `&` plan, which is what the `rayon` per-column
+batches in 2D use (one scratch per worker via `par::for_each_chunk_mut_init`). Also done:
+half-size real inverse, Bluestein on the SIMD core, fused length-2/4 stages, power-of-two
+padded real convolution. Remaining pure optimizations: radix-4 / split-radix SIMD kernels,
+and a half-size real 2D column pass that skips the Hermitian rebuild.
 
 ## Multi-dimensional (2D) FFT — design
 

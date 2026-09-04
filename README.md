@@ -26,7 +26,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Image processing** — 2D convolution, Gaussian/box blur, Sobel/Scharr gradients, median/rank filters, morphology (Van Herk), integral image, Otsu/adaptive thresholding, Canny, Harris/Shi-Tomasi corners, Gaussian pyramid, connected-components labeling
 - **Special functions** — gamma, lgamma, digamma, beta, incomplete gamma/beta, erf/erfc
 - **Statistical distributions** — Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson
-- **Fast Fourier Transform** — fixed-size no-alloc complex FFT (power-of-two) and real `rfft`/`irfft`; runtime `DynFft` for any length (Bluestein for primes, SIMD butterflies), `DynRealFft`, 2D `DynFft2`/`DynRealFft2`, FFT convolution, `fftshift`/`fftshift2d` (optional `fft` feature)
+- **Fast Fourier Transform** — fixed-size no-alloc complex FFT (power-of-two) and real `rfft`/`irfft`; runtime `DynFft` for any length (Bluestein for primes, SIMD butterflies), `DynRealFft`, 2D `DynFft2`/`DynRealFft2` (rayon-parallel batches), 1D/2D FFT convolution, `fftshift`/`fftshift2d` (optional `fft` feature)
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
 - **Norms** — L1, L2, Frobenius, infinity, one norms
 - **SIMD acceleration** — NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
@@ -668,10 +668,12 @@ the crate's `Complex` and SIMD support. Forward uses `exp(-2πi kn/N)`; inverse 
 | `fft_inplace` / `ifft_inplace` | none | Same, twiddles generated inline (no persistent table) |
 | `rfft` / `irfft` | none | Real-input transform, `N/2+1` bins (half-size packing) |
 | `DynFft::new(n)` | `alloc` | Any length: power-of-two radix + Bluestein for primes; SIMD butterflies |
-| `DynRealFft::new(n)` | `alloc` | Runtime real-input transform |
-| `DynFft2::new(rows, cols)` | `alloc` | 2D complex FFT over column-major `DynMatrix<Complex<T>>` (separable row–column) |
+| `DynRealFft::new(n)` | `alloc` | Runtime real-input transform (half-size packing both directions) |
+| `make_scratch` + `forward_with` / `inverse_with` | `alloc` | Run a shared (`&`) plan through a caller-owned `DynFftScratch` / `DynRealFftScratch` — one plan, many threads |
+| `DynFft2::new(rows, cols)` | `alloc` | 2D complex FFT over column-major `DynMatrix<Complex<T>>` (separable; transposed row pass, `rayon`-parallel batches) |
 | `DynRealFft2::new(rows, cols)` | `alloc` | 2D real-input FFT → `(rows/2+1)×cols` half-spectrum |
-| `fft_convolve` / `fft_correlate` | `alloc` | FFT-based linear convolution / correlation |
+| `fft_convolve` / `fft_correlate` | `alloc` | FFT-based linear convolution / correlation (power-of-two padded, real plan) |
+| `fft_convolve2d` / `fft_correlate2d` | `alloc` | Full 2D linear convolution / correlation of `DynMatrix` operands — large-kernel path |
 | `fftshift` / `ifftshift` | none | Center the zero-frequency component (NumPy semantics) |
 | `fftshift2d` / `ifftshift2d` | `alloc`\* | 2D quadrant swap on `DynMatrix` (\*allocates nothing) |
 
@@ -752,7 +754,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [x] **quad** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson)
-- [x] **fft** — Fast Fourier Transform (fixed-size no-alloc + `DynFft`/Bluestein for any length, `rfft`/`irfft`, 2D `DynFft2`/`DynRealFft2`, FFT convolution, `fftshift`/`fftshift2d`; SIMD butterflies)
+- [x] **fft** — Fast Fourier Transform (fixed-size no-alloc + `DynFft`/Bluestein for any length, `rfft`/`irfft`, 2D `DynFft2`/`DynRealFft2`, 1D/2D FFT convolution, `fftshift`/`fftshift2d`; SIMD butterflies, rayon-parallel 2D batches)
 - [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
 - [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
 - [ ] **poly** — Polynomial operations and root-finding

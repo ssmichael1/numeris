@@ -91,6 +91,28 @@ let mut prime = DynFft::<f64>::new(1009); // prime -> Bluestein
 
 `forward` / `inverse` panic if the buffer length does not equal the plan length.
 
+### Sharing a plan across threads
+
+A plan's twiddles are read-only during a transform — the only mutable state is the
+scratch. `forward` / `inverse` use the scratch the plan carries internally (hence
+`&mut self`); to run one plan from several threads, or to keep it behind a shared
+reference, build a scratch per worker with `make_scratch` and call `forward_with` /
+`inverse_with`:
+
+```rust
+use numeris::fft::DynFft;
+use numeris::Complex;
+
+let plan = DynFft::<f64>::new(1024);          // shared, immutable
+let mut scratch = plan.make_scratch();        // one per worker
+let mut frame = vec![Complex::new(1.0, 0.0); 1024];
+plan.forward_with(&mut frame, &mut scratch);  // `&plan`
+```
+
+A scratch is tied to the length it was built for (passing it to a plan of another length
+panics). `DynRealFft` has the same `make_scratch` / `forward_with` / `inverse_with` trio.
+This is the mechanism the 2D transforms use to batch rows and columns under `rayon`.
+
 ## Real-input transforms
 
 A length-`N` real signal has a Hermitian spectrum, so only the `N/2 + 1` non-redundant
@@ -113,8 +135,10 @@ irfft(&spec, &mut recovered);
 assert!((recovered[0] - 1.0).abs() < 1e-12);
 ```
 
-`DynRealFft` is the runtime-sized equivalent (even lengths use the half-size trick; odd
-lengths use a full complex FFT).
+Both directions use the half-size trick: the inverse re-tangles the `N/2 + 1` bins into
+the length-`N/2` spectrum of the packed sequence and runs one length-`N/2` inverse FFT, so
+`irfft` costs about the same as `rfft`. `DynRealFft` is the runtime-sized equivalent (even
+lengths use the half-size trick both ways; odd lengths use a full complex FFT).
 
 ## Convolution and correlation (requires `alloc`)
 
@@ -129,8 +153,33 @@ let b = [0.5, 1.0];
 let c = fft_convolve(&a, &b); // length 4
 ```
 
-For small kernels a direct convolution is faster; the FFT path wins once both operands
-are large.
+The operands are zero-padded to the next power of two above the output length and
+transformed with a real-input plan, so the transforms always take the SIMD radix path
+(never Bluestein) and only the half-spectrum is multiplied. For small kernels a direct
+convolution is faster; the FFT path wins once both operands are large.
+
+### 2D convolution
+
+`fft_convolve2d` / `fft_correlate2d` are the same thing for `DynMatrix` operands: the
+"full" `(ra + rb − 1) × (ca + cb − 1)` linear convolution / correlation via `DynRealFft2`
+at the next power of two along each axis. The cost is `O(N log N)` in the padded size
+regardless of kernel size, which is the win over spatial `imageproc::convolve2d`
+(`O(N·k²)`) for large kernels — big-radius Gaussian / LoG, template matching.
+
+```rust
+use numeris::fft::{fft_convolve2d, fft_correlate2d};
+use numeris::DynMatrix;
+
+let image = DynMatrix::from_fn(64, 80, |r, c| ((r * 7 + c * 13) % 251) as f64);
+let kernel = DynMatrix::from_fn(15, 15, |r, c| (-(((r as f64 - 7.0).powi(2) + (c as f64 - 7.0).powi(2)) / 18.0)).exp());
+let full = fft_convolve2d(&image, &kernel);      // 78 × 94
+assert_eq!((full.nrows(), full.ncols()), (64 + 15 - 1, 80 + 15 - 1));
+let peaks = fft_correlate2d(&image, &kernel);    // template-matching response
+```
+
+For the "same"-sized result centered on the image, crop `kernel.nrows()/2` rows and
+`kernel.ncols()/2` columns off the top-left (e.g. with `imageproc::crop`); the boundary is
+zero-padded, matching `BorderMode::Zero`.
 
 ## 2D FFT (requires `alloc`)
 
@@ -138,7 +187,14 @@ The 2D DFT is *separable*: an `rows × cols` transform is a batch of 1D FFTs alo
 axis (every column, then every row — order does not matter), so `DynFft2` is built entirely
 on `DynFft` and inherits Bluestein for non-power-of-two dimensions. Data is a column-major
 `DynMatrix<Complex<T>>`, so the column pass slices contiguous columns straight out of the
-backing buffer while the row pass gathers/scatters through a scratch buffer.
+backing buffer. The row axis is strided, so the row pass runs on a cache-blocked
+*transposed* copy held by the plan: transpose, batch-transform the now-contiguous columns,
+transpose back. Both passes therefore hit the contiguous SIMD path.
+
+Under the `rayon` feature each pass (and each transpose) fans out over columns above the
+crate's shared work gate — every column is disjoint output, the plan is shared read-only,
+and each worker brings its own scratch — so results are identical to the sequential path.
+A single 1D transform is never multithreaded (its stages form a serial chain).
 
 ```rust
 use numeris::fft::DynFft2;
@@ -202,5 +258,14 @@ ifftshift2d(&mut m);  // exact inverse
   via compile-time dispatch, scalar fallback otherwise).
 - The no-std fixed tier stays scalar: its audience is embedded (small `N`,
   code-size-sensitive), where deinterleave scratch would undercut the low-memory point.
-- Bluestein trades a prime-length DFT for a power-of-two FFT of length `≥ 2N − 1`, so
-  prime sizes cost more than nearby power-of-two sizes but remain `O(N log N)`.
+- The length-2 and length-4 butterfly stages (trivial twiddles `1` and `−i`) are fused
+  into one twiddle-free pass instead of `n/2 + n/4` kernel calls on 1–2-element blocks.
+- The inverse reuses the forward kernels via `conj(fft(conj(x)))/N`, with both
+  conjugations folded into the deinterleave / interleave copies — no extra pass.
+- Bluestein trades a prime-length DFT for a power-of-two FFT of length `≥ 2N − 1` (run on
+  the same SIMD core), so prime sizes cost a few times a nearby power-of-two size but
+  remain `O(N log N)`.
+- Real transforms are half-size in both directions; 1D and 2D FFT convolution pad to a
+  power of two and use the real plans.
+- 2D: both passes are contiguous (transposed row pass), and batches parallelize under
+  `rayon` — see [Performance](performance.md#parallelism-rayon).

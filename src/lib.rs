@@ -123,9 +123,12 @@
 //!   [`fft::rfft`] / [`fft::irfft`]. With `alloc`: [`fft::DynFft`] for any length
 //!   (Bluestein for prime/awkward sizes, SIMD-accelerated butterflies),
 //!   [`fft::DynRealFft`], FFT-based [`fft::fft_convolve`] / [`fft::fft_correlate`],
-//!   and 2D [`fft::DynFft2`] / [`fft::DynRealFft2`] over `DynMatrix`;
-//!   [`fft::fftshift`] / [`fft::ifftshift`] are no-alloc, and the 2D
-//!   [`fft::fftshift2d`] / [`fft::ifftshift2d`] allocate nothing. Requires `fft` feature.
+//!   2D [`fft::DynFft2`] / [`fft::DynRealFft2`] over `DynMatrix` (batches
+//!   parallelize under `rayon`), and [`fft::fft_convolve2d`] /
+//!   [`fft::fft_correlate2d`]; plans are shareable via [`fft::DynFft::make_scratch`]
+//!   and [`fft::DynFft::forward_with`]. [`fft::fftshift`] / [`fft::ifftshift`] are
+//!   no-alloc, and the 2D [`fft::fftshift2d`] / [`fft::ifftshift2d`] allocate
+//!   nothing. Requires `fft` feature.
 //!
 //! - [`stats`] — Statistical distributions with [`stats::ContinuousDistribution`] and
 //!   [`stats::DiscreteDistribution`] traits. Continuous: [`stats::Normal`],
@@ -252,16 +255,18 @@ pub mod matrix;
 // `#![deny(unsafe_code)]` note above).
 #[allow(unsafe_code)]
 mod simd;
-// The `par` module backs the parallel paths: `imageproc` (always, sequential or
-// parallel) and the `optim` `_par` routines (only under `rayon`).
+// The `par` module backs the parallel paths: `imageproc` and the `fft` 2D
+// batch transforms (always, sequential or parallel) and the `optim` `_par`
+// routines (only under `rayon`).
 #[cfg(any(
     feature = "imageproc",
+    all(feature = "fft", feature = "alloc"),
     all(feature = "optim", feature = "alloc", feature = "rayon")
 ))]
 mod par;
-// Marker trait used in public `imageproc` signatures; an implementation detail
-// of the `rayon` feature, hidden from the docs.
-#[cfg(feature = "imageproc")]
+// Marker trait used in public `imageproc` / `fft` signatures; an implementation
+// detail of the `rayon` feature, hidden from the docs.
+#[cfg(any(feature = "imageproc", all(feature = "fft", feature = "alloc")))]
 #[doc(hidden)]
 pub use par::MaybeSync;
 #[cfg(feature = "control")]

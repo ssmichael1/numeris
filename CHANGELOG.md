@@ -22,8 +22,32 @@
     `(rows/2+1)×cols` half-spectrum) over column-major `DynMatrix<Complex<T>>` /
     `DynMatrix<T>`. The separable row–column algorithm reuses the 1D `DynFft`
     (Bluestein covers non-power-of-two dimensions transparently): the contiguous
-    column axis transforms in place, the strided row axis via a gather/scatter
-    scratch. Plus no-alloc `fftshift2d` / `ifftshift2d` quadrant swaps.
+    column axis transforms in place; the strided row axis is handled by a
+    cache-blocked transpose into a work buffer, a batch of contiguous transforms,
+    and a transpose back, so both passes run on the SIMD path. Plus no-alloc
+    `fftshift2d` / `ifftshift2d` quadrant swaps.
+  - **2D FFT convolution (`alloc`)** — `fft_convolve2d` / `fft_correlate2d`: full
+    linear convolution / correlation of two real `DynMatrix` operands via
+    `DynRealFft2` at the next power of two, `O(N log N)` regardless of kernel size
+    — the large-kernel counterpart to `imageproc::convolve2d`.
+  - **Shared-plan API** — `DynFft::make_scratch` + `forward_with` / `inverse_with`
+    (and the same on `DynRealFft`, with `DynFftScratch` / `DynRealFftScratch`)
+    run a transform through a caller-owned scratch, so a plan is read-only during
+    a transform and can be shared across threads or kept behind `&`. `forward` /
+    `inverse` are unchanged (they use the plan's own scratch).
+  - **`rayon`** — the 2D passes (and their transposes) are batches of independent
+    1D transforms, so under `rayon` they fan out over columns above the shared
+    work gate, each worker with its own scratch; results are identical to the
+    sequential path. A single 1D transform never multithreads.
+  - **Throughput** — the real-input inverse (`irfft` and even-length
+    `DynRealFft::inverse`) now uses the half-size packing trick too (one
+    length-`N/2` inverse instead of a length-`N` one); Bluestein's inner
+    power-of-two FFTs run on the SIMD SoA core instead of the scalar reference;
+    the length-2 and length-4 butterfly stages are fused into one twiddle-free
+    pass (they were `n/2 + n/4` kernel calls on 1–2-element blocks); the inverse's
+    conjugations are folded into the deinterleave / interleave copies; and
+    `fft_convolve` / `fft_correlate` pad to the next power of two and use the real
+    plan instead of a Bluestein complex plan at the exact length.
   - Additive and no-std-safe: `--no-default-features --features fft` builds the fixed
     tier with no allocator. The `fft` feature also re-exports `numeris::Complex`.
 ## 0.5.19

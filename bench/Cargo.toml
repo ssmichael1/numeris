@@ -16,7 +16,7 @@ par = ["numeris/rayon"]
 criterion = { version = "0.5", features = ["html_reports"] }
 nalgebra = "0.34"
 faer = "0.24"
-numeris = { path = "..", features = ["std", "imageproc", "optim"] }
+numeris = { path = "..", features = ["std", "imageproc", "optim", "fft"] }
 
 [[bench]]
 name = "comparison"
@@ -36,4 +36,8 @@ harness = false
 
 [[bench]]
 name = "morphology"
+harness = false
+
+[[bench]]
+name = "fft"
 harness = false

@@ -560,3 +560,275 @@ fn fftshift2d_swaps_quadrants_and_round_trips() {
 fn dynfft2_zero_dim_panics() {
     let _ = DynFft2::<f64>::new(0, 4);
 }
+
+// ─── Scratch-external API ──────────────────────────────────────────────
+
+/// `forward_with` / `inverse_with` through a caller-owned scratch must give
+/// exactly the same result as the internal-scratch methods, on both the
+/// power-of-two and Bluestein paths.
+#[cfg(feature = "alloc")]
+#[test]
+fn dynfft_with_scratch_matches_internal() {
+    for &n in &[1usize, 2, 4, 8, 64, 6, 13, 100] {
+        let input = sample_input(n);
+        let mut plan = DynFft::<f64>::new(n);
+        let mut a = input.clone();
+        plan.forward(&mut a);
+
+        let shared = DynFft::<f64>::new(n);
+        let mut scratch = shared.make_scratch();
+        assert_eq!(scratch.len(), n);
+        let mut b = input.clone();
+        shared.forward_with(&mut b, &mut scratch);
+        assert_eq!(a, b, "forward_with differs from forward at n={n}");
+
+        plan.inverse(&mut a);
+        shared.inverse_with(&mut b, &mut scratch);
+        assert_eq!(a, b, "inverse_with differs from inverse at n={n}");
+        assert!(max_abs_diff(&b, &input) < 1e-10, "round trip at n={n}");
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+#[should_panic(expected = "different transform length")]
+fn dynfft_scratch_length_mismatch_panics() {
+    let plan = DynFft::<f64>::new(8);
+    let other = DynFft::<f64>::new(16);
+    let mut wrong = other.make_scratch();
+    let mut buf = sample_input(8);
+    plan.forward_with(&mut buf, &mut wrong);
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn dynrealfft_with_scratch_matches_internal() {
+    for &n in &[2usize, 8, 7, 10, 64] {
+        let x = real_sample(n);
+        let mut plan = DynRealFft::<f64>::new(n);
+        let mut spec_a = alloc::vec![Complex::new(0.0, 0.0); n / 2 + 1];
+        plan.forward(&x, &mut spec_a);
+
+        let shared = DynRealFft::<f64>::new(n);
+        let mut scratch = shared.make_scratch();
+        assert_eq!(scratch.len(), n);
+        let mut spec_b = alloc::vec![Complex::new(0.0, 0.0); n / 2 + 1];
+        shared.forward_with(&x, &mut spec_b, &mut scratch);
+        assert_eq!(spec_a, spec_b, "real forward_with differs at n={n}");
+
+        let mut out_a = alloc::vec![0.0; n];
+        let mut out_b = alloc::vec![0.0; n];
+        plan.inverse(&spec_a, &mut out_a);
+        shared.inverse_with(&spec_b, &mut out_b, &mut scratch);
+        assert_eq!(out_a, out_b, "real inverse_with differs at n={n}");
+        for (o, &xi) in out_b.iter().zip(&x) {
+            assert!((o - xi).abs() < 1e-10, "real round trip at n={n}");
+        }
+    }
+}
+
+/// The half-size inverse (`irfft` / even-length `DynRealFft::inverse`) must
+/// reproduce the full-length inverse of the Hermitian-filled spectrum.
+#[test]
+fn irfft_half_size_matches_full_inverse() {
+    const N: usize = 64;
+    let x: [f64; N] = core::array::from_fn(|i| (i as f64 * 0.37).sin() + 0.2 * i as f64);
+    let mut spec = [Complex::new(0.0, 0.0); N / 2 + 1];
+    rfft(&x, &mut spec);
+
+    // Perturb the spectrum so the inverse is not a plain round trip.
+    for (k, s) in spec.iter_mut().enumerate() {
+        *s *= Complex::new(1.0 + 0.01 * k as f64, 0.0);
+    }
+    spec[0].im = 0.0;
+    spec[N / 2].im = 0.0;
+
+    // Reference: full Hermitian spectrum through the complex inverse.
+    let mut full = [Complex::new(0.0, 0.0); N];
+    for (k, slot) in full.iter_mut().enumerate() {
+        *slot = if k <= N / 2 {
+            spec[k]
+        } else {
+            spec[N - k].conj()
+        };
+    }
+    ifft_inplace(&mut full);
+
+    let mut out = [0.0; N];
+    irfft(&spec, &mut out);
+    for (o, f) in out.iter().zip(&full) {
+        assert!((o - f.re).abs() < 1e-12, "irfft {o} vs {}", f.re);
+    }
+}
+
+// ─── 2D: transposed row pass and batching at sizes past the SIMD widths ─
+
+/// Reference 2D transform: 1D `DynFft` on every column, then a gather /
+/// scatter 1D `DynFft` on every row (the original, un-transposed algorithm).
+#[cfg(feature = "alloc")]
+fn reference_fft2(x: &DynMatrix<Complex<f64>>, inverse: bool) -> DynMatrix<Complex<f64>> {
+    let (rows, cols) = (x.nrows(), x.ncols());
+    let mut out = x.clone();
+    let mut col_plan = DynFft::<f64>::new(rows);
+    for col in out.as_mut_slice().chunks_mut(rows) {
+        if inverse {
+            col_plan.inverse(col);
+        } else {
+            col_plan.forward(col);
+        }
+    }
+    let mut row_plan = DynFft::<f64>::new(cols);
+    let mut row = alloc::vec![Complex::new(0.0, 0.0); cols];
+    for r in 0..rows {
+        for (c, slot) in row.iter_mut().enumerate() {
+            *slot = out[(r, c)];
+        }
+        if inverse {
+            row_plan.inverse(&mut row);
+        } else {
+            row_plan.forward(&mut row);
+        }
+        for (c, &v) in row.iter().enumerate() {
+            out[(r, c)] = v;
+        }
+    }
+    out
+}
+
+/// Sizes that are not multiples of the transpose tile, exceed the SIMD lane
+/// widths, and (with `rayon`) exceed the parallel work threshold — so the
+/// blocked transpose remainders and the parallel batch path are exercised.
+#[cfg(feature = "alloc")]
+#[test]
+fn dynfft2_large_matches_reference() {
+    for &(rows, cols) in &[
+        (37, 50),
+        (256, 700),
+        (300, 400),
+        (1024, 700),
+        (1, 257),
+        (129, 1),
+    ] {
+        let input = DynMatrix::from_fn(rows, cols, |r, c| {
+            Complex::new(
+                ((r * 7 + c * 13) % 251) as f64 / 251.0,
+                ((r + 3 * c) % 17) as f64 / 17.0,
+            )
+        });
+        let expected = reference_fft2(&input, false);
+        let mut plan = DynFft2::<f64>::new(rows, cols);
+        let mut buf = input.clone();
+        plan.forward(&mut buf);
+        let err = max_err2(&buf, &expected);
+        assert!(err < 1e-9, "DynFft2 forward error {err} at {rows}x{cols}");
+
+        plan.inverse(&mut buf);
+        let err = max_err2(&buf, &input);
+        assert!(
+            err < 1e-9,
+            "DynFft2 round-trip error {err} at {rows}x{cols}"
+        );
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn dynrealfft2_large_matches_complex() {
+    for &(rows, cols) in &[(37, 50), (256, 700), (301, 400), (1024, 700), (2, 257)] {
+        let real = DynMatrix::from_fn(rows, cols, |r, c| ((r * 7 + c * 13) % 251) as f64 / 251.0);
+        let complexified = DynMatrix::from_fn(rows, cols, |r, c| Complex::new(real[(r, c)], 0.0));
+        let full = reference_fft2(&complexified, false);
+
+        let mut plan = DynRealFft2::<f64>::new(rows, cols);
+        let half = rows / 2 + 1;
+        let mut spec = DynMatrix::zeros(half, cols);
+        plan.forward(&real, &mut spec);
+        let mut err = 0.0f64;
+        for kr in 0..half {
+            for kc in 0..cols {
+                err = err.max((spec[(kr, kc)] - full[(kr, kc)]).norm());
+            }
+        }
+        assert!(err < 1e-9, "rfft2 forward error {err} at {rows}x{cols}");
+
+        let spec_copy = spec.clone();
+        let mut recon = DynMatrix::zeros(rows, cols);
+        plan.inverse(&spec, &mut recon);
+        assert_eq!(
+            spec.as_slice(),
+            spec_copy.as_slice(),
+            "inverse must not mutate its input"
+        );
+        let err = recon
+            .as_slice()
+            .iter()
+            .zip(real.as_slice())
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, f64::max);
+        assert!(err < 1e-9, "rfft2 round-trip error {err} at {rows}x{cols}");
+    }
+}
+
+// ─── 2D convolution ────────────────────────────────────────────────────
+
+#[cfg(feature = "alloc")]
+fn direct_convolve2d(a: &DynMatrix<f64>, b: &DynMatrix<f64>) -> DynMatrix<f64> {
+    let (ra, ca, rb, cb) = (a.nrows(), a.ncols(), b.nrows(), b.ncols());
+    let mut out = DynMatrix::zeros(ra + rb - 1, ca + cb - 1);
+    for i in 0..ra {
+        for j in 0..ca {
+            for p in 0..rb {
+                for q in 0..cb {
+                    out[(i + p, j + q)] += a[(i, j)] * b[(p, q)];
+                }
+            }
+        }
+    }
+    out
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn fft_convolve2d_matches_direct() {
+    use super::{fft_convolve2d, fft_correlate2d};
+    for &((ra, ca), (rb, cb)) in &[
+        ((5, 7), (3, 2)),
+        ((1, 9), (4, 1)),
+        ((16, 16), (5, 5)),
+        ((6, 3), (6, 3)),
+    ] {
+        let a = DynMatrix::from_fn(ra, ca, |r, c| ((r * 3 + c * 5) % 7) as f64 - 3.0);
+        let b = DynMatrix::from_fn(rb, cb, |r, c| ((r + 2 * c) % 5) as f64 * 0.5 - 1.0);
+
+        let expected = direct_convolve2d(&a, &b);
+        let got = fft_convolve2d(&a, &b);
+        assert_eq!((got.nrows(), got.ncols()), (ra + rb - 1, ca + cb - 1));
+        for (g, e) in got.as_slice().iter().zip(expected.as_slice()) {
+            assert!(
+                (g - e).abs() < 1e-10,
+                "convolve2d {g} vs {e} at {ra}x{ca} * {rb}x{cb}"
+            );
+        }
+
+        // correlate(a, b) == convolve(a, flip(b)).
+        let bflip = DynMatrix::from_fn(rb, cb, |r, c| b[(rb - 1 - r, cb - 1 - c)]);
+        let expected = direct_convolve2d(&a, &bflip);
+        let got = fft_correlate2d(&a, &b);
+        for (g, e) in got.as_slice().iter().zip(expected.as_slice()) {
+            assert!(
+                (g - e).abs() < 1e-10,
+                "correlate2d {g} vs {e} at {ra}x{ca} * {rb}x{cb}"
+            );
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn fft_convolve2d_empty() {
+    use super::fft_convolve2d;
+    let a = DynMatrix::<f64>::zeros(3, 3);
+    let empty = DynMatrix::<f64>::zeros(0, 3);
+    let out = fft_convolve2d(&a, &empty);
+    assert_eq!((out.nrows(), out.ncols()), (0, 0));
+}
