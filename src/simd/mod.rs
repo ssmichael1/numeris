@@ -466,6 +466,141 @@ macro_rules! simd_fft_butterfly_kernel {
     };
 }
 
+/// Deinterleaved (SoA) radix-4 FFT butterfly for one lane type.
+///
+/// One radix-4 stage does the work of two radix-2 stages in a single sweep
+/// (half the loads/stores) with three complex twiddle multiplies per four
+/// elements instead of four. For a block of four quarter-slices `a, b, c, d`
+/// (each a finished length-`q` sub-transform, in the bit-reversed layout the
+/// radix-2 stages use) and the stage twiddles `w1 = w^k`, `w2 = w^2k`,
+/// `w3 = w^3k` with `w = exp(-2πi/4q)`:
+///
+/// ```text
+/// t1 = w2·b,  t2 = w1·c,  t3 = w3·d
+/// a' = a + t1,  b' = a − t1,  u = t2 + t3,  v = t2 − t3
+/// a ← a' + u,   c ← a' − u,   b ← b' − i·v,   d ← b' + i·v
+/// ```
+///
+/// which is exactly the pair of radix-2 stages (`len = 2q` then `4q`) fused,
+/// with `w_{2q}^k = w2` and the second stage's `w_{4q}^{k+q} = −i·w1`. Same body
+/// across every ISA, like `simd_fft_butterfly_kernel!`.
+#[allow(unused_macros)]
+macro_rules! simd_fft_butterfly4_kernel {
+    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident) => {
+        /// SoA radix-4 butterfly (see the crate `simd::scalar::fft_butterfly4` reference).
+        #[inline]
+        #[allow(clippy::too_many_arguments)]
+        pub fn fft_butterfly4(
+            ar: &mut [$t],
+            ai: &mut [$t],
+            br: &mut [$t],
+            bi: &mut [$t],
+            cr: &mut [$t],
+            ci: &mut [$t],
+            dr: &mut [$t],
+            di: &mut [$t],
+            w1r: &[$t],
+            w1i: &[$t],
+            w2r: &[$t],
+            w2i: &[$t],
+            w3r: &[$t],
+            w3i: &[$t],
+        ) {
+            let q = ar.len();
+            for s in [
+                &*ai, &*br, &*bi, &*cr, &*ci, &*dr, &*di, w1r, w1i, w2r, w2i, w3r, w3i,
+            ] {
+                debug_assert_eq!(s.len(), q);
+            }
+            let it = ar
+                .chunks_exact_mut($lanes)
+                .zip(ai.chunks_exact_mut($lanes))
+                .zip(br.chunks_exact_mut($lanes))
+                .zip(bi.chunks_exact_mut($lanes))
+                .zip(cr.chunks_exact_mut($lanes))
+                .zip(ci.chunks_exact_mut($lanes))
+                .zip(dr.chunks_exact_mut($lanes))
+                .zip(di.chunks_exact_mut($lanes))
+                .zip(w1r.chunks_exact($lanes))
+                .zip(w1i.chunks_exact($lanes))
+                .zip(w2r.chunks_exact($lanes))
+                .zip(w2i.chunks_exact($lanes))
+                .zip(w3r.chunks_exact($lanes))
+                .zip(w3i.chunks_exact($lanes));
+            for (
+                (
+                    (
+                        (
+                            (((((((((car, cai), cbr), cbi), ccr), cci), cdr), cdi), cw1r), cw1i),
+                            cw2r,
+                        ),
+                        cw2i,
+                    ),
+                    cw3r,
+                ),
+                cw3i,
+            ) in it
+            {
+                // SAFETY: every chunk is exactly $lanes wide — one vector load /
+                // store each — so all fourteen accesses are in bounds by
+                // construction, and each `&mut` chunk is loaded and stored
+                // through its own borrow.
+                unsafe {
+                    let (vbr, vbi) = ($load(cbr.as_ptr()), $load(cbi.as_ptr()));
+                    let (vcr, vci) = ($load(ccr.as_ptr()), $load(cci.as_ptr()));
+                    let (vdr, vdi) = ($load(cdr.as_ptr()), $load(cdi.as_ptr()));
+                    let (v1r, v1i) = ($load(cw1r.as_ptr()), $load(cw1i.as_ptr()));
+                    let (v2r, v2i) = ($load(cw2r.as_ptr()), $load(cw2i.as_ptr()));
+                    let (v3r, v3i) = ($load(cw3r.as_ptr()), $load(cw3i.as_ptr()));
+                    // t1 = w2·b, t2 = w1·c, t3 = w3·d
+                    let t1r = $sub($mul(vbr, v2r), $mul(vbi, v2i));
+                    let t1i = $add($mul(vbr, v2i), $mul(vbi, v2r));
+                    let t2r = $sub($mul(vcr, v1r), $mul(vci, v1i));
+                    let t2i = $add($mul(vcr, v1i), $mul(vci, v1r));
+                    let t3r = $sub($mul(vdr, v3r), $mul(vdi, v3i));
+                    let t3i = $add($mul(vdr, v3i), $mul(vdi, v3r));
+                    let (var, vai) = ($load(car.as_ptr()), $load(cai.as_ptr()));
+                    // a' = a + t1, b' = a − t1, u = t2 + t3, v = t2 − t3
+                    let (apr, api) = ($add(var, t1r), $add(vai, t1i));
+                    let (bpr, bpi) = ($sub(var, t1r), $sub(vai, t1i));
+                    let (ur, ui) = ($add(t2r, t3r), $add(t2i, t3i));
+                    let (vr, vi) = ($sub(t2r, t3r), $sub(t2i, t3i));
+                    // a = a' + u, c = a' − u, b = b' − i·v, d = b' + i·v
+                    // (−i·v = (v.im, −v.re), so b' − i·v = (b'.re + v.im, b'.im − v.re)).
+                    $store(car.as_mut_ptr(), $add(apr, ur));
+                    $store(cai.as_mut_ptr(), $add(api, ui));
+                    $store(ccr.as_mut_ptr(), $sub(apr, ur));
+                    $store(cci.as_mut_ptr(), $sub(api, ui));
+                    $store(cbr.as_mut_ptr(), $add(bpr, vi));
+                    $store(cbi.as_mut_ptr(), $sub(bpi, vr));
+                    $store(cdr.as_mut_ptr(), $sub(bpr, vi));
+                    $store(cdi.as_mut_ptr(), $add(bpi, vr));
+                }
+            }
+            for k in (q - q % $lanes)..q {
+                let t1r = br[k] * w2r[k] - bi[k] * w2i[k];
+                let t1i = br[k] * w2i[k] + bi[k] * w2r[k];
+                let t2r = cr[k] * w1r[k] - ci[k] * w1i[k];
+                let t2i = cr[k] * w1i[k] + ci[k] * w1r[k];
+                let t3r = dr[k] * w3r[k] - di[k] * w3i[k];
+                let t3i = dr[k] * w3i[k] + di[k] * w3r[k];
+                let (apr, api) = (ar[k] + t1r, ai[k] + t1i);
+                let (bpr, bpi) = (ar[k] - t1r, ai[k] - t1i);
+                let (ur, ui) = (t2r + t3r, t2i + t3i);
+                let (vr, vi) = (t2r - t3r, t2i - t3i);
+                ar[k] = apr + ur;
+                ai[k] = api + ui;
+                cr[k] = apr - ur;
+                ci[k] = api - ui;
+                br[k] = bpr + vi;
+                bi[k] = bpi - vr;
+                dr[k] = bpr - vi;
+                di[k] = bpi + vr;
+            }
+        }
+    };
+}
+
 pub(crate) mod scalar;
 
 #[cfg(target_arch = "aarch64")]
@@ -991,11 +1126,144 @@ pub(crate) fn fft_butterfly_dispatch<T: Scalar>(
     scalar::fft_butterfly(tr, ti, br, bi, wr, wi);
 }
 
+/// Dispatch a deinterleaved (SoA) radix-4 FFT butterfly to SIMD or scalar.
+///
+/// Operates on four quarter-slices `a`/`b`/`c`/`d` (re/im each) and three
+/// twiddle sets `w1`/`w2`/`w3` (re/im each), all of equal length — see
+/// [`scalar::fft_butterfly4`] for the arithmetic. Used by the `fft` module's
+/// heap-backed `DynFft` tier.
+#[inline]
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn fft_butterfly4_dispatch<T: Scalar>(
+    ar: &mut [T],
+    ai: &mut [T],
+    br: &mut [T],
+    bi: &mut [T],
+    cr: &mut [T],
+    ci: &mut [T],
+    dr: &mut [T],
+    di: &mut [T],
+    w1r: &[T],
+    w1i: &[T],
+    w2r: &[T],
+    w2i: &[T],
+    w3r: &[T],
+    w3i: &[T],
+) {
+    // Reinterpret the fourteen `T` slices as the concrete float type through
+    // the `TypeEq` witness `$w`, then call `$module::fft_butterfly4`. Unused on
+    // architectures without a SIMD kernel (e.g. the thumbv7em no_std target).
+    #[allow(unused_macros)]
+    macro_rules! simd_call {
+        ($w:ident, $module:ident) => {{
+            let (ar, ai) = ($w.slice_mut(ar), $w.slice_mut(ai));
+            let (br, bi) = ($w.slice_mut(br), $w.slice_mut(bi));
+            let (cr, ci) = ($w.slice_mut(cr), $w.slice_mut(ci));
+            let (dr, di) = ($w.slice_mut(dr), $w.slice_mut(di));
+            let (w1r, w1i) = ($w.slice(w1r), $w.slice(w1i));
+            let (w2r, w2i) = ($w.slice(w2r), $w.slice(w2i));
+            let (w3r, w3i) = ($w.slice(w3r), $w.slice(w3i));
+            $module::fft_butterfly4(ar, ai, br, bi, cr, ci, dr, di, w1r, w1i, w2r, w2i, w3r, w3i);
+            return;
+        }};
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            simd_call!(w, f64_neon);
+        }
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            simd_call!(w, f32_neon);
+        }
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            #[cfg(target_feature = "avx512f")]
+            simd_call!(w, f64_avx512);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            simd_call!(w, f64_avx);
+            #[cfg(not(target_feature = "avx"))]
+            simd_call!(w, f64_sse2);
+        }
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            #[cfg(target_feature = "avx512f")]
+            simd_call!(w, f32_avx512);
+            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
+            simd_call!(w, f32_avx);
+            #[cfg(not(target_feature = "avx"))]
+            simd_call!(w, f32_sse2);
+        }
+    }
+    scalar::fft_butterfly4(ar, ai, br, bi, cr, ci, dr, di, w1r, w1i, w2r, w2i, w3r, w3i);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[cfg(not(feature = "std"))]
     use alloc::vec::Vec;
+
+    // ── FFT butterflies: SIMD dispatch vs scalar reference ─────────────
+
+    #[test]
+    fn fft_butterfly4_dispatch_matches_scalar() {
+        for q in [1usize, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33] {
+            let mk = |seed: usize| -> Vec<f64> {
+                (0..q)
+                    .map(|k| (((k * 7 + seed * 13) % 23) as f64) * 0.25 - 2.0)
+                    .collect()
+            };
+            let mut a = [mk(1), mk(2), mk(3), mk(4), mk(5), mk(6), mk(7), mk(8)];
+            let w: Vec<Vec<f64>> = (0..6)
+                .map(|s| {
+                    (0..q)
+                        .map(|k| ((k * 3 + s * 5) as f64 * 0.37).cos())
+                        .collect()
+                })
+                .collect();
+            let mut r = a.clone();
+            let [ar, ai, br, bi, cr, ci, dr, di] = &mut a;
+            fft_butterfly4_dispatch(
+                ar, ai, br, bi, cr, ci, dr, di, &w[0], &w[1], &w[2], &w[3], &w[4], &w[5],
+            );
+            let [ar, ai, br, bi, cr, ci, dr, di] = &mut r;
+            scalar::fft_butterfly4(
+                ar, ai, br, bi, cr, ci, dr, di, &w[0], &w[1], &w[2], &w[3], &w[4], &w[5],
+            );
+            for (x, y) in a.iter().zip(&r) {
+                for (p, s) in x.iter().zip(y) {
+                    assert!((p - s).abs() < 1e-12, "radix-4 SIMD vs scalar at q={q}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fft_butterfly_dispatch_matches_scalar() {
+        for h in [1usize, 2, 3, 5, 8, 9, 16, 17, 33] {
+            let mk = |seed: usize| -> Vec<f64> {
+                (0..h)
+                    .map(|k| (((k * 5 + seed * 11) % 19) as f64) * 0.5 - 4.0)
+                    .collect()
+            };
+            let mut a = [mk(1), mk(2), mk(3), mk(4)];
+            let wr: Vec<f64> = (0..h).map(|k| (k as f64 * 0.3).cos()).collect();
+            let wi: Vec<f64> = (0..h).map(|k| (k as f64 * 0.3).sin()).collect();
+            let mut r = a.clone();
+            let [tr, ti, br, bi] = &mut a;
+            fft_butterfly_dispatch(tr, ti, br, bi, &wr, &wi);
+            let [tr, ti, br, bi] = &mut r;
+            scalar::fft_butterfly(tr, ti, br, bi, &wr, &wi);
+            for (x, y) in a.iter().zip(&r) {
+                for (p, s) in x.iter().zip(y) {
+                    assert!((p - s).abs() < 1e-12, "radix-2 SIMD vs scalar at h={h}");
+                }
+            }
+        }
+    }
 
     // ── Dot product boundary tests ─────────────────────────────────
 

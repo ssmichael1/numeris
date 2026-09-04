@@ -506,6 +506,15 @@ simd_fft_butterfly_kernel!(
     _mm256_sub_pd,
     _mm256_mul_pd
 );
+simd_fft_butterfly4_kernel!(
+    f64,
+    4,
+    _mm256_loadu_pd,
+    _mm256_storeu_pd,
+    _mm256_add_pd,
+    _mm256_sub_pd,
+    _mm256_mul_pd
+);
 simd_axpy_kernels_muladd!(
     f64,
     4,

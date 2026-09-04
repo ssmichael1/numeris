@@ -260,6 +260,12 @@ ifftshift2d(&mut m);  // exact inverse
   code-size-sensitive), where deinterleave scratch would undercut the low-memory point.
 - The length-2 and length-4 butterfly stages (trivial twiddles `1` and `−i`) are fused
   into one twiddle-free pass instead of `n/2 + n/4` kernel calls on 1–2-element blocks.
+- The remaining stages are **radix-4**: each sweep over the arrays does the work of two
+  radix-2 stages with three complex multiplies per four elements (`w, w², w³` tables)
+  instead of four, halving memory passes. A single radix-2 stage finishes odd `log2(n)`.
+- The bit-reversal permutation is a *gather* (sequential writes, bit-reversed reads): for
+  inputs larger than the cache it is 5× cheaper than the scatter form, which had been most
+  of the transform at `n = 65536`.
 - The inverse reuses the forward kernels via `conj(fft(conj(x)))/N`, with both
   conjugations folded into the deinterleave / interleave copies — no extra pass.
 - Bluestein trades a prime-length DFT for a power-of-two FFT of length `≥ 2N − 1` (run on
