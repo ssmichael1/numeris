@@ -9,8 +9,14 @@ uses the plan's own scratch), but the plan is now split from its scratch: `make_
 `forward_with`/`inverse_with` run a shared `&` plan, which is what the `rayon` per-column
 batches in 2D use (one scratch per worker via `par::for_each_chunk_mut_init`). Also done:
 half-size real inverse, Bluestein on the SIMD core, fused length-2/4 stages, power-of-two
-padded real convolution. Remaining pure optimizations: radix-4 / split-radix SIMD kernels,
-and a half-size real 2D column pass that skips the Hermitian rebuild.
+padded real convolution, and **radix-4 stages** (`simd_fft_butterfly4_kernel!`: two radix-2
+stages fused per sweep, `w/w²/w³` twiddle tables, trailing radix-2 for odd `log2(n)`).
+The bit-reversal pass is a gather (sequential writes), which measured 5× cheaper than the
+scatter form once the input leaves the cache — at `n = 65536` that pass alone had been two
+thirds of the transform. With it, `DynFft` is level with `rustfft` at L2-streaming sizes and
+1.2–1.3× behind at cache-resident ones. Remaining ideas: a Stockham autosort to drop the
+permutation pass entirely, multi-stage fusion for L1-resident blocks, and a half-size real 2D
+column pass that skips the Hermitian rebuild.
 
 ## Multi-dimensional (2D) FFT — design
 

@@ -127,8 +127,8 @@ Checked items are implemented; unchecked are potential future work.
   + `forward_with`/`inverse_with` (`DynFftScratch`/`DynRealFftScratch`) run a shared `&` plan
   through a caller-owned scratch — the mechanism the 2D batches use per worker.
   `fftshift`/`ifftshift` are no-alloc and `fftshift2d`/`ifftshift2d` allocate nothing.
-  The `DynFft` power-of-two path deinterleaves to structure-of-arrays re/im and runs radix-2
-  butterflies through a shared per-ISA SIMD kernel macro (NEON/SSE2/AVX/AVX-512, scalar
+  The `DynFft` power-of-two path deinterleaves to structure-of-arrays re/im and runs radix-4
+  (plus one trailing radix-2) butterflies through shared per-ISA SIMD kernel macros (NEON/SSE2/AVX/AVX-512, scalar
   fallback); the no-std fixed tier stays scalar. Re-exports `num_complex::Complex` (like `complex`).
 - **`special`** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc).
 - **`stats`** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson). Implies `special`.
@@ -230,8 +230,8 @@ src/
 ├── simd/               # private SIMD acceleration (no cargo feature — always-on)
 │   ├── mod.rs          # TypeId dispatch (via the `TypeEq` cast witness): dot, matmul,
 │   │                   #   add/sub/scale/scale-in-place/axpy slices, strided conv1d,
-│   │                   #   fft_butterfly (SoA radix-2, macro-shared across ISAs)
-│   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch); fft_butterfly reference
+│   │                   #   fft_butterfly / fft_butterfly4 (SoA radix-2 / radix-4, macro-shared across ISAs)
+│   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch); fft_butterfly / fft_butterfly4 references
 │   ├── f64_neon.rs     # aarch64 NEON f64 kernels (2-wide)
 │   ├── f32_neon.rs     # aarch64 NEON f32 kernels (4-wide)
 │   ├── f64_sse2.rs     # x86_64 SSE2 f64 kernels (2-wide)
@@ -335,7 +335,7 @@ src/
 │   ├── dynfft.rs       # DynFft planner + DynFftScratch (alloc): power-of-two SoA/SIMD + Bluestein; forward_with/inverse_with
 │   ├── fft2.rs         # DynFft2 / DynRealFft2 2D FFT (transposed row pass, par-batched columns) + fftshift2d/ifftshift2d (alloc)
 │   ├── bluestein.rs    # chirp-z transform for arbitrary/prime N on the SoA core (alloc)
-│   ├── soa.rs          # SoaPlan (twiddles) / SoaScratch (re/im): fused len-2/4 stages, SIMD butterfly orchestration (alloc)
+│   ├── soa.rs          # SoaPlan (twiddles) / SoaScratch (re/im): fused len-2/4 pass, radix-4 stages (+ trailing radix-2), SIMD butterfly orchestration (alloc)
 │   ├── convolve.rs     # fft_convolve/fft_correlate (1D) + fft_convolve2d/fft_correlate2d (alloc)
 │   └── tests.rs        # comprehensive tests (vs naive DFT, round-trip, Parseval, SIMD==scalar)
 └── quaternion.rs       # Quaternion rotations, SLERP, Euler, axis-angle

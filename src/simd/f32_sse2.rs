@@ -408,6 +408,15 @@ simd_fft_butterfly_kernel!(
     _mm_sub_ps,
     _mm_mul_ps
 );
+simd_fft_butterfly4_kernel!(
+    f32,
+    4,
+    _mm_loadu_ps,
+    _mm_storeu_ps,
+    _mm_add_ps,
+    _mm_sub_ps,
+    _mm_mul_ps
+);
 simd_axpy_kernels_muladd!(
     f32,
     4,

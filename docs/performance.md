@@ -113,23 +113,40 @@ Bluestein, full-length real inverse, Bluestein-at-exact-length convolution):
 
 | Transform | Size | Time | vs. first landing |
 |---|---|---|---|
-| `DynFft` forward, power of two | 1024 | ~4 µs | 1.2× |
-| `DynFft` forward, power of two | 65536 | ~0.9 ms | 1.2× |
-| `DynFft` forward, `f32` | 4096 | ~12 µs | 1.7× |
-| `DynFft` inverse (conj folded into copies) | 1024 | ~4 µs | 1.6× |
-| `DynFft` Bluestein (prime) | 1009 | ~26 µs | 2.4× |
-| `DynFft` Bluestein (prime) | 4093 | ~130 µs | 2.3× |
-| `DynRealFft` forward | 65536 | ~0.6 ms | 1.3× |
-| `DynRealFft` inverse (half-size) | 65536 | ~0.6 ms | 2.0× |
+| `DynFft` forward, power of two | 1024 | ~3.5 µs | 1.4× |
+| `DynFft` forward, power of two | 4096 | ~16 µs | 1.6× |
+| `DynFft` forward, power of two | 65536 | ~0.34 ms | 3.3× |
+| `DynFft` forward, `f32` | 65536 | ~0.22 ms | 4.1× |
+| `DynFft` inverse (conj folded into copies) | 1024 | ~3.5 µs | 1.8× |
+| `DynFft` Bluestein (prime) | 1009 | ~17 µs | 3.6× |
+| `DynFft` Bluestein (prime) | 4093 | ~74 µs | 4.1× |
+| `DynRealFft` forward | 65536 | ~0.34 ms | 2.2× |
+| `DynRealFft` inverse (half-size) | 65536 | ~0.35 ms | 3.5× |
 | `fft_convolve` | 4096 ∗ 512 | ~0.17 ms | 11× |
 | `fft_convolve` | 10000 ∗ 1000 | ~0.35 ms | 12× |
 | `DynFft2` forward (sequential) | 512² | ~3.3 ms | 1.4× |
 | `DynFft2` forward (sequential) | 1024² | ~16 ms | 1.6× |
 | `DynRealFft2` forward (sequential) | 1024² | ~9 ms | — |
 
-A prime length costs roughly 6× the next power of two (two length-`≥ 2N` transforms plus the
-chirp multiplies), so pad to a power of two when you control the length — `fft_convolve` and
-`fft_convolve2d` do this for you.
+A prime length costs roughly 4–5× the next power of two (two length-`≥ 2N` transforms plus
+the chirp multiplies), so pad to a power of two when you control the length — `fft_convolve`
+and `fft_convolve2d` do this for you.
+
+Head-to-head with [rustfft](https://docs.rs/rustfft) (pure Rust, autotuned mixed-radix with
+hand-written AVX/NEON codelets; generally within ~1.5× of FFTW), same machine, complex `f64`
+forward, `cargo bench -p numeris-bench --bench fft -- fft_vs_rustfft`:
+
+| Size | numeris `DynFft` | rustfft | Ratio |
+|---|---|---|---|
+| 1024 | ~3.5 µs | ~2.7 µs | 1.3× |
+| 4096 | ~16 µs | ~13 µs | 1.2× |
+| 65536 | ~0.34 ms | ~0.33 ms | 1.0× |
+
+At cache-resident sizes the remaining gap is per-stage overhead (rustfft fuses more stages
+per sweep and skips the explicit bit-reversal); at sizes that stream from L2 the two are
+memory-bound and level. The reason numeris does not chase the last 20–30% is the same one
+the [design notes](design-fft.md) give for not chasing FFTW: the fixed no-alloc tier is the
+module's reason to exist, and codelet-style specialization would not run there.
 
 ## No-std Performance
 

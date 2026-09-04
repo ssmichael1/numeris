@@ -187,12 +187,48 @@ fn bench_convolve(c: &mut Criterion) {
     group.finish();
 }
 
+/// Head-to-head against rustfft (pure Rust, within ~1.5× of FFTW), complex
+/// `f64` forward transforms at power-of-two sizes.
+fn bench_vs_rustfft(c: &mut Criterion) {
+    use rustfft::FftPlanner;
+    let mut group = c.benchmark_group("fft_vs_rustfft");
+    for n in [1024usize, 4096, 65536] {
+        group.throughput(Throughput::Elements(n as u64));
+        let src = signal(n);
+        let mut plan = DynFft::<f64>::new(n);
+        let mut buf = src.clone();
+        group.bench_with_input(BenchmarkId::new("numeris", n), &n, |b, _| {
+            b.iter(|| {
+                buf.copy_from_slice(&src);
+                plan.forward(&mut buf);
+                std::hint::black_box(&buf);
+            });
+        });
+        let mut planner = FftPlanner::<f64>::new();
+        let rfft = planner.plan_fft_forward(n);
+        let rsrc: Vec<rustfft::num_complex::Complex<f64>> = src
+            .iter()
+            .map(|z| rustfft::num_complex::Complex::new(z.re, z.im))
+            .collect();
+        let mut rbuf = rsrc.clone();
+        group.bench_with_input(BenchmarkId::new("rustfft", n), &n, |b, _| {
+            b.iter(|| {
+                rbuf.copy_from_slice(&rsrc);
+                rfft.process(&mut rbuf);
+                std::hint::black_box(&rbuf);
+            });
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_dynfft,
     bench_fixed,
     bench_real,
     bench_2d,
-    bench_convolve
+    bench_convolve,
+    bench_vs_rustfft
 );
 criterion_main!(benches);
