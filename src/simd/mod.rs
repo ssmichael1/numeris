@@ -420,26 +420,39 @@ macro_rules! simd_fft_butterfly_kernel {
             wi: &[$t],
         ) {
             let half = tr.len();
-            let chunks = half / $lanes;
-            unsafe {
-                for c in 0..chunks {
-                    let o = c * $lanes;
-                    let vbr = $load(br.as_ptr().add(o));
-                    let vbi = $load(bi.as_ptr().add(o));
-                    let vwr = $load(wr.as_ptr().add(o));
-                    let vwi = $load(wi.as_ptr().add(o));
+            debug_assert_eq!(ti.len(), half);
+            debug_assert_eq!(br.len(), half);
+            debug_assert_eq!(bi.len(), half);
+            debug_assert_eq!(wr.len(), half);
+            debug_assert_eq!(wi.len(), half);
+            for (((((ctr, cti), cbr), cbi), cwr), cwi) in tr
+                .chunks_exact_mut($lanes)
+                .zip(ti.chunks_exact_mut($lanes))
+                .zip(br.chunks_exact_mut($lanes))
+                .zip(bi.chunks_exact_mut($lanes))
+                .zip(wr.chunks_exact($lanes))
+                .zip(wi.chunks_exact($lanes))
+            {
+                // SAFETY: every chunk is exactly $lanes wide — one vector load /
+                // store each — so all six accesses are in bounds by construction,
+                // and each `&mut` chunk is loaded and stored through its own borrow.
+                unsafe {
+                    let vbr = $load(cbr.as_ptr());
+                    let vbi = $load(cbi.as_ptr());
+                    let vwr = $load(cwr.as_ptr());
+                    let vwi = $load(cwi.as_ptr());
                     // v = bot * w  (complex)
                     let vr = $sub($mul(vbr, vwr), $mul(vbi, vwi));
                     let vi = $add($mul(vbr, vwi), $mul(vbi, vwr));
-                    let vtr = $load(tr.as_ptr().add(o));
-                    let vti = $load(ti.as_ptr().add(o));
-                    $store(tr.as_mut_ptr().add(o), $add(vtr, vr));
-                    $store(ti.as_mut_ptr().add(o), $add(vti, vi));
-                    $store(br.as_mut_ptr().add(o), $sub(vtr, vr));
-                    $store(bi.as_mut_ptr().add(o), $sub(vti, vi));
+                    let vtr = $load(ctr.as_ptr());
+                    let vti = $load(cti.as_ptr());
+                    $store(ctr.as_mut_ptr(), $add(vtr, vr));
+                    $store(cti.as_mut_ptr(), $add(vti, vi));
+                    $store(cbr.as_mut_ptr(), $sub(vtr, vr));
+                    $store(cbi.as_mut_ptr(), $sub(vti, vi));
                 }
             }
-            for k in chunks * $lanes..half {
+            for k in (half - half % $lanes)..half {
                 let vr = br[k] * wr[k] - bi[k] * wi[k];
                 let vi = br[k] * wi[k] + bi[k] * wr[k];
                 let trk = tr[k];
@@ -933,15 +946,15 @@ pub(crate) fn fft_butterfly_dispatch<T: Scalar>(
     wr: &[T],
     wi: &[T],
 ) {
+    // Reinterpret the six `T` slices as the concrete float type through the
+    // `TypeEq` witness `$w`, then call `$module::fft_butterfly`. Unused on
+    // architectures without a SIMD kernel (e.g. the thumbv7em no_std target).
+    #[allow(unused_macros)]
     macro_rules! simd_call {
-        ($ty:ty, $module:ident) => {{
-            // Reinterpret the T slices as the concrete float type.
-            let tr = unsafe { &mut *(tr as *mut [T] as *mut [$ty]) };
-            let ti = unsafe { &mut *(ti as *mut [T] as *mut [$ty]) };
-            let br = unsafe { &mut *(br as *mut [T] as *mut [$ty]) };
-            let bi = unsafe { &mut *(bi as *mut [T] as *mut [$ty]) };
-            let wr = unsafe { &*(wr as *const [T] as *const [$ty]) };
-            let wi = unsafe { &*(wi as *const [T] as *const [$ty]) };
+        ($w:ident, $module:ident) => {{
+            let (tr, ti) = ($w.slice_mut(tr), $w.slice_mut(ti));
+            let (br, bi) = ($w.slice_mut(br), $w.slice_mut(bi));
+            let (wr, wi) = ($w.slice(wr), $w.slice(wi));
             $module::fft_butterfly(tr, ti, br, bi, wr, wi);
             return;
         }};
@@ -949,30 +962,30 @@ pub(crate) fn fft_butterfly_dispatch<T: Scalar>(
 
     #[cfg(target_arch = "aarch64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
-            simd_call!(f64, f64_neon);
+        if let Some(w) = TypeEq::<T, f64>::new() {
+            simd_call!(w, f64_neon);
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
-            simd_call!(f32, f32_neon);
+        if let Some(w) = TypeEq::<T, f32>::new() {
+            simd_call!(w, f32_neon);
         }
     }
     #[cfg(target_arch = "x86_64")]
     {
-        if TypeId::of::<T>() == TypeId::of::<f64>() {
+        if let Some(w) = TypeEq::<T, f64>::new() {
             #[cfg(target_feature = "avx512f")]
-            simd_call!(f64, f64_avx512);
+            simd_call!(w, f64_avx512);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            simd_call!(f64, f64_avx);
+            simd_call!(w, f64_avx);
             #[cfg(not(target_feature = "avx"))]
-            simd_call!(f64, f64_sse2);
+            simd_call!(w, f64_sse2);
         }
-        if TypeId::of::<T>() == TypeId::of::<f32>() {
+        if let Some(w) = TypeEq::<T, f32>::new() {
             #[cfg(target_feature = "avx512f")]
-            simd_call!(f32, f32_avx512);
+            simd_call!(w, f32_avx512);
             #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            simd_call!(f32, f32_avx);
+            simd_call!(w, f32_avx);
             #[cfg(not(target_feature = "avx"))]
-            simd_call!(f32, f32_sse2);
+            simd_call!(w, f32_sse2);
         }
     }
     scalar::fft_butterfly(tr, ti, br, bi, wr, wi);

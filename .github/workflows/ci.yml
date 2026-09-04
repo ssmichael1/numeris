@@ -81,7 +81,7 @@ jobs:
       matrix:
         features:
           - { name: core, flags: "--no-default-features" }
-          - { name: full, flags: "--no-default-features --features libm,alloc,ode,optim,quad,control,estimate,interp,imageproc,special,stats,complex" }
+          - { name: full, flags: "--no-default-features --features libm,alloc,ode,optim,quad,control,estimate,interp,imageproc,fft,special,stats,complex" }
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

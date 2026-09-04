@@ -1,6 +1,6 @@
 //! Fast Fourier Transform.
 //!
-//! Pure-Rust, no-std-first FFT integrated with the crate's [`Complex`] and SIMD
+//! Pure-Rust, no-std-first FFT integrated with the crate's [`Complex`](crate::Complex) and SIMD
 //! support. **This is not FFTW.** FFTW's speed comes from runtime planning,
 //! autotuned codelets, and a large C codebase that cannot run under `no_std` /
 //! no-alloc — the target `numeris` was built for. The goal here is portable,
