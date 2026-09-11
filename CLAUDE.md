@@ -11,7 +11,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **matrix** — Fixed-size matrix (stack-allocated, const-generic dimensions), size aliases up to 6×6
 - [x] **linalg** — LU, Cholesky, QR, SVD decompositions; symmetric eigendecomposition (Householder + QR); real Schur decomposition (Hessenberg + Francis QR); solvers, inverse, determinant; complex support
 - [x] **quaternion** — Unit quaternion for rotations (SLERP, Euler, axis-angle, rotation matrices)
-- [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver)
+- [x] **ode** — ODE integration (RK4, 7 adaptive solvers with PI step control, dense output, RODAS4 stiff solver; `initial_step` hint and `next_step` warm-start handoff)
 - [x] **dynmatrix** — Heap-allocated runtime-sized matrix/vector (`alloc` feature)
 - [x] **interp** — Interpolation (linear, Hermite, barycentric Lagrange, natural cubic spline)
 - [x] **imageproc** — 2D image processing (filters, morphology, integral image/local stats, multi-scale, thresholding, Canny, corners, connected components, geometric)
@@ -217,7 +217,7 @@ src/
 ├── ode/                # (requires `ode` feature)
 │   ├── mod.rs          # OdeError, Solution, DenseOutput, re-exports
 │   ├── rk4.rs          # Fixed-step classic RK4 (rk4_step, rk4)
-│   ├── adaptive.rs     # RKAdaptive trait, AdaptiveSettings, PI step controller
+│   ├── adaptive.rs     # RKAdaptive trait, AdaptiveSettings, PI step controller, shared initial_step helper (user hint or HNW heuristic; used by rosenbrock.rs too)
 │   ├── rkf45.rs        # Runge-Kutta-Fehlberg 4(5), 6 stages
 │   ├── rkts54.rs       # Tsitouras 5(4), 7 stages, FSAL, 4th-degree interpolant
 │   ├── rkv65.rs        # Verner 6(5), 10 stages, 6th-degree interpolant

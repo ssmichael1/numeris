@@ -109,6 +109,8 @@ pub enum OdeError {
     /// not trigger it. Loosen `abs_tol`/`rel_tol`, or set
     /// [`AdaptiveSettings::h_min`] to accept reduced accuracy instead.
     TooManyRejections,
+    /// [`AdaptiveSettings::initial_step`] is `Some` but zero or non-finite.
+    InvalidInitialStep,
 }
 
 impl fmt::Display for OdeError {
@@ -123,6 +125,7 @@ impl fmt::Display for OdeError {
             }
             Self::SingularJacobian => write!(f, "Jacobian matrix is singular"),
             Self::TooManyRejections => write!(f, "too many consecutive step rejections"),
+            Self::InvalidInitialStep => write!(f, "initial step must be positive and finite"),
         }
     }
 }
@@ -141,6 +144,14 @@ pub struct Solution<T: FloatScalar, const M: usize, const N: usize> {
     pub accepted: usize,
     /// Rejected steps.
     pub rejected: usize,
+    /// The step the controller would take next, carrying the sign of the
+    /// integration direction.
+    ///
+    /// This is the last *unclamped* proposal: the final step is shortened to
+    /// land exactly on `t`, and that shortening is not reflected here. Pass it
+    /// as [`AdaptiveSettings::initial_step`] to continue from `t` without the
+    /// cold-start ramp of the starting-step heuristic.
+    pub next_step: T,
     /// Dense output data (requires `std` feature).
     #[cfg(feature = "std")]
     pub dense: Option<DenseOutput<T, M, N>>,

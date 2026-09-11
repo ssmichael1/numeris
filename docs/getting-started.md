@@ -6,7 +6,7 @@ Add numeris to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-numeris = "0.5"
+numeris = "0.6"
 ```
 
 The default feature is `std` (which implies `alloc`). To enable additional modules, list them explicitly:

@@ -193,6 +193,106 @@ mod adaptive_tests {
 
     // ── Dense output / interpolation ────────────────────────────────
 
+    // ── initial_step hint / next_step warm start ─────────────────────
+
+    #[test]
+    fn initial_step_is_honored_and_skips_probe_evals() {
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let cold = AdaptiveSettings {
+            dense_output: true,
+            ..tight_settings()
+        };
+        // 0.005 is above the heuristic's ~1.6e-3 start and still accepted
+        // by a 5th-order method at 1e-12.
+        let hinted = AdaptiveSettings {
+            initial_step: Some(0.005),
+            ..cold
+        };
+        let sol_cold = RKTS54::integrate(0.0, TAU, &y0, ydot, &cold).unwrap();
+        let sol = RKTS54::integrate(0.0, TAU, &y0, ydot, &hinted).unwrap();
+        assert_eq!(sol.dense.as_ref().unwrap().h[0], 0.005);
+        assert_eq!(sol.rejected, 0);
+        assert_ne!(sol_cold.dense.as_ref().unwrap().h[0], 0.005);
+        assert!((sol.y[0] - 1.0).abs() < 1e-10);
+        assert!(sol.y[1].abs() < 1e-10);
+        // The hint skips the heuristic's two probe evaluations and starts
+        // closer to the working stride.
+        assert!(sol.evals < sol_cold.evals);
+    }
+
+    #[test]
+    fn initial_step_is_clamped_to_interval_and_sign_ignored() {
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let settings = AdaptiveSettings {
+            initial_step: Some(-100.0),
+            dense_output: true,
+            ..AdaptiveSettings::default()
+        };
+        let sol = RKTS54::integrate(0.0, 0.01, &y0, ydot, &settings).unwrap();
+        assert_eq!(sol.dense.as_ref().unwrap().h[0], 0.01);
+        assert_eq!(sol.accepted, 1);
+        assert!((sol.y[0] - 0.01_f64.cos()).abs() < 1e-10);
+    }
+
+    #[test]
+    fn next_step_warm_start_continues_at_proposal_and_saves_evals() {
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let cold = AdaptiveSettings {
+            dense_output: true,
+            ..tight_settings()
+        };
+        let seg1 = RKV98::integrate(0.0, 10.0, &y0, ydot, &cold).unwrap();
+        let h_last = *seg1.dense.as_ref().unwrap().h.last().unwrap();
+        assert!(seg1.next_step.is_finite() && seg1.next_step > 0.0);
+        // The final step was shortened to land on tf; the proposal is not.
+        assert!(seg1.next_step >= h_last);
+
+        let warm = AdaptiveSettings {
+            initial_step: Some(seg1.next_step),
+            ..cold
+        };
+        let seg2_warm = RKV98::integrate(10.0, 20.0, &seg1.y, ydot, &warm).unwrap();
+        let seg2_cold = RKV98::integrate(10.0, 20.0, &seg1.y, ydot, &cold).unwrap();
+        assert_eq!(seg2_warm.dense.as_ref().unwrap().h[0], seg1.next_step);
+        assert!(
+            seg2_warm.evals < seg2_cold.evals,
+            "warm start {} evals vs cold {}",
+            seg2_warm.evals,
+            seg2_cold.evals
+        );
+        assert!((seg2_warm.y - seg2_cold.y).norm() < 1e-9);
+        assert!((seg2_warm.y[0] - 20.0_f64.cos()).abs() < 1e-9);
+    }
+
+    #[test]
+    fn next_step_and_initial_step_follow_integration_direction() {
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        let sol = RKTS54::integrate(TAU, 0.0, &y0, ydot, &tight_settings()).unwrap();
+        assert!(sol.next_step < 0.0);
+
+        let settings = AdaptiveSettings {
+            initial_step: Some(0.005),
+            dense_output: true,
+            ..tight_settings()
+        };
+        let sol = RKTS54::integrate(TAU, 0.0, &y0, ydot, &settings).unwrap();
+        assert_eq!(sol.dense.as_ref().unwrap().h[0], -0.005);
+        assert!((sol.y[0] - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn invalid_initial_step_is_an_error() {
+        let y0 = Vector::from_array([1.0_f64, 0.0]);
+        for bad in [0.0, -0.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let settings = AdaptiveSettings {
+                initial_step: Some(bad),
+                ..tight_settings()
+            };
+            let err = RKTS54::integrate(0.0, 1.0, &y0, ydot, &settings).unwrap_err();
+            assert_eq!(err, OdeError::InvalidInitialStep);
+        }
+    }
+
     fn test_interp<const N: usize, const NI: usize, S: RKAdaptive<N, NI>>() {
         let y0 = Vector::from_array([1.0_f64, 0.0]);
         let settings = AdaptiveSettings {
@@ -472,6 +572,47 @@ mod adaptive_tests {
         assert!(sol.y[0] >= -1e-10, "y[0] = {} is negative", sol.y[0]);
         assert!(sol.y[1] >= -1e-10, "y[1] = {} is negative", sol.y[1]);
         assert!(sol.y[2] >= -1e-10, "y[2] = {} is negative", sol.y[2]);
+    }
+
+    #[test]
+    fn rodas4_initial_step_and_next_step_warm_start() {
+        // y' = -1000 y: continue a cold segment with its next_step and check
+        // the continuation starts exactly at the proposal for less work.
+        let y0 = Vector::from_array([1.0_f64]);
+        let f = |_t: f64, y: &Vector<f64, 1>| Vector::from_array([-1000.0 * y[0]]);
+        let jac = |_t: f64, _y: &Vector<f64, 1>| crate::Matrix::new([[-1000.0]]);
+        let cold = AdaptiveSettings {
+            abs_tol: 1e-10,
+            rel_tol: 1e-10,
+            dense_output: true,
+            ..AdaptiveSettings::default()
+        };
+        let hinted = AdaptiveSettings {
+            initial_step: Some(1e-6),
+            ..cold
+        };
+        let sol = RODAS4::integrate(0.0, 0.005, &y0, f, jac, &hinted).unwrap();
+        assert_eq!(sol.dense.as_ref().unwrap().h[0], 1e-6);
+
+        let seg1 = RODAS4::integrate(0.0, 0.005, &y0, f, jac, &cold).unwrap();
+        assert!(seg1.next_step > 0.0);
+        assert!(seg1.next_step >= *seg1.dense.as_ref().unwrap().h.last().unwrap());
+        let warm = AdaptiveSettings {
+            initial_step: Some(seg1.next_step),
+            ..cold
+        };
+        let seg2_warm = RODAS4::integrate(0.005, 0.01, &seg1.y, f, jac, &warm).unwrap();
+        let seg2_cold = RODAS4::integrate(0.005, 0.01, &seg1.y, f, jac, &cold).unwrap();
+        assert_eq!(seg2_warm.dense.as_ref().unwrap().h[0], seg1.next_step);
+        assert!(
+            seg2_warm.evals < seg2_cold.evals,
+            "warm start {} evals vs cold {}",
+            seg2_warm.evals,
+            seg2_cold.evals
+        );
+        let exact = (-1000.0_f64 * 0.01).exp();
+        assert!((seg2_warm.y[0] - exact).abs() < 1e-8);
+        assert!((seg2_cold.y[0] - exact).abs() < 1e-8);
     }
 
     #[test]
