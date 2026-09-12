@@ -667,7 +667,7 @@ the crate's `Complex` and SIMD support. Forward uses `exp(-2πi kn/N)`; inverse 
 | `fft` / `ifft` (with `TwiddleTable`) | none | Fixed-size in-place complex FFT, power-of-two `N ≤ 4096` |
 | `fft_inplace` / `ifft_inplace` | none | Same, twiddles generated inline (no persistent table) |
 | `rfft` / `irfft` | none | Real-input transform, `N/2+1` bins (half-size packing) |
-| `DynFft::new(n)` | `alloc` | Any length: power-of-two radix + Bluestein for primes; SIMD butterflies |
+| `DynFft::new(n)` | `alloc` | Any length: power-of-two radix-4 core + Bluestein for primes; SIMD butterflies |
 | `DynRealFft::new(n)` | `alloc` | Runtime real-input transform (half-size packing both directions) |
 | `make_scratch` + `forward_with` / `inverse_with` | `alloc` | Run a shared (`&`) plan through a caller-owned `DynFftScratch` / `DynRealFftScratch` — one plan, many threads |
 | `DynFft2::new(rows, cols)` | `alloc` | 2D complex FFT over column-major `DynMatrix<Complex<T>>` (separable; transposed row pass, `rayon`-parallel batches) |
@@ -754,7 +754,7 @@ Checked items are implemented; unchecked are potential future work.
 - [x] **optim** — Optimization (Brent, Newton, BFGS, Gauss-Newton, Levenberg-Marquardt)
 - [x] **estimate** — State estimation: EKF, UKF, SR-UKF, CKF, RTS smoother, batch least-squares
 - [x] **quad** — Numerical quadrature (Gauss-Legendre, adaptive Simpson, composite trapezoid/Simpson)
-- [x] **fft** — Fast Fourier Transform (fixed-size no-alloc + `DynFft`/Bluestein for any length, `rfft`/`irfft`, 2D `DynFft2`/`DynRealFft2`, 1D/2D FFT convolution, `fftshift`/`fftshift2d`; SIMD butterflies, rayon-parallel 2D batches)
+- [x] **fft** — Fast Fourier Transform (fixed-size no-alloc + `DynFft`/Bluestein for any length, `rfft`/`irfft`, 2D `DynFft2`/`DynRealFft2`, 1D/2D FFT convolution, `fftshift`/`fftshift2d`; SIMD radix-4 butterflies, rayon-parallel 2D batches)
 - [x] **special** — Special functions (gamma, lgamma, digamma, beta, lbeta, incomplete gamma/beta, erf, erfc)
 - [x] **stats** — Statistical distributions (Normal, Uniform, Exponential, Gamma, Beta, Chi-squared, Student's t, Bernoulli, Binomial, Poisson)
 - [ ] **poly** — Polynomial operations and root-finding

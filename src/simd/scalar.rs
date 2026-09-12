@@ -244,3 +244,58 @@ pub fn fft_butterfly<T: Scalar>(
         bi[k] = tik - vi;
     }
 }
+
+/// Decimation-in-time radix-4 butterfly on deinterleaved (structure-of-arrays)
+/// slices — the reference for the SIMD `fft_butterfly4` kernels.
+///
+/// Fuses two radix-2 stages (`len = 2q` then `4q`): with `w1 = w^k`,
+/// `w2 = w^2k`, `w3 = w^3k` for `w = exp(-2πi/4q)`,
+/// `t1 = w2·b`, `t2 = w1·c`, `t3 = w3·d`, `a' = a + t1`, `b' = a − t1`,
+/// `u = t2 + t3`, `v = t2 − t3`, then `a ← a' + u`, `c ← a' − u`,
+/// `b ← b' − i·v`, `d ← b' + i·v`. All fourteen slices have equal length.
+#[inline]
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn fft_butterfly4<T: Scalar>(
+    ar: &mut [T],
+    ai: &mut [T],
+    br: &mut [T],
+    bi: &mut [T],
+    cr: &mut [T],
+    ci: &mut [T],
+    dr: &mut [T],
+    di: &mut [T],
+    w1r: &[T],
+    w1i: &[T],
+    w2r: &[T],
+    w2i: &[T],
+    w3r: &[T],
+    w3i: &[T],
+) {
+    let q = ar.len();
+    for s in [
+        &*ai, &*br, &*bi, &*cr, &*ci, &*dr, &*di, w1r, w1i, w2r, w2i, w3r, w3i,
+    ] {
+        debug_assert_eq!(s.len(), q);
+    }
+    for k in 0..q {
+        let t1r = br[k] * w2r[k] - bi[k] * w2i[k];
+        let t1i = br[k] * w2i[k] + bi[k] * w2r[k];
+        let t2r = cr[k] * w1r[k] - ci[k] * w1i[k];
+        let t2i = cr[k] * w1i[k] + ci[k] * w1r[k];
+        let t3r = dr[k] * w3r[k] - di[k] * w3i[k];
+        let t3i = dr[k] * w3i[k] + di[k] * w3r[k];
+        let (apr, api) = (ar[k] + t1r, ai[k] + t1i);
+        let (bpr, bpi) = (ar[k] - t1r, ai[k] - t1i);
+        let (ur, ui) = (t2r + t3r, t2i + t3i);
+        let (vr, vi) = (t2r - t3r, t2i - t3i);
+        ar[k] = apr + ur;
+        ai[k] = api + ui;
+        cr[k] = apr - ur;
+        ci[k] = api - ui;
+        br[k] = bpr + vi;
+        bi[k] = bpi - vr;
+        dr[k] = bpr - vi;
+        di[k] = bpi + vr;
+    }
+}

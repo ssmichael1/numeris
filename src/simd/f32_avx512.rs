@@ -519,6 +519,15 @@ simd_fft_butterfly_kernel!(
     _mm512_sub_ps,
     _mm512_mul_ps
 );
+simd_fft_butterfly4_kernel!(
+    f32,
+    16,
+    _mm512_loadu_ps,
+    _mm512_storeu_ps,
+    _mm512_add_ps,
+    _mm512_sub_ps,
+    _mm512_mul_ps
+);
 simd_axpy_kernels_muladd!(
     f32,
     16,

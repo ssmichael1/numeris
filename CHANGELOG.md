@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.5.21
+
+- **FFT: radix-4 stages in the `DynFft` power-of-two core** — internal-only, no
+  API change. After the fused twiddle-free length-2/4 pass, the SoA transform
+  now runs radix-4 stages (block size ×4 per sweep, three complex twiddle
+  multiplies per four elements via `w, w², w³` tables) as far as they go, with
+  one trailing radix-2 stage when `log2(n)` is odd. Each radix-4 stage replaces
+  two radix-2 sweeps over the re/im arrays, so a length-`n` transform makes
+  about half as many passes over memory and 25% fewer complex multiplies. The
+  kernel is a new `simd_fft_butterfly4_kernel!` macro shared across NEON / SSE2 /
+  AVX / AVX-512 (same `chunks_exact` + `SAFETY` shape as the radix-2 kernel) with
+  a scalar reference, dispatched through the `TypeEq` witness; SIMD and scalar
+  paths are cross-checked at lengths straddling every lane width. Everything
+  built on the core — Bluestein, real transforms, 2D, convolution — inherits
+  the speedup.
+- **FFT: bit-reversal as a gather** — the deinterleave-plus-bit-reversal pass
+  now writes the re/im arrays sequentially and reads the input at bit-reversed
+  indices, instead of the reverse. Once the input outgrows the cache the
+  permutation is random access either way, but scattered loads pipeline where
+  scattered stores serialize: the pass alone dropped from ~490 µs to ~95 µs at
+  `n = 65536` (`f64`), where it had been two thirds of the transform.
+- Together (busy M-series machine, `f64`, vs 0.5.20): `DynFft` 65536 forward
+  858 → 342 µs (now within 5% of `rustfft`, from 2.6× slower), 4096 18.7 → 16.4 µs,
+  1024 4.0 → 3.5 µs; `DynRealFft` 65536 599 → 342 µs; Bluestein 4093 132 → 74 µs;
+  `DynFft2` 1024² 4.9 → 4.1 ms. The bench crate gains a head-to-head against
+  `rustfft` (`fft_vs_rustfft`).
+
 ## 0.5.20
 
 - **New `fft` module — Fast Fourier Transform** (new `fft` feature). Pure-Rust,
