@@ -1,11 +1,13 @@
 //! AVX-accelerated f64 kernels for x86_64.
 //!
 //! AVX provides 256-bit registers → 4×f64 lanes.
-//! Every kernel carries `#[target_feature(enable = "avx")]`, so this module
+//! Every kernel carries `#[target_feature(enable = "avx,fma")]`, so this module
 //! compiles on any x86_64 target. The dispatcher in `super` calls into it only
-//! when AVX is a compile-time target feature (`-C target-cpu=native` on
+//! when AVX and FMA are compile-time target features (`-C target-cpu=native` on
 //! Haswell+) or, under the `runtime-dispatch` feature, when runtime detection
-//! has confirmed the CPU supports it.
+//! has confirmed the CPU supports both. All multiply-adds are fused (`fmadd`),
+//! which is why the tier requires FMA — every AVX2 CPU has it; the AVX-only
+//! Sandy / Ivy Bridge parts fall back to SSE2.
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
@@ -15,7 +17,7 @@ use core::arch::x86_64::*;
 /// Uses 4 independent accumulators (16 f64 per iteration) to hide
 /// multiply-add latency.
 #[inline]
-#[target_feature(enable = "avx")]
+#[target_feature(enable = "avx,fma")]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
 
@@ -34,21 +36,13 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
         // four 4-lane loads at offsets 0, 4, 8 and 12 cover each chunk exactly.
         unsafe {
             let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
-            acc0 = _mm256_add_pd(
-                acc0,
-                _mm256_mul_pd(_mm256_loadu_pd(ap), _mm256_loadu_pd(bp)),
-            );
-            acc1 = _mm256_add_pd(
-                acc1,
-                _mm256_mul_pd(_mm256_loadu_pd(ap.add(4)), _mm256_loadu_pd(bp.add(4))),
-            );
-            acc2 = _mm256_add_pd(
-                acc2,
-                _mm256_mul_pd(_mm256_loadu_pd(ap.add(8)), _mm256_loadu_pd(bp.add(8))),
-            );
-            acc3 = _mm256_add_pd(
+            acc0 = _mm256_fmadd_pd(_mm256_loadu_pd(ap), _mm256_loadu_pd(bp), acc0);
+            acc1 = _mm256_fmadd_pd(_mm256_loadu_pd(ap.add(4)), _mm256_loadu_pd(bp.add(4)), acc1);
+            acc2 = _mm256_fmadd_pd(_mm256_loadu_pd(ap.add(8)), _mm256_loadu_pd(bp.add(8)), acc2);
+            acc3 = _mm256_fmadd_pd(
+                _mm256_loadu_pd(ap.add(12)),
+                _mm256_loadu_pd(bp.add(12)),
                 acc3,
-                _mm256_mul_pd(_mm256_loadu_pd(ap.add(12)), _mm256_loadu_pd(bp.add(12))),
             );
         }
     }
@@ -72,9 +66,10 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     for (ac, bc) in (&mut ar).zip(&mut br) {
         // SAFETY: each chunk is exactly 4 `f64` — one vector load each.
         unsafe {
-            acc_rem = _mm256_add_pd(
+            acc_rem = _mm256_fmadd_pd(
+                _mm256_loadu_pd(ac.as_ptr()),
+                _mm256_loadu_pd(bc.as_ptr()),
                 acc_rem,
-                _mm256_mul_pd(_mm256_loadu_pd(ac.as_ptr()), _mm256_loadu_pd(bc.as_ptr())),
             );
         }
     }
@@ -108,7 +103,7 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
 /// The microkernels' `# Safety` bounds contracts assume these dimensions, so
 /// they are checked in release builds, not just under `debug_assertions`.
 #[inline]
-#[target_feature(enable = "avx")]
+#[target_feature(enable = "avx,fma")]
 pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize) {
     assert_eq!(a.len(), m * n, "matmul: a.len() != m*n");
     assert_eq!(b.len(), n * p, "matmul: b.len() != n*p");
@@ -194,7 +189,7 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
                         let offset = i * 4;
                         let vc = _mm256_loadu_pd(c.as_ptr().add(c_col + offset));
                         let va = _mm256_loadu_pd(a.as_ptr().add(a_col + offset));
-                        let result = _mm256_add_pd(vc, _mm256_mul_pd(va, vb));
+                        let result = _mm256_fmadd_pd(va, vb, vc);
                         _mm256_storeu_pd(c.as_mut_ptr().add(c_col + offset), result);
                     }
                 }
@@ -222,7 +217,7 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, n: usize, p: usize)
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX availability is guaranteed by the
-/// caller's `#[target_feature(enable = "avx")]` (this helper is always inlined into it).
+/// caller's `#[target_feature(enable = "avx,fma")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f64],
@@ -258,20 +253,20 @@ unsafe fn microkernel_8x4(
             let a1 = _mm256_loadu_pd(a_ptr.add(a_off + 4));
 
             let b0 = _mm256_set1_pd(*b_ptr.add(j0 * n + k));
-            acc00 = _mm256_add_pd(acc00, _mm256_mul_pd(a0, b0));
-            acc10 = _mm256_add_pd(acc10, _mm256_mul_pd(a1, b0));
+            acc00 = _mm256_fmadd_pd(a0, b0, acc00);
+            acc10 = _mm256_fmadd_pd(a1, b0, acc10);
 
             let b1 = _mm256_set1_pd(*b_ptr.add((j0 + 1) * n + k));
-            acc01 = _mm256_add_pd(acc01, _mm256_mul_pd(a0, b1));
-            acc11 = _mm256_add_pd(acc11, _mm256_mul_pd(a1, b1));
+            acc01 = _mm256_fmadd_pd(a0, b1, acc01);
+            acc11 = _mm256_fmadd_pd(a1, b1, acc11);
 
             let b2 = _mm256_set1_pd(*b_ptr.add((j0 + 2) * n + k));
-            acc02 = _mm256_add_pd(acc02, _mm256_mul_pd(a0, b2));
-            acc12 = _mm256_add_pd(acc12, _mm256_mul_pd(a1, b2));
+            acc02 = _mm256_fmadd_pd(a0, b2, acc02);
+            acc12 = _mm256_fmadd_pd(a1, b2, acc12);
 
             let b3 = _mm256_set1_pd(*b_ptr.add((j0 + 3) * n + k));
-            acc03 = _mm256_add_pd(acc03, _mm256_mul_pd(a0, b3));
-            acc13 = _mm256_add_pd(acc13, _mm256_mul_pd(a1, b3));
+            acc03 = _mm256_fmadd_pd(a0, b3, acc03);
+            acc13 = _mm256_fmadd_pd(a1, b3, acc13);
         }
 
         // Write back: C += acc
@@ -332,7 +327,7 @@ unsafe fn microkernel_8x4(
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX availability is guaranteed by the
-/// caller's `#[target_feature(enable = "avx")]` (this helper is always inlined into it).
+/// caller's `#[target_feature(enable = "avx,fma")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f64],
@@ -360,22 +355,10 @@ unsafe fn microkernel_4x4(
         for k in k_start..k_end {
             let a0 = _mm256_loadu_pd(a_ptr.add(k * m + i0));
 
-            acc0 = _mm256_add_pd(
-                acc0,
-                _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add(j0 * n + k))),
-            );
-            acc1 = _mm256_add_pd(
-                acc1,
-                _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 1) * n + k))),
-            );
-            acc2 = _mm256_add_pd(
-                acc2,
-                _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 2) * n + k))),
-            );
-            acc3 = _mm256_add_pd(
-                acc3,
-                _mm256_mul_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 3) * n + k))),
-            );
+            acc0 = _mm256_fmadd_pd(a0, _mm256_set1_pd(*b_ptr.add(j0 * n + k)), acc0);
+            acc1 = _mm256_fmadd_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 1) * n + k)), acc1);
+            acc2 = _mm256_fmadd_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 2) * n + k)), acc2);
+            acc3 = _mm256_fmadd_pd(a0, _mm256_set1_pd(*b_ptr.add((j0 + 3) * n + k)), acc3);
         }
 
         let c_ptr = c.as_mut_ptr();
@@ -415,7 +398,7 @@ unsafe fn microkernel_4x4(
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX availability is guaranteed by the
-/// caller's `#[target_feature(enable = "avx")]` (this helper is always inlined into it).
+/// caller's `#[target_feature(enable = "avx,fma")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_2x4(
     a: &[f64],
@@ -443,19 +426,10 @@ unsafe fn microkernel_2x4(
         for k in k_start..k_end {
             let a0 = _mm_loadu_pd(a_ptr.add(k * m + i0));
 
-            acc0 = _mm_add_pd(acc0, _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add(j0 * n + k))));
-            acc1 = _mm_add_pd(
-                acc1,
-                _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 1) * n + k))),
-            );
-            acc2 = _mm_add_pd(
-                acc2,
-                _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 2) * n + k))),
-            );
-            acc3 = _mm_add_pd(
-                acc3,
-                _mm_mul_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 3) * n + k))),
-            );
+            acc0 = _mm_fmadd_pd(a0, _mm_set1_pd(*b_ptr.add(j0 * n + k)), acc0);
+            acc1 = _mm_fmadd_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 1) * n + k)), acc1);
+            acc2 = _mm_fmadd_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 2) * n + k)), acc2);
+            acc3 = _mm_fmadd_pd(a0, _mm_set1_pd(*b_ptr.add((j0 + 3) * n + k)), acc3);
         }
 
         let c_ptr = c.as_mut_ptr();
@@ -480,6 +454,26 @@ unsafe fn microkernel_2x4(
             _mm_add_pd(_mm_loadu_pd(c_ptr.add(off3)), acc3),
         );
     }
+}
+
+// ── Fused multiply-add, accumulator-first ──────────────────────────────────
+//
+// The shared `_fma` kernel macros in `super` were written against NEON's
+// `vfmaq(acc, a, b)` (= acc + a·b) and `vfmsq(acc, a, b)` (= acc − a·b). Intel's
+// `_mm256_fmadd_pd(a, b, c)` puts the accumulator last, so these adapters give the
+// macros the NEON argument shape. Register-only; inlined into the attributed
+// kernels.
+
+#[inline]
+#[target_feature(enable = "avx,fma")]
+fn fmadd_acc(acc: __m256d, a: __m256d, b: __m256d) -> __m256d {
+    _mm256_fmadd_pd(a, b, acc)
+}
+
+#[inline]
+#[target_feature(enable = "avx,fma")]
+fn fnmadd_acc(acc: __m256d, a: __m256d, b: __m256d) -> __m256d {
+    _mm256_fnmadd_pd(a, b, acc)
 }
 
 // Element-wise add/sub/scale and AXPY kernels are generated from the shared
@@ -515,24 +509,22 @@ simd_fft_butterfly4_kernel!(
     _mm256_sub_pd,
     _mm256_mul_pd
 );
-simd_axpy_kernels_muladd!(
-    @feature "avx"
+simd_axpy_kernels_fma!(
+    @feature "avx,fma"
     f64,
     4,
     _mm256_loadu_pd,
     _mm256_storeu_pd,
-    _mm256_add_pd,
-    _mm256_sub_pd,
-    _mm256_mul_pd,
+    fmadd_acc,
+    fnmadd_acc,
     _mm256_set1_pd
 );
-simd_conv1d_kernel_muladd!(
-    @feature "avx"
+simd_conv1d_kernel_fma!(
+    @feature "avx,fma"
     f64,
     4,
     _mm256_loadu_pd,
     _mm256_storeu_pd,
-    _mm256_add_pd,
-    _mm256_mul_pd,
+    fmadd_acc,
     _mm256_set1_pd
 );

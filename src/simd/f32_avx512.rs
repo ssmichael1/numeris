@@ -34,21 +34,21 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
         // four 16-lane loads at offsets 0, 16, 32 and 48 cover each chunk exactly.
         unsafe {
             let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
-            acc0 = _mm512_add_ps(
-                acc0,
-                _mm512_mul_ps(_mm512_loadu_ps(ap), _mm512_loadu_ps(bp)),
-            );
-            acc1 = _mm512_add_ps(
+            acc0 = _mm512_fmadd_ps(_mm512_loadu_ps(ap), _mm512_loadu_ps(bp), acc0);
+            acc1 = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ap.add(16)),
+                _mm512_loadu_ps(bp.add(16)),
                 acc1,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(16)), _mm512_loadu_ps(bp.add(16))),
             );
-            acc2 = _mm512_add_ps(
+            acc2 = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ap.add(32)),
+                _mm512_loadu_ps(bp.add(32)),
                 acc2,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(32)), _mm512_loadu_ps(bp.add(32))),
             );
-            acc3 = _mm512_add_ps(
+            acc3 = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ap.add(48)),
+                _mm512_loadu_ps(bp.add(48)),
                 acc3,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(48)), _mm512_loadu_ps(bp.add(48))),
             );
         }
     }
@@ -66,9 +66,10 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     for (ac, bc) in (&mut ar).zip(&mut br) {
         // SAFETY: each chunk is exactly 16 `f32` — one vector load each.
         unsafe {
-            acc_rem = _mm512_add_ps(
+            acc_rem = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ac.as_ptr()),
+                _mm512_loadu_ps(bc.as_ptr()),
                 acc_rem,
-                _mm512_mul_ps(_mm512_loadu_ps(ac.as_ptr()), _mm512_loadu_ps(bc.as_ptr())),
             );
         }
     }
@@ -194,7 +195,7 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
                         let offset = i * 16;
                         let vc = _mm512_loadu_ps(c.as_ptr().add(c_col + offset));
                         let va = _mm512_loadu_ps(a.as_ptr().add(a_col + offset));
-                        let result = _mm512_add_ps(vc, _mm512_mul_ps(va, vb));
+                        let result = _mm512_fmadd_ps(va, vb, vc);
                         _mm512_storeu_ps(c.as_mut_ptr().add(c_col + offset), result);
                     }
                 }
@@ -356,19 +357,10 @@ unsafe fn microkernel_16x4(
         let mut a3 = _mm512_setzero_ps();
         for k in k_start..k_end {
             let av = _mm512_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm512_add_ps(a0, _mm512_mul_ps(av, _mm512_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm512_add_ps(
-                a1,
-                _mm512_mul_ps(av, _mm512_set1_ps(*bp.add((j0 + 1) * n + k))),
-            );
-            a2 = _mm512_add_ps(
-                a2,
-                _mm512_mul_ps(av, _mm512_set1_ps(*bp.add((j0 + 2) * n + k))),
-            );
-            a3 = _mm512_add_ps(
-                a3,
-                _mm512_mul_ps(av, _mm512_set1_ps(*bp.add((j0 + 3) * n + k))),
-            );
+            a0 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -418,19 +410,10 @@ unsafe fn microkernel_8x4(
         let mut a3 = _mm256_setzero_ps();
         for k in k_start..k_end {
             let av = _mm256_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm256_add_ps(a0, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm256_add_ps(
-                a1,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 1) * n + k))),
-            );
-            a2 = _mm256_add_ps(
-                a2,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 2) * n + k))),
-            );
-            a3 = _mm256_add_ps(
-                a3,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 3) * n + k))),
-            );
+            a0 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -480,10 +463,10 @@ unsafe fn microkernel_4x4(
         let mut a3 = _mm_setzero_ps();
         for k in k_start..k_end {
             let av = _mm_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm_add_ps(a0, _mm_mul_ps(av, _mm_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm_add_ps(a1, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 1) * n + k))));
-            a2 = _mm_add_ps(a2, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 2) * n + k))));
-            a3 = _mm_add_ps(a3, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 3) * n + k))));
+            a0 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -491,6 +474,26 @@ unsafe fn microkernel_4x4(
             _mm_storeu_ps(cp.add(off), _mm_add_ps(_mm_loadu_ps(cp.add(off)), acc));
         }
     }
+}
+
+// ── Fused multiply-add, accumulator-first ──────────────────────────────────
+//
+// The shared `_fma` kernel macros in `super` were written against NEON's
+// `vfmaq(acc, a, b)` (= acc + a·b) and `vfmsq(acc, a, b)` (= acc − a·b). Intel's
+// `_mm512_fmadd_ps(a, b, c)` puts the accumulator last, so these adapters give the
+// macros the NEON argument shape. Register-only; inlined into the attributed
+// kernels.
+
+#[inline]
+#[target_feature(enable = "avx512f")]
+fn fmadd_acc(acc: __m512, a: __m512, b: __m512) -> __m512 {
+    _mm512_fmadd_ps(a, b, acc)
+}
+
+#[inline]
+#[target_feature(enable = "avx512f")]
+fn fnmadd_acc(acc: __m512, a: __m512, b: __m512) -> __m512 {
+    _mm512_fnmadd_ps(a, b, acc)
 }
 
 // Element-wise add/sub/scale and AXPY kernels are generated from the shared
@@ -526,24 +529,22 @@ simd_fft_butterfly4_kernel!(
     _mm512_sub_ps,
     _mm512_mul_ps
 );
-simd_axpy_kernels_muladd!(
+simd_axpy_kernels_fma!(
     @feature "avx512f"
     f32,
     16,
     _mm512_loadu_ps,
     _mm512_storeu_ps,
-    _mm512_add_ps,
-    _mm512_sub_ps,
-    _mm512_mul_ps,
+    fmadd_acc,
+    fnmadd_acc,
     _mm512_set1_ps
 );
-simd_conv1d_kernel_muladd!(
+simd_conv1d_kernel_fma!(
     @feature "avx512f"
     f32,
     16,
     _mm512_loadu_ps,
     _mm512_storeu_ps,
-    _mm512_add_ps,
-    _mm512_mul_ps,
+    fmadd_acc,
     _mm512_set1_ps
 );

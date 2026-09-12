@@ -10,7 +10,7 @@ SIMD is **always-on** for `f32` and `f64` — no feature flag needed. By default
 |---|---|---|---|
 | aarch64 | NEON (128-bit) | 8×4 | 8×4 |
 | x86_64 | SSE2 (128-bit) | 4×4 | 8×4 |
-| x86_64 | AVX (256-bit) | 8×4 | 16×4 |
+| x86_64 | AVX + FMA (256-bit) | 8×4 | 16×4 |
 | x86_64 | AVX-512 (512-bit) | 16×4 | 32×4 |
 | other | scalar fallback | 4×4 | 4×4 |
 
@@ -19,7 +19,8 @@ AVX and AVX-512 require compile-time opt-in:
 ```bash
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 # or explicitly:
-RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
+RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release          # AVX tier
+RUSTFLAGS="-C target-feature=+avx2,+fma,+avx512f" cargo build --release # AVX-512 tier
 ```
 
 SSE2 (x86_64) and NEON (aarch64) are always-on baselines.
@@ -33,7 +34,8 @@ numeris = { version = "0.7", features = ["runtime-dispatch"] }
 ```
 
 - The AVX and AVX-512 kernels are compiled into every x86_64 build. Each carries its own `#[target_feature(enable = ...)]`, so the compiler emits the wide instructions inside them regardless of the crate-wide target.
-- On the first dispatch, `std::is_x86_feature_detected!` probes `avx512f` and `avx` (including the OS state-save check, so a kernel that has not enabled ZMM state reports the lower tier). The resolved tier is cached in one byte; every later dispatch is a single relaxed load and a compare.
+- On the first dispatch, `std::is_x86_feature_detected!` probes `avx512f`, then `avx` + `fma` (including the OS state-save check, so a kernel that has not enabled ZMM state reports the lower tier). The resolved tier is cached in one byte; every later dispatch is a single relaxed load and a compare.
+- The AVX tier requires FMA because all of its multiply-adds are fused (`vfmadd`): one instruction and one rounding instead of two. Every AVX2 CPU (Haswell / Zen 1 and later) has FMA; the AVX-only Sandy Bridge and Ivy Bridge parts (2011–2013) fall back to SSE2. AVX-512F implies FMA, and that tier fuses throughout as well.
 - The compile-time target features remain a **floor** the probe can only raise. With `-C target-feature=+avx512f` the selector is a constant and the dispatch `match` folds away, so such builds are unchanged.
 - aarch64 needs nothing: NEON is the baseline and there are no wider kernels.
 

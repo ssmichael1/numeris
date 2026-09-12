@@ -31,7 +31,7 @@
 //! |-----------|-----------|----------|----------|
 //! | `aarch64` | NEON      | 4×4      | 8×4      |
 //! | `x86_64`  | SSE2      | 4×4      | 8×4      |
-//! | `x86_64`  | AVX       | 8×4      | 16×4     |
+//! | `x86_64`  | AVX + FMA | 8×4      | 16×4     |
 //! | `x86_64`  | AVX-512   | 16×4     | 32×4     |
 //! | other     | scalar    | 4×4      | 4×4      |
 
@@ -176,8 +176,8 @@ macro_rules! simd_elementwise_kernels {
     };
 }
 
-/// AXPY kernels using a separate multiply + add/subtract (x86 SSE2/AVX/AVX-512).
-// Unused on aarch64 (which uses the fused variant below); the reverse holds on x86.
+/// AXPY kernels using a separate multiply + add/subtract (x86 SSE2, which has no FMA).
+// Unused on aarch64 (which uses the fused variant below).
 #[allow(unused_macros)]
 macro_rules! simd_axpy_kernels_muladd {
     ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
@@ -237,7 +237,8 @@ macro_rules! simd_axpy_kernels_muladd {
     };
 }
 
-/// AXPY kernels using NEON fused multiply-add / multiply-subtract.
+/// AXPY kernels using fused multiply-add / multiply-subtract (NEON, and the x86
+/// AVX / AVX-512 tiers through accumulator-first adapters).
 #[allow(unused_macros)]
 macro_rules! simd_axpy_kernels_fma {
     ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $fms:ident, $dup:ident) => {
@@ -812,7 +813,7 @@ impl<T: Copy + 'static, U: Copy + 'static> TypeEq<T, U> {
 pub(crate) enum Isa {
     /// 128-bit — the x86_64 baseline, always available.
     Sse2,
-    /// 256-bit (`avx`).
+    /// 256-bit (`avx` + `fma`; the tier fuses every multiply-add).
     Avx,
     /// 512-bit (`avx512f`).
     Avx512,
@@ -834,9 +835,9 @@ pub(crate) fn isa() -> Isa {
     }
     #[cfg(not(target_feature = "avx512f"))]
     {
-        #[cfg(target_feature = "avx")]
+        #[cfg(all(target_feature = "avx", target_feature = "fma"))]
         let floor = Isa::Avx;
-        #[cfg(not(target_feature = "avx"))]
+        #[cfg(not(all(target_feature = "avx", target_feature = "fma")))]
         let floor = Isa::Sse2;
         #[cfg(feature = "runtime-dispatch")]
         {
@@ -867,7 +868,7 @@ fn runtime_isa() -> Isa {
     fn probe() -> Isa {
         let isa = if std::is_x86_feature_detected!("avx512f") {
             Isa::Avx512
-        } else if std::is_x86_feature_detected!("avx") {
+        } else if std::is_x86_feature_detected!("avx") && std::is_x86_feature_detected!("fma") {
             Isa::Avx
         } else {
             Isa::Sse2
@@ -911,8 +912,8 @@ macro_rules! x86_select {
             // running CPU and OS support it — the precondition for calling a
             // `#[target_feature(enable = "avx512f")]` kernel.
             Isa::Avx512 => unsafe { $avx512::$kernel($($arg),*) },
-            // SAFETY: as for `Avx512` — `isa()` returns `Avx` only when AVX is a
-            // compile-time target feature or the runtime probe confirmed it.
+            // SAFETY: as for `Avx512` — `isa()` returns `Avx` only when AVX and FMA
+            // are compile-time target features or the runtime probe confirmed both.
             Isa::Avx => unsafe { $avx::$kernel($($arg),*) },
             Isa::Sse2 => $sse2::$kernel($($arg),*),
         }
@@ -1866,7 +1867,7 @@ mod tests {
         fn isa_agrees_with_std_detection() {
             let expected = if std::is_x86_feature_detected!("avx512f") {
                 Isa::Avx512
-            } else if std::is_x86_feature_detected!("avx") {
+            } else if std::is_x86_feature_detected!("avx") && std::is_x86_feature_detected!("fma") {
                 Isa::Avx
             } else {
                 Isa::Sse2
@@ -1877,7 +1878,7 @@ mod tests {
             // The compile-time floor is never lowered by the probe.
             if cfg!(target_feature = "avx512f") {
                 assert_eq!(isa(), Isa::Avx512);
-            } else if cfg!(target_feature = "avx") {
+            } else if cfg!(all(target_feature = "avx", target_feature = "fma")) {
                 assert!(isa() >= Isa::Avx);
             }
         }

@@ -39,7 +39,10 @@ Checked items are implemented; unchecked are potential future work.
   `simd::isa()` — a constant when the tier is a compile-time feature, else a one-time
   `is_x86_feature_detected!` probe cached in an `AtomicU8` — picks the tier that the single
   `x86_select!` macro calls into. Always-compiled tiers that a build never selects are dead
-  code the linker drops.
+  code the linker drops. The AVX tier is `avx` **+ `fma`** (every multiply-add in the AVX /
+  AVX-512 tiers is fused; AVX-only Sandy / Ivy Bridge fall back to SSE2); the shared `_fma`
+  kernel macros take NEON's accumulator-first argument order, so each x86 file has two
+  `fmadd_acc` / `fnmadd_acc` adapters.
   These flags are **not** committed to a repo `.cargo/config.toml` (a blanket `target-cpu=native`
   is non-portable and makes virtualized CI runners `SIGILL` on AVX-512 the host detects but can't
   run). To build with wide SIMD locally, opt in per-shell, e.g.
