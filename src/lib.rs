@@ -178,7 +178,18 @@
 //! | `nalgebra`| no       | Conversions between numeris and nalgebra types |
 //! | `serde`   | no       | Serialize/deserialize all types via serde |
 //! | `rayon`   | no       | Multi-threaded parallelism on runtime-sized paths (e.g. dynamic finite-difference Jacobians, most `imageproc` filters). Implies `std` |
+//! | `runtime-dispatch` | no | x86_64: probe the CPU once and use the AVX / AVX-512 kernels when present, rather than only the compile-time target features. Implies `std` |
 //! | `all`     | no       | All features |
+//!
+//! ## SIMD tiers
+//!
+//! SIMD is always-on for `f32` / `f64`: NEON on aarch64, SSE2 on x86_64, with
+//! AVX and AVX-512 selected at compile time when `-C target-feature` /
+//! `-C target-cpu=native` enable them. The `runtime-dispatch` feature makes
+//! that compile-time tier a floor: the AVX / AVX-512 kernels are compiled into
+//! every x86_64 build and a one-time, cached CPU probe raises the tier to the
+//! widest the running machine supports — the mode for one prebuilt binary that
+//! must run everywhere. Purely additive; no effect on aarch64 or no-std builds.
 //!
 //! ## Parallelism
 //!
@@ -220,6 +231,11 @@
 // `integrate` entry points) genuinely need many parameters (dimensions, scratch
 // buffers, callbacks); factoring them into structs would only obscure the math.
 #![allow(clippy::too_many_arguments)]
+// The SIMD kernels iterate `chunks_exact` and take `remainder()` from the same
+// iterator — the idiom the crate's `unsafe` arguments are written against (each
+// chunk is exactly as wide as the loads covering it). `as_chunks` would be an
+// equivalent proof, but converting every kernel is a separate refactor.
+#![allow(clippy::chunks_exact_to_as_chunks)]
 // The SIMD kernels hold nearly all of the crate's `unsafe` (the rest: the
 // two-column split in `linalg` and the `MaybeUninit` stack in `quad`; every
 // block carries a written safety justification). Requiring an explicit

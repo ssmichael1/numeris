@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/numeris)](https://crates.io/crates/numeris)
 [![docs.rs](https://img.shields.io/docsrs/numeris)](https://docs.rs/numeris)
 [![License: MIT](https://img.shields.io/crates/l/numeris)](https://opensource.org/licenses/MIT)
-[![MSRV](https://img.shields.io/badge/MSRV-1.80-blue)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/MSRV-1.89-blue)](https://www.rust-lang.org)
 
 Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to SciPy, suitable for embedded targets (no heap allocation, no FPU assumptions) while being highly performant on desktop/server hardware via SIMD intrinsics.
 
@@ -29,7 +29,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 - **Fast Fourier Transform** — fixed-size no-alloc complex FFT (power-of-two) and real `rfft`/`irfft`; runtime `DynFft` for any length (Bluestein for primes, SIMD butterflies), `DynRealFft`, 2D `DynFft2`/`DynRealFft2` (rayon-parallel batches), 1D/2D FFT convolution, `fftshift`/`fftshift2d` (optional `fft` feature)
 - **Quaternions** — unit quaternion rotations, SLERP, Euler angles, rotation matrices
 - **Norms** — L1, L2, Frobenius, infinity, one norms
-- **SIMD acceleration** — NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures
+- **SIMD acceleration** — NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) intrinsics for matmul, dot products, and element-wise ops; zero-cost scalar fallback for integers and unsupported architectures. The optional `runtime-dispatch` feature picks the AVX / AVX-512 tier by a one-time CPU probe, so one x86_64 binary runs the widest kernels each machine has
 - **Multi-threading (optional)** — the `rayon` feature parallelizes runtime-sized paths (dynamic finite-difference Jacobians and most `imageproc` filters) across cores, ~2.5–4× on large inputs; purely additive and orthogonal to SIMD
 - **No-std / embedded** — runs without `std` or heap; float math falls back to software `libm`
 
@@ -443,6 +443,7 @@ Complex support adds zero overhead to real-valued code paths. The `LinalgScalar`
 | `nalgebra` | no | Conversions between numeris and nalgebra types (`From`/`Into`, `MatrixRef`/`MatrixMut`). |
 | `serde` | no | Serialize/deserialize all types via [serde](https://serde.rs). Row-major JSON format. |
 | `rayon` | no | Multi-threaded parallelism on runtime-sized paths via [rayon](https://docs.rs/rayon) (dynamic finite-difference Jacobians, most `imageproc` filters). Purely additive; implies `std`. |
+| `runtime-dispatch` | no | x86_64 only: probe the CPU once at runtime and use the AVX / AVX-512 kernels when present, instead of only what `-C target-feature` enabled at compile time. Purely additive; implies `std`. |
 | `all` | no | All features. |
 
 ```bash
@@ -766,7 +767,7 @@ numeris is designed for two use cases: no-std embedded systems and high-performa
 
 **SIMD acceleration** is always-on for f32/f64 — no feature flag needed. On aarch64 (NEON) and x86_64 (SSE2/AVX/AVX-512), matrix multiply, dot products, and element-wise operations use hardware SIMD intrinsics via `core::arch`. Matrix multiply uses register-blocked micro-kernels (inspired by [nano-gemm](https://github.com/sarah-quinones/nano-gemm) by Sarah Quinones) that accumulate MR×NR tiles in SIMD registers with k-blocking (KC=256) for cache locality, writing C only once per tile — reducing memory traffic by up to O(n) vs. naive implementations. Small matrices (4x4 and below) use direct formulas for inverse and determinant, bypassing LU decomposition entirely. Integer and complex types fall back to scalar loops at zero cost (dead-code eliminated at monomorphization via `TypeId` dispatch).
 
-SSE2 and NEON are always-on baselines. AVX and AVX-512 are compile-time opt-in via `-C target-cpu=native`; dispatch selects the widest available ISA.
+SSE2 and NEON are always-on baselines. AVX and AVX-512 are compile-time opt-in via `-C target-cpu=native`; dispatch selects the widest available ISA. With the **`runtime-dispatch`** feature the compile-time tier is only a floor: the AVX and AVX-512 kernels are compiled into every x86_64 build (each carries its own `#[target_feature]`), and a one-time `is_x86_feature_detected!` probe — cached in a single byte, so each dispatch costs one relaxed load and a compare — selects the widest tier the running CPU and OS support. This is the mode for distributing one prebuilt binary (or Python wheel) that still runs AVX-512 where it exists and SSE2 where it must. Builds with the feature but a compile-time AVX / AVX-512 target are unchanged: the probe folds away. See the [Performance docs](https://ssmichael1.github.io/numeris/performance/#runtime-dispatch).
 
 **Multi-threading** is opt-in via the `rayon` feature (it requires `std`, so it is never part of the no-std baseline). Where SIMD parallelizes within a core, `rayon` parallelizes across cores — the two compose, since each worker thread still runs the SIMD kernels. Only heap-backed, runtime-sized paths with independent, disjoint output columns are parallelized — dynamic finite-difference Jacobians (the separate `finite_difference_jacobian_dyn_par` / `_gradient_dyn_par` functions, each column an independent evaluation) and most `imageproc` filters (convolution/blur, rank & median, morphology, resize, local statistics) — never small fixed-size matrices or order-sensitive reductions. Each routine gates on *total work*, so small inputs stay sequential, and writes are to disjoint slices, so results are identical regardless of thread count. The feature is **purely additive**: builds without it are unchanged, and enabling it never alters an existing signature (the parallel optim routines are new `_par` functions; the sequential ones keep their `FnMut` bound). Measured speedups range ~2.5–4× on large images (512²–1024²) on an 8-core Apple M3 (4 performance + 4 efficiency cores). See the [Parallelism docs](https://ssmichael1.github.io/numeris/performance/#parallelism-rayon).
 

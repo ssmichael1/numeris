@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.7.0
+
+Runtime SIMD dispatch, and an MSRV bump to 1.89 that it needs — hence the minor
+bump. No public API changes.
+
+- **New `runtime-dispatch` feature — runtime SIMD tier selection on x86_64.**
+  Until now the AVX / AVX-512 kernels were only compiled when the matching
+  target feature was enabled crate-wide (`-C target-cpu=native`), which is
+  useless for a binary built once and run on many machines. With the feature
+  (implies `std`), every x86_64 build contains all three tiers — each kernel now
+  carries its own `#[target_feature(enable = ...)]` — and a private `isa()`
+  selector picks the widest one the running CPU and OS support via a one-time
+  `std::is_x86_feature_detected!` probe, cached in a single byte (one relaxed
+  load and a compare per dispatch thereafter). The compile-time target features
+  remain a floor the probe can only raise, so a `target-cpu=native` build is
+  unchanged: the selector is a constant and the dispatch `match` folds away.
+  aarch64 is untouched (NEON is the baseline). Purely additive.
+- **`simd` internals.** The per-ISA `cfg` ladders in every `*_dispatch` function
+  collapsed into one `x86_select!` macro over the `Isa` tier; the AVX / AVX-512
+  modules compile on every x86_64 target (dead without the feature or the
+  matching target feature, and dropped by the linker). This adds the crate's
+  single dispatch-site `unsafe` — calling a `#[target_feature]` function, which
+  is unsafe unless the caller carries the same attribute (a crate-wide
+  `-C target-feature` flag does not count) — with the compile-time floor or
+  the probe as its documented justification. Register-only
+  intrinsic calls (broadcasts, horizontal sums) inside the attributed kernels no
+  longer need `unsafe` and lost it; the shared kernel macros take an
+  `@feature "avx"` argument that emits the attribute. New tests run every tier
+  the CPU supports directly against the scalar reference, and check the probe
+  against `std`'s.
+- **MSRV bumped to 1.89** (from 1.80): safe functions may carry
+  `#[target_feature]` from 1.86 (otherwise every kernel would have to become an
+  `unsafe fn`), and the AVX-512 intrinsics stabilized in 1.89 (they are now
+  compiled unconditionally on x86_64). The bump unlocked two clippy lints:
+  `manual_is_multiple_of` (seven `n % k == 0` sites rewritten) and
+  `chunks_exact_to_as_chunks`, allowed crate-wide because the `chunks_exact` +
+  `remainder()` idiom is what the kernels' `unsafe` arguments are written against
+  (a conversion to `as_chunks` would be its own refactor).
+- **CI**: a `runtime-dispatch` job tests the feature on the baseline x86_64
+  target (no `target-cpu` flag) so the probe path is exercised, alongside the
+  existing `x86-64-v3` matrix where the compile-time floor is AVX2.
+
 ## 0.6.0
 
 The FFT module (0.5.20 and 0.5.21 below were never published; their entries are

@@ -231,7 +231,7 @@ mod dyn_real {
         /// Build a plan for real signals of length `len`. Panics if `len == 0`.
         pub fn new(len: usize) -> Self {
             assert!(len > 0, "DynRealFft length must be non-zero");
-            let plan_len = if len % 2 == 0 { len / 2 } else { len };
+            let plan_len = if len.is_multiple_of(2) { len / 2 } else { len };
             let plan = DynFft::new(plan_len);
             let scratch = Self::scratch_for(&plan, len);
             Self {
@@ -321,7 +321,7 @@ mod dyn_real {
             );
             let DynRealFftScratch { z, fft, .. } = scratch;
 
-            if n % 2 == 0 {
+            if n.is_multiple_of(2) {
                 pack(input, z);
                 plan.forward_with(z, fft);
                 untangle(z, output, n);
@@ -353,7 +353,7 @@ mod dyn_real {
             );
             let DynRealFftScratch { z, fft, .. } = scratch;
 
-            if n % 2 == 0 {
+            if n.is_multiple_of(2) {
                 retangle(input, z, n);
                 plan.inverse_with(z, fft);
                 unpack(z, output);

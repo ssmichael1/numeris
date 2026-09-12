@@ -26,7 +26,7 @@ Numeris API reference is [here](https://docs.rs/numeris/)
 | **Statistics** | 10 distributions (Normal, Gamma, Beta, Student's t, Poisson, …) |
 | **Digital Control** | Butterworth/Chebyshev IIR filters, PID controller |
 | **Quaternion** | Unit quaternion rotations, SLERP, Euler angles, rotation matrices |
-| **SIMD** | NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) — always-on, no feature flag |
+| **SIMD** | NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) — always-on, no feature flag; optional runtime CPU dispatch on x86_64 |
 
 ## Quick Start
 
