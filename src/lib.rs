@@ -231,11 +231,6 @@
 // `integrate` entry points) genuinely need many parameters (dimensions, scratch
 // buffers, callbacks); factoring them into structs would only obscure the math.
 #![allow(clippy::too_many_arguments)]
-// The SIMD kernels iterate `chunks_exact` and take `remainder()` from the same
-// iterator — the idiom the crate's `unsafe` arguments are written against (each
-// chunk is exactly as wide as the loads covering it). `as_chunks` would be an
-// equivalent proof, but converting every kernel is a separate refactor.
-#![allow(clippy::chunks_exact_to_as_chunks)]
 // The SIMD kernels hold nearly all of the crate's `unsafe` (the rest: the
 // two-column split in `linalg` and the `MaybeUninit` stack in `quad`; every
 // block carries a written safety justification). Requiring an explicit

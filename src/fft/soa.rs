@@ -241,7 +241,12 @@ fn stages_2_4<T: FloatScalar>(re: &mut [T], im: &mut [T]) {
         }
         return;
     }
-    for (r, i) in re.chunks_exact_mut(4).zip(im.chunks_exact_mut(4)) {
+    for (r, i) in re
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(im.as_chunks_mut::<4>().0)
+    {
         // Length-2 stage on (0,1) and (2,3).
         let (a0r, a1r) = (r[0] + r[1], r[0] - r[1]);
         let (a0i, a1i) = (i[0] + i[1], i[0] - i[1]);

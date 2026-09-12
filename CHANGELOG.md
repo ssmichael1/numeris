@@ -35,9 +35,10 @@ bump. No public API changes.
   `unsafe fn`), and the AVX-512 intrinsics stabilized in 1.89 (they are now
   compiled unconditionally on x86_64). The bump unlocked two clippy lints:
   `manual_is_multiple_of` (seven `n % k == 0` sites rewritten) and
-  `chunks_exact_to_as_chunks`, allowed crate-wide because the `chunks_exact` +
-  `remainder()` idiom is what the kernels' `unsafe` arguments are written against
-  (a conversion to `as_chunks` would be its own refactor).
+  `chunks_exact_to_as_chunks` (the hand-written `dot` kernels of all eight ISA
+  files and two `fft` helpers now use `as_chunks::<N>()`, whose `[T; N]` element
+  type states the width the SAFETY arguments rely on; the shared kernel macros
+  keep `chunks_exact($lanes)`, which the lint does not reach).
 - **AVX and AVX-512 tiers now fuse every multiply-add.** The AVX kernels used a
   separate `mul` + `add`; `dot`, the matmul micro-kernels, AXPY and `conv1d` now
   use `fmadd` / `fnmadd` (AVX-512 already fused its matmul; its `dot`, AXPY and

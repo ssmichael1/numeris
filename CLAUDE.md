@@ -68,7 +68,9 @@ Checked items are implemented; unchecked are potential future work.
   mismatch is unrepresentable — and *one dispatch-site `unsafe`*: the AVX / AVX-512 arms of the
   `x86_select!` macro, justified by `isa()` (compile-time floor or CPU probe). (3) *Structural
   bounds*: kernels iterate
-  `chunks_exact` so each proof is "the chunk is exactly as wide as the loads covering it"
+  `chunks_exact` (or, in the hand-written `dot` kernels, `as_chunks::<N>()`, whose `[T; N]`
+  element type carries the width in the type) so each proof is "the chunk is exactly as wide as
+  the loads covering it"
   rather than hand-computed offsets; where that is impossible (`conv1d`'s strided reads) the
   precondition is a real `assert!` at function entry, not a `debug_assert!` (this applies to the
   SIMD `matmul` length checks and `split_two_col_slices`' disjointness check too, not only
@@ -77,12 +79,15 @@ Checked items are implemented; unchecked are potential future work.
   `# Safety` section, and every `unsafe` block a `// SAFETY:` comment stating the argument it
   relies on (call sites restate how the caller meets the callee's contract) — enforced by
   `clippy::undocumented_unsafe_blocks` (configured in `clippy.toml`), which covers the private
-  items `clippy::missing_safety_doc` does not (`clippy::chunks_exact_to_as_chunks` is allowed
-  crate-wide for the same reason — the `chunks_exact` idiom *is* the proof). Confinement itself is also compiler-enforced:
+  items `clippy::missing_safety_doc` does not. Confinement itself is also compiler-enforced:
   `#![deny(unsafe_code)]` at the crate root, with `#[allow(unsafe_code)]` on exactly the audited
   sites (`simd`, `linalg::split_two_col_slices`, `quad::adaptive_simpson`) — add a new site only
-  with the same audit treatment, never by widening an existing `allow`. Style: prefer one `chunks_exact` iterator per loop and take `remainder()` from
-  it, rather than re-calling `chunks_exact`.
+  with the same audit treatment, never by widening an existing `allow`. Style: for a literal
+  width use `as_chunks::<N>()` and bind both halves of the tuple (`let (main, tail) = …`) — clippy's
+  `chunks_exact_to_as_chunks` insists on it, and the tail is then the scalar remainder. The shared
+  kernel macros keep `chunks_exact($lanes)` with one iterator per loop and `remainder()` taken
+  from it (clippy does not lint inside macro expansions, and the `$lanes` argument plays the
+  role of the const); do not re-call `chunks_exact` to recover a remainder.
 - **Benchmarking `simd/` changes — alignment sensitivity** — the fixed-size `comparison`
   benchmarks run in 80–200 ns and are sensitive to *code alignment* at the ±10% level. During
   the 0.5.16 refactor, an edit to `dot` moved `lu_6x6`/`inverse_6x6` by 12–14%, reproducibly

@@ -75,17 +75,17 @@ fn retangle<T: FloatScalar>(bins: &[Complex<T>], z: &mut [Complex<T>], n: usize)
 /// Pack `n` reals into `n/2` complex samples `z[j] = x[2j] + i·x[2j+1]`.
 #[inline]
 fn pack<T: FloatScalar>(input: &[T], z: &mut [Complex<T>]) {
-    for (slot, pair) in z.iter_mut().zip(input.chunks_exact(2)) {
-        *slot = Complex::new(pair[0], pair[1]);
+    for (slot, &[x0, x1]) in z.iter_mut().zip(input.as_chunks::<2>().0) {
+        *slot = Complex::new(x0, x1);
     }
 }
 
 /// Unpack `n/2` complex samples back into `n` reals (inverse of [`pack`]).
 #[inline]
 fn unpack<T: FloatScalar>(z: &[Complex<T>], output: &mut [T]) {
-    for (pair, s) in output.chunks_exact_mut(2).zip(z) {
-        pair[0] = s.re;
-        pair[1] = s.im;
+    for ([y0, y1], s) in output.as_chunks_mut::<2>().0.iter_mut().zip(z) {
+        *y0 = s.re;
+        *y1 = s.im;
     }
 }
 
