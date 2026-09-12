@@ -4,7 +4,7 @@ numeris achieves competitive performance via SIMD intrinsics, register-blocked m
 
 ## SIMD Architecture
 
-SIMD is **always-on** for `f32` and `f64` — no feature flag needed. By default dispatch selects the widest available ISA at compile time via `#[cfg(target_feature)]`; the optional [`runtime-dispatch`](#runtime-dispatch) feature adds a one-time CPU probe on x86_64. Integer and complex types fall back to scalar loops via `TypeId` dispatch, with zero runtime overhead (dead-code eliminated at monomorphization).
+SIMD is **always-on** for `f32` and `f64` — no feature flag needed. By default dispatch selects the widest available ISA at compile time via `#[cfg(target_feature)]`; the optional [`runtime-dispatch`](simd.md#runtime-dispatch) feature adds a one-time CPU probe on x86_64. Integer and complex types fall back to scalar loops via `TypeId` dispatch, with zero runtime overhead (dead-code eliminated at monomorphization).
 
 | Architecture | ISA | f64 tile (MR×NR) | f32 tile (MR×NR) |
 |---|---|---|---|
@@ -27,19 +27,11 @@ SSE2 (x86_64) and NEON (aarch64) are always-on baselines.
 
 ### Runtime dispatch
 
-Compile-time selection is the right default for a binary built on the machine that runs it. For a binary built once and run on many machines — a prebuilt CLI, a Python wheel — it forces a choice between the SSE2 baseline everywhere and a `SIGILL` on older CPUs. The **`runtime-dispatch`** feature (x86_64 only; implies `std`) resolves this:
-
-```toml
-numeris = { version = "0.7", features = ["runtime-dispatch"] }
-```
-
-- The AVX and AVX-512 kernels are compiled into every x86_64 build. Each carries its own `#[target_feature(enable = ...)]`, so the compiler emits the wide instructions inside them regardless of the crate-wide target.
-- On the first dispatch, `std::is_x86_feature_detected!` probes `avx512f`, then `avx` + `fma` (including the OS state-save check, so a kernel that has not enabled ZMM state reports the lower tier). The resolved tier is cached in one byte; every later dispatch is a single relaxed load and a compare.
-- The AVX tier requires FMA because all of its multiply-adds are fused (`vfmadd`): one instruction and one rounding instead of two. Every AVX2 CPU (Haswell / Zen 1 and later) has FMA; the AVX-only Sandy Bridge and Ivy Bridge parts (2011–2013) fall back to SSE2. AVX-512F implies FMA, and that tier fuses throughout as well.
-- The compile-time target features remain a **floor** the probe can only raise. With `-C target-feature=+avx512f` the selector is a constant and the dispatch `match` folds away, so such builds are unchanged.
-- aarch64 needs nothing: NEON is the baseline and there are no wider kernels.
-
-The feature is purely additive — no signature changes, no behaviour change outside the tier selection — and the dispatch overhead is a few percent at most on the 80–200 ns fixed-size operations, unmeasurable on anything larger.
+For a binary built once and run on many machines, the optional **`runtime-dispatch`** feature
+(x86_64, implies `std`) compiles every tier in and picks the widest one the running CPU supports by
+a one-time cached probe; the compile-time flags above become a floor it can only raise. The AVX
+tier requires FMA (its multiply-adds are fused). Full details, tier-by-tier notes, and the design
+rationale are on the [SIMD & Runtime Dispatch](simd.md) page.
 
 ## Matrix Multiply Micro-Kernels
 

@@ -73,7 +73,8 @@ let rotated = q * v; // ≈ [0, 1, 0]
 
 - **[Getting Started](getting-started.md)** — installation, feature flags, first examples
 - **Module docs** — detailed pages for each module (use the top tabs)
-- **[Performance](performance.md)** — SIMD tiers, benchmark numbers vs. nalgebra and faer
+- **[Performance](performance.md)** — benchmark numbers vs. nalgebra and faer, matmul micro-kernels, `rayon`
+- **[SIMD & Runtime Dispatch](simd.md)** — SIMD tiers, compile-time vs. runtime selection, the `runtime-dispatch` feature
 - **[No-std / Embedded](no-std.md)** — usage without std or heap allocation
 - **[Design](design.md)** — architectural decisions and trait hierarchy
 - **[API Reference ↗](https://docs.rs/numeris)** — full rustdoc on docs.rs
