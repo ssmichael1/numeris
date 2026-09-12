@@ -84,17 +84,29 @@ What changes:
    it. Build with `+avx512f` and the selector is a compile-time constant — the dispatch `match`
    folds away and the code is identical to a build without the feature.
 
-The feature is purely additive: no signatures change, no numerical behaviour changes beyond which
-tier runs, and nothing happens on aarch64 (NEON is the baseline; there are no wider kernels) or in
-no-std builds (the feature needs `std`).
+The feature is purely additive: no signatures change, and nothing happens on aarch64 (NEON is the
+baseline; there are no wider kernels) or in no-std builds (the feature needs `std`).
+
+!!! warning "Results can differ between machines"
+    Without runtime dispatch, a given build produces bit-identical results wherever it runs. With
+    it, the same binary may take a different tier on different CPUs, and the tiers do not round
+    identically: SSE2 multiplies then adds, while AVX and AVX-512 fuse the two into one rounding,
+    and each tier reduces a dot product in a different order. The differences are at the level of
+    floating-point round-off (the crate's own tests compare tiers against a scalar reference with
+    tolerances of about `1e-12` for `f64` and `1e-4` for `f32`), but they are real. If you compare
+    outputs across machines, or store expected values from one machine and check them on another,
+    compare with a tolerance rather than for equality — or build without the feature and pin the
+    tier with `-C target-feature` so every machine runs the same kernels.
 
 ### Cost
 
-The per-call overhead is a predicted branch on a cached byte. On the smallest fixed-size operations
-(a 4×4 or 6×6 product, 80–200 ns) that is at most a few percent, and it is unmeasurable on anything
-larger. Note that the fixed-size benchmarks are sensitive to *code alignment* at the ±10 % level, so
-a swing on those after any `simd/` change should be checked by disassembly before it is attributed
-to the change itself — see [Performance](performance.md).
+The per-call overhead is one relaxed atomic load of a cached byte and a predicted branch. This
+has not been benchmarked. It is expected to be lost in the noise on anything larger than the
+smallest fixed-size operations, and on those (a 4×4 or 6×6 product, 80–200 ns) to be small
+compared with the ±10 % swings that *code alignment* alone produces in the crate's fixed-size
+benchmarks — which is also why measuring it cleanly is hard. If you depend on those small
+operations in a hot loop, measure on your own workload; see [Performance](performance.md) for
+the alignment caveat.
 
 ### Which tier am I getting?
 

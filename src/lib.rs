@@ -190,6 +190,9 @@
 //! every x86_64 build and a one-time, cached CPU probe raises the tier to the
 //! widest the running machine supports — the mode for one prebuilt binary that
 //! must run everywhere. Purely additive; no effect on aarch64 or no-std builds.
+//! One consequence: the tiers round differently (fused vs. separate
+//! multiply-add, reduction order), so with the feature the same binary can give
+//! results that differ at round-off level between machines.
 //!
 //! ## Parallelism
 //!

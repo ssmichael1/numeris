@@ -13,10 +13,15 @@ bump. No public API changes.
   carries its own `#[target_feature(enable = ...)]` — and a private `isa()`
   selector picks the widest one the running CPU and OS support via a one-time
   `std::is_x86_feature_detected!` probe, cached in a single byte (one relaxed
-  load and a compare per dispatch thereafter). The compile-time target features
-  remain a floor the probe can only raise, so a `target-cpu=native` build is
-  unchanged: the selector is a constant and the dispatch `match` folds away.
-  aarch64 is untouched (NEON is the baseline). Purely additive.
+  load and a compare per dispatch thereafter — not benchmarked; expected to be
+  within the code-alignment noise of even the smallest fixed-size operations).
+  The compile-time target features remain a floor the probe can only raise, so
+  a `target-cpu=native` build is unchanged: the selector is a constant and the
+  dispatch `match` folds away. aarch64 is untouched (NEON is the baseline).
+  Purely additive in API terms; note that because the tiers round differently
+  (fused vs. separate multiply-add, reduction order), the same binary can now
+  give results that differ at round-off level between machines — compare with a
+  tolerance across machines, or build without the feature to pin the tier.
 - **`simd` internals.** The per-ISA `cfg` ladders in every `*_dispatch` function
   collapsed into one `x86_select!` macro over the `Isa` tier; the AVX / AVX-512
   modules compile on every x86_64 target (dead without the feature or the
