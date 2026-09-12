@@ -1,33 +1,10 @@
 # Changelog
 
-## 0.5.21
+## 0.6.0
 
-- **FFT: radix-4 stages in the `DynFft` power-of-two core** — internal-only, no
-  API change. After the fused twiddle-free length-2/4 pass, the SoA transform
-  now runs radix-4 stages (block size ×4 per sweep, three complex twiddle
-  multiplies per four elements via `w, w², w³` tables) as far as they go, with
-  one trailing radix-2 stage when `log2(n)` is odd. Each radix-4 stage replaces
-  two radix-2 sweeps over the re/im arrays, so a length-`n` transform makes
-  about half as many passes over memory and 25% fewer complex multiplies. The
-  kernel is a new `simd_fft_butterfly4_kernel!` macro shared across NEON / SSE2 /
-  AVX / AVX-512 (same `chunks_exact` + `SAFETY` shape as the radix-2 kernel) with
-  a scalar reference, dispatched through the `TypeEq` witness; SIMD and scalar
-  paths are cross-checked at lengths straddling every lane width. Everything
-  built on the core — Bluestein, real transforms, 2D, convolution — inherits
-  the speedup.
-- **FFT: bit-reversal as a gather** — the deinterleave-plus-bit-reversal pass
-  now writes the re/im arrays sequentially and reads the input at bit-reversed
-  indices, instead of the reverse. Once the input outgrows the cache the
-  permutation is random access either way, but scattered loads pipeline where
-  scattered stores serialize: the pass alone dropped from ~490 µs to ~95 µs at
-  `n = 65536` (`f64`), where it had been two thirds of the transform.
-- Together (busy M-series machine, `f64`, vs 0.5.20): `DynFft` 65536 forward
-  858 → 342 µs (now within 5% of `rustfft`, from 2.6× slower), 4096 18.7 → 16.4 µs,
-  1024 4.0 → 3.5 µs; `DynRealFft` 65536 599 → 342 µs; Bluestein 4093 132 → 74 µs;
-  `DynFft2` 1024² 4.9 → 4.1 ms. The bench crate gains a head-to-head against
-  `rustfft` (`fft_vs_rustfft`).
-
-## 0.5.20
+The FFT module (0.5.20 and 0.5.21 below were never published; their entries are
+folded in here) plus an ODE starting-step hint / warm start that adds a public
+field and an error variant — hence the minor bump.
 
 - **New `fft` module — Fast Fourier Transform** (new `fft` feature). Pure-Rust,
   no-std-first, integrated with the crate's `Complex` and SIMD support. Two tiers:
@@ -77,6 +54,55 @@
     plan instead of a Bluestein complex plan at the exact length.
   - Additive and no-std-safe: `--no-default-features --features fft` builds the fixed
     tier with no allocator. The `fft` feature also re-exports `numeris::Complex`.
+- **FFT: radix-4 stages in the `DynFft` power-of-two core** — internal-only, no
+  API change. After the fused twiddle-free length-2/4 pass, the SoA transform
+  now runs radix-4 stages (block size ×4 per sweep, three complex twiddle
+  multiplies per four elements via `w, w², w³` tables) as far as they go, with
+  one trailing radix-2 stage when `log2(n)` is odd. Each radix-4 stage replaces
+  two radix-2 sweeps over the re/im arrays, so a length-`n` transform makes
+  about half as many passes over memory and 25% fewer complex multiplies. The
+  kernel is a new `simd_fft_butterfly4_kernel!` macro shared across NEON / SSE2 /
+  AVX / AVX-512 (same `chunks_exact` + `SAFETY` shape as the radix-2 kernel) with
+  a scalar reference, dispatched through the `TypeEq` witness; SIMD and scalar
+  paths are cross-checked at lengths straddling every lane width. Everything
+  built on the core — Bluestein, real transforms, 2D, convolution — inherits
+  the speedup.
+- **FFT: bit-reversal as a gather** — the deinterleave-plus-bit-reversal pass
+  now writes the re/im arrays sequentially and reads the input at bit-reversed
+  indices, instead of the reverse. Once the input outgrows the cache the
+  permutation is random access either way, but scattered loads pipeline where
+  scattered stores serialize: the pass alone dropped from ~490 µs to ~95 µs at
+  `n = 65536` (`f64`), where it had been two thirds of the transform.
+- Together (busy M-series machine, `f64`, vs the pre-radix-4 core): `DynFft` 65536 forward
+  858 → 342 µs (now within 5% of `rustfft`, from 2.6× slower), 4096 18.7 → 16.4 µs,
+  1024 4.0 → 3.5 µs; `DynRealFft` 65536 599 → 342 µs; Bluestein 4093 132 → 74 µs;
+  `DynFft2` 1024² 4.9 → 4.1 ms. The bench crate gains a head-to-head against
+  `rustfft` (`fft_vs_rustfft`).
+- **`ode`: starting-step hint and warm start.** `AdaptiveSettings::initial_step:
+  Option<T>` sets the first step to attempt (magnitude; sign of `tf - t0`
+  applied, clamped to the interval) and skips the Hairer–Nørsett–Wanner
+  starting-step heuristic and its two probe evaluations. `Solution::next_step`
+  reports the controller's last *unclamped* proposal — the step it would take
+  after `t`, not the final step shortened to land on `tf` — so a follow-on
+  integration can pass it straight back as `initial_step`. Both apply to the
+  Runge-Kutta solvers and to `RODAS4`. Motivation: the heuristic is deliberately
+  conservative and, on a problem whose natural time scale is far from 1 in the
+  working units (an orbit in metres and seconds), can start several orders of
+  magnitude below the working step; with a 1e-9 tolerance, RKV98 spent about half
+  the derivative evaluations of a one-hour LEO arc growing out of that start.
+  A hint within a factor of a few of the working step removes the ramp entirely,
+  and chaining segments through `next_step` makes them cost the same as one
+  continuous integration. Zero or non-finite hints return the new
+  `OdeError::InvalidInitialStep`. `AdaptiveSettings` now derives
+  `Debug`, `Clone`, `Copy` so a hinted copy can be built with struct-update
+  syntax. The heuristic itself is unchanged and now lives in one shared helper
+  instead of being duplicated in the RK and Rosenbrock loops.
+  **Migration:** additive for the documented usage
+  (`AdaptiveSettings { .., ..Default::default() }`, reading `Solution` fields,
+  propagating `OdeError` with `?`); a full `AdaptiveSettings` / `Solution`
+  struct literal or exhaustive destructure must add the new field, and an
+  exhaustive `match` on `OdeError` must add the new variant.
+
 ## 0.5.19
 
 - **Banded separable convolution and allocation-free `_into` variants** —

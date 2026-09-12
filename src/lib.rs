@@ -53,7 +53,9 @@
 //!   controller with dense output / interpolation. Supports both vector and
 //!   matrix state (e.g., state transition matrix propagation). RODAS4 L-stable
 //!   Rosenbrock method for stiff systems (vector state, user-supplied or
-//!   finite-difference Jacobians). Requires `ode` feature.
+//!   finite-difference Jacobians). Optional starting-step hint
+//!   (`AdaptiveSettings::initial_step`) and warm-start handoff between
+//!   segments (`Solution::next_step`). Requires `ode` feature.
 //!
 //! - [`optim`] — Optimization: scalar root finding ([`optim::brent`],
 //!   [`optim::newton_1d`]), BFGS quasi-Newton minimization ([`optim::minimize_bfgs`]),

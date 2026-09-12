@@ -158,45 +158,9 @@ where
     // Consecutive rejection counter for robustness
     let mut consecutive_rejects: usize = 0;
 
-    // Initial step-size guess (same heuristic as adaptive.rs)
-    let mut h = {
-        let interval = (tf - t0).abs();
-        let sci = y0.abs() * settings.rel_tol + settings.abs_tol;
-        let d0 = y0.element_div(&sci).scaled_norm();
-        let ydot0 = f(t0, y0);
-        let d1 = ydot0.element_div(&sci).scaled_norm();
-        // Clamp the probe step to |tf − t0| so the trial evaluation below
-        // never samples `f` outside the integration interval (the heuristic
-        // can otherwise overshoot it — or be infinite when `d1 == 0`).
-        let h0_mag = T::from(0.01).unwrap() * d0 / d1;
-        let h0 = (if h0_mag < interval { h0_mag } else { interval }) * tdir;
-        let y1 = *y0 + ydot0 * h0;
-        let ydot1 = f(t0 + h0, &y1);
-        let d2 = (ydot1 - ydot0).element_div(&sci).scaled_norm() / h0;
-        nevals += 2;
-
-        let dmax = if d1 > d2 { d1 } else { d2 };
-        let order_t = T::from(R::ORDER).unwrap();
-        let h1 = if dmax < T::from(1e-15).unwrap() {
-            let h0_abs = h0.abs();
-            let floor = T::from(1e-6).unwrap();
-            if h0_abs * T::from(1e-3).unwrap() > floor {
-                h0_abs * T::from(1e-3).unwrap()
-            } else {
-                floor
-            }
-        } else {
-            T::from(10.0)
-                .unwrap()
-                .powf(-(T::from(2.0).unwrap() + dmax.log10()) / order_t)
-        };
-
-        let h0_100 = T::from(100.0).unwrap() * h0.abs();
-        let h1_abs = h1.abs();
-        let h_mag = if h0_100 < h1_abs { h0_100 } else { h1_abs };
-        // Never start with a step longer than the whole interval.
-        (if h_mag < interval { h_mag } else { interval }) * tdir
-    };
+    let (mut h, init_evals) =
+        super::adaptive::initial_step(t0, tf, y0, &mut f, settings, R::ORDER)?;
+    nevals += init_evals;
 
     // Reusable LU storage
     let mut w_mat = Matrix::<T, S, S>::zeros();
@@ -222,7 +186,12 @@ where
     let beta2 = T::from(0.4).unwrap() / order_f;
     let beta3 = T::from(0.1).unwrap() / order_f;
 
+    // The controller's latest *unclamped* proposal, reported as
+    // `Solution::next_step` so a follow-on integration can warm-start.
+    let mut h_next;
+
     loop {
+        h_next = h;
         // Clamp step to not overshoot end
         if (tdir > zero && (t + h) >= tf) || (tdir < zero && (t + h) <= tf) {
             h = tf - t;
@@ -408,6 +377,7 @@ where
         evals: nevals,
         accepted: naccept,
         rejected: nreject,
+        next_step: h_next,
         #[cfg(feature = "std")]
         dense: dense_store,
     })

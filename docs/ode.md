@@ -109,9 +109,51 @@ let settings = AdaptiveSettings {
     max_steps: 100_000,  // step limit (default 100_000)
     dense_output: false, // store dense output for interpolation
     h_min: None,         // force acceptance below this step size
+    initial_step: None,  // first step to try (None → starting-step heuristic)
     ..AdaptiveSettings::default()
 };
 ```
+
+### Starting step and warm start
+
+With `initial_step: None` the first step comes from the Hairer–Nørsett–Wanner
+starting-step heuristic (*Solving ODEs I*, §II.4): two probe evaluations of `f`
+estimate the first and second derivatives, and the step is sized so that a
+first-order error bound is well under tolerance. That bound is deliberately
+conservative, and it is scale-sensitive — on a problem whose natural time scale
+is far from 1 in the working units (an orbit in metres and seconds, say) a
+high-order solver can start several orders of magnitude below its working step
+and spend a dozen accepted steps growing into it. For a short integration that
+ramp can be most of the cost.
+
+Two settings remove it:
+
+- **`initial_step: Some(h)`** skips the heuristic and starts at `|h|` (the sign
+  of `tf - t0` is applied; a value longer than the interval is clamped to it).
+  A hint within a factor of a few of the working step is enough: too large costs
+  one rejection, too small is grown in a couple of steps. Zero or non-finite
+  values return `OdeError::InvalidInitialStep`.
+- **`sol.next_step`** is the step the controller would take after `sol.t`. It is
+  the last *unclamped* proposal — the final step is shortened to land exactly on
+  `tf`, and that shortening is not reflected — so a follow-on segment can take it
+  as its `initial_step` and continue at full stride:
+
+```rust
+use numeris::ode::{RKAdaptive, RKV98, AdaptiveSettings};
+use numeris::Vector;
+
+let settings = AdaptiveSettings { rel_tol: 1e-10, abs_tol: 1e-10, ..AdaptiveSettings::default() };
+let f = |_t: f64, y: &Vector<f64, 2>| Vector::from_array([y[1], -y[0]]);
+let y0 = Vector::from_array([1.0_f64, 0.0]);
+
+let seg1 = RKV98::integrate(0.0, 10.0, &y0, f, &settings).unwrap();
+// Continue from seg1 without the cold-start ramp.
+let warm = AdaptiveSettings { initial_step: Some(seg1.next_step), ..settings };
+let seg2 = RKV98::integrate(10.0, 20.0, &seg1.y, f, &warm).unwrap();
+assert!(seg2.evals < RKV98::integrate(10.0, 20.0, &seg1.y, f, &settings).unwrap().evals);
+```
+
+Both apply to the Runge-Kutta solvers and to `RODAS4`.
 
 ### Solution struct
 
@@ -123,6 +165,7 @@ let t_final  =  sol.t;       // final time (= t_end if successful)
 let n_evals  =  sol.evals;   // total derivative evaluations
 let n_accept =  sol.accepted; // number of accepted steps
 let n_reject =  sol.rejected; // number of rejected steps
+let h_next   =  sol.next_step; // controller's next proposal (warm-start hint)
 ```
 
 ## Dense Output (Interpolation)

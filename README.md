@@ -37,7 +37,7 @@ Pure-Rust numerical algorithms library, no-std compatible. Similar in scope to S
 
 ```toml
 [dependencies]
-numeris = "0.5"
+numeris = "0.6"
 ```
 
 ```rust
@@ -560,7 +560,7 @@ Same convenience methods on `DynMatrix`: `a.lu()`, `a.cholesky()`, `a.qr()`, `a.
 <details>
 <summary><b><code>ode</code></b> — ODE integration</summary>
 
-Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdaptive` trait. PI step-size controller (Söderlind & Wang 2006). Dense output / interpolation available for most solvers (gated behind `std`). State can be a vector (`Vector<T, N>`) or a matrix (`Matrix<T, M, N>`) — enabling matrix ODE integration (e.g., state transition matrices, matrix Riccati equations). For stiff systems, `RODAS4` provides an L-stable Rosenbrock method via the `Rosenbrock` trait — accepts user-supplied or automatic finite-difference Jacobians (vector state only).
+Fixed-step `rk4` / `rk4_step` and 7 adaptive Runge-Kutta solvers via the `RKAdaptive` trait. PI step-size controller (Söderlind & Wang 2006). Dense output / interpolation available for most solvers (gated behind `std`). State can be a vector (`Vector<T, N>`) or a matrix (`Matrix<T, M, N>`) — enabling matrix ODE integration (e.g., state transition matrices, matrix Riccati equations). For stiff systems, `RODAS4` provides an L-stable Rosenbrock method via the `Rosenbrock` trait — accepts user-supplied or automatic finite-difference Jacobians (vector state only). `AdaptiveSettings::initial_step` overrides the starting-step heuristic, and `Solution::next_step` hands back the controller's next proposal so consecutive segments can warm-start instead of ramping up from a cold guess each time.
 
 </details>
 

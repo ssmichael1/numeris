@@ -3,6 +3,7 @@ use crate::traits::FloatScalar;
 use crate::Matrix;
 
 /// Settings for adaptive step-size control.
+#[derive(Debug, Clone, Copy)]
 pub struct AdaptiveSettings<T> {
     /// Absolute error tolerance (default: 1e-8).
     pub abs_tol: T,
@@ -29,6 +30,23 @@ pub struct AdaptiveSettings<T> {
     /// accuracy rather than rejecting forever. This prevents infinite loops on
     /// stiff-ish systems that the solver cannot resolve.
     pub h_min: Option<T>,
+    /// First step to attempt, as a magnitude — the sign of `tf - t0` is
+    /// applied, and a value longer than the interval is clamped to it
+    /// (default: `None`).
+    ///
+    /// `None` runs the Hairer–Nørsett–Wanner starting-step heuristic
+    /// (*Solving ODEs I*, §II.4). It costs two extra derivative evaluations
+    /// and is deliberately conservative: for a high-order method on a problem
+    /// whose natural time scale is far from 1 in the working units (an orbit
+    /// in metres and seconds, say) it can start several orders of magnitude
+    /// below the working step and spend a dozen accepted steps growing into
+    /// it. Supplying a value skips the heuristic entirely. Too large a value
+    /// costs one rejection before the controller corrects it; too small a
+    /// value is grown within a few steps. To continue a previous integration
+    /// without that cold start, pass its [`Solution::next_step`].
+    ///
+    /// Zero or non-finite values return [`OdeError::InvalidInitialStep`].
+    pub initial_step: Option<T>,
 }
 
 impl Default for AdaptiveSettings<f64> {
@@ -43,6 +61,7 @@ impl Default for AdaptiveSettings<f64> {
             max_steps: 100_000,
             dense_output: false,
             h_min: None,
+            initial_step: None,
         }
     }
 }
@@ -59,8 +78,72 @@ impl Default for AdaptiveSettings<f32> {
             max_steps: 100_000,
             dense_output: false,
             h_min: None,
+            initial_step: None,
         }
     }
+}
+
+/// Choose the first step of an adaptive integration.
+///
+/// Uses [`AdaptiveSettings::initial_step`] when set (sign of `tf - t0`
+/// applied, clamped to the interval, no derivative evaluations); otherwise the
+/// Hairer–Nørsett–Wanner starting-step heuristic (*Solving ODEs I*, §II.4, as
+/// adapted from OrdinaryDiffEq.jl), which spends two evaluations of `f`.
+/// Returns the signed step and the number of evaluations used.
+pub(super) fn initial_step<T: FloatScalar, const M: usize, const N: usize>(
+    t0: T,
+    tf: T,
+    y0: &Matrix<T, M, N>,
+    f: &mut impl FnMut(T, &Matrix<T, M, N>) -> Matrix<T, M, N>,
+    settings: &AdaptiveSettings<T>,
+    order: usize,
+) -> Result<(T, usize), OdeError> {
+    let interval = (tf - t0).abs();
+    let tdir = if tf > t0 { T::one() } else { -T::one() };
+
+    if let Some(h_user) = settings.initial_step {
+        let h_mag = h_user.abs();
+        if !(h_mag.is_finite() && h_mag > T::zero()) {
+            return Err(OdeError::InvalidInitialStep);
+        }
+        // Never start with a step longer than the whole interval.
+        return Ok(((if h_mag < interval { h_mag } else { interval }) * tdir, 0));
+    }
+
+    let sci = y0.abs() * settings.rel_tol + settings.abs_tol;
+    let d0 = y0.element_div(&sci).scaled_norm();
+    let ydot0 = f(t0, y0);
+    let d1 = ydot0.element_div(&sci).scaled_norm();
+    // Clamp the probe step to |tf − t0| so the trial evaluation below
+    // never samples `f` outside the integration interval (the heuristic
+    // can otherwise overshoot it — or be infinite when `d1 == 0`).
+    let h0_mag = T::from(0.01).unwrap() * d0 / d1;
+    let h0 = (if h0_mag < interval { h0_mag } else { interval }) * tdir;
+    let y1 = *y0 + ydot0 * h0;
+    let ydot1 = f(t0 + h0, &y1);
+    let d2 = (ydot1 - ydot0).element_div(&sci).scaled_norm() / h0;
+
+    let dmax = if d1 > d2 { d1 } else { d2 };
+    let order_t = T::from(order).unwrap();
+    let h1 = if dmax < T::from(1e-15).unwrap() {
+        let h0_abs = h0.abs();
+        let floor = T::from(1e-6).unwrap();
+        if h0_abs * T::from(1e-3).unwrap() > floor {
+            h0_abs * T::from(1e-3).unwrap()
+        } else {
+            floor
+        }
+    } else {
+        T::from(10.0)
+            .unwrap()
+            .powf(-(T::from(2.0).unwrap() + dmax.log10()) / order_t)
+    };
+
+    let h0_100 = T::from(100.0).unwrap() * h0.abs();
+    let h1_abs = h1.abs();
+    let h_mag = if h0_100 < h1_abs { h0_100 } else { h1_abs };
+    // Never start with a step longer than the whole interval.
+    Ok(((if h_mag < interval { h_mag } else { interval }) * tdir, 2))
 }
 
 /// Maximum number of consecutive step rejections before the adaptive
@@ -166,45 +249,8 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
         let mut enorm_prev = T::from(1.0e-4).unwrap();
         let mut enorm_prev2 = T::from(1.0e-4).unwrap();
 
-        // Initial step-size guess (adapted from OrdinaryDiffEq.jl)
-        let mut h = {
-            let interval = (tf - t0).abs();
-            let sci = y0.abs() * settings.rel_tol + settings.abs_tol;
-            let d0 = y0.element_div(&sci).scaled_norm();
-            let ydot0 = f(t0, y0);
-            let d1 = ydot0.element_div(&sci).scaled_norm();
-            // Clamp the probe step to |tf − t0| so the trial evaluation below
-            // never samples `f` outside the integration interval (the heuristic
-            // can otherwise overshoot it — or be infinite when `d1 == 0`).
-            let h0_mag = T::from(0.01).unwrap() * d0 / d1;
-            let h0 = (if h0_mag < interval { h0_mag } else { interval }) * tdir;
-            let y1 = *y0 + ydot0 * h0;
-            let ydot1 = f(t0 + h0, &y1);
-            let d2 = (ydot1 - ydot0).element_div(&sci).scaled_norm() / h0;
-            nevals += 2;
-
-            let dmax = if d1 > d2 { d1 } else { d2 };
-            let order_t = T::from(Self::ORDER).unwrap();
-            let h1 = if dmax < T::from(1e-15).unwrap() {
-                let h0_abs = h0.abs();
-                let floor = T::from(1e-6).unwrap();
-                if h0_abs * T::from(1e-3).unwrap() > floor {
-                    h0_abs * T::from(1e-3).unwrap()
-                } else {
-                    floor
-                }
-            } else {
-                T::from(10.0)
-                    .unwrap()
-                    .powf(-(T::from(2.0).unwrap() + dmax.log10()) / order_t)
-            };
-
-            let h0_100 = T::from(100.0).unwrap() * h0.abs();
-            let h1_abs = h1.abs();
-            let h_mag = if h0_100 < h1_abs { h0_100 } else { h1_abs };
-            // Never start with a step longer than the whole interval.
-            (if h_mag < interval { h_mag } else { interval }) * tdir
-        };
+        let (mut h, init_evals) = initial_step(t0, tf, y0, &mut f, settings, Self::ORDER)?;
+        nevals += init_evals;
 
         // PID step-size controller coefficients (Söderlind & Wang 2006, §4)
         //
@@ -239,7 +285,12 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             None
         };
 
+        // The controller's latest *unclamped* proposal, reported as
+        // `Solution::next_step` so a follow-on integration can warm-start.
+        let mut h_next;
+
         loop {
+            h_next = h;
             // Clamp step to not overshoot end
             if (tdir > zero && (t + h) >= tf) || (tdir < zero && (t + h) <= tf) {
                 h = tf - t;
@@ -378,6 +429,7 @@ pub trait RKAdaptive<const STAGES: usize, const NI: usize> {
             evals: nevals,
             accepted: naccept,
             rejected: nreject,
+            next_step: h_next,
             #[cfg(feature = "std")]
             dense: dense_store,
         })
