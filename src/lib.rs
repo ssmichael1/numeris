@@ -178,7 +178,21 @@
 //! | `nalgebra`| no       | Conversions between numeris and nalgebra types |
 //! | `serde`   | no       | Serialize/deserialize all types via serde |
 //! | `rayon`   | no       | Multi-threaded parallelism on runtime-sized paths (e.g. dynamic finite-difference Jacobians, most `imageproc` filters). Implies `std` |
+//! | `runtime-dispatch` | no | x86_64: probe the CPU once and use the AVX / AVX-512 kernels when present, rather than only the compile-time target features. Implies `std` |
 //! | `all`     | no       | All features |
+//!
+//! ## SIMD tiers
+//!
+//! SIMD is always-on for `f32` / `f64`: NEON on aarch64, SSE2 on x86_64, with
+//! AVX and AVX-512 selected at compile time when `-C target-feature` /
+//! `-C target-cpu=native` enable them. The `runtime-dispatch` feature makes
+//! that compile-time tier a floor: the AVX / AVX-512 kernels are compiled into
+//! every x86_64 build and a one-time, cached CPU probe raises the tier to the
+//! widest the running machine supports — the mode for one prebuilt binary that
+//! must run everywhere. Purely additive; no effect on aarch64 or no-std builds.
+//! One consequence: the tiers round differently (fused vs. separate
+//! multiply-add, reduction order), so with the feature the same binary can give
+//! results that differ at round-off level between machines.
 //!
 //! ## Parallelism
 //!

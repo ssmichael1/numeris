@@ -13,10 +13,10 @@ The default feature is `std` (which implies `alloc`). To enable additional modul
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", features = ["ode", "optim", "control", "estimate", "interp", "special", "stats", "complex"] }
+numeris = { version = "0.7", features = ["ode", "optim", "control", "estimate", "interp", "special", "stats", "complex"] }
 
 # Or enable everything at once:
-numeris = { version = "0.5", features = ["all"] }
+numeris = { version = "0.7", features = ["all"] }
 ```
 
 ## Cargo Features
@@ -71,17 +71,21 @@ cargo build --features "imageproc,rayon"
 SIMD is **always-on** for `f32` and `f64` — no feature flag required.
 
 - **aarch64**: NEON intrinsics, always available
-- **x86_64**: SSE2 always available; AVX and AVX-512 via compiler flags
+- **x86_64**: SSE2 always available; AVX + FMA and AVX-512 via compiler flags, or at runtime with the `runtime-dispatch` feature
 
-To enable AVX/AVX-512 on x86_64:
+To enable AVX/AVX-512 on x86_64 at compile time:
 
 ```bash
-# Enable all native CPU features (recommended for desktop/server)
+# Enable all native CPU features (recommended for code built where it runs)
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 # Or explicitly
-RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
+RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release           # AVX tier
+RUSTFLAGS="-C target-feature=+avx2,+fma,+avx512f" cargo build --release  # AVX-512 tier
 ```
+
+For one binary that must run on many machines (a CLI, a Python wheel), enable `runtime-dispatch`
+instead and let a one-time CPU probe pick the tier — see [SIMD & Runtime Dispatch](simd.md).
 
 SIMD (within-core) and the optional `rayon` feature (across-core) are orthogonal and compose — see [Parallelism](performance.md#parallelism-rayon).
 

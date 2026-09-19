@@ -4,13 +4,13 @@ numeris achieves competitive performance via SIMD intrinsics, register-blocked m
 
 ## SIMD Architecture
 
-SIMD is **always-on** for `f32` and `f64` — no feature flag, no runtime detection. Dispatch selects the widest available ISA at compile time via `#[cfg(target_feature)]`. Integer and complex types fall back to scalar loops via `TypeId` dispatch, with zero runtime overhead (dead-code eliminated at monomorphization).
+SIMD is **always-on** for `f32` and `f64` — no feature flag needed. By default dispatch selects the widest available ISA at compile time via `#[cfg(target_feature)]`; the optional [`runtime-dispatch`](simd.md#runtime-dispatch) feature adds a one-time CPU probe on x86_64. Integer and complex types fall back to scalar loops via `TypeId` dispatch, with zero runtime overhead (dead-code eliminated at monomorphization).
 
 | Architecture | ISA | f64 tile (MR×NR) | f32 tile (MR×NR) |
 |---|---|---|---|
 | aarch64 | NEON (128-bit) | 8×4 | 8×4 |
 | x86_64 | SSE2 (128-bit) | 4×4 | 8×4 |
-| x86_64 | AVX (256-bit) | 8×4 | 16×4 |
+| x86_64 | AVX + FMA (256-bit) | 8×4 | 16×4 |
 | x86_64 | AVX-512 (512-bit) | 16×4 | 32×4 |
 | other | scalar fallback | 4×4 | 4×4 |
 
@@ -19,10 +19,19 @@ AVX and AVX-512 require compile-time opt-in:
 ```bash
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 # or explicitly:
-RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
+RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release          # AVX tier
+RUSTFLAGS="-C target-feature=+avx2,+fma,+avx512f" cargo build --release # AVX-512 tier
 ```
 
 SSE2 (x86_64) and NEON (aarch64) are always-on baselines.
+
+### Runtime dispatch
+
+For a binary built once and run on many machines, the optional **`runtime-dispatch`** feature
+(x86_64, implies `std`) compiles every tier in and picks the widest one the running CPU supports by
+a one-time cached probe; the compile-time flags above become a floor it can only raise. The AVX
+tier requires FMA (its multiply-adds are fused). Full details, tier-by-tier notes, and the design
+rationale are on the [SIMD & Runtime Dispatch](simd.md) page.
 
 ## Matrix Multiply Micro-Kernels
 
@@ -99,8 +108,9 @@ Compared against nalgebra 0.34 and faer 0.24. All benchmarks run with `cargo ben
 ## FFT
 
 The `fft` module's `DynFft` tier deinterleaves into structure-of-arrays re/im buffers and runs
-radix-2 butterflies through the same per-ISA SIMD kernel macros as the element-wise ops; the
-no-alloc fixed tier stays scalar (its audience is embedded, small `N`). Bluestein (arbitrary /
+radix-4 butterflies (plus one trailing radix-2 stage) through the same per-ISA SIMD kernel
+macros as the element-wise ops; the no-alloc fixed tier stays scalar (small `N`, no scratch).
+Bluestein (arbitrary /
 prime lengths) runs its inner power-of-two transforms on the same SIMD core. Real transforms
 are half-size in both directions; 1D and 2D FFT convolution pad to a power of two and use the
 real plans; the 2D row pass runs on a cache-blocked transposed copy so both passes are
@@ -144,9 +154,10 @@ forward, `cargo bench -p numeris-bench --bench fft -- fft_vs_rustfft`:
 
 At cache-resident sizes the remaining gap is per-stage overhead (rustfft fuses more stages
 per sweep and skips the explicit bit-reversal); at sizes that stream from L2 the two are
-memory-bound and level. The reason numeris does not chase the last 20–30% is the same one
-the [design notes](design-fft.md) give for not chasing FFTW: the fixed no-alloc tier is the
-module's reason to exist, and codelet-style specialization would not run there.
+memory-bound and level. Relative to FFTW itself (not measured here), expect a gap of
+roughly 1.5–2× at cache-resident sizes. numeris does not chase the last 20–30% for the
+reason the [design notes](design-fft.md) give: codelet-style specialization would not run
+on the no-alloc fixed tier, and the runtime tier is already a constant factor from the best.
 
 ## No-std Performance
 
@@ -157,11 +168,11 @@ On embedded targets with no hardware FPU, float operations fall back to the `lib
 SIMD parallelizes *within* a core (vector lanes); the optional **`rayon`** feature parallelizes *across* cores (threads). The two are orthogonal and compose — each worker thread still runs the SIMD kernels. Parallelism is **opt-in** because [rayon](https://docs.rs/rayon) requires `std` and a thread pool, which the no-std / embedded baseline cannot assume:
 
 ```toml
-numeris = { version = "0.5", features = ["rayon"] }   # implies std
+numeris = { version = "0.7", features = ["rayon"] }   # implies std
 ```
 
 !!! note "MSRV"
-    The `rayon` feature pulls in the rayon crate (Rust ≥ 1.80) — though the crate's MSRV is **1.80** regardless, so the feature does not raise it.
+    The `rayon` feature pulls in the rayon crate (Rust ≥ 1.80) — well below the crate's MSRV of **1.89**, so the feature does not raise it.
 
 The feature is **purely additive**: builds without it are byte-for-byte unchanged, and the signatures are unconstrained (the `Send + Sync` element requirement is carried by a marker bound that is empty unless `rayon` is enabled, and is satisfied automatically by `f32` / `f64`).
 

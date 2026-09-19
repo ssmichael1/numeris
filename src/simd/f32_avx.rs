@@ -1,8 +1,13 @@
 //! AVX-accelerated f32 kernels for x86_64.
 //!
 //! AVX provides 256-bit registers → 8×f32 lanes.
-//! Only compiled when `target_feature = "avx"` is enabled
-//! (e.g. via `-C target-cpu=native` on Haswell+).
+//! Every kernel carries `#[target_feature(enable = "avx,fma")]`, so this module
+//! compiles on any x86_64 target. The dispatcher in `super` calls into it only
+//! when AVX and FMA are compile-time target features (`-C target-cpu=native` on
+//! Haswell+) or, under the `runtime-dispatch` feature, when runtime detection
+//! has confirmed the CPU supports both. All multiply-adds are fused (`fmadd`),
+//! which is why the tier requires FMA — every AVX2 CPU has it; the AVX-only
+//! Sandy / Ivy Bridge parts fall back to SSE2.
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
@@ -12,48 +17,41 @@ use core::arch::x86_64::*;
 /// Uses 4 independent accumulators (32 f32 per iteration) to hide
 /// multiply-add latency.
 #[inline]
+#[target_feature(enable = "avx,fma")]
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
 
-    // SAFETY: register broadcasts of zero; they touch no memory.
-    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
-        (
-            _mm256_setzero_ps(),
-            _mm256_setzero_ps(),
-            _mm256_setzero_ps(),
-            _mm256_setzero_ps(),
-        )
-    };
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = (
+        _mm256_setzero_ps(),
+        _mm256_setzero_ps(),
+        _mm256_setzero_ps(),
+        _mm256_setzero_ps(),
+    );
 
     // 4 accumulators × 8 lanes = 32 elements per iteration.
-    let mut ai = a.chunks_exact(32);
-    let mut bi = b.chunks_exact(32);
-    for (ac, bc) in (&mut ai).zip(&mut bi) {
-        // SAFETY: `chunks_exact(32)` yields chunks of exactly 32 `f32`, so the
+    let (a_main, a_rem) = a.as_chunks::<32>();
+    let (b_main, b_rem) = b.as_chunks::<32>();
+    for (ac, bc) in a_main.iter().zip(b_main) {
+        // SAFETY: `ac` and `bc` are `[f32; 32]` arrays, so the
         // four 8-lane loads at offsets 0, 8, 16 and 24 cover each chunk exactly.
         unsafe {
             let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
-            acc0 = _mm256_add_ps(
-                acc0,
-                _mm256_mul_ps(_mm256_loadu_ps(ap), _mm256_loadu_ps(bp)),
-            );
-            acc1 = _mm256_add_ps(
-                acc1,
-                _mm256_mul_ps(_mm256_loadu_ps(ap.add(8)), _mm256_loadu_ps(bp.add(8))),
-            );
-            acc2 = _mm256_add_ps(
+            acc0 = _mm256_fmadd_ps(_mm256_loadu_ps(ap), _mm256_loadu_ps(bp), acc0);
+            acc1 = _mm256_fmadd_ps(_mm256_loadu_ps(ap.add(8)), _mm256_loadu_ps(bp.add(8)), acc1);
+            acc2 = _mm256_fmadd_ps(
+                _mm256_loadu_ps(ap.add(16)),
+                _mm256_loadu_ps(bp.add(16)),
                 acc2,
-                _mm256_mul_ps(_mm256_loadu_ps(ap.add(16)), _mm256_loadu_ps(bp.add(16))),
             );
-            acc3 = _mm256_add_ps(
+            acc3 = _mm256_fmadd_ps(
+                _mm256_loadu_ps(ap.add(24)),
+                _mm256_loadu_ps(bp.add(24)),
                 acc3,
-                _mm256_mul_ps(_mm256_loadu_ps(ap.add(24)), _mm256_loadu_ps(bp.add(24))),
             );
         }
     }
 
-    // SAFETY: register arithmetic only — no memory is touched.
-    let mut sum = unsafe {
+    let mut sum = {
         let s01 = _mm256_add_ps(acc0, acc1);
         let s23 = _mm256_add_ps(acc2, acc3);
         let s = _mm256_add_ps(s01, s23);
@@ -68,33 +66,30 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     };
 
     // Remainder: up to 31 elements — 8-wide vectors first, then scalar.
-    // SAFETY: register broadcast of zero.
-    let mut acc_rem = unsafe { _mm256_setzero_ps() };
-    let mut ar = ai.remainder().chunks_exact(8);
-    let mut br = bi.remainder().chunks_exact(8);
-    for (ac, bc) in (&mut ar).zip(&mut br) {
-        // SAFETY: each chunk is exactly 8 `f32` — one vector load each.
+    let mut acc_rem = _mm256_setzero_ps();
+    let (a_vec, a_tail) = a_rem.as_chunks::<8>();
+    let (b_vec, b_tail) = b_rem.as_chunks::<8>();
+    for (ac, bc) in a_vec.iter().zip(b_vec) {
+        // SAFETY: each chunk is a `[f32; 8]` array — one vector load each.
         unsafe {
-            acc_rem = _mm256_add_ps(
+            acc_rem = _mm256_fmadd_ps(
+                _mm256_loadu_ps(ac.as_ptr()),
+                _mm256_loadu_ps(bc.as_ptr()),
                 acc_rem,
-                _mm256_mul_ps(_mm256_loadu_ps(ac.as_ptr()), _mm256_loadu_ps(bc.as_ptr())),
             );
         }
     }
-    // SAFETY: register arithmetic only.
-    sum += unsafe {
-        {
-            let rhi = _mm256_extractf128_ps(acc_rem, 1);
-            let rlo = _mm256_castps256_ps128(acc_rem);
-            let rs = _mm_add_ps(rhi, rlo);
-            let rs2 = _mm_movehl_ps(rs, rs);
-            let rs3 = _mm_add_ps(rs, rs2);
-            let rs4 = _mm_shuffle_ps(rs3, rs3, 1);
-            _mm_cvtss_f32(_mm_add_ss(rs3, rs4))
-        }
+    sum += {
+        let rhi = _mm256_extractf128_ps(acc_rem, 1);
+        let rlo = _mm256_castps256_ps128(acc_rem);
+        let rs = _mm_add_ps(rhi, rlo);
+        let rs2 = _mm_movehl_ps(rs, rs);
+        let rs3 = _mm_add_ps(rs, rs2);
+        let rs4 = _mm_shuffle_ps(rs3, rs3, 1);
+        _mm_cvtss_f32(_mm_add_ss(rs3, rs4))
     };
 
-    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+    for (&x, &y) in a_tail.iter().zip(b_tail) {
         sum += x * y;
     }
     sum
@@ -116,6 +111,7 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
 /// The microkernels' `# Safety` bounds contracts assume these dimensions, so
 /// they are checked in release builds, not just under `debug_assertions`.
 #[inline]
+#[target_feature(enable = "avx,fma")]
 pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize) {
     assert_eq!(a.len(), m * n, "matmul: a.len() != m*n");
     assert_eq!(b.len(), n * p, "matmul: b.len() != n*p");
@@ -201,7 +197,7 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
                         let offset = i * 8;
                         let vc = _mm256_loadu_ps(c.as_ptr().add(c_col + offset));
                         let va = _mm256_loadu_ps(a.as_ptr().add(a_col + offset));
-                        let result = _mm256_add_ps(vc, _mm256_mul_ps(va, vb));
+                        let result = _mm256_fmadd_ps(va, vb, vc);
                         _mm256_storeu_ps(c.as_mut_ptr().add(c_col + offset), result);
                     }
                 }
@@ -229,7 +225,7 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX availability is guaranteed by the
-/// module's `#[cfg(target_feature = "avx")]` gate.
+/// caller's `#[target_feature(enable = "avx,fma")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_16x4(
     a: &[f32],
@@ -265,20 +261,20 @@ unsafe fn microkernel_16x4(
             let a1 = _mm256_loadu_ps(a_ptr.add(a_off + 8));
 
             let b0 = _mm256_set1_ps(*b_ptr.add(j0 * n + k));
-            acc00 = _mm256_add_ps(acc00, _mm256_mul_ps(a0, b0));
-            acc10 = _mm256_add_ps(acc10, _mm256_mul_ps(a1, b0));
+            acc00 = _mm256_fmadd_ps(a0, b0, acc00);
+            acc10 = _mm256_fmadd_ps(a1, b0, acc10);
 
             let b1 = _mm256_set1_ps(*b_ptr.add((j0 + 1) * n + k));
-            acc01 = _mm256_add_ps(acc01, _mm256_mul_ps(a0, b1));
-            acc11 = _mm256_add_ps(acc11, _mm256_mul_ps(a1, b1));
+            acc01 = _mm256_fmadd_ps(a0, b1, acc01);
+            acc11 = _mm256_fmadd_ps(a1, b1, acc11);
 
             let b2 = _mm256_set1_ps(*b_ptr.add((j0 + 2) * n + k));
-            acc02 = _mm256_add_ps(acc02, _mm256_mul_ps(a0, b2));
-            acc12 = _mm256_add_ps(acc12, _mm256_mul_ps(a1, b2));
+            acc02 = _mm256_fmadd_ps(a0, b2, acc02);
+            acc12 = _mm256_fmadd_ps(a1, b2, acc12);
 
             let b3 = _mm256_set1_ps(*b_ptr.add((j0 + 3) * n + k));
-            acc03 = _mm256_add_ps(acc03, _mm256_mul_ps(a0, b3));
-            acc13 = _mm256_add_ps(acc13, _mm256_mul_ps(a1, b3));
+            acc03 = _mm256_fmadd_ps(a0, b3, acc03);
+            acc13 = _mm256_fmadd_ps(a1, b3, acc13);
         }
 
         // Write back: C += acc
@@ -339,7 +335,7 @@ unsafe fn microkernel_16x4(
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX availability is guaranteed by the
-/// module's `#[cfg(target_feature = "avx")]` gate.
+/// caller's `#[target_feature(enable = "avx,fma")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f32],
@@ -363,19 +359,10 @@ unsafe fn microkernel_8x4(
         let mut a3 = _mm256_setzero_ps();
         for k in k_start..k_end {
             let av = _mm256_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm256_add_ps(a0, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm256_add_ps(
-                a1,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 1) * n + k))),
-            );
-            a2 = _mm256_add_ps(
-                a2,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 2) * n + k))),
-            );
-            a3 = _mm256_add_ps(
-                a3,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 3) * n + k))),
-            );
+            a0 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -401,7 +388,7 @@ unsafe fn microkernel_8x4(
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX availability is guaranteed by the
-/// module's `#[cfg(target_feature = "avx")]` gate.
+/// caller's `#[target_feature(enable = "avx,fma")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f32],
@@ -425,10 +412,10 @@ unsafe fn microkernel_4x4(
         let mut a3 = _mm_setzero_ps();
         for k in k_start..k_end {
             let av = _mm_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm_add_ps(a0, _mm_mul_ps(av, _mm_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm_add_ps(a1, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 1) * n + k))));
-            a2 = _mm_add_ps(a2, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 2) * n + k))));
-            a3 = _mm_add_ps(a3, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 3) * n + k))));
+            a0 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -438,9 +425,30 @@ unsafe fn microkernel_4x4(
     }
 }
 
+// ── Fused multiply-add, accumulator-first ──────────────────────────────────
+//
+// The shared `_fma` kernel macros in `super` were written against NEON's
+// `vfmaq(acc, a, b)` (= acc + a·b) and `vfmsq(acc, a, b)` (= acc − a·b). Intel's
+// `_mm256_fmadd_ps(a, b, c)` puts the accumulator last, so these adapters give the
+// macros the NEON argument shape. Register-only; inlined into the attributed
+// kernels.
+
+#[inline]
+#[target_feature(enable = "avx,fma")]
+fn fmadd_acc(acc: __m256, a: __m256, b: __m256) -> __m256 {
+    _mm256_fmadd_ps(a, b, acc)
+}
+
+#[inline]
+#[target_feature(enable = "avx,fma")]
+fn fnmadd_acc(acc: __m256, a: __m256, b: __m256) -> __m256 {
+    _mm256_fnmadd_ps(a, b, acc)
+}
+
 // Element-wise add/sub/scale and AXPY kernels are generated from the shared
 // macros in `super` (identical across ISAs bar width + intrinsic names).
 simd_elementwise_kernels!(
+    @feature "avx"
     f32,
     8,
     _mm256_loadu_ps,
@@ -451,6 +459,7 @@ simd_elementwise_kernels!(
     _mm256_set1_ps
 );
 simd_fft_butterfly_kernel!(
+    @feature "avx"
     f32,
     8,
     _mm256_loadu_ps,
@@ -460,6 +469,7 @@ simd_fft_butterfly_kernel!(
     _mm256_mul_ps
 );
 simd_fft_butterfly4_kernel!(
+    @feature "avx"
     f32,
     8,
     _mm256_loadu_ps,
@@ -468,22 +478,22 @@ simd_fft_butterfly4_kernel!(
     _mm256_sub_ps,
     _mm256_mul_ps
 );
-simd_axpy_kernels_muladd!(
+simd_axpy_kernels_fma!(
+    @feature "avx,fma"
     f32,
     8,
     _mm256_loadu_ps,
     _mm256_storeu_ps,
-    _mm256_add_ps,
-    _mm256_sub_ps,
-    _mm256_mul_ps,
+    fmadd_acc,
+    fnmadd_acc,
     _mm256_set1_ps
 );
-simd_conv1d_kernel_muladd!(
+simd_conv1d_kernel_fma!(
+    @feature "avx,fma"
     f32,
     8,
     _mm256_loadu_ps,
     _mm256_storeu_ps,
-    _mm256_add_ps,
-    _mm256_mul_ps,
+    fmadd_acc,
     _mm256_set1_ps
 );

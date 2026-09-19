@@ -26,14 +26,24 @@ Checked items are implemented; unchecked are potential future work.
 
 ## Design Decisions
 
-- **No-std / embedded first, high-performance second** — all code must work without `std` or heap
-  allocation, but on capable hardware it should be competitive with optimized libraries.
+- **No-std compatible and high-performance** — numeris does not specifically target embedded, but it
+  is designed to run well there: all code must work without `std` or heap allocation, and on capable
+  hardware it should be competitive with optimized libraries.
   SIMD intrinsics (`core::arch`) accelerate f32/f64 hot paths on aarch64 (NEON) and x86_64
   (SSE2/AVX/AVX-512) via compile-time `TypeId` dispatch, with zero-cost scalar fallback for
-  integers and other types. No runtime feature detection — no cargo feature flag needed.
+  integers and other types. No cargo feature flag needed for SIMD itself.
   SSE2 (x86_64) and NEON (aarch64) are always-on baseline. AVX and AVX-512 are compile-time
   opt-in via `-C target-cpu=native` or `-C target-feature=+avx2,+avx512f`. Dispatch selects
-  the widest available ISA: AVX-512 > AVX > SSE2.
+  the widest available ISA: AVX-512 > AVX > SSE2. The optional **`runtime-dispatch`** feature
+  (implies `std`; x86_64 only) makes the compile-time tier a *floor*: the AVX / AVX-512
+  modules compile on every x86_64 target (each kernel carries `#[target_feature]`), and
+  `simd::isa()` — a constant when the tier is a compile-time feature, else a one-time
+  `is_x86_feature_detected!` probe cached in an `AtomicU8` — picks the tier that the single
+  `x86_select!` macro calls into. Always-compiled tiers that a build never selects are dead
+  code the linker drops. The AVX tier is `avx` **+ `fma`** (every multiply-add in the AVX /
+  AVX-512 tiers is fused; AVX-only Sandy / Ivy Bridge fall back to SSE2); the shared `_fma`
+  kernel macros take NEON's accumulator-first argument order, so each x86 file has two
+  `fmadd_acc` / `fnmadd_acc` adapters.
   These flags are **not** committed to a repo `.cargo/config.toml` (a blanket `target-cpu=native`
   is non-portable and makes virtualized CI runners `SIGILL` on AVX-512 the host detects but can't
   run). To build with wide SIMD locally, opt in per-shell, e.g.
@@ -43,14 +53,25 @@ Checked items are implemented; unchecked are potential future work.
 - **`unsafe` discipline in `simd/`** — the SIMD kernels hold nearly all of the crate's
   `unsafe` (the remainder — `linalg`'s two-column split and `quad`'s `MaybeUninit` stack —
   is likewise block-documented), and
-  four rules keep it auditable. (1) *No `#[target_feature]` on the kernels*: the ISA modules
-  are `#[cfg(target_feature = ...)]`-gated, so availability is a property of the compilation
-  unit; adding the attribute would only turn safe fns into `unsafe fn` (pre-1.86) and buys
-  nothing without runtime detection, which no-std rules out anyway. (2) *One cast witness*:
-  the generic-to-concrete reinterpretation in `simd/mod.rs` goes through `TypeEq<T, U>`, whose
-  sole constructor performs the `TypeId` check — no dispatch site contains `unsafe`, and a
-  test/cast type mismatch is unrepresentable. (3) *Structural bounds*: kernels iterate
-  `chunks_exact` so each proof is "the chunk is exactly as wide as the loads covering it"
+  four rules keep it auditable. (1) *`#[target_feature]` only on the tiers above the x86_64
+  baseline*: the AVX / AVX-512 kernels carry it (as safe fns — MSRV 1.86+ — so the attribute
+  changes nothing inside the kernel; the shared kernel macros take `@feature "avx"` and emit
+  it), which is what lets a baseline binary contain and, after the runtime probe, call them.
+  SSE2 and NEON kernels stay unattributed: they are the baseline, and attributing them would
+  make every call to them `unsafe`. Two consequences of the attribute's rules: calling a
+  `#[target_feature]` fn is unsafe unless the *caller's own attribute* covers the feature — a
+  crate-wide `-C target-feature` flag does not count — and inside an attributed fn the
+  register-only intrinsics (broadcasts, horizontal sums) become safe, so those calls carry no
+  `unsafe` in the AVX tiers while the baseline tiers still need it (the macro emits
+  `#[allow(unused_unsafe)]` alongside the attribute for the shared bodies). (2) *One cast
+  witness*: the generic-to-concrete reinterpretation in `simd/mod.rs` goes through
+  `TypeEq<T, U>`, whose sole constructor performs the `TypeId` check, so a test/cast type
+  mismatch is unrepresentable — and *one dispatch-site `unsafe`*: the AVX / AVX-512 arms of the
+  `x86_select!` macro, justified by `isa()` (compile-time floor or CPU probe). (3) *Structural
+  bounds*: kernels iterate
+  `chunks_exact` (or, in the hand-written `dot` kernels, `as_chunks::<N>()`, whose `[T; N]`
+  element type carries the width in the type) so each proof is "the chunk is exactly as wide as
+  the loads covering it"
   rather than hand-computed offsets; where that is impossible (`conv1d`'s strided reads) the
   precondition is a real `assert!` at function entry, not a `debug_assert!` (this applies to the
   SIMD `matmul` length checks and `split_two_col_slices`' disjointness check too, not only
@@ -62,8 +83,12 @@ Checked items are implemented; unchecked are potential future work.
   items `clippy::missing_safety_doc` does not. Confinement itself is also compiler-enforced:
   `#![deny(unsafe_code)]` at the crate root, with `#[allow(unsafe_code)]` on exactly the audited
   sites (`simd`, `linalg::split_two_col_slices`, `quad::adaptive_simpson`) — add a new site only
-  with the same audit treatment, never by widening an existing `allow`. Style: prefer one `chunks_exact` iterator per loop and take `remainder()` from
-  it, rather than re-calling `chunks_exact`.
+  with the same audit treatment, never by widening an existing `allow`. Style: for a literal
+  width use `as_chunks::<N>()` and bind both halves of the tuple (`let (main, tail) = …`) — clippy's
+  `chunks_exact_to_as_chunks` insists on it, and the tail is then the scalar remainder. The shared
+  kernel macros keep `chunks_exact($lanes)` with one iterator per loop and `remainder()` taken
+  from it (clippy does not lint inside macro expansions, and the `$lanes` argument plays the
+  role of the const); do not re-call `chunks_exact` to recover a remainder.
 - **Benchmarking `simd/` changes — alignment sensitivity** — the fixed-size `comparison`
   benchmarks run in 80–200 ns and are sensitive to *code alignment* at the ±10% level. During
   the 0.5.16 refactor, an edit to `dot` moved `lu_6x6`/`inverse_6x6` by 12–14%, reproducibly
@@ -140,9 +165,14 @@ Checked items are implemented; unchecked are potential future work.
   Enables `nalgebra/std`. `nalgebra::SMatrix` and `DMatrix` can be used directly with numeris linalg free functions.
 - **`serde`** — serialize/deserialize `Matrix`, `Vector`, `Quaternion`, `DynMatrix`, `DynVector`, `Solution`.
   Row-major format for matrices (matches `Matrix::new()`), flat arrays for vectors.
+- **`runtime-dispatch`** — x86_64 only; implies `std` (for `is_x86_feature_detected!`). Compile every
+  x86_64 SIMD tier and pick the widest the running CPU supports by a cached one-time probe; the
+  compile-time target features are a floor the probe can only raise. Purely additive. See the SIMD
+  design bullet above. Tested by the CI `runtime-dispatch` job on the baseline x86_64 target.
 - **`rayon`** — opt-in multi-threaded parallelism on runtime-sized paths (heap-backed `DynMatrix` /
-  `imageproc` / `_dyn` routines). Implies `std` (rayon needs threads). The crate MSRV is 1.80 (the
-  floor for `[T]::as_flattened` in core matrix code, and for rayon). Purely additive: no-std builds are
+  `imageproc` / `_dyn` routines). Implies `std` (rayon needs threads). The crate MSRV is 1.89 (the
+  floor for safe `#[target_feature]` fns and the AVX-512 intrinsics; `[T]::as_flattened` and rayon
+  need only 1.80). Purely additive: no-std builds are
   unaffected and enabling it never changes an existing signature. Dispatch lives in the private `par` module (mirrors `simd`), gated on
   `any(imageproc, all(optim, alloc, rayon))`. Only disjoint-output operations (Jacobian columns, image
   columns) are parallelized — never order-sensitive reductions. Users so far:
@@ -169,7 +199,7 @@ Checked items are implemented; unchecked are potential future work.
   The `imageproc` / `fft` `Send + Sync` element requirement is carried by a hidden `par::MaybeSync` marker
   bound (empty blanket impl without `rayon`, `Send + Sync` with it; gated on `imageproc` or `fft`+`alloc`), so a single
   signature serves both builds without `cfg`-split twins — invisible for `f32`/`f64`, hence additive.
-- **`all`** — enables all features: `std`, `ode`, `optim`, `quad`, `control`, `estimate`, `interp`, `imageproc`, `fft`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`.
+- **`all`** — enables all features: `std`, `ode`, `optim`, `quad`, `control`, `estimate`, `interp`, `imageproc`, `fft`, `special`, `stats`, `complex`, `nalgebra`, `serde`, `rayon`, `runtime-dispatch`.
 - **No-default-features** (`--no-default-features`) — `no_std` mode for embedded. Float math
   falls back to `libm` software implementations. No heap, no OS dependencies.
 
@@ -227,19 +257,20 @@ src/
 │   ├── rkv98_efficient.rs # Verner "efficient" 9(8), 26 stages, 9th-degree interpolant
 │   ├── rosenbrock.rs      # Rosenbrock trait, fd_jacobian, integration loop
 │   └── rodas4.rs          # RODAS4: 6-stage, order 4(3), L-stable Rosenbrock
-├── simd/               # private SIMD acceleration (no cargo feature — always-on)
+├── simd/               # private SIMD acceleration (no cargo feature — always-on; `runtime-dispatch` adds the x86_64 CPU probe)
 │   ├── mod.rs          # TypeId dispatch (via the `TypeEq` cast witness): dot, matmul,
 │   │                   #   add/sub/scale/scale-in-place/axpy slices, strided conv1d,
-│   │                   #   fft_butterfly / fft_butterfly4 (SoA radix-2 / radix-4, macro-shared across ISAs)
+│   │                   #   fft_butterfly / fft_butterfly4 (SoA radix-2 / radix-4, macro-shared across ISAs);
+│   │                   #   x86_64 tier selection: `Isa`, `isa()` (compile-time floor + cached runtime probe), `x86_select!`
 │   ├── scalar.rs       # generic scalar fallback (integers, complex, unknown arch); fft_butterfly / fft_butterfly4 references
 │   ├── f64_neon.rs     # aarch64 NEON f64 kernels (2-wide)
 │   ├── f32_neon.rs     # aarch64 NEON f32 kernels (4-wide)
 │   ├── f64_sse2.rs     # x86_64 SSE2 f64 kernels (2-wide)
 │   ├── f32_sse2.rs     # x86_64 SSE2 f32 kernels (4-wide)
-│   ├── f64_avx.rs      # x86_64 AVX f64 kernels (4-wide, compile-time opt-in)
-│   ├── f32_avx.rs      # x86_64 AVX f32 kernels (8-wide, compile-time opt-in)
-│   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide, compile-time opt-in)
-│   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide, compile-time opt-in)
+│   ├── f64_avx.rs      # x86_64 AVX f64 kernels (4-wide; `#[target_feature]`, compile-time or runtime selected)
+│   ├── f32_avx.rs      # x86_64 AVX f32 kernels (8-wide; same)
+│   ├── f64_avx512.rs   # x86_64 AVX-512 f64 kernels (8-wide; same)
+│   └── f32_avx512.rs   # x86_64 AVX-512 f32 kernels (16-wide; same)
 ├── par/                # private parallelism dispatch (requires `rayon` feature to multi-thread; gated on imageproc / fft+alloc / optim+rayon)
 │   └── mod.rs          # for_each_chunk_mut (sequential chunks_mut / rayon par_chunks_mut over disjoint output chunks); for_each_chunk_mut_init (same, plus a per-worker scratch value via for_each_init — for the banded separable convolution and the fft 2D batches); work_col_threshold; MaybeSync marker bound
 ├── nalgebra_interop.rs # (requires `nalgebra` feature) From/Into, MatrixRef/MatrixMut for nalgebra types

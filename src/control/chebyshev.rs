@@ -36,7 +36,7 @@ fn chebyshev_lp_pole<T: FloatScalar>(
 /// Passband gain target: 1 for odd orders, 1/√(1+ε²) for even orders (where the
 /// equiripple response starts at its lower edge rather than 0 dB).
 fn passband_target<T: FloatScalar>(order: usize, epsilon: T) -> T {
-    if order % 2 == 0 {
+    if order.is_multiple_of(2) {
         T::one() / (T::one() + epsilon * epsilon).sqrt()
     } else {
         T::one()

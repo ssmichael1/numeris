@@ -3,9 +3,9 @@ members = [".", "bench"]
 
 [package]
 name = "numeris"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.89"
 description = "Pure-Rust numerical algorithms library — high performance with SIMD support while also supporting no-std for embedded and WASM targets."
 license = "MIT"
 repository = "https://github.com/ssmichael1/numeris"
@@ -36,6 +36,7 @@ all = [
     "nalgebra",
     "serde",
     "rayon",
+    "runtime-dispatch",
 ]
 control = []
 estimate = ["alloc"]
@@ -50,6 +51,7 @@ special = []
 stats = ["special"]
 std = ["alloc", "num-traits/std", "num-complex?/std"]
 rayon = ["std", "dep:rayon"]
+runtime-dispatch = ["std"]
 libm = ["num-traits/libm", "num-complex?/libm"]
 complex = ["dep:num-complex"]
 nalgebra = ["dep:nalgebra", "nalgebra/std"]

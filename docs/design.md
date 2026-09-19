@@ -108,6 +108,8 @@ The `TypeId` check is a compile-time constant — dead branches are eliminated b
 
 The `Scalar` trait has a `'static` bound (required by `TypeId`). This is backwards-compatible — all scalar types are `'static`.
 
+On x86_64 a second, orthogonal decision picks the ISA tier (SSE2 / AVX / AVX-512). By default it is a compile-time `#[cfg(target_feature)]` choice. With the `runtime-dispatch` feature the AVX and AVX-512 kernels are `#[target_feature]` functions compiled into every build, and a private `isa()` selector — a constant when the tier is a compile-time feature, otherwise a cached one-time `is_x86_feature_detected!` probe — decides which tier a dispatch call may enter. Calling a `#[target_feature]` function is `unsafe` unless the caller carries the same attribute (a crate-wide `-C target-feature` flag does not count), so this is the one place outside the kernels themselves that holds an `unsafe` block, with the compile-time floor or the probe as its justification. See [SIMD & Runtime Dispatch](simd.md).
+
 ## DynMatrix Storage
 
 `DynMatrix<T>` uses `Vec<T>` in column-major order: element `(row, col)` is at index `col * nrows + row`. Implementing `MatrixRef`/`MatrixMut` means all decomposition free functions work automatically, with no duplicate code.
@@ -116,7 +118,7 @@ The `Scalar` trait has a `'static` bound (required by `TypeId`). This is backwar
 
 ## Avoiding Unstable Features
 
-numeris uses only stable Rust (MSRV 1.80). Constraints:
+numeris uses only stable Rust (MSRV 1.89 — the floor for safe `#[target_feature]` functions and the stabilized AVX-512 intrinsics). Constraints:
 
 - `generic_const_exprs` is unstable → no `[T; M*N]` flat storage
 - `min_const_generics` (stable since 1.51) → `[[T; M]; N]` two-level storage works

@@ -5,7 +5,7 @@ Numerical integration (quadrature) with four methods: Gauss-Legendre, adaptive S
 Requires the `quad` Cargo feature:
 
 ```toml
-numeris = { version = "0.5", features = ["quad"] }
+numeris = { version = "0.7", features = ["quad"] }
 ```
 
 ## Method Summary

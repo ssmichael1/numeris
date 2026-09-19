@@ -316,7 +316,7 @@ let inv = a.inverse().unwrap();
 Enable the `complex` feature to use decompositions with complex elements:
 
 ```toml
-numeris = { version = "0.5", features = ["complex"] }
+numeris = { version = "0.7", features = ["complex"] }
 ```
 
 ```rust

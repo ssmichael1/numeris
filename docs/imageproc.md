@@ -5,7 +5,7 @@
 Requires the `imageproc` Cargo feature (implies `alloc`):
 
 ```toml
-numeris = { version = "0.5", features = ["imageproc"] }
+numeris = { version = "0.7", features = ["imageproc"] }
 ```
 
 All operations work on real-float images (`f32`, `f64`) via the `FloatScalar` trait. The fast sliding-histogram median (`median_filter_u16`) is a `u16` specialization for quantized data.

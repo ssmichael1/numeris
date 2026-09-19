@@ -67,7 +67,7 @@ pub fn francis_qr<T: FloatScalar>(
         }
 
         // Exceptional shift every 10 iterations
-        let (s, t) = if iter % 10 == 0 {
+        let (s, t) = if iter.is_multiple_of(10) {
             let w = g(h, p - 1, p - 2).abs() + g(h, p - 2, p - 3).abs();
             (w + w, w * w)
         } else {

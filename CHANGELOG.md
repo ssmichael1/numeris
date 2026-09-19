@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.7.0
+
+Runtime SIMD dispatch, and an MSRV bump to 1.89 that it needs — hence the minor
+bump. No public API changes.
+
+- **New `runtime-dispatch` feature — runtime SIMD tier selection on x86_64.**
+  Until now the AVX / AVX-512 kernels were only compiled when the matching
+  target feature was enabled crate-wide (`-C target-cpu=native`), which is
+  useless for a binary built once and run on many machines. With the feature
+  (implies `std`), every x86_64 build contains all three tiers — each kernel now
+  carries its own `#[target_feature(enable = ...)]` — and a private `isa()`
+  selector picks the widest one the running CPU and OS support via a one-time
+  `std::is_x86_feature_detected!` probe, cached in a single byte (one relaxed
+  load and a compare per dispatch thereafter — not benchmarked; expected to be
+  within the code-alignment noise of even the smallest fixed-size operations).
+  The compile-time target features remain a floor the probe can only raise, so
+  a `target-cpu=native` build is unchanged: the selector is a constant and the
+  dispatch `match` folds away. aarch64 is untouched (NEON is the baseline).
+  Purely additive in API terms; note that because the tiers round differently
+  (fused vs. separate multiply-add, reduction order), the same binary can now
+  give results that differ at round-off level between machines — compare with a
+  tolerance across machines, or build without the feature to pin the tier.
+- **`simd` internals.** The per-ISA `cfg` ladders in every `*_dispatch` function
+  collapsed into one `x86_select!` macro over the `Isa` tier; the AVX / AVX-512
+  modules compile on every x86_64 target (dead without the feature or the
+  matching target feature, and dropped by the linker). This adds the crate's
+  single dispatch-site `unsafe` — calling a `#[target_feature]` function, which
+  is unsafe unless the caller carries the same attribute (a crate-wide
+  `-C target-feature` flag does not count) — with the compile-time floor or
+  the probe as its documented justification. Register-only
+  intrinsic calls (broadcasts, horizontal sums) inside the attributed kernels no
+  longer need `unsafe` and lost it; the shared kernel macros take an
+  `@feature "avx"` argument that emits the attribute. New tests run every tier
+  the CPU supports directly against the scalar reference, and check the probe
+  against `std`'s.
+- **MSRV bumped to 1.89** (from 1.80): safe functions may carry
+  `#[target_feature]` from 1.86 (otherwise every kernel would have to become an
+  `unsafe fn`), and the AVX-512 intrinsics stabilized in 1.89 (they are now
+  compiled unconditionally on x86_64). The bump unlocked two clippy lints:
+  `manual_is_multiple_of` (seven `n % k == 0` sites rewritten) and
+  `chunks_exact_to_as_chunks` (the hand-written `dot` kernels of all eight ISA
+  files and two `fft` helpers now use `as_chunks::<N>()`, whose `[T; N]` element
+  type states the width the SAFETY arguments rely on; the shared kernel macros
+  keep `chunks_exact($lanes)`, which the lint does not reach).
+- **AVX and AVX-512 tiers now fuse every multiply-add.** The AVX kernels used a
+  separate `mul` + `add`; `dot`, the matmul micro-kernels, AXPY and `conv1d` now
+  use `fmadd` / `fnmadd` (AVX-512 already fused its matmul; its `dot`, AXPY and
+  `conv1d` now do too). One instruction and one rounding per multiply-add — a
+  real throughput gain where the accumulators live in registers (matmul, `conv1d`,
+  `dot`), noise on the bandwidth-bound element-wise kernels; NEON has always
+  fused, so results already varied by platform within the tests' tolerances. The
+  AVX tier therefore requires the `fma` feature alongside `avx` — as a compile-time
+  floor (`-C target-feature=+avx2,+fma`, which `x86-64-v3` and `target-cpu=native`
+  on any Haswell+/Zen include) and in the runtime probe. Every AVX2 CPU has FMA;
+  the AVX-only Sandy / Ivy Bridge parts (2011–2013) now take the SSE2 tier. The
+  shared `_fma` kernel macros (written for NEON's accumulator-first `vfmaq`) serve
+  the x86 tiers through two tiny accumulator-first adapters per file.
+- **CI**: a `runtime-dispatch` job tests the feature on the baseline x86_64
+  target (no `target-cpu` flag) so the probe path is exercised, alongside the
+  existing `x86-64-v3` matrix where the compile-time floor is AVX2.
+- **Docs: FFT positioning corrected.** The `fft` module rustdoc, mkdocs page,
+  README block and design notes claimed "roughly 2–4× FFTW throughput", which
+  read as faster than FFTW and was stale either way; they now state the
+  measured relationship (within ~1.0–1.3× of rustfft, so FFTW ahead by a
+  modest constant factor) and link the performance table. The "audience is
+  embedded" framing is replaced throughout: numeris is designed to run well on
+  no-std / no-alloc targets, not built for them exclusively. The FFT
+  performance notes now say radix-4 (they said radix-2), the `ifftshift`
+  inverse statement is corrected to hold for every length, and the module
+  rustdoc no longer claims `DynFft::new` returns `FftError` (it panics on a
+  zero length).
+
 ## 0.6.0
 
 The FFT module (0.5.20 and 0.5.21 below were never published; their entries are
