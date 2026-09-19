@@ -1,26 +1,30 @@
 # Fast Fourier Transform
 
-Pure-Rust, no-std-first FFT integrated with the crate's `Complex` and SIMD support.
+Pure-Rust, no-std-compatible FFT integrated with the crate's `Complex` and SIMD support.
 
 Requires the `fft` Cargo feature:
 
 ```toml
-numeris = { version = "0.5", features = ["fft"] }
+numeris = { version = "0.7", features = ["fft"] }
 ```
 
 ## Not FFTW
 
-FFTW's speed comes from runtime planning, autotuned codelets, and a large C codebase
-that cannot run under `no_std` / no-alloc — the target `numeris` was built for. The goal
-here is portable, zero-C-dependency FFT that **also** runs on embedded, integrated with
-the rest of the crate. On desktop, expect roughly 2–4× FFTW throughput; for the audience
-that reaches for `numeris` (embedded DSP, no allocator) that is a non-issue, because FFTW
-is not an option there.
+FFTW's speed comes from runtime planning, autotuned codelets, and a large C codebase, none
+of which fits a pure-Rust library that must also build under `no_std` with no allocator.
+The goal here is a portable, zero-C-dependency FFT integrated with the rest of the crate:
+`Complex`, `DynMatrix`, the SIMD kernels, and `imageproc`. Matching FFTW's peak
+throughput is an explicit non-goal, but the gap is a modest constant factor, not an order
+of magnitude: the `DynFft` power-of-two path measures within about 1.0–1.3× of
+[rustfft](https://docs.rs/rustfft) (which is itself generally within ~1.5× of FFTW), so
+expect FFTW to be faster by roughly 1.5–2× at cache-resident sizes and about level once the
+transform streams from L2. See [Performance](performance.md#fft) for the measured table.
+The no-alloc fixed-size tier is the part FFTW and rustfft have no counterpart for.
 
 Sign convention: the forward transform uses $X_k = \sum_n x_n\, e^{-2\pi i kn/N}$; the
 inverse is normalized by $1/N$ so that `ifft(fft(x)) == x`.
 
-## Two tiers
+## API tiers
 
 | Tier | API | Allocation | Sizes |
 |---|---|---|---|
@@ -34,7 +38,7 @@ inverse is normalized by $1/N$ so that `ifft(fft(x)) == x`.
 
 In-place over `[Complex<T>; N]` for power-of-two `N ≤ 4096` (checked at compile time).
 `fft` / `ifft` take a precomputed `TwiddleTable` so no `sin`/`cos` runs in the loop —
-the path to prefer when repeating a fixed transform size on embedded. `fft_inplace` /
+the path to prefer when repeating a fixed transform size on a no-alloc target. `fft_inplace` /
 `ifft_inplace` generate stage twiddles inline (no persistent table).
 
 ```rust
@@ -227,7 +231,8 @@ plan.inverse(&spec, &mut recon);
 
 `fftshift` / `ifftshift` are no-alloc, in-place, and generic over any element type — pure
 rotations. `fftshift` moves the zero-frequency component to the center (NumPy semantics);
-`ifftshift` is its exact inverse for odd lengths.
+`ifftshift` is its exact inverse for every length (the two differ only for odd lengths;
+for even lengths each is its own inverse).
 
 ```rust
 use numeris::fft::{fftshift, ifftshift};
@@ -254,10 +259,12 @@ ifftshift2d(&mut m);  // exact inverse
 ## Performance notes
 
 - The `DynFft` power-of-two path deinterleaves into structure-of-arrays real/imaginary
-  buffers and runs radix-2 butterflies through SIMD kernels (NEON / SSE2 / AVX / AVX-512
-  via compile-time dispatch, scalar fallback otherwise).
-- The no-std fixed tier stays scalar: its audience is embedded (small `N`,
-  code-size-sensitive), where deinterleave scratch would undercut the low-memory point.
+  buffers and runs radix-4 butterflies (plus one trailing radix-2 stage for odd `log2(n)`)
+  through SIMD kernels (NEON / SSE2 / AVX / AVX-512, with the x86_64 tier picked at
+  compile time or, under `runtime-dispatch`, by a CPU probe; scalar fallback otherwise).
+- The no-alloc fixed tier stays scalar: it exists for small `N` on memory- and
+  code-size-constrained targets, where the `2N` deinterleave scratch a fused SIMD
+  butterfly wants would undercut the low-memory point.
 - The length-2 and length-4 butterfly stages (trivial twiddles `1` and `−i`) are fused
   into one twiddle-free pass instead of `n/2 + n/4` kernel calls on 1–2-element blocks.
 - The remaining stages are **radix-4**: each sweep over the arrays does the work of two

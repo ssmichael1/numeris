@@ -108,8 +108,9 @@ Compared against nalgebra 0.34 and faer 0.24. All benchmarks run with `cargo ben
 ## FFT
 
 The `fft` module's `DynFft` tier deinterleaves into structure-of-arrays re/im buffers and runs
-radix-2 butterflies through the same per-ISA SIMD kernel macros as the element-wise ops; the
-no-alloc fixed tier stays scalar (its audience is embedded, small `N`). Bluestein (arbitrary /
+radix-4 butterflies (plus one trailing radix-2 stage) through the same per-ISA SIMD kernel
+macros as the element-wise ops; the no-alloc fixed tier stays scalar (small `N`, no scratch).
+Bluestein (arbitrary /
 prime lengths) runs its inner power-of-two transforms on the same SIMD core. Real transforms
 are half-size in both directions; 1D and 2D FFT convolution pad to a power of two and use the
 real plans; the 2D row pass runs on a cache-blocked transposed copy so both passes are
@@ -153,9 +154,10 @@ forward, `cargo bench -p numeris-bench --bench fft -- fft_vs_rustfft`:
 
 At cache-resident sizes the remaining gap is per-stage overhead (rustfft fuses more stages
 per sweep and skips the explicit bit-reversal); at sizes that stream from L2 the two are
-memory-bound and level. The reason numeris does not chase the last 20–30% is the same one
-the [design notes](design-fft.md) give for not chasing FFTW: the fixed no-alloc tier is the
-module's reason to exist, and codelet-style specialization would not run there.
+memory-bound and level. Relative to FFTW itself (not measured here), expect a gap of
+roughly 1.5–2× at cache-resident sizes. numeris does not chase the last 20–30% for the
+reason the [design notes](design-fft.md) give: codelet-style specialization would not run
+on the no-alloc fixed tier, and the runtime tier is already a constant factor from the best.
 
 ## No-std Performance
 
@@ -166,7 +168,7 @@ On embedded targets with no hardware FPU, float operations fall back to the `lib
 SIMD parallelizes *within* a core (vector lanes); the optional **`rayon`** feature parallelizes *across* cores (threads). The two are orthogonal and compose — each worker thread still runs the SIMD kernels. Parallelism is **opt-in** because [rayon](https://docs.rs/rayon) requires `std` and a thread pool, which the no-std / embedded baseline cannot assume:
 
 ```toml
-numeris = { version = "0.5", features = ["rayon"] }   # implies std
+numeris = { version = "0.7", features = ["rayon"] }   # implies std
 ```
 
 !!! note "MSRV"

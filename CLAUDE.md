@@ -26,8 +26,9 @@ Checked items are implemented; unchecked are potential future work.
 
 ## Design Decisions
 
-- **No-std / embedded first, high-performance second** — all code must work without `std` or heap
-  allocation, but on capable hardware it should be competitive with optimized libraries.
+- **No-std compatible and high-performance** — numeris does not specifically target embedded, but it
+  is designed to run well there: all code must work without `std` or heap allocation, and on capable
+  hardware it should be competitive with optimized libraries.
   SIMD intrinsics (`core::arch`) accelerate f32/f64 hot paths on aarch64 (NEON) and x86_64
   (SSE2/AVX/AVX-512) via compile-time `TypeId` dispatch, with zero-cost scalar fallback for
   integers and other types. No cargo feature flag needed for SIMD itself.
