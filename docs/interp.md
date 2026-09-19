@@ -5,7 +5,7 @@ Four interpolation methods plus bilinear 2D interpolation. Each method has a fix
 Requires the `interp` Cargo feature:
 
 ```toml
-numeris = { version = "0.5", features = ["interp"] }
+numeris = { version = "0.6", features = ["interp"] }
 ```
 
 ## Method Summary

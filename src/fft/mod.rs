@@ -1,13 +1,15 @@
 //! Fast Fourier Transform.
 //!
-//! Pure-Rust, no-std-first FFT integrated with the crate's [`Complex`](crate::Complex) and SIMD
-//! support. **This is not FFTW.** FFTW's speed comes from runtime planning,
-//! autotuned codelets, and a large C codebase that cannot run under `no_std` /
-//! no-alloc — the target `numeris` was built for. The goal here is portable,
-//! zero-C-dependency FFT that *also* runs on embedded, integrated with the rest
-//! of the crate. On desktop, expect roughly 2–4× FFTW throughput; for the
-//! audience that reaches for `numeris` (embedded DSP, no allocator) that is a
-//! non-issue, because FFTW is not an option there.
+//! Pure-Rust, no-std-compatible FFT integrated with the crate's [`Complex`](crate::Complex)
+//! and SIMD support. **This is not FFTW.** FFTW's speed comes from runtime
+//! planning, autotuned codelets, and a large C codebase, none of which fits a
+//! pure-Rust library that must also build under `no_std` with no allocator. The
+//! goal here is a portable, zero-C-dependency FFT integrated with the rest of the
+//! crate. Matching FFTW's peak throughput is a non-goal, but the gap is a modest
+//! constant factor, not an order of magnitude: the [`DynFft`] power-of-two path
+//! measures within about 1.0–1.3× of `rustfft` (itself generally within ~1.5× of
+//! FFTW), so expect FFTW to be faster by roughly 1.5–2× at cache-resident sizes.
+//! The no-alloc fixed-size tier has no counterpart in either.
 //!
 //! # Two tiers
 //!
@@ -37,8 +39,9 @@
 //!
 //! FFT length mismatches are programmer errors, so the transforms are infallible
 //! and enforce their preconditions with compile-time (`const`) or debug asserts
-//! rather than returning a `Result`. [`FftError`] is reserved for the fallible
-//! runtime-sized planning surfaces (`DynFft::new`).
+//! rather than returning a `Result` (`DynFft::new` panics on a zero length).
+//! [`FftError`] is defined for future fallible planning surfaces and is not
+//! returned by any current API.
 //!
 //! # Examples
 //!

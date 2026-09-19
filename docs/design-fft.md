@@ -174,8 +174,8 @@ structurally incompatible with a no-std / no-alloc / pure-Rust library:
 - Hand-tuned SIMD **codelets** per radix per ISA.
 - Split-radix, Rader, Bluestein, prime-factor for arbitrary sizes.
 
-None of that runs on a Cortex-M. **FFTW isn't even available on the target `numeris` was
-built for.** So the real competitive set is:
+None of that runs on a Cortex-M, and FFTW is not an option in a no-std, no-alloc build —
+one of the environments `numeris` must keep working in. So the real competitive set is:
 
 | Competitor | no_std? | no-alloc? | Pure Rust? | Notes |
 |---|---|---|---|---|
@@ -186,9 +186,10 @@ built for.** So the real competitive set is:
 | **numeris fft** | ✓ | ✓ (fixed tier) | ✓ | Integrated with `Complex`, `simd::`, `DynMatrix`. |
 
 **Goal:** be the cleanest pure-Rust FFT that also runs on embedded, integrated with the
-rest of the crate. On desktop, land within ~2–4× of FFTW (radix-2/4 + SIMD). That is
-entirely acceptable for the audience — they pick `numeris` for portability and zero C
-deps, not peak throughput.
+rest of the crate. On desktop, land within a small constant factor of FFTW (radix-2/4 +
+SIMD); the original target was ~2–4× slower, and the shipped `DynFft` measures within
+~1.0–1.3× of rustfft (see [Performance](performance.md#fft)). That is entirely acceptable
+for the audience — they pick `numeris` for portability and zero C deps, not peak throughput.
 
 Explicitly a **non-goal:** matching FFTW/RustFFT desktop throughput. Say so in the module
 rustdoc so expectations are set.
@@ -298,8 +299,8 @@ fft = ["dep:num-complex"]   # complex output is intrinsic; reuse the existing op
 #[cfg(feature = "fft")]
 pub mod fft;
 ```
-Module rustdoc opens with the explicit "this is not FFTW; the target is embedded/no-alloc
-portability, expect ~2–4× FFTW on desktop" note.
+Module rustdoc opens with the explicit "this is not FFTW" note: portability and no-alloc
+support are the goals, and FFTW is faster by a modest constant factor on desktop.
 
 ### Error handling — recommendation: mostly infallible
 

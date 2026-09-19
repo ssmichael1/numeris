@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Docs: FFT positioning corrected.** The `fft` module rustdoc, mkdocs page,
+  README block and design notes claimed "roughly 2–4× FFTW throughput", which
+  read as faster than FFTW and was stale either way; they now state the
+  measured relationship (within ~1.0–1.3× of rustfft, so FFTW ahead by a
+  modest constant factor) and link the performance table. The "audience is
+  embedded" framing is replaced throughout: numeris is designed to run well on
+  no-std / no-alloc targets, not built for them exclusively. The FFT
+  performance notes now say radix-4 (they said radix-2), the `ifftshift`
+  inverse statement is corrected to hold for every length, and the module
+  rustdoc no longer claims `DynFft::new` returns `FftError` (it panics on a
+  zero length).
+
 ## 0.6.0
 
 The FFT module (0.5.20 and 0.5.21 below were never published; their entries are

@@ -13,10 +13,10 @@ The default feature is `std` (which implies `alloc`). To enable additional modul
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", features = ["ode", "optim", "control", "estimate", "interp", "special", "stats", "complex"] }
+numeris = { version = "0.6", features = ["ode", "optim", "control", "estimate", "interp", "special", "stats", "complex"] }
 
 # Or enable everything at once:
-numeris = { version = "0.5", features = ["all"] }
+numeris = { version = "0.6", features = ["all"] }
 ```
 
 ## Cargo Features
