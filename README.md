@@ -92,7 +92,7 @@ numeris works on bare-metal targets with no allocator:
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", default-features = false, features = ["libm"] }
+numeris = { version = "0.6", default-features = false, features = ["libm"] }
 ```
 
 ```rust
@@ -112,7 +112,7 @@ let eig = sym.eig_symmetric().unwrap();
 Add `alloc` for `DynMatrix` on targets with a heap but no OS:
 
 ```toml
-numeris = { version = "0.5", default-features = false, features = ["libm", "alloc"] }
+numeris = { version = "0.6", default-features = false, features = ["libm", "alloc"] }
 ```
 
 ## Dynamic matrices
@@ -203,7 +203,7 @@ Root finding, unconstrained minimization, and nonlinear least squares (requires 
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", features = ["optim"] }
+numeris = { version = "0.6", features = ["optim"] }
 ```
 
 ```rust
@@ -266,7 +266,7 @@ Biquad cascade IIR filters with Butterworth and Chebyshev Type I design (require
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", features = ["control"] }
+numeris = { version = "0.6", features = ["control"] }
 ```
 
 ```rust
@@ -321,7 +321,7 @@ Six estimators for nonlinear state estimation and offline batch processing (requ
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", features = ["estimate"] }
+numeris = { version = "0.6", features = ["estimate"] }
 ```
 
 ```rust
@@ -397,7 +397,7 @@ Enable the `complex` feature to use decompositions with complex elements:
 
 ```toml
 [dependencies]
-numeris = { version = "0.5", features = ["complex"] }
+numeris = { version = "0.6", features = ["complex"] }
 ```
 
 ```rust
@@ -659,8 +659,8 @@ Fully no-alloc, generic over `FloatScalar` (f32/f64).
 <details>
 <summary><b><code>fft</code></b> — Fast Fourier Transform (requires <code>fft</code> feature)</summary>
 
-Not FFTW — a portable, no-std-first FFT for embedded (small `N`, no allocator) that reuses
-the crate's `Complex` and SIMD support. Forward uses `exp(-2πi kn/N)`; inverse normalized by `1/N`.
+Not FFTW — a portable, pure-Rust FFT with a no-alloc fixed-size tier (small `N`, no allocator) and a
+SIMD runtime tier within ~1.3× of rustfft, reusing the crate's `Complex` and SIMD support. Forward uses `exp(-2πi kn/N)`; inverse normalized by `1/N`.
 
 | API | Allocation | Description |
 |---|---|---|
