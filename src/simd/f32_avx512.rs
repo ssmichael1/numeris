@@ -1,12 +1,11 @@
 //! AVX-512-accelerated f32 kernels for x86_64.
 //!
 //! AVX-512F provides 512-bit registers → 16×f32 lanes.
-//! Only compiled when `target_feature = "avx512f"` is enabled
-//! (e.g. via `-C target-cpu=native` on Skylake-X+ / Zen 4+).
-
-// The AVX-512 intrinsics stabilized after the crate's 1.80 MSRV; this opt-in
-// high-ISA path inherently requires a newer toolchain when enabled.
-#![allow(clippy::incompatible_msrv)]
+//! Every kernel carries `#[target_feature(enable = "avx512f")]`, so this module
+//! compiles on any x86_64 target. The dispatcher in `super` calls into it only
+//! when AVX-512F is a compile-time target feature (`-C target-cpu=native` on
+//! Skylake-X+ / Zen 4+) or, under the `runtime-dispatch` feature, when runtime
+//! detection has confirmed the CPU supports it.
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
@@ -16,71 +15,67 @@ use core::arch::x86_64::*;
 /// Uses 4 independent accumulators (64 f32 per iteration) to hide
 /// multiply-add latency.
 #[inline]
+#[target_feature(enable = "avx512f")]
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
 
-    // SAFETY: register broadcasts of zero; they touch no memory.
-    let (mut acc0, mut acc1, mut acc2, mut acc3) = unsafe {
-        (
-            _mm512_setzero_ps(),
-            _mm512_setzero_ps(),
-            _mm512_setzero_ps(),
-            _mm512_setzero_ps(),
-        )
-    };
+    let (mut acc0, mut acc1, mut acc2, mut acc3) = (
+        _mm512_setzero_ps(),
+        _mm512_setzero_ps(),
+        _mm512_setzero_ps(),
+        _mm512_setzero_ps(),
+    );
 
     // 4 accumulators × 16 lanes = 64 elements per iteration.
-    let mut ai = a.chunks_exact(64);
-    let mut bi = b.chunks_exact(64);
-    for (ac, bc) in (&mut ai).zip(&mut bi) {
-        // SAFETY: `chunks_exact(64)` yields chunks of exactly 64 `f32`, so the
+    let (a_main, a_rem) = a.as_chunks::<64>();
+    let (b_main, b_rem) = b.as_chunks::<64>();
+    for (ac, bc) in a_main.iter().zip(b_main) {
+        // SAFETY: `ac` and `bc` are `[f32; 64]` arrays, so the
         // four 16-lane loads at offsets 0, 16, 32 and 48 cover each chunk exactly.
         unsafe {
             let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
-            acc0 = _mm512_add_ps(
-                acc0,
-                _mm512_mul_ps(_mm512_loadu_ps(ap), _mm512_loadu_ps(bp)),
-            );
-            acc1 = _mm512_add_ps(
+            acc0 = _mm512_fmadd_ps(_mm512_loadu_ps(ap), _mm512_loadu_ps(bp), acc0);
+            acc1 = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ap.add(16)),
+                _mm512_loadu_ps(bp.add(16)),
                 acc1,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(16)), _mm512_loadu_ps(bp.add(16))),
             );
-            acc2 = _mm512_add_ps(
+            acc2 = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ap.add(32)),
+                _mm512_loadu_ps(bp.add(32)),
                 acc2,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(32)), _mm512_loadu_ps(bp.add(32))),
             );
-            acc3 = _mm512_add_ps(
+            acc3 = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ap.add(48)),
+                _mm512_loadu_ps(bp.add(48)),
                 acc3,
-                _mm512_mul_ps(_mm512_loadu_ps(ap.add(48)), _mm512_loadu_ps(bp.add(48))),
             );
         }
     }
 
-    // SAFETY: register arithmetic only — no memory is touched.
-    let mut sum = unsafe {
+    let mut sum = {
         let s01 = _mm512_add_ps(acc0, acc1);
         let s23 = _mm512_add_ps(acc2, acc3);
         _mm512_reduce_add_ps(_mm512_add_ps(s01, s23))
     };
 
     // Remainder: up to 63 elements — 16-wide vectors first, then scalar.
-    // SAFETY: register broadcast of zero.
-    let mut acc_rem = unsafe { _mm512_setzero_ps() };
-    let mut ar = ai.remainder().chunks_exact(16);
-    let mut br = bi.remainder().chunks_exact(16);
-    for (ac, bc) in (&mut ar).zip(&mut br) {
-        // SAFETY: each chunk is exactly 16 `f32` — one vector load each.
+    let mut acc_rem = _mm512_setzero_ps();
+    let (a_vec, a_tail) = a_rem.as_chunks::<16>();
+    let (b_vec, b_tail) = b_rem.as_chunks::<16>();
+    for (ac, bc) in a_vec.iter().zip(b_vec) {
+        // SAFETY: each chunk is a `[f32; 16]` array — one vector load each.
         unsafe {
-            acc_rem = _mm512_add_ps(
+            acc_rem = _mm512_fmadd_ps(
+                _mm512_loadu_ps(ac.as_ptr()),
+                _mm512_loadu_ps(bc.as_ptr()),
                 acc_rem,
-                _mm512_mul_ps(_mm512_loadu_ps(ac.as_ptr()), _mm512_loadu_ps(bc.as_ptr())),
             );
         }
     }
-    // SAFETY: register arithmetic only.
-    sum += unsafe { _mm512_reduce_add_ps(acc_rem) };
+    sum += _mm512_reduce_add_ps(acc_rem);
 
-    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+    for (&x, &y) in a_tail.iter().zip(b_tail) {
         sum += x * y;
     }
     sum
@@ -102,6 +97,7 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
 /// The microkernels' `# Safety` bounds contracts assume these dimensions, so
 /// they are checked in release builds, not just under `debug_assertions`.
 #[inline]
+#[target_feature(enable = "avx512f")]
 pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize) {
     assert_eq!(a.len(), m * n, "matmul: a.len() != m*n");
     assert_eq!(b.len(), n * p, "matmul: b.len() != n*p");
@@ -199,7 +195,7 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
                         let offset = i * 16;
                         let vc = _mm512_loadu_ps(c.as_ptr().add(c_col + offset));
                         let va = _mm512_loadu_ps(a.as_ptr().add(a_col + offset));
-                        let result = _mm512_add_ps(vc, _mm512_mul_ps(va, vb));
+                        let result = _mm512_fmadd_ps(va, vb, vc);
                         _mm512_storeu_ps(c.as_mut_ptr().add(c_col + offset), result);
                     }
                 }
@@ -227,7 +223,7 @@ pub fn matmul(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, p: usize)
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
-/// the module's `#[cfg(target_feature = "avx512f")]` gate.
+/// the caller's `#[target_feature(enable = "avx512f")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_32x4(
     a: &[f32],
@@ -337,7 +333,7 @@ unsafe fn microkernel_32x4(
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
-/// the module's `#[cfg(target_feature = "avx512f")]` gate.
+/// the caller's `#[target_feature(enable = "avx512f")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_16x4(
     a: &[f32],
@@ -361,19 +357,10 @@ unsafe fn microkernel_16x4(
         let mut a3 = _mm512_setzero_ps();
         for k in k_start..k_end {
             let av = _mm512_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm512_add_ps(a0, _mm512_mul_ps(av, _mm512_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm512_add_ps(
-                a1,
-                _mm512_mul_ps(av, _mm512_set1_ps(*bp.add((j0 + 1) * n + k))),
-            );
-            a2 = _mm512_add_ps(
-                a2,
-                _mm512_mul_ps(av, _mm512_set1_ps(*bp.add((j0 + 2) * n + k))),
-            );
-            a3 = _mm512_add_ps(
-                a3,
-                _mm512_mul_ps(av, _mm512_set1_ps(*bp.add((j0 + 3) * n + k))),
-            );
+            a0 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm512_fmadd_ps(av, _mm512_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -399,7 +386,7 @@ unsafe fn microkernel_16x4(
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
-/// the module's `#[cfg(target_feature = "avx512f")]` gate.
+/// the caller's `#[target_feature(enable = "avx512f")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_8x4(
     a: &[f32],
@@ -423,19 +410,10 @@ unsafe fn microkernel_8x4(
         let mut a3 = _mm256_setzero_ps();
         for k in k_start..k_end {
             let av = _mm256_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm256_add_ps(a0, _mm256_mul_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm256_add_ps(
-                a1,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 1) * n + k))),
-            );
-            a2 = _mm256_add_ps(
-                a2,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 2) * n + k))),
-            );
-            a3 = _mm256_add_ps(
-                a3,
-                _mm256_mul_ps(av, _mm256_set1_ps(*bp.add((j0 + 3) * n + k))),
-            );
+            a0 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm256_fmadd_ps(av, _mm256_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -461,7 +439,7 @@ unsafe fn microkernel_8x4(
 /// - `k_start <= k_end <= n`, so every `k` indexes a real column of `a` / row of `b`.
 ///
 /// Every load and store below is then in bounds. AVX-512 availability is guaranteed by
-/// the module's `#[cfg(target_feature = "avx512f")]` gate.
+/// the caller's `#[target_feature(enable = "avx512f")]` (this helper is always inlined into it).
 #[inline(always)]
 unsafe fn microkernel_4x4(
     a: &[f32],
@@ -485,10 +463,10 @@ unsafe fn microkernel_4x4(
         let mut a3 = _mm_setzero_ps();
         for k in k_start..k_end {
             let av = _mm_loadu_ps(ap.add(k * m + i0));
-            a0 = _mm_add_ps(a0, _mm_mul_ps(av, _mm_set1_ps(*bp.add(j0 * n + k))));
-            a1 = _mm_add_ps(a1, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 1) * n + k))));
-            a2 = _mm_add_ps(a2, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 2) * n + k))));
-            a3 = _mm_add_ps(a3, _mm_mul_ps(av, _mm_set1_ps(*bp.add((j0 + 3) * n + k))));
+            a0 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add(j0 * n + k)), a0);
+            a1 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 1) * n + k)), a1);
+            a2 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 2) * n + k)), a2);
+            a3 = _mm_fmadd_ps(av, _mm_set1_ps(*bp.add((j0 + 3) * n + k)), a3);
         }
         let cp = c.as_mut_ptr();
         for (j, acc) in [(j0, a0), (j0 + 1, a1), (j0 + 2, a2), (j0 + 3, a3)] {
@@ -498,9 +476,30 @@ unsafe fn microkernel_4x4(
     }
 }
 
+// ── Fused multiply-add, accumulator-first ──────────────────────────────────
+//
+// The shared `_fma` kernel macros in `super` were written against NEON's
+// `vfmaq(acc, a, b)` (= acc + a·b) and `vfmsq(acc, a, b)` (= acc − a·b). Intel's
+// `_mm512_fmadd_ps(a, b, c)` puts the accumulator last, so these adapters give the
+// macros the NEON argument shape. Register-only; inlined into the attributed
+// kernels.
+
+#[inline]
+#[target_feature(enable = "avx512f")]
+fn fmadd_acc(acc: __m512, a: __m512, b: __m512) -> __m512 {
+    _mm512_fmadd_ps(a, b, acc)
+}
+
+#[inline]
+#[target_feature(enable = "avx512f")]
+fn fnmadd_acc(acc: __m512, a: __m512, b: __m512) -> __m512 {
+    _mm512_fnmadd_ps(a, b, acc)
+}
+
 // Element-wise add/sub/scale and AXPY kernels are generated from the shared
 // macros in `super` (identical across ISAs bar width + intrinsic names).
 simd_elementwise_kernels!(
+    @feature "avx512f"
     f32,
     16,
     _mm512_loadu_ps,
@@ -511,6 +510,7 @@ simd_elementwise_kernels!(
     _mm512_set1_ps
 );
 simd_fft_butterfly_kernel!(
+    @feature "avx512f"
     f32,
     16,
     _mm512_loadu_ps,
@@ -520,6 +520,7 @@ simd_fft_butterfly_kernel!(
     _mm512_mul_ps
 );
 simd_fft_butterfly4_kernel!(
+    @feature "avx512f"
     f32,
     16,
     _mm512_loadu_ps,
@@ -528,22 +529,22 @@ simd_fft_butterfly4_kernel!(
     _mm512_sub_ps,
     _mm512_mul_ps
 );
-simd_axpy_kernels_muladd!(
+simd_axpy_kernels_fma!(
+    @feature "avx512f"
     f32,
     16,
     _mm512_loadu_ps,
     _mm512_storeu_ps,
-    _mm512_add_ps,
-    _mm512_sub_ps,
-    _mm512_mul_ps,
+    fmadd_acc,
+    fnmadd_acc,
     _mm512_set1_ps
 );
-simd_conv1d_kernel_muladd!(
+simd_conv1d_kernel_fma!(
+    @feature "avx512f"
     f32,
     16,
     _mm512_loadu_ps,
     _mm512_storeu_ps,
-    _mm512_add_ps,
-    _mm512_mul_ps,
+    fmadd_acc,
     _mm512_set1_ps
 );

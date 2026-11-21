@@ -24,10 +24,10 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     };
 
     // 4 accumulators × 4 lanes = 16 elements per iteration.
-    let mut ai = a.chunks_exact(16);
-    let mut bi = b.chunks_exact(16);
-    for (ac, bc) in (&mut ai).zip(&mut bi) {
-        // SAFETY: `chunks_exact(16)` yields chunks of exactly 16 `f32`, so the
+    let (a_main, a_rem) = a.as_chunks::<16>();
+    let (b_main, b_rem) = b.as_chunks::<16>();
+    for (ac, bc) in a_main.iter().zip(b_main) {
+        // SAFETY: `ac` and `bc` are `[f32; 16]` arrays, so the
         // four 4-lane loads at offsets 0, 4, 8 and 12 cover each chunk exactly.
         unsafe {
             let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
@@ -62,10 +62,10 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     // Remainder: up to 15 elements — 4-wide vectors first, then scalar.
     // SAFETY: register broadcast of zero.
     let mut acc_rem = unsafe { _mm_setzero_ps() };
-    let mut ar = ai.remainder().chunks_exact(4);
-    let mut br = bi.remainder().chunks_exact(4);
-    for (ac, bc) in (&mut ar).zip(&mut br) {
-        // SAFETY: each chunk is exactly 4 `f32` — one vector load each.
+    let (a_vec, a_tail) = a_rem.as_chunks::<4>();
+    let (b_vec, b_tail) = b_rem.as_chunks::<4>();
+    for (ac, bc) in a_vec.iter().zip(b_vec) {
+        // SAFETY: each chunk is a `[f32; 4]` array — one vector load each.
         unsafe {
             acc_rem = _mm_add_ps(
                 acc_rem,
@@ -83,7 +83,7 @@ pub fn dot(a: &[f32], b: &[f32]) -> f32 {
         }
     };
 
-    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+    for (&x, &y) in a_tail.iter().zip(b_tail) {
         sum += x * y;
     }
     sum

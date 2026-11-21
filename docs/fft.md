@@ -5,7 +5,7 @@ Pure-Rust, no-std-compatible FFT integrated with the crate's `Complex` and SIMD 
 Requires the `fft` Cargo feature:
 
 ```toml
-numeris = { version = "0.6", features = ["fft"] }
+numeris = { version = "0.7", features = ["fft"] }
 ```
 
 ## Not FFTW
@@ -260,8 +260,8 @@ ifftshift2d(&mut m);  // exact inverse
 
 - The `DynFft` power-of-two path deinterleaves into structure-of-arrays real/imaginary
   buffers and runs radix-4 butterflies (plus one trailing radix-2 stage for odd `log2(n)`)
-  through SIMD kernels (NEON / SSE2 / AVX / AVX-512 via compile-time dispatch, scalar
-  fallback otherwise).
+  through SIMD kernels (NEON / SSE2 / AVX / AVX-512, with the x86_64 tier picked at
+  compile time or, under `runtime-dispatch`, by a CPU probe; scalar fallback otherwise).
 - The no-alloc fixed tier stays scalar: it exists for small `N` on memory- and
   code-size-constrained targets, where the `2N` deinterleave scratch a fused SIMD
   butterfly wants would undercut the low-memory point.

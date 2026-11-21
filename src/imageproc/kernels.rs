@@ -69,7 +69,7 @@ pub fn gaussian_kernel_1d<T: FloatScalar>(sigma: T, truncate: T) -> Result<Vec<T
 ///
 /// Returns [`ImageError::InvalidKernelSize`] if `n == 0` or `n` is even.
 pub fn box_kernel_1d<T: FloatScalar>(n: usize) -> Result<Vec<T>, ImageError> {
-    if n == 0 || n % 2 == 0 {
+    if n == 0 || n.is_multiple_of(2) {
         return Err(ImageError::InvalidKernelSize);
     }
     let v = T::one() / T::from(n).unwrap();

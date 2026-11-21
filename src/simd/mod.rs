@@ -1,4 +1,4 @@
-//! SIMD-accelerated kernels with compile-time architecture dispatch.
+//! SIMD-accelerated kernels with compile-time (and optionally runtime) ISA dispatch.
 //!
 //! This module is private — it provides internal acceleration for matrix
 //! and vector operations. The public API is unchanged.
@@ -11,7 +11,11 @@
 //!
 //! On x86_64, the widest available instruction set is selected at compile
 //! time: AVX-512 > AVX > SSE2. Enable via `-C target-cpu=native` or
-//! `-C target-feature=+avx2` etc.
+//! `-C target-feature=+avx2` etc. With the `runtime-dispatch` cargo feature the
+//! compile-time tier becomes a floor that a one-time CPU probe may raise: the
+//! AVX / AVX-512 kernels carry `#[target_feature]`, so a baseline binary can
+//! still contain and call them once [`isa`] has confirmed support (see
+//! [`x86_select!`]). aarch64 needs neither — NEON is the baseline there.
 //!
 //! ## Matrix multiply
 //!
@@ -27,14 +31,15 @@
 //! |-----------|-----------|----------|----------|
 //! | `aarch64` | NEON      | 4×4      | 8×4      |
 //! | `x86_64`  | SSE2      | 4×4      | 8×4      |
-//! | `x86_64`  | AVX       | 8×4      | 16×4     |
+//! | `x86_64`  | AVX + FMA | 8×4      | 16×4     |
 //! | `x86_64`  | AVX-512   | 16×4     | 32×4     |
 //! | other     | scalar    | 4×4      | 4×4      |
 
 // Each architecture file provides a full set of ISA kernels (dot, matmul, AXPY,
-// …). The compile-time dispatch selects the widest available ISA, so the
-// lower-ISA kernels (e.g. SSE2 when AVX is enabled) are deliberately present but
-// unused in that build — not removable, just inactive for this target.
+// …). The dispatch selects one tier per call, so in any given build some tiers
+// are deliberately present but unused (SSE2 when AVX is a compile-time feature;
+// AVX / AVX-512 without `runtime-dispatch` or the matching feature) — not
+// removable, just inactive for this target.
 #![allow(dead_code)]
 
 // ── ISA kernel macros ──────────────────────────────────────────────────────
@@ -57,9 +62,17 @@
 /// `set1(scalar)`).
 #[allow(unused_macros)] // unused on non-SIMD targets (e.g. thumbv7em)
 macro_rules! simd_elementwise_kernels {
-    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
+    ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
         /// Element-wise addition: out[i] = a[i] + b[i].
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn add_slices(a: &[$t], b: &[$t], out: &mut [$t]) {
             debug_assert_eq!(a.len(), b.len());
             debug_assert_eq!(a.len(), out.len());
@@ -81,6 +94,14 @@ macro_rules! simd_elementwise_kernels {
 
         /// Element-wise subtraction: out[i] = a[i] - b[i].
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn sub_slices(a: &[$t], b: &[$t], out: &mut [$t]) {
             debug_assert_eq!(a.len(), b.len());
             debug_assert_eq!(a.len(), out.len());
@@ -100,6 +121,14 @@ macro_rules! simd_elementwise_kernels {
 
         /// Scalar multiplication: out[i] = a[i] * scalar.
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn scale_slices(a: &[$t], scalar: $t, out: &mut [$t]) {
             debug_assert_eq!(a.len(), out.len());
             let n = a.len();
@@ -120,6 +149,14 @@ macro_rules! simd_elementwise_kernels {
         /// borrow means one provenance for both the loads and the stores, so no
         /// shared reference to the buffer exists while it is being written.
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn scale_in_place(a: &mut [$t], scalar: $t) {
             let n = a.len();
             // SAFETY: a register broadcast of a scalar; touches no memory.
@@ -139,13 +176,21 @@ macro_rules! simd_elementwise_kernels {
     };
 }
 
-/// AXPY kernels using a separate multiply + add/subtract (x86 SSE2/AVX/AVX-512).
-// Unused on aarch64 (which uses the fused variant below); the reverse holds on x86.
+/// AXPY kernels using a separate multiply + add/subtract (x86 SSE2, which has no FMA).
+// Unused on aarch64 (which uses the fused variant below).
 #[allow(unused_macros)]
 macro_rules! simd_axpy_kernels_muladd {
-    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
+    ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident, $set1:ident) => {
         /// AXPY: y[i] -= alpha * x[i].
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn axpy_neg(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
@@ -165,6 +210,14 @@ macro_rules! simd_axpy_kernels_muladd {
 
         /// AXPY: y[i] += alpha * x[i].
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn axpy_pos(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
@@ -184,12 +237,21 @@ macro_rules! simd_axpy_kernels_muladd {
     };
 }
 
-/// AXPY kernels using NEON fused multiply-add / multiply-subtract.
+/// AXPY kernels using fused multiply-add / multiply-subtract (NEON, and the x86
+/// AVX / AVX-512 tiers through accumulator-first adapters).
 #[allow(unused_macros)]
 macro_rules! simd_axpy_kernels_fma {
-    ($t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $fms:ident, $dup:ident) => {
+    ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $fms:ident, $dup:ident) => {
         /// AXPY: y[i] -= alpha * x[i].
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn axpy_neg(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
@@ -210,6 +272,14 @@ macro_rules! simd_axpy_kernels_fma {
 
         /// AXPY: y[i] += alpha * x[i].
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn axpy_pos(y: &mut [$t], alpha: $t, x: &[$t]) {
             debug_assert_eq!(y.len(), x.len());
             let n = y.len();
@@ -243,7 +313,7 @@ macro_rules! simd_axpy_kernels_fma {
 /// the window precondition, which is asserted once on entry (see the body).
 #[allow(unused_macros)]
 macro_rules! simd_conv1d_kernel_fma {
-    ($t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $dup:ident) => {
+    ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $fma:ident, $dup:ident) => {
         /// Strided 1D correlation: out[i] = Σ_k kernel[k] · src[i + k·stride].
         ///
         /// # Panics
@@ -253,6 +323,14 @@ macro_rules! simd_conv1d_kernel_fma {
         /// once per call (not per element) because the strided loads below rely on
         /// it in release builds, not just under `debug_assertions`.
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn conv1d(out: &mut [$t], src: &[$t], kernel: &[$t], stride: usize) {
             let n = out.len();
             let klen = kernel.len();
@@ -322,7 +400,7 @@ macro_rules! simd_conv1d_kernel_fma {
 /// (x86 SSE2/AVX/AVX-512). See [`simd_conv1d_kernel_fma`] for the contract.
 #[allow(unused_macros)]
 macro_rules! simd_conv1d_kernel_muladd {
-    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $mul:ident, $set1:ident) => {
+    ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $mul:ident, $set1:ident) => {
         /// Strided 1D correlation: out[i] = Σ_k kernel[k] · src[i + k·stride].
         ///
         /// # Panics
@@ -332,6 +410,14 @@ macro_rules! simd_conv1d_kernel_muladd {
         /// once per call (not per element) because the strided loads below rely on
         /// it in release builds, not just under `debug_assertions`.
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn conv1d(out: &mut [$t], src: &[$t], kernel: &[$t], stride: usize) {
             let n = out.len();
             let klen = kernel.len();
@@ -408,9 +494,17 @@ macro_rules! simd_conv1d_kernel_muladd {
 /// store / add / sub / mul intrinsics already wired for `simd_elementwise_kernels!`.
 #[allow(unused_macros)]
 macro_rules! simd_fft_butterfly_kernel {
-    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident) => {
+    ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident) => {
         /// SoA radix-2 butterfly (see the crate `simd::scalar::fft_butterfly` reference).
         #[inline]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn fft_butterfly(
             tr: &mut [$t],
             ti: &mut [$t],
@@ -486,10 +580,18 @@ macro_rules! simd_fft_butterfly_kernel {
 /// across every ISA, like `simd_fft_butterfly_kernel!`.
 #[allow(unused_macros)]
 macro_rules! simd_fft_butterfly4_kernel {
-    ($t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident) => {
+    ($(@feature $feat:literal)? $t:ty, $lanes:expr, $load:ident, $store:ident, $add:ident, $sub:ident, $mul:ident) => {
         /// SoA radix-4 butterfly (see the crate `simd::scalar::fft_butterfly4` reference).
         #[inline]
         #[allow(clippy::too_many_arguments)]
+        $(
+        #[target_feature(enable = $feat)]
+        // Register-only intrinsics (broadcasts) are safe to call inside a
+        // `#[target_feature]` function, so their `unsafe` blocks — required in
+        // the unattributed baseline tiers this macro also serves — are redundant
+        // here.
+        #[allow(unused_unsafe)]
+        )?
         pub fn fft_butterfly4(
             ar: &mut [$t],
             ai: &mut [$t],
@@ -613,14 +715,18 @@ pub(crate) mod f32_sse2;
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod f64_sse2;
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+// The AVX / AVX-512 tiers compile on every x86_64 target: each kernel carries
+// its own `#[target_feature]`, and `isa()` below decides whether it may be
+// called. In a build without the feature enabled at compile time and without
+// `runtime-dispatch`, they are never referenced and are dropped by the linker.
+#[cfg(target_arch = "x86_64")]
 pub(crate) mod f32_avx;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+#[cfg(target_arch = "x86_64")]
 pub(crate) mod f64_avx;
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[cfg(target_arch = "x86_64")]
 pub(crate) mod f32_avx512;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[cfg(target_arch = "x86_64")]
 pub(crate) mod f64_avx512;
 
 use core::any::TypeId;
@@ -697,6 +803,123 @@ impl<T: Copy + 'static, U: Copy + 'static> TypeEq<T, U> {
     }
 }
 
+// ── x86_64 tier selection ──────────────────────────────────────────────────
+
+/// The x86_64 SIMD tier a dispatch call may use.
+///
+/// Ordered by width, so `>=` comparisons read as "at least this wide".
+#[cfg(target_arch = "x86_64")]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub(crate) enum Isa {
+    /// 128-bit — the x86_64 baseline, always available.
+    Sse2,
+    /// 256-bit (`avx` + `fma`; the tier fuses every multiply-add).
+    Avx,
+    /// 512-bit (`avx512f`).
+    Avx512,
+}
+
+/// Widest x86_64 tier this build may call.
+///
+/// The compile-time target features set a floor: a tier that is enabled for the
+/// whole compilation unit is returned as a constant, so the `match` in
+/// [`x86_select!`] folds away and the generated code is identical to a build
+/// without runtime dispatch. Under the `runtime-dispatch` feature the floor may
+/// only be *raised*, by [`runtime_isa`], never lowered.
+#[cfg(target_arch = "x86_64")]
+#[inline(always)]
+pub(crate) fn isa() -> Isa {
+    #[cfg(target_feature = "avx512f")]
+    {
+        Isa::Avx512
+    }
+    #[cfg(not(target_feature = "avx512f"))]
+    {
+        #[cfg(all(target_feature = "avx", target_feature = "fma"))]
+        let floor = Isa::Avx;
+        #[cfg(not(all(target_feature = "avx", target_feature = "fma")))]
+        let floor = Isa::Sse2;
+        #[cfg(feature = "runtime-dispatch")]
+        {
+            runtime_isa().max(floor)
+        }
+        #[cfg(not(feature = "runtime-dispatch"))]
+        {
+            floor
+        }
+    }
+}
+
+/// Widest tier the running CPU (and OS) support, probed once and cached.
+///
+/// `std::is_x86_feature_detected!` already caches its own probe, but each call
+/// is a load plus a bit test per feature; caching the resolved tier in one byte
+/// keeps the per-dispatch cost to a single relaxed load and a compare. The OS
+/// state-save check (`xgetbv`) is part of the std probe, so a CPU whose kernel
+/// has not enabled AVX / ZMM state reports the lower tier.
+#[cfg(all(target_arch = "x86_64", feature = "runtime-dispatch"))]
+#[inline(always)]
+fn runtime_isa() -> Isa {
+    use core::sync::atomic::{AtomicU8, Ordering};
+    // 0 = not yet probed; otherwise `Isa as u8 + 1`.
+    static CACHE: AtomicU8 = AtomicU8::new(0);
+
+    #[cold]
+    fn probe() -> Isa {
+        let isa = if std::is_x86_feature_detected!("avx512f") {
+            Isa::Avx512
+        } else if std::is_x86_feature_detected!("avx") && std::is_x86_feature_detected!("fma") {
+            Isa::Avx
+        } else {
+            Isa::Sse2
+        };
+        CACHE.store(isa as u8 + 1, Ordering::Relaxed);
+        isa
+    }
+
+    match CACHE.load(Ordering::Relaxed) {
+        0 => probe(),
+        1 => Isa::Sse2,
+        2 => Isa::Avx,
+        _ => Isa::Avx512,
+    }
+}
+
+/// Call `$kernel` from the widest x86_64 tier that [`isa`] reports.
+///
+/// The first token names the element type, which selects the module family
+/// (`f64` → `f64_sse2` / `f64_avx` / `f64_avx512`). Expands to an expression, so
+/// it also carries `dot`'s return value.
+///
+/// The AVX and AVX-512 arms are `unsafe` blocks: those kernels are
+/// `#[target_feature]` functions, and calling one is unsafe unless the *caller*
+/// carries the same attribute — a crate-wide `-C target-feature` flag does not
+/// count, so the block is needed even in a build where the tier is the
+/// compile-time floor. This is the crate's only dispatch-site `unsafe`.
+#[cfg(target_arch = "x86_64")]
+macro_rules! x86_select {
+    (f64, $kernel:ident ( $($arg:expr),* $(,)? )) => {
+        x86_select!(@tiers f64_sse2, f64_avx, f64_avx512, $kernel($($arg),*))
+    };
+    (f32, $kernel:ident ( $($arg:expr),* $(,)? )) => {
+        x86_select!(@tiers f32_sse2, f32_avx, f32_avx512, $kernel($($arg),*))
+    };
+    (@tiers $sse2:ident, $avx:ident, $avx512:ident, $kernel:ident ( $($arg:expr),* )) => {
+        match isa() {
+            // SAFETY: `isa()` returns `Avx512` only when AVX-512F is a
+            // compile-time target feature of this build, or `runtime_isa` has
+            // confirmed via `is_x86_feature_detected!("avx512f")` that the
+            // running CPU and OS support it — the precondition for calling a
+            // `#[target_feature(enable = "avx512f")]` kernel.
+            Isa::Avx512 => unsafe { $avx512::$kernel($($arg),*) },
+            // SAFETY: as for `Avx512` — `isa()` returns `Avx` only when AVX and FMA
+            // are compile-time target features or the runtime probe confirmed both.
+            Isa::Avx => unsafe { $avx::$kernel($($arg),*) },
+            Isa::Sse2 => $sse2::$kernel($($arg),*),
+        }
+    };
+}
+
 /// Dispatch dot product to SIMD or scalar fallback.
 #[inline]
 pub(crate) fn dot_dispatch<T: Scalar>(a: &[T], b: &[T]) -> T {
@@ -713,22 +936,12 @@ pub(crate) fn dot_dispatch<T: Scalar>(a: &[T], b: &[T]) -> T {
     {
         if let Some(w) = TypeEq::<T, f64>::new() {
             let (a, b) = (w.slice(a), w.slice(b));
-            #[cfg(target_feature = "avx512f")]
-            let result = f64_avx512::dot(a, b);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            let result = f64_avx::dot(a, b);
-            #[cfg(not(target_feature = "avx"))]
-            let result = f64_sse2::dot(a, b);
+            let result = x86_select!(f64, dot(a, b));
             return w.value_back(result);
         }
         if let Some(w) = TypeEq::<T, f32>::new() {
             let (a, b) = (w.slice(a), w.slice(b));
-            #[cfg(target_feature = "avx512f")]
-            let result = f32_avx512::dot(a, b);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            let result = f32_avx::dot(a, b);
-            #[cfg(not(target_feature = "avx"))]
-            let result = f32_sse2::dot(a, b);
+            let result = x86_select!(f32, dot(a, b));
             return w.value_back(result);
         }
     }
@@ -785,22 +998,12 @@ pub(crate) fn matmul_dispatch<T: Scalar>(
     {
         if let Some(w) = TypeEq::<T, f64>::new() {
             let (a, b, c) = (w.slice(a), w.slice(b), w.slice_mut(c));
-            #[cfg(target_feature = "avx512f")]
-            f64_avx512::matmul(a, b, c, m, n, p);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f64_avx::matmul(a, b, c, m, n, p);
-            #[cfg(not(target_feature = "avx"))]
-            f64_sse2::matmul(a, b, c, m, n, p);
+            x86_select!(f64, matmul(a, b, c, m, n, p));
             return;
         }
         if let Some(w) = TypeEq::<T, f32>::new() {
             let (a, b, c) = (w.slice(a), w.slice(b), w.slice_mut(c));
-            #[cfg(target_feature = "avx512f")]
-            f32_avx512::matmul(a, b, c, m, n, p);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f32_avx::matmul(a, b, c, m, n, p);
-            #[cfg(not(target_feature = "avx"))]
-            f32_sse2::matmul(a, b, c, m, n, p);
+            x86_select!(f32, matmul(a, b, c, m, n, p));
             return;
         }
     }
@@ -832,22 +1035,12 @@ macro_rules! simd_dispatch {
             {
                 if let Some(w) = TypeEq::<T, f64>::new() {
                     let (a, b, out) = (w.slice(a), w.slice(b), w.slice_mut(out));
-                    #[cfg(target_feature = "avx512f")]
-                    f64_avx512::$kernel(a, b, out);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f64_avx::$kernel(a, b, out);
-                    #[cfg(not(target_feature = "avx"))]
-                    f64_sse2::$kernel(a, b, out);
+                    x86_select!(f64, $kernel(a, b, out));
                     return;
                 }
                 if let Some(w) = TypeEq::<T, f32>::new() {
                     let (a, b, out) = (w.slice(a), w.slice(b), w.slice_mut(out));
-                    #[cfg(target_feature = "avx512f")]
-                    f32_avx512::$kernel(a, b, out);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f32_avx::$kernel(a, b, out);
-                    #[cfg(not(target_feature = "avx"))]
-                    f32_sse2::$kernel(a, b, out);
+                    x86_select!(f32, $kernel(a, b, out));
                     return;
                 }
             }
@@ -874,22 +1067,12 @@ macro_rules! simd_dispatch {
             {
                 if let Some(w) = TypeEq::<T, f64>::new() {
                     let (a, s, out) = (w.slice(a), w.value(scalar), w.slice_mut(out));
-                    #[cfg(target_feature = "avx512f")]
-                    f64_avx512::$kernel(a, s, out);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f64_avx::$kernel(a, s, out);
-                    #[cfg(not(target_feature = "avx"))]
-                    f64_sse2::$kernel(a, s, out);
+                    x86_select!(f64, $kernel(a, s, out));
                     return;
                 }
                 if let Some(w) = TypeEq::<T, f32>::new() {
                     let (a, s, out) = (w.slice(a), w.value(scalar), w.slice_mut(out));
-                    #[cfg(target_feature = "avx512f")]
-                    f32_avx512::$kernel(a, s, out);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f32_avx::$kernel(a, s, out);
-                    #[cfg(not(target_feature = "avx"))]
-                    f32_sse2::$kernel(a, s, out);
+                    x86_select!(f32, $kernel(a, s, out));
                     return;
                 }
             }
@@ -916,22 +1099,12 @@ macro_rules! simd_dispatch {
             {
                 if let Some(w) = TypeEq::<T, f64>::new() {
                     let (s, a) = (w.value(scalar), w.slice_mut(a));
-                    #[cfg(target_feature = "avx512f")]
-                    f64_avx512::$kernel(a, s);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f64_avx::$kernel(a, s);
-                    #[cfg(not(target_feature = "avx"))]
-                    f64_sse2::$kernel(a, s);
+                    x86_select!(f64, $kernel(a, s));
                     return;
                 }
                 if let Some(w) = TypeEq::<T, f32>::new() {
                     let (s, a) = (w.value(scalar), w.slice_mut(a));
-                    #[cfg(target_feature = "avx512f")]
-                    f32_avx512::$kernel(a, s);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f32_avx::$kernel(a, s);
-                    #[cfg(not(target_feature = "avx"))]
-                    f32_sse2::$kernel(a, s);
+                    x86_select!(f32, $kernel(a, s));
                     return;
                 }
             }
@@ -963,22 +1136,12 @@ macro_rules! simd_dispatch {
             {
                 if let Some(w) = TypeEq::<T, f64>::new() {
                     let (y, al, x) = (w.slice_mut(y), w.value(alpha), w.slice(x));
-                    #[cfg(target_feature = "avx512f")]
-                    f64_avx512::$kernel(y, al, x);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f64_avx::$kernel(y, al, x);
-                    #[cfg(not(target_feature = "avx"))]
-                    f64_sse2::$kernel(y, al, x);
+                    x86_select!(f64, $kernel(y, al, x));
                     return;
                 }
                 if let Some(w) = TypeEq::<T, f32>::new() {
                     let (y, al, x) = (w.slice_mut(y), w.value(alpha), w.slice(x));
-                    #[cfg(target_feature = "avx512f")]
-                    f32_avx512::$kernel(y, al, x);
-                    #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-                    f32_avx::$kernel(y, al, x);
-                    #[cfg(not(target_feature = "avx"))]
-                    f32_sse2::$kernel(y, al, x);
+                    x86_select!(f32, $kernel(y, al, x));
                     return;
                 }
             }
@@ -1042,22 +1205,12 @@ pub(crate) fn conv1d_dispatch<T: Scalar>(out: &mut [T], src: &[T], kernel: &[T],
     {
         if let Some(w) = TypeEq::<T, f64>::new() {
             let (out, src, kernel) = (w.slice_mut(out), w.slice(src), w.slice(kernel));
-            #[cfg(target_feature = "avx512f")]
-            f64_avx512::conv1d(out, src, kernel, stride);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f64_avx::conv1d(out, src, kernel, stride);
-            #[cfg(not(target_feature = "avx"))]
-            f64_sse2::conv1d(out, src, kernel, stride);
+            x86_select!(f64, conv1d(out, src, kernel, stride));
             return;
         }
         if let Some(w) = TypeEq::<T, f32>::new() {
             let (out, src, kernel) = (w.slice_mut(out), w.slice(src), w.slice(kernel));
-            #[cfg(target_feature = "avx512f")]
-            f32_avx512::conv1d(out, src, kernel, stride);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            f32_avx::conv1d(out, src, kernel, stride);
-            #[cfg(not(target_feature = "avx"))]
-            f32_sse2::conv1d(out, src, kernel, stride);
+            x86_select!(f32, conv1d(out, src, kernel, stride));
             return;
         }
     }
@@ -1093,6 +1246,13 @@ pub(crate) fn fft_butterfly_dispatch<T: Scalar>(
             $module::fft_butterfly(tr, ti, br, bi, wr, wi);
             return;
         }};
+        ($w:ident, x86 $ty:ident) => {{
+            let (tr, ti) = ($w.slice_mut(tr), $w.slice_mut(ti));
+            let (br, bi) = ($w.slice_mut(br), $w.slice_mut(bi));
+            let (wr, wi) = ($w.slice(wr), $w.slice(wi));
+            x86_select!($ty, fft_butterfly(tr, ti, br, bi, wr, wi));
+            return;
+        }};
     }
 
     #[cfg(target_arch = "aarch64")]
@@ -1107,20 +1267,10 @@ pub(crate) fn fft_butterfly_dispatch<T: Scalar>(
     #[cfg(target_arch = "x86_64")]
     {
         if let Some(w) = TypeEq::<T, f64>::new() {
-            #[cfg(target_feature = "avx512f")]
-            simd_call!(w, f64_avx512);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            simd_call!(w, f64_avx);
-            #[cfg(not(target_feature = "avx"))]
-            simd_call!(w, f64_sse2);
+            simd_call!(w, x86 f64);
         }
         if let Some(w) = TypeEq::<T, f32>::new() {
-            #[cfg(target_feature = "avx512f")]
-            simd_call!(w, f32_avx512);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            simd_call!(w, f32_avx);
-            #[cfg(not(target_feature = "avx"))]
-            simd_call!(w, f32_sse2);
+            simd_call!(w, x86 f32);
         }
     }
     scalar::fft_butterfly(tr, ti, br, bi, wr, wi);
@@ -1167,6 +1317,20 @@ pub(crate) fn fft_butterfly4_dispatch<T: Scalar>(
             $module::fft_butterfly4(ar, ai, br, bi, cr, ci, dr, di, w1r, w1i, w2r, w2i, w3r, w3i);
             return;
         }};
+        ($w:ident, x86 $ty:ident) => {{
+            let (ar, ai) = ($w.slice_mut(ar), $w.slice_mut(ai));
+            let (br, bi) = ($w.slice_mut(br), $w.slice_mut(bi));
+            let (cr, ci) = ($w.slice_mut(cr), $w.slice_mut(ci));
+            let (dr, di) = ($w.slice_mut(dr), $w.slice_mut(di));
+            let (w1r, w1i) = ($w.slice(w1r), $w.slice(w1i));
+            let (w2r, w2i) = ($w.slice(w2r), $w.slice(w2i));
+            let (w3r, w3i) = ($w.slice(w3r), $w.slice(w3i));
+            x86_select!(
+                $ty,
+                fft_butterfly4(ar, ai, br, bi, cr, ci, dr, di, w1r, w1i, w2r, w2i, w3r, w3i)
+            );
+            return;
+        }};
     }
 
     #[cfg(target_arch = "aarch64")]
@@ -1181,20 +1345,10 @@ pub(crate) fn fft_butterfly4_dispatch<T: Scalar>(
     #[cfg(target_arch = "x86_64")]
     {
         if let Some(w) = TypeEq::<T, f64>::new() {
-            #[cfg(target_feature = "avx512f")]
-            simd_call!(w, f64_avx512);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            simd_call!(w, f64_avx);
-            #[cfg(not(target_feature = "avx"))]
-            simd_call!(w, f64_sse2);
+            simd_call!(w, x86 f64);
         }
         if let Some(w) = TypeEq::<T, f32>::new() {
-            #[cfg(target_feature = "avx512f")]
-            simd_call!(w, f32_avx512);
-            #[cfg(all(target_feature = "avx", not(target_feature = "avx512f")))]
-            simd_call!(w, f32_avx);
-            #[cfg(not(target_feature = "avx"))]
-            simd_call!(w, f32_sse2);
+            simd_call!(w, x86 f32);
         }
     }
     scalar::fft_butterfly4(ar, ai, br, bi, cr, ci, dr, di, w1r, w1i, w2r, w2i, w3r, w3i);
@@ -1696,5 +1850,231 @@ mod tests {
         conv1d_dispatch(&mut out, &src, &kernel, 1);
         // out[i] = src[i] - 2*src[i+1] + src[i+2] = 0 for a linear ramp.
         assert_eq!(out, vec![0, 0, 0, 0]);
+    }
+
+    // ── x86_64 tiers: every tier this CPU supports vs the scalar reference ──
+    //
+    // The `*_dispatch` tests above exercise whichever tier `isa()` picks; these
+    // call each tier's kernels directly so that a CPU with AVX-512 checks all
+    // three, and so that runtime detection is compared against `std`'s.
+
+    #[cfg(all(target_arch = "x86_64", feature = "runtime-dispatch"))]
+    mod x86_tiers {
+        use super::super::{f32_avx, f32_avx512, f32_sse2, f64_avx, f64_avx512, f64_sse2};
+        use super::super::{isa, scalar, Isa};
+
+        #[test]
+        fn isa_agrees_with_std_detection() {
+            let expected = if std::is_x86_feature_detected!("avx512f") {
+                Isa::Avx512
+            } else if std::is_x86_feature_detected!("avx") && std::is_x86_feature_detected!("fma") {
+                Isa::Avx
+            } else {
+                Isa::Sse2
+            };
+            assert_eq!(isa(), expected);
+            // Second call takes the cached path.
+            assert_eq!(isa(), expected);
+            // The compile-time floor is never lowered by the probe.
+            if cfg!(target_feature = "avx512f") {
+                assert_eq!(isa(), Isa::Avx512);
+            } else if cfg!(all(target_feature = "avx", target_feature = "fma")) {
+                assert!(isa() >= Isa::Avx);
+            }
+        }
+
+        /// Deterministic pseudo-random values in [-1, 1).
+        fn seq<T: From<f32>>(n: usize, seed: u32) -> Vec<T> {
+            (0..n)
+                .map(|i| {
+                    let x = (i as u32)
+                        .wrapping_mul(2_654_435_761)
+                        .wrapping_add(seed.wrapping_mul(40_503))
+                        >> 16;
+                    T::from((x % 2000) as f32 / 1000.0 - 1.0)
+                })
+                .collect()
+        }
+
+        fn assert_close(got: f64, want: f64, tol: f64, what: &str) {
+            let scale = 1.0 + got.abs().max(want.abs());
+            assert!(
+                (got - want).abs() <= tol * scale,
+                "{what}: got {got}, want {want}"
+            );
+        }
+
+        fn assert_all_close<T: Copy + Into<f64>>(got: &[T], want: &[T], tol: f64, what: &str) {
+            assert_eq!(got.len(), want.len(), "{what}: length");
+            for (i, (&g, &w)) in got.iter().zip(want).enumerate() {
+                assert_close(g.into(), w.into(), tol, &format!("{what}[{i}]"));
+            }
+        }
+
+        /// Every kernel of one tier module against `scalar`, for one element type.
+        macro_rules! battery {
+            ($m:ident, $t:ty, $tol:expr) => {{
+                let tol: f64 = $tol;
+                let name = stringify!($m);
+                let alpha: $t = <$t>::from(0.75f32);
+                let lens = [
+                    0usize, 1, 2, 3, 4, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 100, 129,
+                ];
+                for &n in &lens {
+                    let a = seq::<$t>(n, 1);
+                    let b = seq::<$t>(n, 2);
+                    let what = format!("{name} n={n}");
+
+                    let want: f64 = scalar::dot(&a, &b).into();
+                    let got: f64 = $m::dot(&a, &b).into();
+                    assert_close(got, want, tol, &format!("{what} dot"));
+
+                    let (mut want, mut got) =
+                        (vec![<$t>::from(0.0f32); n], vec![<$t>::from(0.0f32); n]);
+                    scalar::add_slices(&a, &b, &mut want);
+                    $m::add_slices(&a, &b, &mut got);
+                    assert_all_close(&got, &want, tol, &format!("{what} add"));
+                    scalar::sub_slices(&a, &b, &mut want);
+                    $m::sub_slices(&a, &b, &mut got);
+                    assert_all_close(&got, &want, tol, &format!("{what} sub"));
+                    scalar::scale_slices(&a, alpha, &mut want);
+                    $m::scale_slices(&a, alpha, &mut got);
+                    assert_all_close(&got, &want, tol, &format!("{what} scale"));
+
+                    let (mut want, mut got) = (a.clone(), a.clone());
+                    scalar::scale_assign_slices(&mut want, alpha);
+                    $m::scale_in_place(&mut got, alpha);
+                    assert_all_close(&got, &want, tol, &format!("{what} scale_in_place"));
+
+                    let (mut want, mut got) = (a.clone(), a.clone());
+                    scalar::axpy_neg(&mut want, alpha, &b);
+                    $m::axpy_neg(&mut got, alpha, &b);
+                    assert_all_close(&got, &want, tol, &format!("{what} axpy_neg"));
+                    let (mut want, mut got) = (a.clone(), a.clone());
+                    scalar::axpy_pos(&mut want, alpha, &b);
+                    $m::axpy_pos(&mut got, alpha, &b);
+                    assert_all_close(&got, &want, tol, &format!("{what} axpy_pos"));
+                }
+
+                for &(m, n, p) in &[
+                    (1usize, 1usize, 1usize),
+                    (2, 3, 4),
+                    (4, 4, 4),
+                    (5, 7, 3),
+                    (8, 8, 8),
+                    (9, 5, 6),
+                    (16, 4, 4),
+                    (17, 9, 5),
+                    (33, 7, 4),
+                    (12, 300, 5),
+                ] {
+                    let a = seq::<$t>(m * n, 3);
+                    let b = seq::<$t>(n * p, 4);
+                    let (mut want, mut got) = (
+                        vec![<$t>::from(0.0f32); m * p],
+                        vec![<$t>::from(0.0f32); m * p],
+                    );
+                    scalar::matmul(&a, &b, &mut want, m, n, p);
+                    $m::matmul(&a, &b, &mut got, m, n, p);
+                    assert_all_close(&got, &want, tol, &format!("{name} matmul {m}x{n}x{p}"));
+                }
+
+                for &(n, k, stride) in &[
+                    (1usize, 1usize, 1usize),
+                    (20, 3, 1),
+                    (17, 5, 4),
+                    (64, 7, 1),
+                    (33, 4, 9),
+                ] {
+                    let src = seq::<$t>(n + (k - 1) * stride, 5);
+                    let kernel = seq::<$t>(k, 6);
+                    let (mut want, mut got) =
+                        (vec![<$t>::from(0.0f32); n], vec![<$t>::from(0.0f32); n]);
+                    scalar::conv1d(&mut want, &src, &kernel, stride);
+                    $m::conv1d(&mut got, &src, &kernel, stride);
+                    assert_all_close(
+                        &got,
+                        &want,
+                        tol,
+                        &format!("{name} conv1d n={n} k={k} stride={stride}"),
+                    );
+                }
+
+                for &h in &[1usize, 2, 3, 5, 8, 9, 16, 17, 33] {
+                    let mut want: Vec<Vec<$t>> = (0..4).map(|s| seq::<$t>(h, 10 + s)).collect();
+                    let mut got = want.clone();
+                    let (wr, wi) = (seq::<$t>(h, 20), seq::<$t>(h, 21));
+                    let [tr, ti, br, bi] = &mut want[..] else {
+                        unreachable!()
+                    };
+                    scalar::fft_butterfly(tr, ti, br, bi, &wr, &wi);
+                    let [tr, ti, br, bi] = &mut got[..] else {
+                        unreachable!()
+                    };
+                    $m::fft_butterfly(tr, ti, br, bi, &wr, &wi);
+                    for (g, w) in got.iter().zip(&want) {
+                        assert_all_close(g, w, tol, &format!("{name} fft_butterfly h={h}"));
+                    }
+                }
+
+                for &q in &[1usize, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33] {
+                    let mut want: Vec<Vec<$t>> = (0..8).map(|s| seq::<$t>(q, 30 + s)).collect();
+                    let mut got = want.clone();
+                    let w: Vec<Vec<$t>> = (0..6).map(|s| seq::<$t>(q, 40 + s)).collect();
+                    let [ar, ai, br, bi, cr, ci, dr, di] = &mut want[..] else {
+                        unreachable!()
+                    };
+                    scalar::fft_butterfly4(
+                        ar, ai, br, bi, cr, ci, dr, di, &w[0], &w[1], &w[2], &w[3], &w[4], &w[5],
+                    );
+                    let [ar, ai, br, bi, cr, ci, dr, di] = &mut got[..] else {
+                        unreachable!()
+                    };
+                    $m::fft_butterfly4(
+                        ar, ai, br, bi, cr, ci, dr, di, &w[0], &w[1], &w[2], &w[3], &w[4], &w[5],
+                    );
+                    for (g, w) in got.iter().zip(&want) {
+                        assert_all_close(g, w, tol, &format!("{name} fft_butterfly4 q={q}"));
+                    }
+                }
+            }};
+        }
+
+        macro_rules! tier_test {
+            ($name:ident, $f64m:ident, $f32m:ident, $tier:expr) => {
+                #[test]
+                // The `unsafe` below is redundant for the SSE2 tier, whose
+                // kernels are unattributed baseline functions.
+                #[allow(unused_unsafe)]
+                fn $name() {
+                    if isa() < $tier {
+                        eprintln!(
+                            "skipping {}: this CPU has no {:?}",
+                            stringify!($name),
+                            $tier
+                        );
+                        return;
+                    }
+                    // SAFETY: `isa() >= $tier` was just established, and `isa()`
+                    // reports a tier only when it is a compile-time target feature
+                    // or `is_x86_feature_detected!` confirmed the CPU supports it —
+                    // the precondition for calling the tier's `#[target_feature]`
+                    // kernels from this baseline-compiled test.
+                    unsafe {
+                        battery!($f64m, f64, 1e-12);
+                        battery!($f32m, f32, 1e-4);
+                    }
+                }
+            };
+        }
+
+        tier_test!(sse2_tier_matches_scalar, f64_sse2, f32_sse2, Isa::Sse2);
+        tier_test!(avx_tier_matches_scalar, f64_avx, f32_avx, Isa::Avx);
+        tier_test!(
+            avx512_tier_matches_scalar,
+            f64_avx512,
+            f32_avx512,
+            Isa::Avx512
+        );
     }
 }

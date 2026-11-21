@@ -26,7 +26,7 @@ Numeris API reference is [here](https://docs.rs/numeris/)
 | **Statistics** | 10 distributions (Normal, Gamma, Beta, Student's t, Poisson, …) |
 | **Digital Control** | Butterworth/Chebyshev IIR filters, PID controller |
 | **Quaternion** | Unit quaternion rotations, SLERP, Euler angles, rotation matrices |
-| **SIMD** | NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) — always-on, no feature flag |
+| **SIMD** | NEON (aarch64), SSE2/AVX/AVX-512 (x86_64) — always-on, no feature flag; optional runtime CPU dispatch on x86_64 |
 
 ## Quick Start
 
@@ -73,7 +73,8 @@ let rotated = q * v; // ≈ [0, 1, 0]
 
 - **[Getting Started](getting-started.md)** — installation, feature flags, first examples
 - **Module docs** — detailed pages for each module (use the top tabs)
-- **[Performance](performance.md)** — SIMD tiers, benchmark numbers vs. nalgebra and faer
+- **[Performance](performance.md)** — benchmark numbers vs. nalgebra and faer, matmul micro-kernels, `rayon`
+- **[SIMD & Runtime Dispatch](simd.md)** — SIMD tiers, compile-time vs. runtime selection, the `runtime-dispatch` feature
 - **[No-std / Embedded](no-std.md)** — usage without std or heap allocation
 - **[Design](design.md)** — architectural decisions and trait hierarchy
 - **[API Reference ↗](https://docs.rs/numeris)** — full rustdoc on docs.rs

@@ -429,7 +429,10 @@ pub fn trapezoid<T: FloatScalar>(f: impl Fn(T) -> T, a: T, b: T, n: usize) -> T 
 /// assert!((result - 1.0 / 3.0).abs() < 1e-14);
 /// ```
 pub fn simpson<T: FloatScalar>(f: impl Fn(T) -> T, a: T, b: T, n: usize) -> T {
-    assert!(n > 0 && n % 2 == 0, "simpson: n must be even and > 0");
+    assert!(
+        n > 0 && n.is_multiple_of(2),
+        "simpson: n must be even and > 0"
+    );
     let n_t = T::from(n).unwrap();
     let h = (b - a) / n_t;
     let mut sum = f(a) + f(b);

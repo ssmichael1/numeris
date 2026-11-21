@@ -23,10 +23,10 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     };
 
     // 4 accumulators × 2 lanes = 8 elements per iteration.
-    let mut ai = a.chunks_exact(8);
-    let mut bi = b.chunks_exact(8);
-    for (ac, bc) in (&mut ai).zip(&mut bi) {
-        // SAFETY: `chunks_exact(8)` yields chunks of exactly 8 `f64`, so the
+    let (a_main, a_rem) = a.as_chunks::<8>();
+    let (b_main, b_rem) = b.as_chunks::<8>();
+    for (ac, bc) in a_main.iter().zip(b_main) {
+        // SAFETY: `ac` and `bc` are `[f64; 8]` arrays, so the
         // four 2-lane loads at offsets 0, 2, 4 and 6 cover each chunk exactly.
         unsafe {
             let (ap, bp) = (ac.as_ptr(), bc.as_ptr());
@@ -47,10 +47,10 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     // Remainder: up to 7 elements — 2-wide vectors first, then scalar.
     // SAFETY: register broadcast of zero.
     let mut acc_rem = unsafe { vdupq_n_f64(0.0) };
-    let mut ar = ai.remainder().chunks_exact(2);
-    let mut br = bi.remainder().chunks_exact(2);
-    for (ac, bc) in (&mut ar).zip(&mut br) {
-        // SAFETY: each chunk is exactly 2 `f64` — one vector load each.
+    let (a_vec, a_tail) = a_rem.as_chunks::<2>();
+    let (b_vec, b_tail) = b_rem.as_chunks::<2>();
+    for (ac, bc) in a_vec.iter().zip(b_vec) {
+        // SAFETY: each chunk is a `[f64; 2]` array — one vector load each.
         unsafe {
             acc_rem = vfmaq_f64(acc_rem, vld1q_f64(ac.as_ptr()), vld1q_f64(bc.as_ptr()));
         }
@@ -58,7 +58,7 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     // SAFETY: register arithmetic only.
     sum += unsafe { vaddvq_f64(acc_rem) };
 
-    for (&x, &y) in ar.remainder().iter().zip(br.remainder()) {
+    for (&x, &y) in a_tail.iter().zip(b_tail) {
         sum += x * y;
     }
     sum

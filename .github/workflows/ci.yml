@@ -90,13 +90,30 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build ${{ matrix.features.flags }} --target thumbv7em-none-eabi
 
-  # Guard the declared MSRV (1.80 — the floor required by `[T]::as_flattened`
-  # in core matrix code, and by rayon). Build everything on the floor toolchain.
+  # The runtime-dispatch feature on the *baseline* x86_64 target: no
+  # `target-cpu` flag, so the compile-time floor is SSE2 and the AVX (and, if the
+  # runner has it, AVX-512) tier is reached only through the runtime probe. The
+  # per-tier tests print which tiers they skipped.
+  runtime-dispatch:
+    name: runtime-dispatch (x86_64 baseline)
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-features
+      - run: cargo test --all-features --lib simd::tests::x86_tiers -- --nocapture
+
+  # Guard the declared MSRV (1.89 — the floor for safe `#[target_feature]`
+  # functions and the AVX-512 intrinsics, both used by the always-compiled
+  # x86_64 SIMD tiers). Build everything on the floor toolchain.
   msrv:
-    name: MSRV 1.80
+    name: MSRV 1.89
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.80
+      - uses: dtolnay/rust-toolchain@1.89
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --all-features

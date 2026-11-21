@@ -52,6 +52,7 @@ nav:
       - Statistics: stats.md
       - Quaternion: quaternion.md
   - Performance: performance.md
+  - SIMD & Runtime Dispatch: simd.md
   - No-std / Embedded: no-std.md
   - Design:
       - Overview: design.md
