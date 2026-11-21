@@ -10,7 +10,7 @@ SIMD is **always-on** for `f32` and `f64` — no feature flag needed. By default
 |---|---|---|---|
 | aarch64 | NEON (128-bit) | 8×4 | 8×4 |
 | x86_64 | SSE2 (128-bit) | 4×4 | 8×4 |
-| x86_64 | AVX + FMA (256-bit) | 8×4 | 16×4 |
+| x86_64 | AVX (256-bit) | 8×4 | 16×4 |
 | x86_64 | AVX-512 (512-bit) | 16×4 | 32×4 |
 | other | scalar fallback | 4×4 | 4×4 |
 
@@ -19,8 +19,7 @@ AVX and AVX-512 require compile-time opt-in:
 ```bash
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 # or explicitly:
-RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release          # AVX tier
-RUSTFLAGS="-C target-feature=+avx2,+fma,+avx512f" cargo build --release # AVX-512 tier
+RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
 ```
 
 SSE2 (x86_64) and NEON (aarch64) are always-on baselines.
@@ -29,9 +28,9 @@ SSE2 (x86_64) and NEON (aarch64) are always-on baselines.
 
 For a binary built once and run on many machines, the optional **`runtime-dispatch`** feature
 (x86_64, implies `std`) compiles every tier in and picks the widest one the running CPU supports by
-a one-time cached probe; the compile-time flags above become a floor it can only raise. The AVX
-tier requires FMA (its multiply-adds are fused). Full details, tier-by-tier notes, and the design
-rationale are on the [SIMD & Runtime Dispatch](simd.md) page.
+a one-time cached probe; the compile-time flags above become a floor it can only raise. Full
+details, tier-by-tier notes, and the design rationale are on the
+[SIMD & Runtime Dispatch](simd.md) page.
 
 ## Matrix Multiply Micro-Kernels
 
