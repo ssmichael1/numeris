@@ -675,6 +675,115 @@ mod adaptive_tests {
         );
     }
 
+    // Non-autonomous regression tests (issue #46): the h γ_i ∂f/∂t stage
+    // term. Without it RODAS4 is only first order whenever f depends on t;
+    // every other RODAS4 test above is autonomous and could not see that.
+
+    /// Prothero–Robinson: y' = λ (y − sin t) + cos t, exact y = sin t when
+    /// y(t0) = sin t0, for any λ. Stiff for large |λ|.
+    fn prothero_robinson(lambda: f64) -> impl Fn(f64, &Vector<f64, 1>) -> Vector<f64, 1> {
+        move |t, y| Vector::from_array([lambda * (y[0] - t.sin()) + t.cos()])
+    }
+
+    /// Settings that pin RODAS4 to `n` equal steps across `[t0, tf]`.
+    fn fixed_steps(t0: f64, tf: f64, n: usize) -> AdaptiveSettings<f64> {
+        let h = (tf - t0) / n as f64;
+        AdaptiveSettings {
+            initial_step: Some(h),
+            min_step: h * (1.0 + 1e-6), // force acceptance of every step
+            min_factor: 1.0,
+            max_factor: 1.0, // controller factor clamped to 1: h never changes
+            ..AdaptiveSettings::default()
+        }
+    }
+
+    #[test]
+    fn rodas4_non_autonomous_convergence_order() {
+        let (t0, tf, lambda): (f64, f64, f64) = (0.7, 1.7, -1.0);
+        let f = prothero_robinson(lambda);
+        let y0 = Vector::from_array([t0.sin()]);
+        let errs: [f64; 4] = core::array::from_fn(|i| {
+            let n = 8 << i;
+            let sol = RODAS4::integrate(
+                t0,
+                tf,
+                &y0,
+                &f,
+                |_t, _y| Matrix::new([[lambda]]),
+                &fixed_steps(t0, tf, n),
+            )
+            .unwrap();
+            assert_eq!(sol.accepted, n);
+            (sol.y[0] - tf.sin()).abs()
+        });
+        for w in errs.windows(2) {
+            let order = (w[0] / w[1]).log2();
+            assert!(
+                order > 3.5,
+                "RODAS4 non-autonomous observed order {order:.2} (errors {errs:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn rodas4_forced_pendulum_convergence_order() {
+        // The issue #46 reproducer: y'' = −sin y − 0.3 y' + 0.5 cos(1.3 t).
+        let f = |t: f64, y: &Vector<f64, 2>| {
+            Vector::from_array([y[1], -y[0].sin() - 0.3 * y[1] + 0.5 * (1.3 * t).cos()])
+        };
+        let jac = |_t: f64, y: &Vector<f64, 2>| Matrix::new([[0.0, 1.0], [-y[0].cos(), -0.3]]);
+        let (t0, tf): (f64, f64) = (0.7, 1.7);
+        let y0 = Vector::from_array([0.4, -0.2]);
+        let tight = AdaptiveSettings {
+            abs_tol: 1e-14,
+            rel_tol: 1e-14,
+            ..AdaptiveSettings::default()
+        };
+        let reference = RKV98::integrate(t0, tf, &y0, f, &tight).unwrap().y;
+        let errs: [f64; 3] = core::array::from_fn(|i| {
+            let n = 8 << (2 * i); // 8, 32, 128
+            let sol = RODAS4::integrate(t0, tf, &y0, f, jac, &fixed_steps(t0, tf, n)).unwrap();
+            let d = (sol.y - reference).abs();
+            d[0].max(d[1])
+        });
+        for w in errs.windows(2) {
+            let order = (w[0] / w[1]).log2() / 2.0; // 4× steps per window
+            assert!(
+                order > 3.5,
+                "forced pendulum observed order {order:.2} (errors {errs:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn rodas4_stiff_non_autonomous_adaptive() {
+        // Stiff Prothero–Robinson through the adaptive controller, with both
+        // Jacobian sources. Before the fix this hit `max_steps` (100k) without
+        // finishing; with it, ~60 steps. (Intermediate stiffness, |λ| ~ 1e2–1e4,
+        // needs more steps — Rosenbrock order reduction on Prothero–Robinson,
+        // not the ∂f/∂t estimate: a central difference gives the same counts.)
+        let (t0, tf, lambda): (f64, f64, f64) = (0.0, 10.0, -1.0e6);
+        let f = prothero_robinson(lambda);
+        let y0 = Vector::from_array([0.0]);
+        let settings = AdaptiveSettings {
+            abs_tol: 1e-8,
+            rel_tol: 1e-8,
+            ..AdaptiveSettings::default()
+        };
+        let user = RODAS4::integrate(t0, tf, &y0, &f, |_t, _y| Matrix::new([[lambda]]), &settings)
+            .unwrap();
+        let auto = RODAS4::integrate_auto(t0, tf, &y0, &f, &settings).unwrap();
+        for (name, sol) in [("user", &user), ("auto", &auto)] {
+            let err = (sol.y[0] - tf.sin()).abs();
+            assert!(err < 1e-7, "{name}-Jacobian error {err:e}");
+            assert!(
+                sol.accepted < 500,
+                "{name}-Jacobian took {} steps",
+                sol.accepted
+            );
+        }
+    }
+
     #[test]
     fn too_many_rejections_explicit() {
         // Absurdly tight tolerance on a simple problem should trigger

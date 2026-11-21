@@ -255,6 +255,7 @@ let sol = RODAS4::integrate(
 | L-stable | Yes (no oscillation for arbitrarily large step sizes) |
 | Stiffly accurate | Yes |
 | Jacobian | User-supplied or auto finite-difference |
+| Time dependence | `∂f/∂t` term estimated by forward difference (one extra `f` evaluation per step), so full order holds for non-autonomous `f` |
 
 ## Error Handling
 

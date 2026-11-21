@@ -25,10 +25,14 @@ pub type RosenbrockSolution<T, const S: usize> = super::Solution<T, S, 1>;
 /// Each step solves:
 ///
 /// ```text
-/// (I/(hγ) − J) k_i = f(t + α_i h, y + Σ a_ij k_j) + Σ (c_ij/h) k_j
+/// (I/(hγ) − J) k_i = f(t + α_i h, y + Σ a_ij k_j) + Σ (c_ij/h) k_j + h γ_i ∂f/∂t
 /// ```
 ///
-/// where `J = ∂f/∂y` is factored once per step via LU decomposition.
+/// where `J = ∂f/∂y` is factored once per step via LU decomposition and
+/// `γ_i` are the row sums of Γ ([`Self::GAMMA_SUM`]). The `∂f/∂t` term keeps
+/// the method at full order on non-autonomous problems; it is estimated once
+/// per step by a forward difference in `t` (one extra evaluation of `f`), as
+/// `rodas.f` does when no analytic time derivative is supplied.
 /// The solution is `y_{n+1} = y_n + Σ m_i k_i` and the error estimate
 /// is `err = Σ (m_i − m̂_i) k_i`.
 pub trait Rosenbrock<const STAGES: usize> {
@@ -40,7 +44,8 @@ pub trait Rosenbrock<const STAGES: usize> {
     const GAMMA_DIAG: f64;
     /// Time offsets for each stage.
     const ALPHA: [f64; STAGES];
-    /// Row sums of the full Γ matrix (diagonal + off-diagonal).
+    /// Row sums of the full Γ matrix (diagonal + off-diagonal) — the weights
+    /// `γ_i` of the `h γ_i ∂f/∂t` term in each stage equation.
     const GAMMA_SUM: [f64; STAGES];
     /// Solution weights (higher-order).
     const M: [f64; STAGES];
@@ -214,6 +219,19 @@ where
             }
         };
 
+        // Time derivative ∂f/∂t at (t, y), by forward difference with the
+        // step rodas.f uses (IDFX = 0): δ = √(ε · max(1e-5, |t|)). Without
+        // the h γ_i ∂f/∂t stage term below, a non-autonomous f degrades the
+        // method to order 1 (it becomes a W-method missing J's t-column).
+        let dfdt = {
+            let delta = (T::epsilon() * t.abs().max(T::from(1.0e-5).unwrap())).sqrt();
+            let t_pert = t + delta;
+            // Divide by the step actually taken: (t + δ) − t is exact, δ is not.
+            let delta = t_pert - t;
+            nevals += 1;
+            (f(t_pert, &y) - fy) * (one / delta)
+        };
+
         // Form W = I/(hγ) − J and LU-factorize
         for i in 0..S {
             for j in 0..S {
@@ -228,8 +246,9 @@ where
 
         // Compute stages k_1, ..., k_STAGES
         //
-        // Stage formula (Hairer & Wanner, rodas.f):
+        // Stage formula (Hairer & Wanner II eq. IV.7.4', rodas.f):
         //   (I/(hγ) − J) k_i = f(t + α_i h, y + Σ a_ij k_j) + Σ (c_ij/h) k_j
+        //                      + h γ_i ∂f/∂t
         //
         // The C coefficients couple stages directly (no J multiplication).
         // Solution: y_{n+1} = y_n + Σ m_i k_i
@@ -264,6 +283,12 @@ where
                         rhs += karr[jj] * (c_ij * inv_h);
                     }
                 }
+            }
+
+            // + h γ_i ∂f/∂t (exactly zero for autonomous f: f(t+δ, y) == f(t, y))
+            let gamma_i = T::from(R::GAMMA_SUM[i]).unwrap();
+            if gamma_i != zero {
+                rhs += dfdt * (h * gamma_i);
             }
 
             // Solve W k_i = rhs
