@@ -71,7 +71,7 @@ cargo build --features "imageproc,rayon"
 SIMD is **always-on** for `f32` and `f64` — no feature flag required.
 
 - **aarch64**: NEON intrinsics, always available
-- **x86_64**: SSE2 always available; AVX and AVX-512 via compiler flags, or at runtime with the `runtime-dispatch` feature
+- **x86_64**: SSE2 always available; AVX + FMA and AVX-512 via compiler flags, or at runtime with the `runtime-dispatch` feature
 
 To enable AVX/AVX-512 on x86_64 at compile time:
 
@@ -80,8 +80,8 @@ To enable AVX/AVX-512 on x86_64 at compile time:
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 # Or explicitly
-RUSTFLAGS="-C target-feature=+avx2" cargo build --release           # AVX tier
-RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release  # AVX-512 tier
+RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release           # AVX tier
+RUSTFLAGS="-C target-feature=+avx2,+fma,+avx512f" cargo build --release  # AVX-512 tier
 ```
 
 For one binary that must run on many machines (a CLI, a Python wheel), enable `runtime-dispatch`
