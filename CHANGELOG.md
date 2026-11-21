@@ -3,8 +3,20 @@
 ## 0.7.0
 
 Runtime SIMD dispatch, and an MSRV bump to 1.89 that it needs — hence the minor
-bump. No public API changes.
+bump. No public API changes. Also the first published release with the RODAS4
+fix (0.6.1 was never published; its entry is folded in here).
 
+- **Fix: RODAS4 lost its order on non-autonomous problems** ([#46](https://github.com/ssmichael1/numeris/issues/46)).
+  The Rosenbrock stage equation was missing the `h γ_i ∂f/∂t` term
+  (Hairer & Wanner II, eq. IV.7.4'), so whenever `f` depended on `t` the method
+  behaved as a first-order W-method. Fixed-step errors on a forced pendulum go from
+  first-order (1.1e-4 at 128 steps) to fourth-order (1.6e-12); in adaptive mode a
+  1e-10 tolerance now takes 131 steps instead of 62,422, and the result actually
+  meets it. `∂f/∂t` is estimated once per step by a forward difference in `t` (as
+  `rodas.f` does without an analytic derivative), costing one extra evaluation of
+  `f` per step. `Rosenbrock::GAMMA_SUM`, previously declared but unused, now
+  supplies the `γ_i`. Autonomous problems give the same results as before, apart
+  from that extra evaluation. Thanks to @rcgiri-physics for the report and analysis.
 - **New `runtime-dispatch` feature — runtime SIMD tier selection on x86_64.**
   Until now the AVX / AVX-512 kernels were only compiled when the matching
   target feature was enabled crate-wide (`-C target-cpu=native`), which is
@@ -71,20 +83,6 @@ bump. No public API changes.
   inverse statement is corrected to hold for every length, and the module
   rustdoc no longer claims `DynFft::new` returns `FftError` (it panics on a
   zero length).
-
-## 0.6.1
-
-- **Fix: RODAS4 lost its order on non-autonomous problems** ([#46](https://github.com/ssmichael1/numeris/issues/46)).
-  The Rosenbrock stage equation was missing the `h γ_i ∂f/∂t` term
-  (Hairer & Wanner II, eq. IV.7.4'), so whenever `f` depended on `t` the method
-  behaved as a first-order W-method. Fixed-step errors on a forced pendulum go from
-  first-order (1.1e-4 at 128 steps) to fourth-order (1.6e-12); in adaptive mode a
-  1e-10 tolerance now takes 131 steps instead of 62,422, and the result actually
-  meets it. `∂f/∂t` is estimated once per step by a forward difference in `t` (as
-  `rodas.f` does without an analytic derivative), costing one extra evaluation of
-  `f` per step. `Rosenbrock::GAMMA_SUM`, previously declared but unused, now
-  supplies the `γ_i`. Autonomous problems give the same results as before, apart
-  from that extra evaluation. Thanks to @rcgiri-physics for the report and analysis.
 
 ## 0.6.0
 
