@@ -59,6 +59,20 @@ bump. No public API changes.
   rustdoc no longer claims `DynFft::new` returns `FftError` (it panics on a
   zero length).
 
+## 0.6.1
+
+- **Fix: RODAS4 lost its order on non-autonomous problems** ([#46](https://github.com/ssmichael1/numeris/issues/46)).
+  The Rosenbrock stage equation was missing the `h γ_i ∂f/∂t` term
+  (Hairer & Wanner II, eq. IV.7.4'), so whenever `f` depended on `t` the method
+  behaved as a first-order W-method. Fixed-step errors on a forced pendulum go from
+  first-order (1.1e-4 at 128 steps) to fourth-order (1.6e-12); in adaptive mode a
+  1e-10 tolerance now takes 131 steps instead of 62,422, and the result actually
+  meets it. `∂f/∂t` is estimated once per step by a forward difference in `t` (as
+  `rodas.f` does without an analytic derivative), costing one extra evaluation of
+  `f` per step. `Rosenbrock::GAMMA_SUM`, previously declared but unused, now
+  supplies the `γ_i`. Autonomous problems give the same results as before, apart
+  from that extra evaluation. Thanks to @rcgiri-physics for the report and analysis.
+
 ## 0.6.0
 
 The FFT module (0.5.20 and 0.5.21 below were never published; their entries are
