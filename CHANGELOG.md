@@ -44,6 +44,19 @@ bump. No public API changes.
   files and two `fft` helpers now use `as_chunks::<N>()`, whose `[T; N]` element
   type states the width the SAFETY arguments rely on; the shared kernel macros
   keep `chunks_exact($lanes)`, which the lint does not reach).
+- **AVX and AVX-512 tiers now fuse every multiply-add.** The AVX kernels used a
+  separate `mul` + `add`; `dot`, the matmul micro-kernels, AXPY and `conv1d` now
+  use `fmadd` / `fnmadd` (AVX-512 already fused its matmul; its `dot`, AXPY and
+  `conv1d` now do too). One instruction and one rounding per multiply-add — a
+  real throughput gain where the accumulators live in registers (matmul, `conv1d`,
+  `dot`), noise on the bandwidth-bound element-wise kernels; NEON has always
+  fused, so results already varied by platform within the tests' tolerances. The
+  AVX tier therefore requires the `fma` feature alongside `avx` — as a compile-time
+  floor (`-C target-feature=+avx2,+fma`, which `x86-64-v3` and `target-cpu=native`
+  on any Haswell+/Zen include) and in the runtime probe. Every AVX2 CPU has FMA;
+  the AVX-only Sandy / Ivy Bridge parts (2011–2013) now take the SSE2 tier. The
+  shared `_fma` kernel macros (written for NEON's accumulator-first `vfmaq`) serve
+  the x86 tiers through two tiny accumulator-first adapters per file.
 - **CI**: a `runtime-dispatch` job tests the feature on the baseline x86_64
   target (no `target-cpu` flag) so the probe path is exercised, alongside the
   existing `x86-64-v3` matrix where the compile-time floor is AVX2.

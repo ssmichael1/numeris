@@ -25,12 +25,20 @@ are eliminated at monomorphization).
 |---|---|---|---|---|---|
 | aarch64 | NEON | 128-bit | 8×4 | 8×4 | yes |
 | x86_64 | SSE2 | 128-bit | 4×4 | 8×4 | no (SSE2 has no FMA) |
-| x86_64 | AVX | 256-bit | 8×4 | 16×4 | no |
-| x86_64 | AVX-512F | 512-bit | 16×4 | 32×4 | matmul only |
+| x86_64 | AVX + FMA | 256-bit | 8×4 | 16×4 | yes |
+| x86_64 | AVX-512F | 512-bit | 16×4 | 32×4 | yes |
 | other | scalar | — | 4×4 | 4×4 | — |
 
 NEON and SSE2 are the architectural baselines of their targets and are always available. The AVX
 and AVX-512 tiers must be *selected*, either at compile time or at runtime.
+
+!!! note "Why the AVX tier requires FMA"
+    Every multiply-add in the AVX and AVX-512 kernels is fused (`vfmadd`): one instruction and one
+    rounding instead of two. Rust never contracts a separate multiply and add into an FMA on its
+    own — even under `target-cpu=native` — because it changes rounding, so fusion is explicit in
+    the kernels, and the tier that contains it must require the `fma` feature. Every AVX2 CPU
+    (Intel Haswell / AMD Zen 1 and later) has FMA. The AVX-only Sandy Bridge and Ivy Bridge parts
+    (2011–2013) take the SSE2 tier instead. AVX-512F implies FMA.
 
 ## Compile-time selection (default)
 
@@ -39,8 +47,8 @@ target-feature` (or `-C target-cpu`) enables for the whole build is what the dis
 
 ```bash
 RUSTFLAGS="-C target-cpu=native" cargo build --release                   # widest the build host has
-RUSTFLAGS="-C target-feature=+avx2" cargo build --release           # AVX tier
-RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release  # AVX-512 tier
+RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release           # AVX tier (x86-64-v3)
+RUSTFLAGS="-C target-feature=+avx2,+fma,+avx512f" cargo build --release  # AVX-512 tier
 ```
 
 With no flags, an x86_64 build uses SSE2 everywhere. This is the right default for code built on
@@ -69,7 +77,7 @@ What changes:
    functions regardless of the crate-wide target. Tiers the build never selects are dead code and
    are dropped by the linker.
 2. **A one-time probe picks the tier.** On the first kernel call, `std::is_x86_feature_detected!`
-   checks `avx512f`, then `avx`. The macro includes the OS state-save check (`xgetbv`), so
+   checks `avx512f`, then `avx` + `fma`. The macro includes the OS state-save check (`xgetbv`), so
    a kernel that has not enabled ZMM state correctly reports the lower tier. The result is cached
    in a single byte; every later call is one relaxed load and a compare.
 3. **The compile-time features remain a floor.** The probe can only raise the tier, never lower
@@ -82,8 +90,8 @@ baseline; there are no wider kernels) or in no-std builds (the feature needs `st
 !!! warning "Results can differ between machines"
     Without runtime dispatch, a given build produces bit-identical results wherever it runs. With
     it, the same binary may take a different tier on different CPUs, and the tiers do not round
-    identically: the AVX-512 matmul fuses each multiply-add into one rounding where SSE2 and AVX
-    multiply then add, and each tier reduces a dot product in a different order. The differences are at the level of
+    identically: SSE2 multiplies then adds, while AVX and AVX-512 fuse the two into one rounding,
+    and each tier reduces a dot product in a different order. The differences are at the level of
     floating-point round-off (the crate's own tests compare tiers against a scalar reference with
     tolerances of about `1e-12` for `f64` and `1e-4` for `f32`), but they are real. If you compare
     outputs across machines, or store expected values from one machine and check them on another,
@@ -115,10 +123,10 @@ compared against `std`'s detection.
 ## Tier notes
 
 **SSE2.** The x86_64 baseline. No FMA, 128-bit registers. What a default x86_64 build uses, and
-what a CPU without AVX falls back to under runtime dispatch.
+what the AVX-only Sandy / Ivy Bridge generation falls back to under runtime dispatch.
 
-**AVX.** Every CPU from Intel Sandy Bridge and AMD Bulldozer (2011) onward. The main beneficiary
-of runtime dispatch — most x86_64 machines in service land here.
+**AVX + FMA.** Every CPU from Intel Haswell (2013) and AMD Zen 1 (2017) onward; the `x86-64-v3`
+level. The main beneficiary of runtime dispatch — most x86_64 machines in service land here.
 
 **AVX-512F.** The probe checks only `avx512f`; the kernels use no DQ / BW / VL extensions.
 Available on Intel server parts since Skylake-SP, some Intel laptop parts (Ice Lake through Raptor
@@ -143,7 +151,7 @@ The mechanism rests on a few properties of `#[target_feature]` that are easy to 
 - **The attribute goes on the kernels, not the dispatcher.** An intrinsic called from a function
   that lacks its feature cannot be inlined, so the whole kernel body must sit inside an attributed
   function. The kernels were already self-contained `fn`s, so the change was one attribute per
-  kernel (the shared kernel macros take a `@feature "avx"` argument and emit it).
+  kernel (the shared kernel macros take a `@feature "avx,fma"` argument and emit it).
 - **Safe kernels need Rust 1.86; AVX-512 intrinsics need 1.89.** Before 1.86 a `#[target_feature]`
   function had to be `unsafe fn`, which would have forced a `# Safety` section onto every kernel.
   Hence the crate's MSRV of **1.89** (see [Design](design.md#avoiding-unstable-features)).
